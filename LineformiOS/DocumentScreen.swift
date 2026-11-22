@@ -181,7 +181,11 @@ struct DocumentScreen: View {
         .sheet(isPresented: $isShowingFiles) {
             FileListSheet(document: document)
         }
-        .sheet(isPresented: $isShowingStyling) {
+        .sheet(isPresented: $isShowingStyling, onDismiss: {
+            // A Reconnect tapped on the page beside the open sheet waits for it to close: a view
+            // already presenting cannot present the image picker too.
+            if reconnectRange != nil, !isPickingReconnectImage { isPickingReconnectImage = true }
+        }) {
             // The live profile's theme: the sheet recolours as a preset is picked.
             StylingSheet(store: profileStore)
                 .stylingSheetChrome(theme: Theme.theme(for: profile))
@@ -284,7 +288,11 @@ extension DocumentScreen {
             onImageReconnect: { range, renderedFrom in
                 reconnectRange = range
                 reconnectRenderedText = renderedFrom
-                isPickingReconnectImage = true
+                if isShowingStyling {
+                    isShowingStyling = false
+                } else {
+                    isPickingReconnectImage = true
+                }
             },
             // One undo history in every mode: the editor's, which applied the Read edits.
             undoManager: { [positionKeeper] in positionKeeper.editor?.undoManager },

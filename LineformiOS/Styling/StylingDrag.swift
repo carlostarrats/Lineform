@@ -14,20 +14,55 @@ import LineformCore
 /// drag ends, `didEndNotification` runs the assists and the render once, on the final value.
 @MainActor
 enum StylingDrag {
-    /// True while a Styling sheet slider is held.
-    private(set) static var isActive = false
+    /// Sliders held right now; two can be held at once.
+    private(set) static var activeCount = 0
+    /// True from the last release until the end is posted (one main-queue turn later).
+    private static var isEnding = false
+    /// Bumped by every `begin`, so an end scheduled before a new drag never ends that drag.
+    private static var generation = 0
 
-    /// Posted when a drag ends, after the final value is in the store.
+    /// True while a Styling sheet slider is held, and for one main-queue turn after the last one
+    /// is released.
+    static var isActive: Bool { activeCount > 0 || isEnding }
+
+    /// Posted when the last drag ends, once the final value has reached the views.
     static let didEndNotification = Notification.Name("LineformStylingDragDidEnd")
 
     static func begin() {
-        isActive = true
+        activeCount += 1
+        generation += 1
+        isEnding = false
     }
 
     static func end() {
-        guard isActive else { return }
-        isActive = false
-        NotificationCenter.default.post(name: didEndNotification, object: nil)
+        guard activeCount > 0 else { return }
+        activeCount -= 1
+        finishIfIdle()
+    }
+
+    /// Ends every drag: the sheet went away, or the app resigned active mid-drag (an interrupted
+    /// touch may never report its end).
+    static func endAll() {
+        guard activeCount > 0 else { return }
+        activeCount = 0
+        finishIfIdle()
+    }
+
+    /// The store's final write reaches the editor and the Read view on SwiftUI's next update, not
+    /// during the write. So the end waits one main-queue turn: the views' last `apply` is still
+    /// deferred, and the notification then catches them up once, on the final value.
+    private static func finishIfIdle() {
+        guard activeCount == 0 else { return }
+        isEnding = true
+        let token = generation
+        DispatchQueue.main.async {
+            MainActor.assumeIsolated {
+                guard generation == token else { return }
+                isEnding = false
+                guard activeCount == 0 else { return }
+                NotificationCenter.default.post(name: didEndNotification, object: nil)
+            }
+        }
     }
 }
 
@@ -76,5 +111,11 @@ final class ProfileUpdateCoalescer {
     func endDrag() {
         flush()
         StylingDrag.end()
+    }
+
+    /// Lands any pending value and ends every drag (the sheet went away, the app resigned active).
+    func endAllDrags() {
+        flush()
+        StylingDrag.endAll()
     }
 }

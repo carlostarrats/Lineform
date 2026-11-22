@@ -13,7 +13,8 @@ final class StylingPerformanceTests: XCTestCase {
     private var window: UIWindow?
 
     override func tearDown() {
-        StylingDrag.end()
+        StylingDrag.endAll()
+        Self.spinMainQueue()
         window?.isHidden = true
         window = nil
         super.tearDown()
@@ -39,7 +40,39 @@ final class StylingPerformanceTests: XCTestCase {
         coalescer.submit(to: store) { $0.fontSize = 30 }
         coalescer.endDrag()
         XCTAssertEqual(store.activeProfile.fontSize, 30, "the drag's end lands the pending value at once")
+        XCTAssertTrue(StylingDrag.isActive, "still deferred for one turn, so the views' last update waits")
+        Self.spinMainQueue()
         XCTAssertFalse(StylingDrag.isActive)
+    }
+
+    /// Two sliders held at once: releasing one keeps the deferral until the other is released.
+    func testTwoDragsStayActiveUntilBothEnd() {
+        var posts = 0
+        let observer = NotificationCenter.default.addObserver(
+            forName: StylingDrag.didEndNotification, object: nil, queue: nil
+        ) { _ in posts += 1 }
+        defer { NotificationCenter.default.removeObserver(observer) }
+
+        StylingDrag.begin()
+        StylingDrag.begin()
+        StylingDrag.end()
+        Self.spinMainQueue()
+        XCTAssertTrue(StylingDrag.isActive)
+        XCTAssertEqual(posts, 0)
+
+        StylingDrag.end()
+        Self.spinMainQueue()
+        XCTAssertFalse(StylingDrag.isActive)
+        XCTAssertEqual(posts, 1)
+    }
+
+    /// A new drag begun before a previous end is posted is not ended by it.
+    func testNewDragIsNotEndedByAnEarlierRelease() {
+        StylingDrag.begin()
+        StylingDrag.end()
+        StylingDrag.begin()
+        Self.spinMainQueue()
+        XCTAssertTrue(StylingDrag.isActive)
     }
 
     func testSubmitWithoutDragAppliesAtOnce() {
@@ -73,6 +106,7 @@ final class StylingPerformanceTests: XCTestCase {
         XCTAssertTrue(editor.readingRulerView?.isHidden ?? true)
 
         StylingDrag.end()
+        Self.spinMainQueue()
         XCTAssertFalse(editor.readingRulerView?.isHidden ?? true, "the ruler comes back at the drag's end")
     }
 
@@ -90,7 +124,14 @@ final class StylingPerformanceTests: XCTestCase {
         reader.apply(text: text, profile: profile, documentDirectory: nil)
         XCTAssertEqual(reader.state.renderedProfile?.fontSize, ReadingProfile.original.fontSize)
 
+        // The release lands the final value; SwiftUI hands it to the view after the release, in
+        // the same turn. It must still wait, so the catch-up renders once, on the final value.
         StylingDrag.end()
+        profile.fontSize = 26
+        reader.apply(text: text, profile: profile, documentDirectory: nil)
+        XCTAssertEqual(reader.state.renderedProfile?.fontSize, ReadingProfile.original.fontSize)
+
+        Self.spinMainQueue()
         XCTAssertEqual(reader.state.renderedProfile, profile)
     }
 
@@ -185,6 +226,11 @@ final class StylingPerformanceTests: XCTestCase {
     }
 
     // MARK: - Helpers
+
+    /// Runs the main queue until work queued so far (the drag's delayed end) has run.
+    static func spinMainQueue() {
+        RunLoop.main.run(until: Date().addingTimeInterval(0.05))
+    }
 
     static func makeStore() -> (ReadingProfileStore, String) {
         let suite = "StylingPerformanceTests.\(UUID().uuidString)"

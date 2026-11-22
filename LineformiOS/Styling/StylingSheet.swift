@@ -138,7 +138,11 @@ struct StylingSheet: View {
         .foregroundStyle(Color(uiColor: theme.textColor))
         // A sheet dismissed mid-drag never reports the drag's end: end it here, or the Read view
         // would wait for it.
-        .onDisappear { coalescer.endDrag() }
+        .onDisappear { coalescer.endAllDrags() }
+        // An interrupted touch (a call, Control Center) may never report its end.
+        .onReceive(NotificationCenter.default.publisher(for: UIApplication.willResignActiveNotification)) { _ in
+            coalescer.endAllDrags()
+        }
     }
 
     private var header: some View {
@@ -266,5 +270,8 @@ extension View {
             .presentationDragIndicator(.visible)
             .presentationBackgroundInteraction(StylingSheet.backgroundInteraction)
             .environment(\.colorScheme, StylingSheet.colorScheme(for: theme))
+            // The presentation's own chrome (the grabber, the Font menu) follows the theme too,
+            // not the phone's appearance.
+            .preferredColorScheme(StylingSheet.colorScheme(for: theme))
     }
 }

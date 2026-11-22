@@ -322,7 +322,9 @@ Roadmap step 7 (plan `2026-11-22-iphone-styling-sheet.md` in the Lineform-mobile
 - **Sheet.** Page-coloured from the live profile's theme, corner radius `LineformDesign.Radius.modal`
   (20), detents medium and large, drag indicator, colour scheme forced from
   `Theme.usesDarkChrome` (never the system appearance). The page behind the medium detent is not
-  dimmed and stays usable, so every change shows live.
+  dimmed and stays usable, so every change shows live. A Reconnect tapped there closes the sheet
+  first, then opens the image picker (one view cannot present both). The sheet also sets
+  `preferredColorScheme`, so its grabber and the Font menu follow the theme too.
 - **Controls.** The Mac panel (`ReadingExperiencePopover.swift`), in its order and with its values:
   header "Reading"; "Themes" with the six preset cards in three columns; Font (the available
   grouped options, so Comic Sans, a Mac system font, never shows; a retired font shows the
@@ -350,8 +352,13 @@ Roadmap step 7 (plan `2026-11-22-iphone-styling-sheet.md` in the Lineform-mobile
   - `LineformReadView.apply` keeps the newest profile without rendering it or changing its
     insets.
 
-  When the drag ends, the final value lands, then `StylingDrag.didEndNotification` runs the
-  assists and the render once. A sheet dismissed mid-drag ends the drag in `onDisappear`. What
+  When the last held slider is released (drags are counted, so two fingers work), the final
+  value lands in the store, and the drag stays active for one more main-queue turn: SwiftUI hands
+  that value to the views after the write, so their last update is still deferred. Then
+  `StylingDrag.didEndNotification` runs the assists and the render once, on the final value.
+  While a drag is active the Read view also keeps laying out for the profile it rendered, so a
+  scroll or rotation never re-wraps the old render at a new column. A sheet dismissed mid-drag,
+  or the app resigning active (an interrupted touch may never report its end), ends every drag. What
   remains is the one catch-up at release and the same cost for a preset tap or a toggle on a
   1 MB document in Read. `StylingPerformanceTests` prints the numbers and asserts the structure
   (one store update per turn, no prefix layout during a drag, one render at its end).

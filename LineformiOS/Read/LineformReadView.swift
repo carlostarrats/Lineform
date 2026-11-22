@@ -363,8 +363,15 @@ final class LineformReadView: UITextView {
         return min(EditorReadingLayout.textColumnMaxWidth(for: profile), longestSide)
     }
 
+    /// The profile the on-screen render is laid out for. During a Styling slider drag the newest
+    /// profile waits (`apply`), so a layout pass in the meantime (a scroll, a rotation) keeps the
+    /// rendered profile's column and fit width instead of re-wrapping the old render at new ones.
+    private var layoutProfile: ReadingProfile {
+        (StylingDrag.isActive ? state.renderedProfile : nil) ?? state.profile
+    }
+
     private func updateTextContainerInset() {
-        let side = EditorReadingLayout.horizontalInset(forContainerWidth: bounds.width, profile: state.profile)
+        let side = EditorReadingLayout.horizontalInset(forContainerWidth: bounds.width, profile: layoutProfile)
         let inset = UIEdgeInsets(top: Self.verticalInset, left: side, bottom: Self.verticalInset, right: side)
         if textContainerInset != inset {
             textContainerInset = inset
@@ -376,7 +383,7 @@ final class LineformReadView: UITextView {
     /// image's height is also capped to the visible page (`ImageFit.maxHeight`).
     private func refitBlockAttachments() {
         guard textStorage.length > 0, bounds.width > 1 else { return }
-        let fitWidth = EditorReadingLayout.blockAttachmentFitWidth(forContainerWidth: bounds.width, profile: state.profile)
+        let fitWidth = EditorReadingLayout.blockAttachmentFitWidth(forContainerWidth: bounds.width, profile: layoutProfile)
         let viewportHeight = bounds.height - adjustedContentInset.top - adjustedContentInset.bottom
         let imageMaxHeight = ImageFit.maxHeight(visibleViewportHeight: viewportHeight > 1 ? viewportHeight : bounds.height)
         textStorage.enumerateAttribute(.attachment, in: NSRange(location: 0, length: textStorage.length)) { value, range, _ in
@@ -396,7 +403,7 @@ final class LineformReadView: UITextView {
     /// `tableTabBasisWidth` (each column's share of that width), so they scale by the ratio.
     private func refitTableRows() {
         guard textStorage.length > 0, bounds.width > 1, state.tableTabBasisWidth > 0 else { return }
-        let fitWidth = EditorReadingLayout.blockAttachmentFitWidth(forContainerWidth: bounds.width, profile: state.profile)
+        let fitWidth = EditorReadingLayout.blockAttachmentFitWidth(forContainerWidth: bounds.width, profile: layoutProfile)
         guard fitWidth > 0, abs(fitWidth - state.tableTabBasisWidth) > 0.5 else { return }
         let ratio = fitWidth / state.tableTabBasisWidth
         var restyled: [(NSRange, NSParagraphStyle)] = []
