@@ -201,7 +201,7 @@ final class OpenDocumentTests: XCTestCase {
 
         XCTAssertEqual(document.text, "Local copy", "the local copy opens without waiting")
         XCTAssertEqual(document.url, url)
-        XCTAssertEqual(cloud.startedURLs, [url], "the download request still runs")
+        try await waitUntil { cloud.startedURLs == [url] }
         try await waitUntil { document.text == "Current version" }
         observer.cancel()
         XCTAssertFalse(sawDownloading, "no downloading state for a file with a local copy")
@@ -225,6 +225,48 @@ final class OpenDocumentTests: XCTestCase {
         }
         XCTAssertNil(document.downloadingName)
         XCTAssertNil(document.url)
+    }
+
+    /// The current version lands while the open is still reading the outdated local copy. The
+    /// open watches the file before it asks for the download, so that version is never missed.
+    func testCurrentVersionArrivingWhileOpeningIsNotMissed() async throws {
+        let url = try write("Local copy", named: "Racing.md")
+        let cloud = FakeUbiquitousItems(outdated: [url], arrivingText: "Current version", deliversImmediately: true)
+        let reader = GatedReader()
+        let document = OpenDocument(folderProvider: { [folder] in folder! }, reader: reader, ubiquitousItems: cloud)
+        reader.holdNextRead()
+
+        let opening = Task { try await document.open(url) }
+        try await waitUntil { reader.isHolding }
+        // If the download were already running, the new version would land here, unwatched.
+        try await Task.sleep(for: .milliseconds(200))
+        reader.release()
+        try await opening.value
+
+        try await waitUntil { document.text == "Current version" }
+        XCTAssertEqual(document.lastSyncedText, "Current version")
+        XCTAssertEqual(cloud.startedURLs, [url])
+    }
+
+    /// A download request that fails after a newer action took over is reported as superseded,
+    /// not as the file being unreadable.
+    func testDownloadFailureAfterSupersedingIsSuperseded() async throws {
+        let real = folder.appendingPathComponent("Fails.md")
+        let cloud = FakeUbiquitousItems(pending: [real], arrivingText: nil, failsToStart: true, hold: .startDownloading)
+        let document = makeDocument(ubiquitousItems: cloud)
+
+        let opening = Task { try await document.open(real) }
+        try await waitUntil { cloud.isHolding }
+        await document.newDocument()
+        cloud.release()
+
+        do {
+            try await opening.value
+            XCTFail("the open was superseded")
+        } catch {
+            XCTAssertEqual(error as? OpenDocument.OpenError, .superseded)
+        }
+        XCTAssertNil(document.downloadingName)
     }
 
     // MARK: - Moved elsewhere
@@ -305,24 +347,57 @@ final class OpenDocumentTests: XCTestCase {
 /// Stands in for iCloud. `pending` files have no local copy until a download is started; then,
 /// a moment later, the file "arrives" with `arrivingText` (or never, when it is nil). `outdated`
 /// files have a full local copy that is not current; when the download is started, the current
-/// version arrives a moment later as a coordinated write, as iCloud would deliver it.
+/// version arrives as a coordinated write, as iCloud would deliver it: a moment later, or at once
+/// with `deliversImmediately`.
+///
+/// For ordering tests it can hold the first `downloadState` check or the `startDownloading` call
+/// until `release()`, and make `startDownloading` throw.
 final class FakeUbiquitousItems: UbiquitousItemAccessing, @unchecked Sendable {
+    enum Hold { case none, firstStateCheck, startDownloading }
+
     private let lock = NSLock()
     private var pending: Set<URL>
     private var outdated: Set<URL>
     private var started: [URL] = []
     private let arrivingText: String?
+    private let deliversImmediately: Bool
+    private let failsToStart: Bool
+    private var hold: Hold
+    private var holding = false
+    private let gate = DispatchSemaphore(value: 0)
 
-    init(pending: Set<URL> = [], outdated: Set<URL> = [], arrivingText: String?) {
+    init(
+        pending: Set<URL> = [], outdated: Set<URL> = [], arrivingText: String?,
+        deliversImmediately: Bool = false, failsToStart: Bool = false, hold: Hold = .none
+    ) {
         self.pending = Set(pending.map(\.standardizedFileURL))
         self.outdated = Set(outdated.map(\.standardizedFileURL))
         self.arrivingText = arrivingText
+        self.deliversImmediately = deliversImmediately
+        self.failsToStart = failsToStart
+        self.hold = hold
     }
 
     var startedURLs: [URL] { lock.withLock { started } }
+    var isHolding: Bool { lock.withLock { holding } }
+    func release() { gate.signal() }
+
+    /// Waits at the gate once, if `point` is the hold this fake was set up with.
+    private func holdIfNeeded(at point: Hold) {
+        let shouldHold = lock.withLock { () -> Bool in
+            guard hold == point, point != .none else { return false }
+            hold = .none
+            holding = true
+            return true
+        }
+        guard shouldHold else { return }
+        gate.wait()
+        lock.withLock { holding = false }
+    }
 
     func downloadState(_ url: URL) -> UbiquitousDownloadState {
-        lock.withLock {
+        holdIfNeeded(at: .firstStateCheck)
+        return lock.withLock {
             let key = url.standardizedFileURL
             if pending.contains(key) { return .notDownloaded }
             if outdated.contains(key) { return .localCopyNotCurrent }
@@ -335,8 +410,10 @@ final class FakeUbiquitousItems: UbiquitousItemAccessing, @unchecked Sendable {
             started.append(url)
             return outdated.contains(url.standardizedFileURL)
         }
+        holdIfNeeded(at: .startDownloading)
+        if failsToStart { throw CocoaError(.ubiquitousFileUnavailable) }
         guard let arrivingText else { return }
-        DispatchQueue.global().asyncAfter(deadline: .now() + 0.3) { [self] in
+        let deliver = { [self] in
             if wasOutdated {
                 var error: NSError?
                 NSFileCoordinator(filePresenter: nil)
@@ -351,6 +428,11 @@ final class FakeUbiquitousItems: UbiquitousItemAccessing, @unchecked Sendable {
                 .appendingPathComponent("." + url.lastPathComponent + ".icloud")
             try? FileManager.default.removeItem(at: placeholder)
             _ = lock.withLock { pending.remove(url.standardizedFileURL) }
+        }
+        if deliversImmediately {
+            deliver()
+        } else {
+            DispatchQueue.global().asyncAfter(deadline: .now() + 0.3) { deliver() }
         }
     }
 }

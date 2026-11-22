@@ -76,6 +76,8 @@ final class OpenDocument {
     /// Bumped by every open and New Document, so an open still reading or downloading can tell
     /// that something newer took over.
     @ObservationIgnored private var openGeneration = 0
+    /// How many opens are between their start and their end. The launch restore gives way to any.
+    @ObservationIgnored private var opensInFlight = 0
     /// Bumped whenever `lastSyncedText` is set (open, our own save, a reload, a detach), so a
     /// reload read that was in flight meanwhile can tell its snapshot is stale.
     @ObservationIgnored private var syncGeneration = 0
@@ -223,9 +225,21 @@ final class OpenDocument {
     /// `open`; with `onlyIntoUntouchedDocument` (the launch restore), the file opens only if the
     /// writer has not typed or opened anything while it was being read.
     private func open(_ requestedURL: URL, onlyIntoUntouchedDocument: Bool) async throws {
+        // The launch restore never takes over from an open the writer started: it gives up
+        // without touching `openGeneration`.
+        if onlyIntoUntouchedDocument, opensInFlight > 0 || downloadingName != nil {
+            throw OpenError.superseded
+        }
         let url = Self.realURL(for: requestedURL)
         openGeneration += 1
         let generation = openGeneration
+        opensInFlight += 1
+        defer { opensInFlight -= 1 }
+        /// True when the restore must leave the document alone: the writer typed or opened something.
+        func restoreMustYield() -> Bool {
+            onlyIntoUntouchedDocument && (self.url != nil || !text.isEmpty)
+        }
+        var startsDownloadAfterWatching = false
         let didAccess = url.startAccessingSecurityScopedResource()
         var keepsScope = false
         defer { if didAccess, !keepsScope { url.stopAccessingSecurityScopedResource() } }
@@ -236,21 +250,26 @@ final class OpenDocument {
             break
         case .localCopyNotCurrent:
             // A full local copy is here (offline, or a newer version is on its way): open it at
-            // once. The download keeps running, and when the current version lands the watcher
-            // and `DocumentReloadPolicy` bring it in like any external change.
-            Task.detached { try? items.startDownloading(url) }
+            // once. The download starts once the file is watched, so the current version is
+            // brought in by the watcher and `DocumentReloadPolicy` like any external change.
+            startsDownloadAfterWatching = true
         case .notDownloaded:
             guard generation == openGeneration else { throw OpenError.superseded }
+            // A restore never puts away a document the writer has typed into.
+            if restoreMustYield() { throw OpenError.superseded }
             // The download can take a while: save and put away the current document first, so
             // nothing typed meanwhile can be lost, and show the downloading state in its place.
             guard await flush() else { throw OpenError.currentDocumentNotSaved }
             guard generation == openGeneration else { throw OpenError.superseded }
+            if restoreMustYield() { throw OpenError.superseded }
             closeCurrentDocument()
             downloadingName = url.lastPathComponent
             do {
                 try await Task.detached(operation: { try items.startDownloading(url) }).value
             } catch {
-                if generation == openGeneration { downloadingName = nil }
+                // A failure after a newer action took over is that action's business.
+                guard generation == openGeneration else { throw OpenError.superseded }
+                downloadingName = nil
                 throw OpenError.unreadable(url)
             }
             // Wait only until a local copy exists; a newer version then arrives as a reload.
@@ -268,11 +287,12 @@ final class OpenDocument {
             downloadingName = nil
             throw OpenError.unreadable(url)
         }
-        if onlyIntoUntouchedDocument, self.url != nil || !text.isEmpty { throw OpenError.superseded }
+        if restoreMustYield() { throw OpenError.superseded }
 
         // The document being replaced keeps what was typed into it, including while the read ran.
         guard await flush() else { throw OpenError.currentDocumentNotSaved }
         guard generation == openGeneration else { throw OpenError.superseded }
+        if restoreMustYield() { throw OpenError.superseded }
         closeCurrentDocument()
         if didAccess {
             securityScopedURL = url
@@ -284,6 +304,12 @@ final class OpenDocument {
         setLastSyncedText(diskText)
         planner = AutosavePlanner(existingFileName: url.lastPathComponent, isNamedFromFirstLine: false)
         startWatching(url)
+        if startsDownloadAfterWatching {
+            Task.detached { try? items.startDownloading(url) }
+            // A version that landed between the read and the watch is not announced to the new
+            // watcher: check disk once now that it is watched.
+            scheduleReload()
+        }
     }
 
     /// Starts a blank Untitled document, after saving whatever the current one has not saved yet.
@@ -292,7 +318,10 @@ final class OpenDocument {
     @discardableResult
     func newDocument() async -> Bool {
         openGeneration += 1
+        let generation = openGeneration
         guard await flush() else { return false }
+        // An open the writer started after this, which finished during the save, stays.
+        guard generation == openGeneration else { return false }
         closeCurrentDocument()
         return true
     }

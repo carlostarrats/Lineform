@@ -474,14 +474,79 @@ final class AutosaveTests: XCTestCase {
         XCTAssertFalse(OpenDocument.savesImmediately(on: .active))
     }
 
+
+    // MARK: - Open ordering
+
+    /// The launch restore never takes over from an open the writer started.
+    func testRestoreGivesWayToAnOpenInFlight() async throws {
+        let chosen = folder.appendingPathComponent("Chosen.md")
+        try Data("Chosen by the writer".utf8).write(to: chosen)
+        try Data("Restored".utf8).write(to: folder.appendingPathComponent("Restored.md"))
+        let reader = GatedReader()
+        let document = makeDocument(reader: reader)
+        reader.holdNextRead()
+
+        let opening = Task { try await document.open(chosen) }
+        try await waitUntil { reader.isHolding }
+        await document.prepare(restoringStoredPath: "Restored.md")
+        reader.release()
+        try await opening.value
+
+        XCTAssertEqual(document.url, chosen)
+        XCTAssertEqual(document.text, "Chosen by the writer")
+    }
+
+    /// The restore waits on iCloud for a file with no local copy; the writer types meanwhile. The
+    /// restore then gives up instead of putting the typed document away.
+    func testRestoreNeverPutsAwayADocumentTypedIntoDuringItsDownloadCheck() async throws {
+        let restored = folder.appendingPathComponent("In iCloud.md")
+        let cloud = FakeUbiquitousItems(pending: [restored], arrivingText: "From iCloud", hold: .firstStateCheck)
+        let document = makeDocument(ubiquitousItems: cloud)
+
+        let preparing = Task { await document.prepare(restoringStoredPath: "In iCloud.md") }
+        try await waitUntil { cloud.isHolding }
+        document.edit("Typed at launch")
+        cloud.release()
+        await preparing.value
+
+        XCTAssertEqual(document.text, "Typed at launch")
+        XCTAssertNil(document.downloadingName)
+        XCTAssertEqual(cloud.startedURLs, [], "the restore did not start a download")
+    }
+
+    /// New Document starts, an open starts after it; whichever finishes its save last, the open
+    /// the writer asked for later is what stays on screen.
+    func testNewDocumentDoesNotCloseAnOpenThatFinishedDuringItsSave() async throws {
+        let other = folder.appendingPathComponent("Later.md")
+        try Data("Opened later".utf8).write(to: other)
+        let folder = self.folder!
+        let gate = DispatchSemaphore(value: 0)
+        let document = OpenDocument(folderProvider: { gate.wait(); return folder })
+        document.edit("Typed first")
+
+        let starting = Task { await document.newDocument() }
+        try await Task.sleep(for: .milliseconds(50))
+        let opening = Task { try await document.open(other) }
+        try await Task.sleep(for: .milliseconds(100))
+        gate.signal()
+        let started = await starting.value
+        try await opening.value
+
+        XCTAssertFalse(started, "New Document gave way to the later open")
+        XCTAssertEqual(document.url, other)
+        XCTAssertEqual(document.text, "Opened later")
+        XCTAssertEqual(try Data(contentsOf: folder.appendingPathComponent("Typed first.md")), Data("Typed first".utf8))
+    }
+
     // MARK: - Helpers
 
     private func makeDocument(
         reader: any DocumentDiskReading = FileSystemDiskReader(),
-        writer: any DocumentFileWriting = FileSystemDocumentWriter()
+        writer: any DocumentFileWriting = FileSystemDocumentWriter(),
+        ubiquitousItems: any UbiquitousItemAccessing = LiveUbiquitousItems()
     ) -> OpenDocument {
         let folder = self.folder!
-        return OpenDocument(folderProvider: { folder }, reader: reader, writer: writer)
+        return OpenDocument(folderProvider: { folder }, reader: reader, writer: writer, ubiquitousItems: ubiquitousItems)
     }
 
     private func preparedDocument(writer: any DocumentFileWriting = FileSystemDocumentWriter()) async -> OpenDocument {
