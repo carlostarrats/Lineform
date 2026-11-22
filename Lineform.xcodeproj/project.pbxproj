@@ -201,8 +201,12 @@
 		1F000041000000000000002E /* MenuSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F000040000000000000002E /* MenuSheet.swift */; };
 		1F000041000000000000002F /* MenuSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F000040000000000000002F /* MenuSection.swift */; };
 		1F0000410000000000000030 /* EditorCommands.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000400000000000000030 /* EditorCommands.swift */; };
-		1F0000410000000000000031 /* MenuFilesPlaceholder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000400000000000000031 /* MenuFilesPlaceholder.swift */; };
 		1F0000410000000000000032 /* MenuSheetTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000400000000000000032 /* MenuSheetTests.swift */; };
+		1F0000410000000000000035 /* FolderView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000400000000000000035 /* FolderView.swift */; };
+		1F0000410000000000000034 /* FilesSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000400000000000000034 /* FilesSection.swift */; };
+		1F0000410000000000000033 /* FilesStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000400000000000000033 /* FilesStore.swift */; };
+		1F0000410000000000000037 /* FilesSectionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000400000000000000037 /* FilesSectionTests.swift */; };
+		1F0000410000000000000036 /* FilesStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000400000000000000036 /* FilesStoreTests.swift */; };
 /* End PBXBuildFile section */
 
  /* Begin PBXContainerItemProxy section */
@@ -429,8 +433,12 @@
  		1F000040000000000000002E /* MenuSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuSheet.swift; sourceTree = "<group>"; };
 		1F000040000000000000002F /* MenuSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuSection.swift; sourceTree = "<group>"; };
 		1F0000400000000000000030 /* EditorCommands.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditorCommands.swift; sourceTree = "<group>"; };
-		1F0000400000000000000031 /* MenuFilesPlaceholder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuFilesPlaceholder.swift; sourceTree = "<group>"; };
 		1F0000400000000000000032 /* MenuSheetTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuSheetTests.swift; sourceTree = "<group>"; };
+		1F0000400000000000000035 /* FolderView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FolderView.swift; sourceTree = "<group>"; };
+		1F0000400000000000000034 /* FilesSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FilesSection.swift; sourceTree = "<group>"; };
+		1F0000400000000000000033 /* FilesStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FilesStore.swift; sourceTree = "<group>"; };
+		1F0000400000000000000037 /* FilesSectionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FilesSectionTests.swift; sourceTree = "<group>"; };
+		1F0000400000000000000036 /* FilesStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FilesStoreTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -761,6 +769,8 @@
 				1F0000400000000000000072 /* StylingSheetTests.swift */,
 				1F0000400000000000000075 /* StylingPerformanceTests.swift */,
 				1F0000400000000000000032 /* MenuSheetTests.swift */,
+				1F0000400000000000000037 /* FilesSectionTests.swift */,
+				1F0000400000000000000036 /* FilesStoreTests.swift */,
 				1F0000400000000000000020 /* EditorConstructionTests.swift */,
 				1F000040000000000000001B /* ReadingAssistsTests.swift */,
 				1F000040000000000000000C /* DocumentLaunchTests.swift */,
@@ -836,7 +846,9 @@
 				1F000040000000000000002E /* MenuSheet.swift */,
 				1F000040000000000000002F /* MenuSection.swift */,
 				1F0000400000000000000030 /* EditorCommands.swift */,
-				1F0000400000000000000031 /* MenuFilesPlaceholder.swift */,
+				1F0000400000000000000035 /* FolderView.swift */,
+				1F0000400000000000000034 /* FilesSection.swift */,
+				1F0000400000000000000033 /* FilesStore.swift */,
 			);
 			path = Menu;
 			sourceTree = "<group>";
@@ -1254,7 +1266,9 @@
 				1F000041000000000000002E /* MenuSheet.swift in Sources */,
 				1F000041000000000000002F /* MenuSection.swift in Sources */,
 				1F0000410000000000000030 /* EditorCommands.swift in Sources */,
-				1F0000410000000000000031 /* MenuFilesPlaceholder.swift in Sources */,
+				1F0000410000000000000035 /* FolderView.swift in Sources */,
+				1F0000410000000000000034 /* FilesSection.swift in Sources */,
+				1F0000410000000000000033 /* FilesStore.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -1273,6 +1287,8 @@
 				1F0000410000000000000072 /* StylingSheetTests.swift in Sources */,
 				1F0000410000000000000075 /* StylingPerformanceTests.swift in Sources */,
 				1F0000410000000000000032 /* MenuSheetTests.swift in Sources */,
+				1F0000410000000000000037 /* FilesSectionTests.swift in Sources */,
+				1F0000410000000000000036 /* FilesStoreTests.swift in Sources */,
 				1F0000410000000000000020 /* EditorConstructionTests.swift in Sources */,
 				1F000041000000000000001B /* ReadingAssistsTests.swift in Sources */,
 				1F000041000000000000000C /* DocumentLaunchTests.swift in Sources */,

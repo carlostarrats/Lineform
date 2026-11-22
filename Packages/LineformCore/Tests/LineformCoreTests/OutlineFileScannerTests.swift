@@ -124,4 +124,42 @@ final class OutlineFileScannerTests: XCTestCase {
     func testMissingRootScansToNothing() {
         XCTAssertEqual(OutlineFileScanner.items(in: root.appendingPathComponent("missing"), showsHidden: false), [])
     }
+
+    // MARK: - iCloud placeholders (the iPhone's opt-in)
+
+    func testPlaceholderNameIsTheRealFileName() {
+        XCTAssertEqual(OutlineFileScanner.realName(ofEntry: ".Notes.md.icloud"), "Notes.md")
+        XCTAssertNil(OutlineFileScanner.realName(ofEntry: ".icloud"), "a bare suffix names nothing")
+        XCTAssertNil(OutlineFileScanner.realName(ofEntry: ".DS_Store"))
+        XCTAssertEqual(OutlineFileScanner.realName(ofEntry: "Notes.md"), "Notes.md")
+    }
+
+    func testScannerListsPlaceholdersUnderTheirRealNamesWhenAsked() throws {
+        try write("Kept.md")
+        try write(".Evicted.md.icloud", "placeholder")
+        try write(".Picture.png.icloud", "placeholder")
+        try write(".Hidden.md")
+        try write("Sub/.Deep.md.icloud", "placeholder")
+
+        // The Mac's scan (the default) is unchanged: a placeholder is a hidden, unsupported entry.
+        XCTAssertEqual(OutlineFileScanner.items(in: root, showsHidden: false).map(\.name), ["Kept.md"])
+
+        let items = OutlineFileScanner.items(in: root, showsHidden: false, includesICloudPlaceholders: true)
+        XCTAssertEqual(items.map(\.name), ["Sub", "Evicted.md", "Kept.md"])
+        let evicted = try XCTUnwrap(items.first { $0.name == "Evicted.md" })
+        XCTAssertEqual(evicted.url.lastPathComponent, "Evicted.md", "the item stands for the real file")
+        XCTAssertFalse(evicted.isHidden, "a placeholder is not a hidden item")
+        XCTAssertEqual(items.first?.children.map(\.name), ["Deep.md"])
+
+        let withHidden = OutlineFileScanner.items(in: root, showsHidden: true, includesICloudPlaceholders: true)
+        XCTAssertEqual(withHidden.map(\.name), ["Sub", ".Hidden.md", "Evicted.md", "Kept.md"])
+        XCTAssertEqual(withHidden.first { $0.name == ".Hidden.md" }?.isHidden, true)
+    }
+
+    func testScannerItemDatesAreReadable() throws {
+        try write("Dated.md")
+        let item = try XCTUnwrap(OutlineFileScanner.items(in: root, showsHidden: false).first)
+        XCTAssertNotNil(item.modifiedAt)
+        XCTAssertNotNil(item.createdAt)
+    }
 }

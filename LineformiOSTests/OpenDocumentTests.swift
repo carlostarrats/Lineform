@@ -122,30 +122,14 @@ final class OpenDocumentTests: XCTestCase {
         XCTAssertEqual(textView.selectedRange, NSRange(location: 2, length: 0), "clamped to the new text")
     }
 
-    // MARK: - File list
+    // MARK: - File names
 
-    func testFileListShowsMarkdownAndTextFilesNewestFirst() throws {
-        let old = try write("old", named: "Old.md")
-        let newer = try write("newer", named: "Newer.txt")
-        try write("ignored", named: "Picture.png")
-        try write("hidden", named: ".Hidden.md")
-        try FileManager.default.createDirectory(
-            at: folder.appendingPathComponent("Sub.md", isDirectory: true), withIntermediateDirectories: true
-        )
-        try FileManager.default.setAttributes([.modificationDate: Date(timeIntervalSinceNow: -60)], ofItemAtPath: old.path)
-        try FileManager.default.setAttributes([.modificationDate: Date()], ofItemAtPath: newer.path)
-
-        let names = FileListModel.listFiles(in: folder).map(\.name)
-
-        XCTAssertEqual(names, ["Newer.txt", "Old.md"])
+    func testAnICloudPlaceholderStandsForItsFile() {
+        XCTAssertEqual(OutlineFileScanner.realName(ofEntry: ".Notes.md.icloud"), "Notes.md")
+        XCTAssertNil(OutlineFileScanner.realName(ofEntry: ".DS_Store"))
+        XCTAssertEqual(OutlineFileScanner.realName(ofEntry: "Notes.md"), "Notes.md")
+        XCTAssertEqual(OpenDocument.realURL(for: folder.appendingPathComponent(".Notes.md.icloud")).lastPathComponent, "Notes.md")
     }
-
-    func testFileListNamesAnICloudPlaceholderByItsFile() {
-        XCTAssertEqual(FileListModel.displayName(of: ".Notes.md.icloud"), "Notes.md")
-        XCTAssertNil(FileListModel.displayName(of: ".DS_Store"))
-        XCTAssertEqual(FileListModel.displayName(of: "Notes.md"), "Notes.md")
-    }
-
 
     // MARK: - Reading off the main thread, and iCloud downloads
 

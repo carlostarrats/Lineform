@@ -1,13 +1,13 @@
 import Foundation
 
-public struct OutlineFileTreeItem: Identifiable, Equatable, Codable {
+public struct OutlineFileTreeItem: Identifiable, Equatable, Codable, Sendable {
     public var url: URL
     public var name: String
     public var isDirectory: Bool
     public var children: [OutlineFileTreeItem]
     public var isHidden: Bool = false
-    var createdAt: Date?
-    var modifiedAt: Date?
+    public var createdAt: Date?
+    public var modifiedAt: Date?
 
     public var id: String { url.path }
 

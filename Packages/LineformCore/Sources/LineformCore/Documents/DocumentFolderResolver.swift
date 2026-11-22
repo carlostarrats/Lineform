@@ -28,6 +28,15 @@ public struct DocumentFolderResolver {
         ubiquityDocumentsURL() ?? localDocumentsURL
     }
 
+    /// The iCloud Documents folder alone, or nil when iCloud is unavailable. Same blocking rule
+    /// as `saveFolder()`.
+    public func iCloudFolder() -> URL? {
+        ubiquityDocumentsURL()
+    }
+
+    /// The on-device folder, whether or not iCloud is available.
+    public var deviceFolder: URL { localDocumentsURL }
+
     /// The resolver the app uses: `url(forUbiquityContainerIdentifier:)` for Lineform's container
     /// plus `Documents`, falling back to the user-domain Documents directory. Apple requires the
     /// ubiquity lookup off the main thread, so call `saveFolder()` from a background task.

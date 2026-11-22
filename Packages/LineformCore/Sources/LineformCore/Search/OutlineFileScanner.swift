@@ -11,6 +11,10 @@ import Foundation
 /// - a dot-prefixed item (and everything under it) is flagged `isHidden`; with hidden folders
 ///   off, hidden items are skipped by the enumerator instead.
 ///
+/// With `includesICloudPlaceholders` (the iPhone), an iCloud placeholder `.Name.md.icloud` (a file
+/// iCloud has not downloaded) is listed as `Name.md`, under its real URL, and is not hidden. The
+/// Mac's scan leaves it off, so a placeholder stays a hidden, unsupported entry there.
+///
 /// It never writes and never coordinates. Callers decide when and on which thread to run it.
 public enum OutlineFileScanner {
     public static let maximumTreeDepth = 4
@@ -23,9 +27,33 @@ public enum OutlineFileScanner {
         in root: URL,
         showsHidden: Bool,
         sortOrder: OutlineFileSortOrder = .name,
+        includesICloudPlaceholders: Bool = false,
         fileManager: FileManager = .default
     ) -> [OutlineFileTreeItem] {
-        items(in: root, fileManager: fileManager, depth: 0, showsHiddenFolders: showsHidden, sortOrder: sortOrder)
+        items(
+            in: root,
+            fileManager: fileManager,
+            depth: 0,
+            showsHiddenFolders: showsHidden,
+            sortOrder: sortOrder,
+            includesICloudPlaceholders: includesICloudPlaceholders
+        )
+    }
+
+    /// The name a directory entry stands for: an iCloud placeholder `.Name.md.icloud` stands for
+    /// `Name.md`, any other dot entry for nothing, and every other entry for itself.
+    public static func realName(ofEntry entry: String) -> String? {
+        if entry.hasPrefix("."), entry.hasSuffix(".icloud") {
+            let name = String(entry.dropFirst().dropLast(".icloud".count))
+            return name.isEmpty ? nil : name
+        }
+        return entry.hasPrefix(".") ? nil : entry
+    }
+
+    /// The real name of an iCloud placeholder entry, or nil for any other entry.
+    static func placeholderRealName(_ entry: String) -> String? {
+        guard entry.hasPrefix("."), entry.hasSuffix(".icloud") else { return nil }
+        return realName(ofEntry: entry)
     }
 
     /// Whether `url` holds no supported document. Hidden folders are included (independent of
@@ -49,14 +77,18 @@ public enum OutlineFileScanner {
         depth: Int,
         showsHiddenFolders: Bool,
         inheritedHidden: Bool = false,
-        sortOrder: OutlineFileSortOrder
+        sortOrder: OutlineFileSortOrder,
+        includesICloudPlaceholders: Bool = false
     ) -> [OutlineFileTreeItem] {
         guard depth < maximumTreeDepth else {
             return []
         }
 
         let resourceKeys: Set<URLResourceKey> = [.isDirectoryKey, .isRegularFileKey, .isHiddenKey, .creationDateKey, .contentModificationDateKey]
-        let options: FileManager.DirectoryEnumerationOptions = showsHiddenFolders ? [] : [.skipsHiddenFiles]
+        // A placeholder is a dot entry, so with placeholders included the enumerator cannot skip
+        // hidden entries itself; the same items are dropped below instead.
+        let options: FileManager.DirectoryEnumerationOptions =
+            showsHiddenFolders || includesICloudPlaceholders ? [] : [.skipsHiddenFiles]
         let urls = (try? fileManager.contentsOfDirectory(
             at: url,
             includingPropertiesForKeys: Array(resourceKeys),
@@ -74,8 +106,19 @@ public enum OutlineFileScanner {
                 return nil
             }
 
-            let name = childURL.lastPathComponent
+            var name = childURL.lastPathComponent
+            var itemURL = childURL
             let isDirectory = values.isDirectory == true
+
+            if includesICloudPlaceholders {
+                if !isDirectory, values.isRegularFile == true, let realName = placeholderRealName(name) {
+                    name = realName
+                    itemURL = url.appendingPathComponent(realName)
+                } else if !showsHiddenFolders, name.hasPrefix(".") || values.isHidden == true {
+                    // What `.skipsHiddenFiles` would have skipped.
+                    return nil
+                }
+            }
 
             // Always exclude build/vcs noise directories, regardless of the toggle.
             if isDirectory, excludedDirectoryNames.contains(name) {
@@ -85,19 +128,20 @@ public enum OutlineFileScanner {
             // With hidden folders shown, .skipsHiddenFiles is dropped — so also drop genuinely
             // OS-hidden items that are NOT dot-prefixed (system junk), while keeping dotfiles.
             let isDotPrefixed = name.hasPrefix(".")
-            if showsHiddenFolders, values.isHidden == true, !isDotPrefixed {
+            let isPlaceholder = itemURL != childURL
+            if showsHiddenFolders, values.isHidden == true, !isDotPrefixed, !isPlaceholder {
                 return nil
             }
 
             let isSupportedFile = values.isRegularFile == true
-                && supportedFileExtensions.contains(childURL.pathExtension.lowercased())
+                && supportedFileExtensions.contains(itemURL.pathExtension.lowercased())
 
             guard isDirectory || isSupportedFile else {
                 return nil
             }
 
             return OutlineFileTreeItem(
-                url: childURL,
+                url: itemURL,
                 name: name,
                 isDirectory: isDirectory,
                 children: [],
@@ -123,7 +167,8 @@ public enum OutlineFileScanner {
                 depth: depth + 1,
                 showsHiddenFolders: showsHiddenFolders,
                 inheritedHidden: item.isHidden,
-                sortOrder: sortOrder
+                sortOrder: sortOrder,
+                includesICloudPlaceholders: includesICloudPlaceholders
             )
             if !populated.children.isEmpty {
                 visible.append(populated)

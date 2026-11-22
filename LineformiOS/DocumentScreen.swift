@@ -19,6 +19,9 @@ import UniformTypeIdentifiers
 struct DocumentScreen: View {
     var document: OpenDocument
     @ObservedObject var profileStore: ReadingProfileStore
+    /// The Files section's store. One for the app's lifetime, so a Workspace folder's access
+    /// outlives the Menu sheet.
+    var files: FilesStore
     private var profile: ReadingProfile { profileStore.activeProfile }
     @State private var isShowingMenu = false
     @State private var isShowingStyling = false
@@ -65,11 +68,13 @@ struct DocumentScreen: View {
     init(
         document: OpenDocument,
         profileStore: ReadingProfileStore,
+        files: FilesStore = .shared,
         initialMode: EditorDisplayMode = .write,
         showsFirstRun: Bool = false
     ) {
         self.document = document
         self.profileStore = profileStore
+        self.files = files
         _storedDisplayMode = SceneStorage(wrappedValue: initialMode, "displayMode")
         _firstRun = State(initialValue: FirstRunPresentation(launchWantsFirstRun: showsFirstRun))
     }
@@ -182,6 +187,7 @@ struct DocumentScreen: View {
             MenuSheet(
                 document: document,
                 editor: LiveEditorCommands(positionKeeper: positionKeeper, document: document, mode: displayMode),
+                files: files,
                 profile: profile,
                 onDismiss: { isShowingMenu = false }
             )

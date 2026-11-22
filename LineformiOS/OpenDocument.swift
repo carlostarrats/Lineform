@@ -32,7 +32,8 @@ protocol ReadEditApplying: AnyObject {
 /// When the open file is deleted elsewhere (Files, another device), or moved into a Trash folder,
 /// the text stays on screen but the document lets go of that path: it becomes a new document
 /// again, so the next change saves it under a new name from its first line, and nothing writes
-/// the deleted file back.
+/// the deleted file back. A rename or Trash from the Files section (`FilesStore`) reaches the same
+/// rules at once, through `userRenamed(to:)` and `fileWasTrashed(at:)`.
 ///
 /// Text is never thrown away to make room for something else. Opening a file or starting a new
 /// document first saves the current one; if that save fails, the current document stays and the
@@ -373,7 +374,7 @@ final class OpenDocument: ImageInsertionHost {
     nonisolated static func realURL(for url: URL) -> URL {
         let entry = url.lastPathComponent
         guard entry.hasPrefix("."), entry.hasSuffix(".icloud"),
-              let name = FileListModel.displayName(of: entry)
+              let name = OutlineFileScanner.realName(ofEntry: entry)
         else { return url }
         return url.deletingLastPathComponent().appendingPathComponent(name)
     }
@@ -708,6 +709,31 @@ final class OpenDocument: ImageInsertionHost {
         startWatching(newURL)
     }
 
+    /// The writer renamed the open file in Files (or the folder holding it), and `FilesStore`
+    /// moved it to `newURL` through a coordinated move. The document follows it at once, before
+    /// any autosave can run, and its name never follows the first line again: the writer chose
+    /// it. The presenter also hears the move; whichever arrives second finds nothing to do.
+    func userRenamed(to newURL: URL) {
+        guard let url else { return }
+        if url.standardizedFileURL != newURL.standardizedFileURL {
+            stopWatching()
+            self.url = newURL
+            planner.fileWasRenamed(to: newURL.lastPathComponent)
+            startWatching(newURL)
+        } else {
+            planner.markRenamedByUser()
+        }
+    }
+
+    /// `FilesStore` moved `trashedURL` to the Trash. When it is the open file, the document lets
+    /// go of it at once, by the same rule as a delete elsewhere: the text stays on screen and is
+    /// never written back to that path.
+    func fileWasTrashed(at trashedURL: URL) {
+        guard let url, url.standardizedFileURL.resolvingSymlinksInPath() == trashedURL.standardizedFileURL.resolvingSymlinksInPath()
+        else { return }
+        detachFromDeletedFile()
+    }
+
     /// The file was deleted by someone else. Keep the text on screen, but never write to that path
     /// again: the document becomes new, and nothing is saved until the text changes, when it gets
     /// a file named from its first line.
@@ -807,7 +833,7 @@ final class OpenDocument: ImageInsertionHost {
     /// The file names in `folder`, with an iCloud placeholder counted under its real name.
     private static func existingNames(in folder: URL) -> Set<String> {
         let entries = (try? FileManager.default.contentsOfDirectory(atPath: folder.path)) ?? []
-        return Set(entries.compactMap(FileListModel.displayName(of:)))
+        return Set(entries.compactMap(OutlineFileScanner.realName(ofEntry:)))
     }
 }
 

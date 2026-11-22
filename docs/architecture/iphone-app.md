@@ -18,7 +18,7 @@ a fully working state, never an error or a prompt.
 ## Target, scheme and tests
 
 - Sources: `LineformiOS/` (`LineformiOSApp`, `DocumentScreen`, `OpenDocument`; `Menu/`: `MenuSheet`,
-  `MenuSection`, `EditorCommands`, `MenuFilesPlaceholder`;
+  `MenuSection`, `EditorCommands`, `FilesStore`, `FilesSection`, `FolderView`;
   `Editor/`: `MarkdownEditor`, and `LineformTextView` in `LineformiOSTextView.swift`; `Read/`:
   `LineformReadView`, `ReadViewRepresentable`, `ReadOverlayButtons`, `PreviewSplit` and
   `LinkedScroll`; `Chrome/`: `ModeSwitch`, `ModePositionKeeper`, `MotionPolicy` and
@@ -497,10 +497,51 @@ as against ⌘S, and every iPhone write is an autosave, so it would add nothing.
 
 The section bar scrolls sideways: Files, Outline, Markdown Basics, Search, Document, Settings
 (`MenuSection`; raw values are identity, never localized). The section is kept in
-`@SceneStorage("menuSection")` and starts on Files. Sections are placeholders until their roadmap
-tasks; Files keeps the earlier list meanwhile (`MenuFilesPlaceholder`: **New Document**, **Open
-from Files…**, and the save folder's `.md`, `.markdown` and `.txt` files, newest first, kept
-current by `DocumentFolderMonitor`, with iCloud placeholders listed under their real names).
+`@SceneStorage("menuSection")` and starts on Files. The other sections are placeholders until
+their roadmap tasks.
+
+### Files
+
+`FilesSection` (with `FolderView` and `FilesStore`) is the iPhone's Files tree. It keeps the Mac's
+rules (files-sidebar.md) and adds iPhone ones:
+
+- **Top rows:** New Document, Open from Files…, the sort menu ("Sort folders by: %@", with Name,
+  Date Created and Date Modified from the package's `OutlineFileSortOrder.title`) and a Show
+  Hidden Folders toggle.
+- **Roots:** iCloud ("Lineform", `<container>/Documents`) when the container resolves and
+  `Lineform.settings.showICloudInSidebar` is on; otherwise **On My iPhone**, the on-device save
+  folder, because that is where new documents save then. Debug never resolves iCloud. Then the
+  Workspace.
+- **Lazy:** nothing is looked up, scanned or watched until the section is on screen
+  (`setVisible`, `scanIfVisible`). Scans run off the main thread with `OutlineFileScanner`
+  (placeholders included under their real names), latest wins.
+- **Re-scans:** a sort change and a Show Hidden Folders change both re-scan. One sort serves every
+  root, stored under both Mac keys (`Lineform.outline.sortOrder.icloud` and `.workspace`).
+- **Drill-down:** each level is one flat, lazy `List`; a folder pushes its own level onto a
+  `NavigationStack` with the system slide. Rows are an SF Symbol (`doc.text` / `folder`) and the
+  name, plus the date the list is ordered by under a date sort.
+- **Actions:** files swipe to Rename (an alert with a text field and the shared `FileRenaming`
+  rule) and Delete (a confirmation, Cancel as default, "It will be moved to the Trash."). A long
+  press offers the same, and Rename alone for a folder. Folders are never deleted.
+- **Coordinated:** rename and Trash go through `NSFileCoordinator` with `.forMoving` (rename also
+  announces `item(at:willMoveTo:)` / `didMoveTo`), on the main actor like OpenDocument's own
+  writes. The open document follows a rename (`OpenDocument.userRenamed(to:)`, which stops
+  automatic renaming) and lets go of a trashed file (`fileWasTrashed(at:)`); its presenter hears
+  both too. Trash is `FileManager.trashItem` only: a refusal shows "Couldn’t move “%@” to the
+  Trash." and the file stays. There is no `removeItem` path.
+- **Workspace:** chosen with `.fileImporter(allowedContentTypes: [.folder])`; a plain
+  `bookmarkData()` is kept under `Lineform.outline.workspaceBookmark` (per device). It is
+  re-resolved at launch and refreshed when stale; a bookmark that cannot be resolved or refreshed,
+  or a folder that is gone, shows "Workspace folder unavailable" with Change and Choose. The
+  security scope is held for the store's lifetime, and `FilesStore.shared` lives as long as the
+  app, so documents opened from the Workspace stay readable after the sheet closes. An empty
+  Workspace names the scanned folder ("Scanned folder: %@").
+- **Watching:** one `DocumentFolderMonitor` per visible root while Files is on screen. A folder
+  presenter hears coordinated changes in its subfolders too (`testSubfolderChangeRefreshes`), so
+  no per-subfolder monitor is needed.
+- **iCloud placeholders:** listed under their real names; tapping one opens it through
+  `OpenDocument`, which downloads it first. The whole tree is not kept downloaded (unlike the
+  Mac's `ensureDownloaded`): phone storage is the writer's.
 
 Sections act on the editor only through `EditorCommands`, which the screen implements over the
 live editor (`LiveEditorCommands`): top-aligned scrolling through `ModePositionKeeper` in the
