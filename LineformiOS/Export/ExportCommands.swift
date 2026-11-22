@@ -164,10 +164,11 @@ final class ExportCommands {
     // MARK: - Share
 
     /// Whether Share has a file to hand on: the document has one, or has text that the next save
-    /// gives one. An Untitled document with nothing typed has none.
+    /// gives one. An Untitled document with nothing typed, or only spaces and Returns, has none:
+    /// `AutosavePlanner` makes no file until a line names it (`DocumentNaming.baseName`).
     var canShareDocument: Bool {
         guard let document else { return false }
-        return document.url != nil || !document.text.isEmpty
+        return document.url != nil || DocumentNaming.baseName(fromText: document.text) != nil
     }
 
     /// The document's own file, saved first; nil when there is none or the save failed.

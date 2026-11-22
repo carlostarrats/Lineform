@@ -86,9 +86,11 @@ struct ExportRows: View {
 
     private func shareDocument() {
         Task {
-            // A failed save shows the screen's save notice; there is nothing to hand on.
             if let url = await commands.documentFileForSharing() {
                 ActivityShareSheet(fileURL: url) {}.present()
+            } else {
+                // A failed save shows the screen's save notice; the menu would cover it.
+                dismiss()
             }
         }
     }
@@ -126,7 +128,7 @@ struct ExportRows: View {
             switch self {
             case .start: return String(localized: "Start Speaking")
             case .pause: return String(localized: "Pause Speaking")
-            case .resume: return String(localized: "Continue Speaking")
+            case .resume: return String(localized: "Resume Speaking")
             case .stop: return String(localized: "Stop Speaking")
             }
         }
@@ -139,7 +141,7 @@ struct ExportRows: View {
         }
     }
 
-    /// The read-aloud rows for a state: Start when idle; Pause or Continue, then Stop, while
+    /// The read-aloud rows for a state: Start when idle; Pause or Resume, then Stop, while
     /// reading.
     static func speechActions(for state: SpeechState) -> [SpeechAction] {
         switch state {

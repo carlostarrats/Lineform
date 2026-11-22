@@ -1,4 +1,5 @@
 import LineformCore
+import UIKit
 import XCTest
 @testable import LineformiOS
 
@@ -49,7 +50,7 @@ final class ExportRowsTests: XCTestCase {
     private static let catalogKeys = [
         "Export As", "Paper Size", "Print\u{2026}", "Share\u{2026}",
         "HTML", "PDF", "Styled PDF", "Rich Text (.rtf)",
-        "Start Speaking", "Pause Speaking", "Continue Speaking", "Stop Speaking",
+        "Start Speaking", "Pause Speaking", "Resume Speaking", "Stop Speaking",
     ]
 
     func testRowTitlesComeFromCatalogInAllLanguages() throws {
@@ -95,6 +96,23 @@ final class ExportRowsTests: XCTestCase {
         XCTAssertEqual(url, file)
     }
 
+    /// A share sheet UIKit would refuse (the top controller already presents, or is going away)
+    /// is not presented: its completion would never run, and the copy would linger.
+    func testShareSheetIsNotPresentedOnABusyController() async throws {
+        let scene = try XCTUnwrap(UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first)
+        let window = UIWindow(windowScene: scene)
+        let root = UIViewController()
+        window.rootViewController = root
+        window.isHidden = false
+        defer { window.isHidden = true }
+        XCTAssertTrue(ActivityShareSheet.canPresent(on: root))
+
+        root.present(UIViewController(), animated: false)
+        XCTAssertNotNil(root.presentedViewController)
+        XCTAssertFalse(ActivityShareSheet.canPresent(on: root), "a controller that already presents refuses another")
+        root.dismiss(animated: false)
+    }
+
     func testFinishedShareRemovesTheExports() async throws {
         let document = await preparedDocument()
         let exports = root.appendingPathComponent("Exports", isDirectory: true)
@@ -129,7 +147,7 @@ final class ExportRowsTests: XCTestCase {
     func testSpeechRowTitleFollowsState() {
         XCTAssertEqual(ExportRows.speechTitles(for: .idle), ["Start Speaking"])
         XCTAssertEqual(ExportRows.speechTitles(for: .speaking), ["Pause Speaking", "Stop Speaking"])
-        XCTAssertEqual(ExportRows.speechTitles(for: .paused), ["Continue Speaking", "Stop Speaking"])
+        XCTAssertEqual(ExportRows.speechTitles(for: .paused), ["Resume Speaking", "Stop Speaking"])
     }
 
     func testDocumentSwapStopsReadAloud() async {

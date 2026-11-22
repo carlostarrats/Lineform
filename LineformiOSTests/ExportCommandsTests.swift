@@ -105,6 +105,13 @@ final class ExportCommandsTests: XCTestCase {
         XCTAssertFalse(commands.canShareDocument)
         let shared = await commands.documentFileForSharing()
         XCTAssertNil(shared)
+
+        // Only Returns and spaces: the autosave makes no file, so there is still nothing to share.
+        document.edit("\n\n  ")
+        XCTAssertFalse(commands.canShareDocument, "whitespace alone gets no file")
+        let blank = await commands.documentFileForSharing()
+        XCTAssertNil(blank)
+        XCTAssertNil(document.url)
     }
 
     func testShareReturnsSavedFile() async throws {

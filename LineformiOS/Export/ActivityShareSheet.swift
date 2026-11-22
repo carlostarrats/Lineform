@@ -23,10 +23,12 @@ struct ActivityShareSheet {
         return controller
     }
 
-    /// Presents the sheet over whatever is on top of the key window. Without a window (a test
-    /// host with no scene) nothing is shown and `onComplete` runs at once, so a copy never lingers.
+    /// Presents the sheet over whatever is on top of the key window. When it cannot be shown (no
+    /// window, as in a test host with no scene; or the top controller is mid-dismissal or already
+    /// presenting, as after a fast double tap) `onComplete` runs at once: UIKit would refuse the
+    /// presentation and never call the completion handler, so the copy would linger.
     func present() {
-        guard let presenter = Self.topPresenter() else {
+        guard let presenter = Self.topPresenter(), Self.canPresent(on: presenter) else {
             onComplete()
             return
         }
@@ -34,6 +36,11 @@ struct ActivityShareSheet {
         // iPad-safe anchor; the iPhone presents it as a sheet and ignores this.
         controller.popoverPresentationController?.sourceView = presenter.view
         presenter.present(controller, animated: true)
+    }
+
+    /// Whether UIKit accepts a new presentation on `presenter`.
+    static func canPresent(on presenter: UIViewController) -> Bool {
+        presenter.presentedViewController == nil && !presenter.isBeingDismissed && !presenter.isBeingPresented
     }
 
     private static func topPresenter() -> UIViewController? {
