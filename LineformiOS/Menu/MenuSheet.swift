@@ -17,6 +17,9 @@ struct MenuSheet: View {
     var settings: AppSettings
     var profile: ReadingProfile
     var onDismiss: () -> Void
+    var exportCommands: ExportCommands?
+    var selection: () -> NSRange?
+    var mode: EditorDisplayMode
 
     static let sectionStorageKey = "menuSection"
     static let detents: Set<PresentationDetent> = [.medium, .large]
@@ -34,6 +37,9 @@ struct MenuSheet: View {
         files: FilesStore,
         settings: AppSettings = .shared,
         profile: ReadingProfile = .original,
+        exportCommands: ExportCommands? = nil,
+        selection: @escaping () -> NSRange? = { nil },
+        mode: EditorDisplayMode = .write,
         onDismiss: @escaping () -> Void
     ) {
         self.document = document
@@ -42,6 +48,9 @@ struct MenuSheet: View {
         self.settings = settings
         self.profile = profile
         self.onDismiss = onDismiss
+        self.exportCommands = exportCommands
+        self.selection = selection
+        self.mode = mode
     }
 
     // MARK: - Header text
@@ -128,7 +137,10 @@ struct MenuSheet: View {
         case .search:
             SearchSection(document: document, editor: editor, files: files, onDismiss: onDismiss)
         case .document:
-            DocumentSection(document: document, editor: editor, files: files, onDismiss: onDismiss)
+            DocumentSection(
+                document: document, editor: editor, files: files, onDismiss: onDismiss,
+                exportCommands: exportCommands, selection: selection, mode: mode
+            )
         case .settings:
             SettingsSection(settings: settings)
         }

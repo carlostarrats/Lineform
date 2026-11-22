@@ -10,6 +10,8 @@ import SwiftUI
 ///   document's format (`OpenDocument.textFormat`). A `.txt` opened from disk has no conversion to
 ///   restore, so the row is off.
 /// - Check Document Now: one spelling pass over the whole document (`SpellCheckPass`).
+/// - Export As, Print…, Share… and read aloud (`ExportRows`, roadmap step 10), as their own
+///   section.
 /// - Show Hidden Folders: the Files setting (`FilesStore.setShowsHidden`, the Mac's key).
 /// - Lineform Guide, Privacy Policy and Terms of Use open in Safari (`openURL`) at the
 ///   package's `LineformLinks`.
@@ -22,6 +24,11 @@ struct DocumentSection: View {
     var editor: any EditorCommands
     var files: FilesStore
     var onDismiss: () -> Void
+    /// The screen's export commands; nil until the screen has made them (no export rows then).
+    var exportCommands: ExportCommands? = nil
+    /// The editor's selection, for read aloud.
+    var selection: () -> NSRange? = { nil }
+    var mode: EditorDisplayMode = .write
 
     @Environment(\.openURL) private var openURL
     @State private var isImportingDocument = false
@@ -60,7 +67,7 @@ struct DocumentSection: View {
         var titles = [newDocumentTitle, openTitle]
         if showsTableCommands(for: textFormat) { titles += [insertTableTitle, reformatTableTitle] }
         titles += [conversionTitle(for: textFormat), checkDocumentTitle]
-        // Roadmap step 10 adds Export, Print, Share and Read aloud here, after Check Document Now.
+        titles += ExportRows.idleRowTitles
         titles += [FilesSection.hiddenFoldersTitle, guideTitle, privacyPolicyTitle, termsOfUseTitle]
         return titles
     }
@@ -117,9 +124,10 @@ struct DocumentSection: View {
             }
             .listRowBackground(Color.clear)
 
-            // MARK: Roadmap step 10
-            // Export, Print, Share and Read aloud arrive here, as their own Section, in step 10.
-            // No placeholder rows until then.
+            if let exportCommands {
+                ExportRows(commands: exportCommands, selection: selection, mode: mode)
+                    .listRowBackground(Color.clear)
+            }
 
             Section {
                 Toggle(isOn: Binding(

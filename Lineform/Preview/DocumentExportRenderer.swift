@@ -43,51 +43,6 @@ enum AtomicFileWrite {
     }
 }
 
-/// Paper sizes offered for PDF export / print. Sizes are in PostScript points (1/72"). Covers the
-/// common US (Letter/Legal/Tabloid) and ISO (A3/A4/A5) sheets printers use.
-enum ExportPaperSize: CaseIterable {
-    case usLetter
-    case usLegal
-    case tabloid
-    case a4
-    case a3
-    case a5
-
-    var sizeInPoints: NSSize {
-        switch self {
-        case .usLetter:
-            return NSSize(width: 612, height: 792)    // 8.5 × 11"
-        case .usLegal:
-            return NSSize(width: 612, height: 1008)   // 8.5 × 14"
-        case .tabloid:
-            return NSSize(width: 792, height: 1224)   // 11 × 17"
-        case .a4:
-            return NSSize(width: 595, height: 842)     // 210 × 297 mm
-        case .a3:
-            return NSSize(width: 842, height: 1191)    // 297 × 420 mm
-        case .a5:
-            return NSSize(width: 420, height: 595)     // 148 × 210 mm
-        }
-    }
-
-    var displayName: String {
-        switch self {
-        case .usLetter:
-            return String(localized: "US Letter")
-        case .usLegal:
-            return String(localized: "US Legal")
-        case .tabloid:
-            return String(localized: "Tabloid")
-        case .a4:
-            return String(localized: "A4")
-        case .a3:
-            return String(localized: "A3")
-        case .a5:
-            return String(localized: "A5")
-        }
-    }
-}
-
 /// Builds the rich, print-ready rendering of a document for **Print (⌘P)** and **Export as PDF**.
 ///
 /// The export reuses the exact Read-mode renderer (`MarkdownPreviewRenderer`), so the printed
@@ -133,12 +88,7 @@ enum DocumentExportRenderer {
     /// same flat 72pt as `margin` on every edge, so the default is byte-identical to before
     /// presets existed).
     static func contentSize(for paper: ExportPaperSize, preset: ExportTypographyPreset = .standard) -> NSSize {
-        let paperSize = paper.sizeInPoints
-        let insets = preset.pageMargins
-        return NSSize(
-            width: paperSize.width - insets.left - insets.right,
-            height: paperSize.height - insets.top - insets.bottom
-        )
+        paper.contentSize(preset: preset)
     }
 
     // MARK: - Rendering
@@ -159,29 +109,22 @@ enum DocumentExportRenderer {
         let content = contentSize(for: paper, preset: preset)
         let attributed: NSAttributedString
         if preset.rendersMarkdown {
-            attributed = MarkdownPreviewRenderer().render(
-                text,
-                profile: preset.exportReadingProfile(basedOn: profile),
-                columnWidth: content.width,
-                mermaidProvider: MermaidImageProvider(),
-                mathProvider: MathImageProvider(),
-                // Export never writes to the diagram failure log — a failed diagram just prints its
-                // captioned-source fallback.
-                diagramLog: NullDiagramFailureLog(),
-                appVersion: Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "unknown",
-                // Tables shrink to fit the fixed page column rather than overflowing off the right edge.
-                fitTablesToWidth: true,
-                // Exported/printed code stays monochrome — a deliberate product decision (see the
-                // "highlightsCode" parameter above).
-                highlightsCode: false,
+            // The shared Styled render (`ExportContent.styled`): the Read-mode renderer with tables
+            // fit to the page, monochrome code and no diagram failure log.
+            attributed = ExportContent.styled(
+                text: text,
+                profile: profile,
+                paper: paper,
+                preset: preset,
                 documentDirectory: documentDirectory,
                 imageProvider: imageProvider,
-                headingScale: preset.headingScale,
+                appVersion: ExportContent.appVersion,
+                displayMetrics: .current
             )
         } else {
             // "Normal": print the RAW markdown SOURCE (visible #, **, etc.) as a plain monospaced
             // document — never run through the renderer, so the reader sees the actual markdown text.
-            attributed = rawSourceAttributedString(text, preset: preset)
+            attributed = ExportContent.rawSource(text: text, preset: preset)
         }
 
         // Classic TextKit 1 stack, matching the on-screen preview view — the renderer's
@@ -207,21 +150,6 @@ enum DocumentExportRenderer {
         let used = layoutManager.usedRect(for: container)
         textView.setFrameSize(NSSize(width: content.width, height: max(content.height, used.height)))
         return textView
-    }
-
-    /// The RAW markdown source laid out as a plain document: a monospaced face at the preset body
-    /// size, dark ink on the white page, with the preset's line height. No markdown parsing — the
-    /// `#`, `**`, backticks, etc. print verbatim, exactly as typed in Write mode.
-    @MainActor
-    private static func rawSourceAttributedString(_ text: String, preset: ExportTypographyPreset) -> NSAttributedString {
-        let font = NSFont.monospacedSystemFont(ofSize: preset.bodyPointSize, weight: .regular)
-        let paragraph = NSMutableParagraphStyle()
-        paragraph.lineHeightMultiple = preset.lineHeightMultiple ?? 1.2
-        return NSAttributedString(string: text, attributes: [
-            .font: font,
-            .foregroundColor: DiagramPalette.ink(isDark: false),
-            .paragraphStyle: paragraph
-        ])
     }
 
     /// `NSPrintInfo` configured for `paper` with `preset`'s margins (`.standard`'s are the same
@@ -345,29 +273,13 @@ extension DocumentExportRenderer {
     /// text). Reuses the export ReadingProfile and content width; no attachments.
     @MainActor
     static func makeRTFAttributedString(text: String, profile: ReadingProfile, paper: ExportPaperSize, preset: ExportTypographyPreset = .standard) -> NSAttributedString {
-        let content = contentSize(for: paper, preset: preset)
-        return MarkdownPreviewRenderer().render(
-            text,
-            profile: preset.exportReadingProfile(basedOn: profile),
-            columnWidth: content.width,
-            mermaidProvider: DisabledMermaidImageProvider(),
-            mathProvider: DisabledMathImageProvider(),
-            diagramLog: NullDiagramFailureLog(),
-            appVersion: Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "unknown",
-            fitTablesToWidth: true,
-            imagesAsText: true,
-            headingScale: preset.headingScale
-        )
+        ExportContent.rtfAttributedString(text: text, profile: profile, paper: paper, preset: preset, appVersion: ExportContent.appVersion)
     }
 
     /// Rendered document as RTF data. Pure NSAttributedString serialization — no print subsystem.
     @MainActor
     static func rtfData(for document: LineformDocument, profile: ReadingProfile, paper: ExportPaperSize, preset: ExportTypographyPreset = .standard) throws -> Data {
-        let attributed = makeRTFAttributedString(text: document.text, profile: profile, paper: paper, preset: preset)
-        return try attributed.data(
-            from: NSRange(location: 0, length: attributed.length),
-            documentAttributes: [.documentType: NSAttributedString.DocumentType.rtf]
-        )
+        try ExportContent.rtfData(text: document.text, profile: profile, paper: paper, preset: preset, appVersion: ExportContent.appVersion)
     }
 
     /// The document as a standalone HTML file.
@@ -379,36 +291,8 @@ extension DocumentExportRenderer {
     /// resolve relative to wherever they put the file.
     @MainActor
     static func htmlData(text: String, title: String) -> Data {
-        // Constructed per export, matching `makeExportTextView`: these carry caches sized for a
-        // long editing session, and an export is a one-shot.
-        let mathProvider = MathImageProvider()
-        let mermaidProvider = MermaidImageProvider()
-        let ink = DiagramPalette.ink(isDark: false)
-
-        let html = MarkdownHTMLRenderer.html(for: text, title: title) { generated in
-            let image: NSImage
-            switch generated {
-            case let .math(latex):
-                guard case let .image(rendered, _) = mathProvider.outcome(
-                    latex: latex, style: .display, foreground: ink, pointSize: 16, scale: 2
-                ) else { return nil }
-                image = rendered
-            case let .mermaid(source):
-                guard case let .image(rendered) = mermaidProvider.outcome(
-                    source: source, background: .white, foreground: ink, scale: 2
-                ) else { return nil }
-                image = rendered
-            }
-            return pngData(from: image)
-        }
-        return Data(html.utf8)
-    }
-
-    /// PNG bytes for a rendered diagram/equation, or nil so the emitter falls back to the source.
-    private static func pngData(from image: NSImage) -> Data? {
-        guard let tiff = image.tiffRepresentation,
-              let bitmap = NSBitmapImageRep(data: tiff) else { return nil }
-        return bitmap.representation(using: .png, properties: [:])
+        // `ExportContent.htmlData` constructs its math/mermaid providers per export.
+        ExportContent.htmlData(text: text, title: title)
     }
 }
 

@@ -8,7 +8,8 @@ all off, so the iPhone build of `com.lineform.app` can never run on a Mac.
 
 This page covers roadmap step 3 (shell and files), step 4 (Write mode), step 5 (Read and
 Preview, with the Write/Read/Preview switch), step 6 (the Menu sheet), step 7 (the Styling
-sheet) and step 11 (first run). The rest arrive in later steps.
+sheet), step 10 (export, print, share and read aloud) and step 11 (first run). The rest arrive in
+later steps.
 
 ## Each app stands alone
 
@@ -488,6 +489,137 @@ later launch opens straight into a fresh Untitled document, as on the Mac.
   live, keyed by their English in `LineformiOS/Localizable.xcstrings` (six languages; the
   translations still need a native speaker's check). The owner edits the wording there.
 
+## Export, print, share and read aloud
+
+The Menu sheet's document rows (`Export/ExportRows`), in the Mac's order: **Export As** (HTML;
+the Paper Size picker, PDF and Styled PDF; Rich Text), **Print…**, **Share…**, and read aloud.
+`ExportCommands` does the work; the screen makes it once (`DocumentScreen`).
+
+### What each format contains
+
+The content is the Mac's, built by the same package code (`ExportContent`, with the Mac's exact
+renderer arguments; see `export-and-print.md`). Only the page machinery is the iPhone's own.
+
+- **HTML**: `ExportContent.htmlData`, one-to-one with the source; only math and Mermaid pictures
+  are embedded.
+- **PDF (Normal)**: the raw Markdown source in a monospaced face (`ExportContent.rawSource`).
+- **Styled PDF**: the document rendered the way Read draws it (`ExportContent.styled`), with
+  tables fitted to the page, monochrome code, and local images from the document's own folder.
+  Two known differences from the Mac's Styled PDF, both matching iPhone Read: code blocks have
+  no background, and the table grid is Read's hairline grid (`LineformReadView.columnEdges`), so
+  a line can cross wrapped cell text.
+- **Rich Text**: `ExportContent.rtfData` (math and Mermaid as caption and source text).
+
+The page is always white with the light ink, whatever the app's appearance: `PhonePageLayout`
+draws inside a light `UITraitCollection`, so a dynamic colour such as a link's resolves light in
+Dark Mode too (`testDarkModeDoesNotChangeTheExport`). The paper sizes are the Mac's six
+(`ExportPaperSize`); the picker starts on the region's everyday sheet
+(`ExportPaperSize.regionalDefault`) and keeps the pick for the session.
+
+### Pagination: `PhonePageLayout`
+
+The iPhone has no `NSPrintOperation` for a file. `PhonePageLayout` paginates with TextKit 1: one
+`NSLayoutManager` and one page-sized `NSTextContainer` per page, added until every glyph is laid
+out. `UIGraphicsPDFRenderer` writes the PDF pages; Print draws the same layout.
+
+**No content is ever dropped.** A line taller than the page (a tall Mermaid chain, a tall image,
+display math; a picture is one line) fits no container. TextKit then either leaves the container
+and every later one empty, which would end the document at that line, or (as measured on the iOS
+simulator) puts the line in clipped to the page height, which cuts the picture off. So:
+
+1. Before pagination, every picture taller than 90% of the page (less its paragraph's spacing,
+   over its line-height multiple), or wider than the page, is scaled down on a copy of the string.
+   The render itself is never changed, because Print lays one render out for several sheets.
+2. A page that still takes no glyphs, or whose first line fills it (for example a huge font), never
+   ends pagination: that line gets a page of its own, laid out without a height limit and drawn
+   scaled down to fit, and the rest of the document continues in a new layout on the next page.
+3. A document that would need more than 2,000 pages fails (`init` returns nil, so the export shows
+   its failure notice and Print shows no pages). A short PDF is never handed out as complete.
+
+`pageCharacterRanges` lets tests assert the pages cover the document once, with no gap and no
+overlap.
+
+### Print
+
+Print opens `UIPrintInteractionController` with `PhonePrintRenderer`: the Styled layout, like the
+Mac's ⌘P, at the preset's 72 pt margins measured from the paper (inside the printer's printable
+area).
+
+**Threading.** UIKit calls `numberOfPages` and `drawPage(at:in:)` off the main thread. Logged under
+the real print panel in the simulator: `numberOfPages` on
+`com.apple.UIKit.UIPrintPreviewViewController.updatePageCountThread`, `prepare(forDrawingPages:)`
+and `drawPage` on an unnamed secondary thread, never on main. So the overrides are `nonisolated`
+and never hop to main (main can be waiting on the print system: a `DispatchQueue.main.sync` there
+can deadlock). All main-actor work (the Markdown render) happens on main before UIKit asks: `init`
+renders for the region's everyday sheet, which the panel starts on, and `renderRemainingSheets()`,
+started by the row once the panel is up, renders each other offered column width, one per
+main-loop turn. The overrides only lay out and draw those finished strings on the calling thread,
+under one lock (a layout manager with no view is confined to one thread at a time, not to main).
+They read the sheet through key-value coding, because the typed `paperRect` is main-actor
+isolated in Swift. `testCountsAndDrawsOffMainWhileMainWaits` counts and draws on a background
+thread while main is blocked.
+
+**Sheets.** For a content rect, the best render is the offered sheet whose content width is the
+widest that still fits the rect (so fitted tables and pictures never pass the margin), otherwise
+the narrowest. Until that render is ready, the starting sheet's render is used. A render narrower
+than the rect reflows its text to the full width (a landscape page). A render wider than the rect
+(paper smaller than every offered sheet, such as a 4×6 photo) is laid out at its own width and
+drawn scaled down. The layout is made again only when the rect or the render changes, and
+`drawPage` always draws the layout `numberOfPages` counted.
+
+### Share and the export folder
+
+An export is written to its own new folder, `tmp/Exports/<UUID>/<name>.<ext>` (`PhoneExportWriter`),
+so two quick exports never share a path. The name is the document's base name, sanitized: no `/`,
+`:` or control characters and no leading dots, "Untitled" when nothing is left. The write is
+atomic. The system share sheet opens for the copy (its Save to Files is how an export is saved),
+and the whole `Exports` folder is deleted when that sheet closes and at launch, for a copy a share
+sheet still held when iOS ended the app. A share sheet that UIKit would refuse to present (the top
+controller is already presenting or is being dismissed) is not presented, and its cleanup runs at
+once.
+
+`ActivityShareSheet` is presented with UIKit over the top-most presented controller, not as a
+SwiftUI `.sheet`: hosted that way, the activity controller's own dismissal took the Menu sheet down
+with it and the share sheet vanished.
+
+**Share…** hands on the document's own file, saved first (`OpenDocument.flush`). It is disabled
+while an Untitled document has no file to come: nothing typed, or only spaces and Returns
+(`DocumentNaming.baseName` is nil, so the autosave makes no file). A failed save closes the menu so
+the screen's save notice shows; a failed export does the same for the export's calm notice.
+
+### Read aloud
+
+`ExportCommands` drives the package's `SpeechController` and follows the Mac's start rule
+(`speechSource`): in Write and Preview a selection reads the selection and a caret reads from the
+caret to the end; in Read (whose selection is in rendered coordinates) and with no selection it
+reads the whole document. The rows are Start Speaking, then Pause Speaking or Resume Speaking, and
+Stop Speaking. Speech plays through a `.playback` / `.spokenAudio` audio session, released when
+speech goes idle.
+
+Speech stops whenever the document swaps. `OpenDocument.onDocumentSwap` is a single-subscriber
+closure called from `closeCurrentDocument()`, the one place every swap goes through (New Document,
+an open from the list or Files, the download path, the launch restore); it does not fire on a first
+save or a first-line rename. The screen sets it to `ExportCommands.documentWillChange`. It is the
+only place read aloud is stopped on a swap, the iPhone's twin of the Mac's
+`resetTransientDocumentState` rule.
+
+### Parity with the Mac
+
+`ExportParityTests` exports `LineformiOSTests/Fixtures/export-parity/corpus.md` and compares it
+with `mac-expected.json`, recorded from the Mac's own exports: the same words in the Normal PDF,
+Styled PDF and RTF, page counts within one of the Mac's on US Letter and A4, the same HTML apart
+from the picture bytes, and upright math and diagrams. Words are compared as multisets. Two Mac
+text-extraction artifacts are normalised: a table that `NSTextTable` splits over a page break is
+read twice (deduplicated on the Mac side only; the iPhone's words must contain no repeated run),
+and PDFKit reads "ll" as "l" (on both sides).
+
+To re-record (after a deliberate Mac export change, or on a new macOS: the Mac test skips when the
+JSON's macOS differs), run the Mac's hosted
+`TEST_RUNNER_RECORD_EXPORT_PARITY=1 xcodebuild test -project Lineform.xcodeproj -scheme Lineform -destination 'platform=macOS' -testPlan LineformHosted -only-testing:LineformTests/ExportParityRecordHostedTests`.
+The sandboxed test host writes
+`~/Library/Containers/com.lineform.app.debug/Data/tmp/mac-expected.json` and fails with that
+path; copy it into `LineformiOSTests/Fixtures/export-parity/` in its own commit.
+
 ## The Menu sheet
 
 The floating `MenuButton` (bottom right, 44 pt, Mac floating-card chrome, accessibility label
@@ -619,8 +751,9 @@ from search.md carries over; see the iPhone Search paragraph there.
 - Show Hidden Folders, the Files setting (`FilesStore.setShowsHidden`, `Lineform.outline.showsHiddenFolders`).
 - Lineform Guide, Privacy Policy and Terms of Use open in Safari (`openURL`) at the package's
   `LineformLinks`, which the Mac's Help menu also forwards to.
-- Export, Print, Share and Read aloud arrive with roadmap step 10, in the spot marked in the
-  source after Check Document Now. Save As waits for step 10 too. No placeholder rows.
+- Export As, Print…, Share… and read aloud follow Check Document Now as their own section
+  (`ExportRows`, roadmap step 10; see "Export, print, share and read aloud"). Save As is not on
+  iPhone yet. No placeholder row.
 
 ### Settings
 

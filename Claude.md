@@ -245,9 +245,9 @@ this file.
 the app links statically. Its only dependencies are BeautifulMermaid 1.0.4 and SwiftMath 1.7.3, pinned
 exactly as the app pins them (the package commits its own `Package.resolved`; the app target no
 longer links the two products directly). It holds Markdown parsing and HTML rendering
-(`Markdown/`), the Read/Preview attributed-string renderer and its image, Mermaid, pie and math
-providers (`Markdown/Rendering/`), editing commands (`Editor/`), search and the file tree model (`Search/`), reading
-profiles, speech, themes, fonts, palettes and `LineformDesign` (`ReadingExperience/`), History, save status, the Markdown file codec, the live-reload file watcher, and the file pieces the iPhone app uses (document naming, the save folder, the folder monitor and the autosave planner) (`Documents/`), the AI model,
+(`Markdown/`), the Read/Preview attributed-string renderer, its image, Mermaid, pie and math
+providers and the export content (`ExportContent`) (`Markdown/Rendering/`), editing commands (`Editor/`), search and the file tree model (`Search/`), reading
+profiles, speech, themes, fonts, palettes, export paper sizes (`ExportPaperSize`) and `LineformDesign` (`ReadingExperience/`), History, save status, the Markdown file codec, the live-reload file watcher, and the file pieces the iPhone app uses (document naming, the save folder, the folder monitor and the autosave planner) (`Documents/`), the AI model,
 clients and Keychain (`AI/`), announcements and the update check (`App/`). Its tests live in
 `Packages/LineformCore/Tests/LineformCoreTests`. The editor logic both apps share is in the package too:
 token scoping (`MarkdownTokenScope`), token styling (`MarkdownTokenStyler`, in `Markdown/Rendering/`
@@ -405,6 +405,11 @@ iPhone only. Details: `docs/architecture/iphone-app.md`.
   Settings are per device under the Mac's `Lineform.settings.*` keys (`AppSettings`); Automatic
   Dark Mode applies the Mac's Quiet mapping from the trait collection's `userInterfaceStyle`.
   Details: `docs/architecture/iphone-app.md`, "The Menu sheet".
+- **Export, print, share, read aloud.** Same content as the Mac (`ExportContent`); `PhonePageLayout`
+  paginates, and a line taller than the page never ends pagination or drops content (pictures are
+  scaled to the page; any other tall line gets its own scaled page). UIKit calls
+  `PhonePrintRenderer`'s `numberOfPages`/`drawPage` OFF main: never hop to main there; render on
+  main beforehand. `OpenDocument.onDocumentSwap` is the only place read aloud stops on a swap.
 - **Strings.** iPhone strings live in `LineformiOS/Localizable.xcstrings` (six languages), reusing
   the Mac's translation for the same English text. `LocalizationSourceSweepTests` scans
   `LineformiOS/` against that catalog. No iPhone string names a Mac or a sidebar

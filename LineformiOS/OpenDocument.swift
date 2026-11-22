@@ -122,6 +122,9 @@ final class OpenDocument: ImageInsertionHost {
     /// storage with its own undo registration, so a document has ONE undo history in every mode.
     /// Nil (no editor yet) applies the edit with `edit` alone.
     @ObservationIgnored weak var readEditor: (any ReadEditApplying)?
+    /// Called as the current document is put away for another (New Document, an open from the
+    /// list, Files or the launch restore), before its text goes: the screen stops read aloud here.
+    @ObservationIgnored var onDocumentSwap: (() -> Void)?
     @ObservationIgnored private var isPrepared = false
     private var planner = AutosavePlanner(existingFileName: nil, isNamedFromFirstLine: true)
     @ObservationIgnored private var autosaveTask: Task<Void, Never>?
@@ -368,6 +371,7 @@ final class OpenDocument: ImageInsertionHost {
     /// Puts the current document away (after it was saved): stops watching, releases its scope,
     /// and leaves a blank, untouched new document.
     private func closeCurrentDocument() {
+        onDocumentSwap?()
         documentGeneration += 1
         autosaveTask?.cancel()
         autosaveTask = nil

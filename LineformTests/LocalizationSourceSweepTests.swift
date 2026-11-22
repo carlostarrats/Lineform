@@ -78,6 +78,7 @@ final class LocalizationSourceSweepTests: XCTestCase {
         "OutlineSidebarView.swift|Documents": "The `Documents` path component of the iCloud container URL.",
         "DocumentFolderResolver.swift|Documents": "The `Documents` path component of the iCloud container URL.",
         "BundledFontRegistrar.swift|Fonts": "Bundle subdirectory name.",
+        "PhoneExportWriter.swift|Exports": "The iPhone's temporary export folder name, never displayed.",
         "DiagramLog.swift|Library/Application Support": "File-system path component.",
         "PassageHistoryStore.swift|Library/Application Support": "File-system path component.",
         "SpeechVoiceResolver.swift|Hans":

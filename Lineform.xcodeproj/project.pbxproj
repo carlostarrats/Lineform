@@ -7,6 +7,17 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		1F000041000000000000009B /* ExportRowsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F000040000000000000009B /* ExportRowsTests.swift */; };
+		1F000041000000000000009C /* ExportRows.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F000040000000000000009C /* ExportRows.swift */; };
+		1F000041000000000000009D /* ActivityShareSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F000040000000000000009D /* ActivityShareSheet.swift */; };
+		1F000041000000000000009E /* ExportParityRecordHostedTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F000040000000000000009E /* ExportParityRecordHostedTests.swift */; };
+		1F000041000000000000009F /* ExportParityTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F000040000000000000009F /* ExportParityTests.swift */; };
+		1F00004100000000000000A0 /* export-parity in Resources */ = {isa = PBXBuildFile; fileRef = 1F00004000000000000000A0 /* export-parity */; };
+		1F00004100000000000000A1 /* export-parity in Resources */ = {isa = PBXBuildFile; fileRef = 1F00004000000000000000A0 /* export-parity */; };
+		1F000041000000000000009A /* ExportCommandsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F000040000000000000009A /* ExportCommandsTests.swift */; };
+		1F0000410000000000000099 /* ExportCommands.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000400000000000000099 /* ExportCommands.swift */; };
+		1F0000410000000000000098 /* PhonePrintRendererTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000400000000000000098 /* PhonePrintRendererTests.swift */; };
+		1F0000410000000000000097 /* PhonePrintRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000400000000000000097 /* PhonePrintRenderer.swift */; };
 		1F000041000000000000001F /* LineformiOSTextView+SpellCheck.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F000040000000000000001F /* LineformiOSTextView+SpellCheck.swift */; };
 		1F0000410000000000000020 /* EditorConstructionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000400000000000000020 /* EditorConstructionTests.swift */; };
 		1F0000410000000000000021 /* LineformiOSTextView+ImagePaste.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000400000000000000021 /* LineformiOSTextView+ImagePaste.swift */; };
@@ -218,6 +229,13 @@
 		1F000041000000000000003E /* DocumentSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F000040000000000000003E /* DocumentSection.swift */; };
 		1F000041000000000000003F /* SettingsSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F000040000000000000003F /* SettingsSection.swift */; };
 		1F0000410000000000000040 /* AppSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000400000000000000040 /* AppSettings.swift */; };
+		1F0000410000000000000092 /* PhonePDFExportTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000400000000000000092 /* PhonePDFExportTests.swift */; };
+		1F0000410000000000000093 /* PhoneRasterInk.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000400000000000000093 /* PhoneRasterInk.swift */; };
+		1F0000410000000000000090 /* PhonePageLayout.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000400000000000000090 /* PhonePageLayout.swift */; };
+		1F0000410000000000000091 /* PhonePDFRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000400000000000000091 /* PhonePDFRenderer.swift */; };
+		1F0000410000000000000096 /* PhoneExportWriterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000400000000000000096 /* PhoneExportWriterTests.swift */; };
+		1F0000410000000000000094 /* PhoneExportFormat.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000400000000000000094 /* PhoneExportFormat.swift */; };
+		1F0000410000000000000095 /* PhoneExportWriter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000400000000000000095 /* PhoneExportWriter.swift */; };
 /* End PBXBuildFile section */
 
  /* Begin PBXContainerItemProxy section */
@@ -245,6 +263,16 @@
  /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		1F000040000000000000009B /* ExportRowsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExportRowsTests.swift; sourceTree = "<group>"; };
+		1F000040000000000000009C /* ExportRows.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExportRows.swift; sourceTree = "<group>"; };
+		1F000040000000000000009D /* ActivityShareSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActivityShareSheet.swift; sourceTree = "<group>"; };
+		1F000040000000000000009E /* ExportParityRecordHostedTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExportParityRecordHostedTests.swift; sourceTree = "<group>"; };
+		1F000040000000000000009F /* ExportParityTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExportParityTests.swift; sourceTree = "<group>"; };
+		1F00004000000000000000A0 /* export-parity */ = {isa = PBXFileReference; lastKnownFileType = folder; name = "export-parity"; path = "Fixtures/export-parity"; sourceTree = "<group>"; };
+		1F000040000000000000009A /* ExportCommandsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExportCommandsTests.swift; sourceTree = "<group>"; };
+		1F0000400000000000000099 /* ExportCommands.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExportCommands.swift; sourceTree = "<group>"; };
+		1F0000400000000000000098 /* PhonePrintRendererTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhonePrintRendererTests.swift; sourceTree = "<group>"; };
+		1F0000400000000000000097 /* PhonePrintRenderer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhonePrintRenderer.swift; sourceTree = "<group>"; };
 		1F000040000000000000001F /* LineformiOSTextView+SpellCheck.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "LineformiOSTextView+SpellCheck.swift"; sourceTree = "<group>"; };
 		1F0000400000000000000020 /* EditorConstructionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditorConstructionTests.swift; sourceTree = "<group>"; };
 		1F0000400000000000000021 /* LineformiOSTextView+ImagePaste.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "LineformiOSTextView+ImagePaste.swift"; sourceTree = "<group>"; };
@@ -462,6 +490,14 @@
 		1F000040000000000000003F /* SettingsSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsSection.swift; sourceTree = "<group>"; };
 		1F0000400000000000000040 /* AppSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppSettings.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
+		1F0000400000000000000092 /* PhonePDFExportTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhonePDFExportTests.swift; sourceTree = "<group>"; };
+		1F0000400000000000000093 /* PhoneRasterInk.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhoneRasterInk.swift; sourceTree = "<group>"; };
+		1F0000400000000000000090 /* PhonePageLayout.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhonePageLayout.swift; sourceTree = "<group>"; };
+		1F0000400000000000000091 /* PhonePDFRenderer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhonePDFRenderer.swift; sourceTree = "<group>"; };
+		1F0000400000000000000096 /* PhoneExportWriterTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhoneExportWriterTests.swift; sourceTree = "<group>"; };
+		1F0000400000000000000094 /* PhoneExportFormat.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhoneExportFormat.swift; sourceTree = "<group>"; };
+		1F0000400000000000000095 /* PhoneExportWriter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhoneExportWriter.swift; sourceTree = "<group>"; };
+ /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
 		1F0000060000000000000001 /* Frameworks */ = {
@@ -729,6 +765,7 @@
 				1F0000340000000000000031 /* CJKFontFallbackTests.swift */,
 				1F0000350000000000000002 /* RenderGoldenTests.swift */,
 				1F0000350000000000000004 /* Fixtures */,
+				1F000040000000000000009E /* ExportParityRecordHostedTests.swift */,
 			);
  			path = LineformTests;
  			sourceTree = "<group>";
@@ -767,6 +804,7 @@
 				1F0000B10000000000000001 /* FirstRun */,
 				1F0000420000000000000070 /* Styling */,
 				1F0000420000000000000006 /* Menu */,
+				1F0000420000000000000090 /* Export */,
 				1F0000400000000000000008 /* Assets.xcassets */,
 				1F0000400000000000000007 /* Localizable.xcstrings */,
 				1F0000400000000000000004 /* Info.plist */,
@@ -804,6 +842,14 @@
 				1F0000400000000000000012 /* OpenDocumentTests.swift */,
 				1F0000400000000000000013 /* AutosaveTests.swift */,
 				1F0000B10000000000000005 /* FirstRunTests.swift */,
+				1F0000400000000000000096 /* PhoneExportWriterTests.swift */,
+				1F0000400000000000000093 /* PhoneRasterInk.swift */,
+				1F0000400000000000000092 /* PhonePDFExportTests.swift */,
+				1F000040000000000000009A /* ExportCommandsTests.swift */,
+				1F000040000000000000009B /* ExportRowsTests.swift */,
+				1F000040000000000000009F /* ExportParityTests.swift */,
+				1F00004000000000000000A0 /* export-parity */,
+				1F0000400000000000000098 /* PhonePrintRendererTests.swift */,
 			);
 			path = LineformiOSTests;
 			sourceTree = "<group>";
@@ -884,6 +930,21 @@
 				1F000040000000000000003E /* DocumentSection.swift */,
 			);
 			path = Menu;
+			sourceTree = "<group>";
+		};
+		1F0000420000000000000090 /* Export */ = {
+			isa = PBXGroup;
+			children = (
+				1F0000400000000000000090 /* PhonePageLayout.swift */,
+				1F0000400000000000000091 /* PhonePDFRenderer.swift */,
+				1F0000400000000000000094 /* PhoneExportFormat.swift */,
+				1F0000400000000000000095 /* PhoneExportWriter.swift */,
+				1F0000400000000000000099 /* ExportCommands.swift */,
+				1F000040000000000000009D /* ActivityShareSheet.swift */,
+				1F000040000000000000009C /* ExportRows.swift */,
+				1F0000400000000000000097 /* PhonePrintRenderer.swift */,
+			);
+			path = Export;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -1074,6 +1135,7 @@
  			buildActionMask = 2147483647;
  			files = (
 				1F0000350000000000000003 /* Fixtures in Resources */,
+				1F00004100000000000000A1 /* export-parity in Resources */,
  			);
  			runOnlyForDeploymentPostprocessing = 0;
  		};
@@ -1100,6 +1162,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				1F00004100000000000000A0 /* export-parity in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -1203,6 +1266,7 @@
 				1F0000010000000000000042 /* BundledFontRegistrationTests.swift in Sources */,
 				1F0000010000000000000043 /* ThemeTests.swift in Sources */,
 				1F0000350000000000000001 /* RenderGoldenTests.swift in Sources */,
+				1F000041000000000000009E /* ExportParityRecordHostedTests.swift in Sources */,
 				1F0000010000000000000044 /* ReadingProfileStoreTests.swift in Sources */,
 				1F0000010000000000000322 /* LineformSettingsTests.swift in Sources */,
 				1F00000100000000000004C9 /* AnnouncementTests.swift in Sources */,
@@ -1279,6 +1343,14 @@
 				1F000041000000000000001C /* LineformiOSTextView+ReadingAssists.swift in Sources */,
 				1F0000410000000000000021 /* LineformiOSTextView+ImagePaste.swift in Sources */,
 				1F0000410000000000000023 /* LineformReadView.swift in Sources */,
+				1F0000410000000000000095 /* PhoneExportWriter.swift in Sources */,
+				1F0000410000000000000099 /* ExportCommands.swift in Sources */,
+				1F000041000000000000009D /* ActivityShareSheet.swift in Sources */,
+				1F000041000000000000009C /* ExportRows.swift in Sources */,
+				1F0000410000000000000097 /* PhonePrintRenderer.swift in Sources */,
+				1F0000410000000000000094 /* PhoneExportFormat.swift in Sources */,
+				1F0000410000000000000091 /* PhonePDFRenderer.swift in Sources */,
+				1F0000410000000000000090 /* PhonePageLayout.swift in Sources */,
 				1F0000410000000000000024 /* ReadViewRepresentable.swift in Sources */,
 				1F0000410000000000000025 /* ReadOverlayButtons.swift in Sources */,
 				1F0000410000000000000027 /* MotionPolicy.swift in Sources */,
@@ -1322,6 +1394,13 @@
 				1F000041000000000000001D /* SpellCheckTests.swift in Sources */,
 				1F0000410000000000000022 /* ImagePasteTests.swift in Sources */,
 				1F0000410000000000000026 /* ReadViewTests.swift in Sources */,
+				1F0000410000000000000096 /* PhoneExportWriterTests.swift in Sources */,
+				1F0000410000000000000093 /* PhoneRasterInk.swift in Sources */,
+				1F0000410000000000000092 /* PhonePDFExportTests.swift in Sources */,
+				1F000041000000000000009A /* ExportCommandsTests.swift in Sources */,
+				1F000041000000000000009B /* ExportRowsTests.swift in Sources */,
+				1F000041000000000000009F /* ExportParityTests.swift in Sources */,
+				1F0000410000000000000098 /* PhonePrintRendererTests.swift in Sources */,
 				1F000041000000000000002A /* ModeSwitchTests.swift in Sources */,
 				1F000041000000000000002D /* LinkedScrollTests.swift in Sources */,
 				1F0000410000000000000072 /* StylingSheetTests.swift in Sources */,
