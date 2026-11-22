@@ -372,10 +372,10 @@ iPhone only. Details: `docs/architecture/iphone-app.md`.
   the top paragraph (`ModePositionKeeper`, 14 pt top probe). Read is `LineformReadView`, a
   non-editable TextKit 1 `UITextView` that always renders with real `RenderDisplayMetrics` (the
   view's `displayScale`, the window's height), never the placeholder default. Read edits the
-  document only through checkboxes and Reconnect, both via `OpenDocument.edit(_:)` (one undo step
-  on the document's own undo manager); a checkbox toggle is refused when the text changed since
-  the render, and Copy never edits. Entering Write after a Read edit clears the editor's undo,
-  as a live reload does. Preview is the editor over Read; linked scrolling copies the
+  document only through checkboxes and Reconnect, applied by the always-mounted editor as one
+  ranged edit with its own undo, then `OpenDocument.edit(_:)`: ONE undo history in every mode, and
+  ⌘Z or shake undoes a Read edit in Write, Read or Preview. A checkbox toggle or a Reconnect pick is
+  refused when the text changed since the render, and Copy never edits. Preview is the editor over Read; linked scrolling copies the
   inset-normalised distance from the top, clamped, with an echo guard and no block mapping.
   Images load only from the document's folder or a Reconnect pick. Details:
   `docs/architecture/iphone-app.md`, "Write, Read and Preview".

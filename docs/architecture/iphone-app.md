@@ -173,8 +173,10 @@ Mac.
   `.ultraThinMaterial` capsule with the Mac's light and dark fills, its 0.5 pt stroke and its shadow
   (black 0.035, radius 5, y 1). The selected pill moves with the liquid bridge: spring(0.24, 0.78),
   then after 0.16 s spring(0.30, 0.82). There is no hover on a phone, so the Mac's hover fill
-  (0.48 of the selected fill) is the pressed state, shown while a segment is held. Its accessibility label is the Mac's
-  "Editor mode".
+  (0.48 of the selected fill) is the pressed state, shown while a segment is held: the pill is always
+  drawn and its opacity animates with the Mac's hover, `easeInOut(LineformDesign.Motion.hover)`
+  (0.12 s) through `EditorMotionPolicy`, so Reduce Motion turns it off. Its accessibility label is
+  the Mac's "Editor mode".
 - It floats at the top centre, 8 pt inside the safe area, over the page. There is no full-width bar.
   The editor and Read view get an extra 52 pt top `contentInset` (8 + 36 + 8,
   `ModeSwitch.pageTopClearance`) so the first line is never under the pill.
@@ -193,14 +195,17 @@ for Write and Preview, the Read view for Read) and restores it on the incoming o
 only if no newer switch happened. Write uses `scrollCharacterRangeToTopPersistently` (8 pt margin,
 re-asserted for 5 ticks, a touch stops it); Read uses `scrollSourceLocationToTop`; Preview moves
 the editor through `SplitScrollJumpPlan` and, while linked, Read follows. Several switches in one
-tick keep the first target and restore only the last mode. Both surfaces probe the top 14 pt down
+tick keep the first target and restore only the last mode; if the editor had the focus at the
+first of them and the burst ends in Write, it gets the focus back. A scene restored straight into
+Read gives Read the focus, so shake-to-undo routes. Both surfaces probe the top 14 pt down
 (the Mac editor's `visibleTopProbeInset`), so a line parked 8 pt below the top reads as itself and
 the position never drifts a line per round trip. The source↔rendered lookups are the package's
 `SourcePosition` (`sourceLocation(atRenderedIndex:in:)`, `renderedIndex(forSourceLocation:in:)`),
 the same code the Mac's split scroll uses.
 
 The editor stays mounted in every mode. In Read it sits under the opaque Read view with no hit
-testing and hidden from accessibility, so Write keeps its undo history across a switch. The Read
+testing and hidden from accessibility, and it applies Read's edits (below), so the document has one
+undo history in every mode. The Read
 view exists only in Read and Preview, so typing in Write never renders.
 
 ### Read
@@ -226,19 +231,26 @@ lives in a lazily made `State` object (`testFactoryPathHasEveryDefault`).
   passage by its source position.
 - **Tables** are the iOS tab-stop rows (`docs/architecture/rendering.md`, platform seam). The view
   rescales their stops to `blockAttachmentFitWidth` on every render and width change, and draws
-  the hairline grid behind the text.
+  the hairline grid behind the text. The row lines end at that fit width, and the column edges are
+  the running sum of the renderer's column fractions (`.markdownTableColumnFractions`, from
+  `fitColumnPercentages`, the numbers the stops are placed with) times the fit width, so no edge
+  cuts a cell that fits its column, whatever the alignment.
 - **Checkboxes.** A tap recognizer begins only on a checkbox glyph rect (`checkboxSourceRange(at:)`,
   the Mac's glyph hit test).
 - **Copy and Reconnect pills** are `UIButton` subviews in content coordinates (so a scroll carries
   them), placed with the Mac's values: Copy a 26 pt circle 8 pt inside the column's right edge;
-  Reconnect 22 pt high, radius 11, an 11 pt medium label, 8 pt after its run and clamped inside the
-  right margin. They move after a render, refit, width or profile change. Copy slices the rendered
+  Reconnect 22 pt high, radius 11, an 11 pt medium label, 8 pt after its run while it fits inside
+  the reading column, otherwise 4 pt under the run, never past the column's right edge. They move after a render, refit, width or profile change. Copy slices the rendered
   source into `UIPasteboard.general`, shows a checkmark for 1.0 s, and never edits the document.
   Reconnect presents `.fileImporter` with the Mac's image types.
 - **Images are local only.** Remote and `data:` URLs stay placeholders. Files load only from the
   document's folder or from a URL Reconnect's picker returned.
 - **Accessibility.** `accessibilityCustomActions` mirror every pill and checkbox with the Mac's
   strings: "Copy code block %lld", "Reconnect image", "Toggle task: %@" and "Toggle task".
+- **Bottom clearance.** Read, and Preview's lower pane, get a bottom `contentInset` of
+  `DocumentScreen.bottomChromeClearance` (chromeMargin + 38 + 8 = 66 pt), applied like the top
+  clearance, so the last line and its pill scroll clear of the Menu and link buttons. (The editor
+  has no such inset; the buttons float over it as before.)
 - **Position.** `onVisibleTopSourceLocationChanged` fires 0.08 s after scrolling stops.
   `scrollSourceLocationToTop` waits until the view is rendered, in a window and sized, parks the
   line 8 pt below the top and clamps to the laid-out end.
@@ -251,25 +263,27 @@ Read changes the document only through checkboxes and Reconnect; Copy never does
   also carries the source the view rendered, and refuses the toggle when that differs from the
   document's text: after typing in Write, the 0.12 s preview debounce can leave rendered ranges
   stale, and a stale range must never toggle another line. A nil result does nothing.
-- `OpenDocument.reconnectImage(at:with:)` uses `ImageLinkRewrite.linkPath(for:documentDirectory:)`
-  and `rewritten(in:at:newPath:)`, relative to `documentDirectory` (the open file's folder). It
-  keeps the picked URL's security scope until the document closes or detaches.
-- Both go through `edit(_:)`, so they autosave like typing, and both keep every `\r\n`. Line offsets
-  come from the renderer's attributes, never recomputed.
+- `OpenDocument.reconnectImage(at:with:renderedFrom:)` uses `ImageLinkRewrite.linkPath(for:documentDirectory:)`
+  and `rewritten(in:at:newPath:)`, relative to `documentDirectory` (the open file's folder). The
+  screen captures the rendered source with the range when the picker opens, and a pick that
+  returns after the text changed is refused. It keeps the picked URL's security scope until the
+  document closes or detaches.
+- Both hand the new text to the editor (`OpenDocument.readEditor`, `ReadEditApplying`), which
+  applies it as ONE localized ranged edit through its rule-edit helper (`applyRuleEdit`, without
+  scrolling), with its own undo registration; the editor's binding then calls `edit(_:)`, so they
+  autosave like typing. Both keep every `\r\n`. Line offsets come from the renderer's
+  attributes, never recomputed.
 
 ### Undo across modes
 
-- A Read edit is one undo step, with redo, on `OpenDocument`'s own `undoManager` (grouped by hand,
-  `groupsByEvent` off). The Read view's `undoManager` returns it, and Read takes first responder
-  when entered, so shake and ⌘Z reach it.
-- Write typing (an ordinary `edit`), a reload and closing the document clear that stack, because
-  undoing an older whole-text step would discard newer text.
-- Entering Write after a Read edit treats the text as an outside replacement: `MarkdownEditor`
-  calls `setDocumentText` and clears the editor's undo, as it does for a live reload. So a Read
-  toggle cannot be undone from Write, and Write's undo never rewinds over it.
-- Without a Read edit, Write's undo history survives a trip through Read or Preview.
-- In Preview, a checkbox in the Read pane clears the editor's undo; its own undo is reachable
-  while the Read pane is first responder.
+- A document has ONE undo history in every mode: the editor's. A Read edit is one step in it,
+  with redo, in order with the typing around it; ⌘Z or shake undoes it in Write, in Read and in
+  either Preview pane. `OpenDocument` has no undo manager of its own.
+- The Read view's `undoManager` returns the editor's. It offers ⌘Z and ⇧⌘Z key commands itself
+  (a non-editable text view has no undo of its own), and Read takes first responder when entered,
+  so shake and ⌘Z reach it. In Write and in Preview's editor the editor answers them as usual.
+- Only an outside replacement (a live reload, another file) clears the editor's undo:
+  `MarkdownEditor` calls `setDocumentText`, so undo never puts older text over the new.
 
 ### Preview
 
@@ -285,11 +299,15 @@ above the keyboard, split by a hairline (theme ink at 0.15 through `readableInk`
   offset never echoes back. The distance is inset-normalised (`contentOffset.y +
   adjustedContentInset.top`) because the top pane sits under the status bar and the bottom one
   does not. The link is on by default; re-linking aligns Preview to Write; unlinking leaves both
-  panes where they are. Offsets the Read view sets itself (render, refit, width change) are not
-  reported to the link.
+  panes where they are. The Read pane reports to the link only its own scrolling (tracking,
+  dragging, decelerating, a tap on the status bar) and explicit restores; an offset UIKit or a
+  layout pass sets (render, refit, width change, content growing) never drives the editor. A Read
+  pane entered before it had content aligns to the editor once after its first render, while
+  linked.
 - **The link button** (`PreviewLinkButton`) is a 38 pt circle with the `link` symbol, 12 pt left of
   the Menu button, in Preview only, with the Menu button's floating-card chrome. Linked it is
-  systemBlue on a blue wash; unlinked it is struck through in the ink at 0.62. Labels are the Mac's
+  systemBlue on a blue wash; unlinked it is struck through in the ink at 0.62. The press animates
+  like the mode control's (every layer drawn, only opacities change). Labels are the Mac's
   "Link split scrolling" and "Unlink split scrolling".
 
 ## Files: reading, writing and live reload

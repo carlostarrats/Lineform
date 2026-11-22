@@ -186,7 +186,150 @@ final class LinkedScrollTests: XCTestCase {
         XCTAssertEqual(LineformReadView.previewTextDelay, 0.12)
     }
 
+    func testLayoutOffsetChangesInReadPaneDoNotDriveEditor() throws {
+        let (editor, reader, linked) = try hostedReadPane(text: Self.longDocument)
+        editor.setContentOffset(CGPoint(x: 0, y: 600 - editor.adjustedContentInset.top), animated: false)
+        let editorY = editor.contentOffset.y
+
+        // An offset UIKit or layout sets (no finger on the page, no restore): the editor stays.
+        reader.contentOffset = CGPoint(x: 0, y: reader.contentOffset.y + 250)
+        XCTAssertFalse(reader.forwardsScrollToLink)
+        XCTAssertEqual(editor.contentOffset.y, editorY, accuracy: 0.5, "a layout-driven change never moves the editor")
+
+        // An explicit restore does drive it.
+        reader.scrollSourceLocationToTop((Self.longDocument as NSString).range(of: "Paragraph 90:").location)
+        let readerDistance = reader.contentOffset.y + reader.adjustedContentInset.top
+        let editorDistance = editor.contentOffset.y + editor.adjustedContentInset.top
+        XCTAssertGreaterThan(readerDistance, 1000)
+        XCTAssertEqual(editorDistance, LinkedScroll.linkedOffsetY(from: reader, to: editor) + editor.adjustedContentInset.top,
+                       accuracy: 0.5, "the restore is followed")
+        XCTAssertNotEqual(editor.contentOffset.y, editorY, accuracy: 1)
+        _ = linked
+    }
+
+    func testEnteringPreviewAlignsReadPaneAfterFirstRender() throws {
+        let (editor, reader, _) = try hostedReadPane(text: Self.longDocument, scrollEditorTo: 1400)
+        // The pane was made after the editor had scrolled: the first render lines it up once.
+        settle(ticks: 3)
+        let editorDistance = editor.contentOffset.y + editor.adjustedContentInset.top
+        let readerDistance = reader.contentOffset.y + reader.adjustedContentInset.top
+        XCTAssertEqual(editorDistance, 1400, accuracy: 0.5)
+        XCTAssertEqual(readerDistance, 1400, accuracy: 0.5, "Preview took the editor's place after its first render")
+
+        // Unlinked, a new pane stays where it is.
+        let (_, unlinkedReader, _) = try hostedReadPane(text: Self.longDocument, scrollEditorTo: 1400, linked: false)
+        settle(ticks: 3)
+        XCTAssertEqual(unlinkedReader.contentOffset.y + unlinkedReader.adjustedContentInset.top, 0, accuracy: 0.5)
+    }
+
+    func testReadPaneScrollsClearOfBottomButtons() async throws {
+        let text = Self.longDocument + "\n\n![a missing picture](gone.png)"
+        let document = await preparedDocument(text: text)
+        let window = try hostScreen(document: document, mode: .split)
+        let reader = try await waitAsync {
+            Self.find(LineformReadView.self, in: window).flatMap { $0.renderedSourceText == nil ? nil : $0 }
+        }
+        XCTAssertEqual(DocumentScreen.bottomChromeClearance, MarkdownEditor.chromeMargin + 38 + 8)
+        XCTAssertEqual(reader.contentInset.bottom, DocumentScreen.bottomChromeClearance, "Preview's lower pane")
+
+        // At the end of the page.
+        reader.layoutManager.ensureLayout(for: reader.textContainer)
+        reader.layoutIfNeeded()
+        let maximumY = reader.contentSize.height + reader.adjustedContentInset.bottom - reader.bounds.height
+        reader.contentOffset = CGPoint(x: 0, y: maximumY)
+        reader.layoutIfNeeded()
+        let storage = reader.textStorage
+        let lastGlyph = reader.layoutManager.glyphRange(forCharacterRange: NSRange(location: storage.length - 1, length: 1), actualCharacterRange: nil)
+        let lastLine = reader.layoutManager.lineFragmentUsedRect(forGlyphAt: lastGlyph.location, effectiveRange: nil)
+            .offsetBy(dx: reader.textContainerInset.left, dy: reader.textContainerInset.top)
+        let pill = try XCTUnwrap(reader.overlayButtons.first { $0.kind == .reconnect })
+        let lastLineInWindow = reader.convert(lastLine, to: window)
+        let pillInWindow = pill.convert(pill.bounds, to: window)
+
+        // The floating buttons: the Menu button and, left of it, the link button, chromeMargin
+        // above the safe area's bottom.
+        let buttonsBottom = window.bounds.height - window.safeAreaInsets.bottom - MarkdownEditor.chromeMargin
+        let menu = Self.accessibilityFrame(label: "Files", in: window)
+            ?? CGRect(x: window.bounds.width - MarkdownEditor.chromeMargin - MenuButton.diameter,
+                      y: buttonsBottom - MenuButton.diameter, width: MenuButton.diameter, height: MenuButton.diameter)
+        let link = Self.accessibilityFrame(label: PreviewLinkButton.accessibilityTitle(isLinked: true), in: window)
+            ?? CGRect(x: menu.minX - DocumentScreen.bottomChromeSpacing - PreviewLinkButton.diameter,
+                      y: menu.midY - PreviewLinkButton.diameter / 2,
+                      width: PreviewLinkButton.diameter, height: PreviewLinkButton.diameter)
+        for button in [menu, link] {
+            XCTAssertLessThanOrEqual(lastLineInWindow.maxY, button.minY, "the last line is above \(button)")
+            XCTAssertLessThanOrEqual(pillInWindow.maxY, button.minY, "the pill is above \(button)")
+        }
+    }
+
     // MARK: - Helpers
+
+    /// An editor and a Read pane wired to one `LinkedScroll` the way the screen wires Preview: the
+    /// Read pane made (and so first rendered) after the editor was scrolled to `scrollEditorTo`.
+    private func hostedReadPane(
+        text: String,
+        scrollEditorTo editorDistance: CGFloat = 0,
+        linked: Bool = true
+    ) throws -> (LineformTextView, LineformReadView, LinkedScroll) {
+        let window = self.window ?? {
+            let scene = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first
+            let window = scene.map { UIWindow(windowScene: $0) } ?? UIWindow()
+            window.frame = CGRect(x: 0, y: 0, width: 393, height: 852)
+            window.rootViewController = UIViewController()
+            window.isHidden = false
+            self.window = window
+            return window
+        }()
+        let host = try XCTUnwrap(window.rootViewController?.view)
+        let link = LinkedScroll()
+        links.append(link) // The screen holds its LinkedScroll in @State; the panes hold it weakly.
+        if !linked { link.toggleLink() }
+        let editor = LineformTextView.make()
+        editor.setDocumentText(text)
+        editor.frame = CGRect(x: 0, y: 0, width: 393, height: 426)
+        host.addSubview(editor)
+        link.connect(editor: editor)
+        editor.layoutManager.ensureLayout(for: editor.textContainer)
+        editor.layoutIfNeeded()
+        editor.setContentOffset(CGPoint(x: 0, y: editorDistance - editor.adjustedContentInset.top), animated: false)
+
+        let reader = LineformReadView.make()
+        reader.frame = CGRect(x: 0, y: 426, width: 393, height: 426)
+        ReadViewRepresentable(text: text, profile: .original, documentDirectory: nil, linkedScroll: link).configure(reader)
+        // The editor reports no scrolls here, so only the Read pane's own path can line it up.
+        host.addSubview(reader)
+        reader.layoutIfNeeded()
+        return (editor, reader, link)
+    }
+
+    private var links: [LinkedScroll] = []
+
+    private func settle(ticks: Int) {
+        for _ in 0..<ticks {
+            RunLoop.main.run(until: Date().addingTimeInterval(0.02))
+            window?.layoutIfNeeded()
+        }
+    }
+
+    /// The frame of the accessibility element labelled `label` (a SwiftUI button), if VoiceOver's
+    /// tree exposes it.
+    private static func accessibilityFrame(label: String, in root: NSObject, depth: Int = 0) -> CGRect? {
+        guard depth < 40 else { return nil }
+        if root.accessibilityLabel == label, !(root is UIWindow) { return root.accessibilityFrame }
+        var children: [NSObject] = []
+        if let view = root as? UIView { children += view.subviews }
+        if let elements = root.accessibilityElements as? [NSObject] { children += elements }
+        let count = root.accessibilityElementCount()
+        if count != NSNotFound, count > 0 {
+            for index in 0..<count {
+                if let element = root.accessibilityElement(at: index) as? NSObject { children.append(element) }
+            }
+        }
+        for child in children where child !== root {
+            if let frame = accessibilityFrame(label: label, in: child, depth: depth + 1) { return frame }
+        }
+        return nil
+    }
 
     private static let longDocument: String = (0..<200).map { index in
         "Paragraph \(index): the quick brown fox jumps over the lazy dog, then naps in the warm afternoon sun by the river."
@@ -259,7 +402,7 @@ final class LinkedScrollTests: XCTestCase {
 }
 
 /// Counts scroll reports and forwards each one.
-private final class ScrollRecorder: NSObject, UIScrollViewDelegate {
+private final class ScrollRecorder: NSObject, UITextViewDelegate {
     private let forward: (UIScrollView) -> Void
     private(set) var count = 0
 

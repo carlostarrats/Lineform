@@ -129,11 +129,11 @@ view can exercise it.
 - **TextKit 2 path for `HorizontalRuleAttachment`.** Only the TextKit 1 overrides exist, and
   `UITextView` defaults to TextKit 2. Either force TextKit 1 in the Read view or add the TextKit 2
   overrides, plus one hosted layout test.
-  **Done in part (step 5):** the Read view is `UITextView(usingTextLayoutManager: false)`, so the
-  TextKit 1 overrides are the ones used and no TextKit 2 overrides are needed. The hosted layout
-  test is still missing: no `ReadViewTests` case lays out a `---` rule in the Read view. The package
-  test `testHorizontalRuleFillsLineWidth` covers the attachment's bounds only. Open for a later
-  step's test pass.
+  **Done (step 5):** the Read view is `UITextView(usingTextLayoutManager: false)`, so the
+  TextKit 1 overrides are the ones used and no TextKit 2 overrides are needed.
+  `ReadViewTests.testHorizontalRuleLaysOutInReadView` renders `a`, `---`, `b` in the hosted Read
+  view, lays it out, and checks `textLayoutManager` is nil and the rule's glyph rect is non-zero at
+  the column width.
 - **`displayMetrics` effectively required on iOS.** The scale 3 / viewport 844 default of
   `RenderDisplayMetrics.current` is a placeholder; the Read view must always pass real metrics.
   **Done (step 5):** the Read view renders only once in a window and always passes

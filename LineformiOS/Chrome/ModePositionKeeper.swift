@@ -12,14 +12,20 @@ import UIKit
 /// the editor and, while the panes are linked, Preview follows it (`SplitScrollJumpPlan`).
 ///
 /// It also moves the keyboard focus with the mode: Read takes first responder (so a shake or ⌘Z
-/// reaches the document's undo for a checkbox or a Reconnect) and the editor gives it up.
+/// reaches the document's undo for a checkbox or a Reconnect) and the editor gives it up. A burst
+/// of switches that ends back in Write gives the editor its focus back when it had it at the
+/// first switch, and a scene restored straight into Read gives Read the focus.
 @MainActor
 final class ModePositionKeeper {
     weak var editor: LineformTextView? {
         didSet { if editor !== oldValue { applyAwaitedRestore() } }
     }
     weak var reader: LineformReadView? {
-        didSet { if reader !== oldValue { applyAwaitedRestore() } }
+        didSet {
+            guard reader !== oldValue else { return }
+            focusAdoptedReaderIfNeeded()
+            applyAwaitedRestore()
+        }
     }
     /// Whether Preview's panes are linked (`LinkedScroll.isLinked`); nil reads as linked.
     var isPreviewLinked: () -> Bool = { true }
@@ -33,10 +39,25 @@ final class ModePositionKeeper {
     /// A restore whose tick came before SwiftUI made the new surface; it runs when the surface
     /// registers (`editor`, `reader`), if its switch is still the current one.
     private var awaitedRestore: (target: Int?, mode: EditorDisplayMode, generation: Int)?
+    /// Whether the editor had the focus at the first switch of the burst being restored.
+    private var editorHadFocus = false
+    /// Set from a burst's first switch until its tick runs.
+    private var isInBurst = false
+    /// Read was adopted (a restored scene) and has not taken the focus yet.
+    private var readerAwaitsAdoptedFocus = false
 
-    /// The mode shown when the screen appears (a restored scene, a test); no restore.
+    /// The mode shown when the screen appears (a restored scene, a test); no restore. Read takes
+    /// the focus, now or once its view registers, so a shake undoes there.
     func adopt(_ mode: EditorDisplayMode) {
         currentMode = mode
+        readerAwaitsAdoptedFocus = mode == .read
+        focusAdoptedReaderIfNeeded()
+    }
+
+    private func focusAdoptedReaderIfNeeded() {
+        guard readerAwaitsAdoptedFocus, currentMode == .read, let reader else { return }
+        readerAwaitsAdoptedFocus = false
+        reader.takeFocusWhenInWindow()
     }
 
     /// The source location at the top of the surface the reader is looking at in `mode`.
@@ -52,6 +73,12 @@ final class ModePositionKeeper {
     /// Call as the mode changes from `old` to `new`, before the views update.
     func switchMode(from old: EditorDisplayMode, to new: EditorDisplayMode) {
         guard old != new else { return }
+        if !isInBurst {
+            // The first switch of a burst (switches inside one tick): remember who had the focus.
+            isInBurst = true
+            editorHadFocus = editor?.isFirstResponder ?? false
+        }
+        readerAwaitsAdoptedFocus = false
         let target = pendingTarget ?? topSourceLocation(in: old)
         pendingTarget = target
         currentMode = new
@@ -61,6 +88,7 @@ final class ModePositionKeeper {
         awaitedRestore = nil
         DispatchQueue.main.async { [weak self] in
             guard let self, switchGeneration == self.generation, self.currentMode == new else { return }
+            self.isInBurst = false
             self.pendingTarget = nil
             self.awaitedRestore = (target, new, switchGeneration)
             self.applyAwaitedRestore()
@@ -81,6 +109,10 @@ final class ModePositionKeeper {
         }
         awaitedRestore = nil
         if awaited.mode == .read { reader?.takeFocusWhenInWindow() }
+        if awaited.mode == .write, editorHadFocus, let editor, !editor.isFirstResponder {
+            editor.becomeFirstResponder()
+        }
+        editorHadFocus = false
         if let target = awaited.target { restore(target, in: awaited.mode) }
     }
 

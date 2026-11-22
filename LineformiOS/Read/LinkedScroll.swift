@@ -39,6 +39,13 @@ final class LinkedScroll {
         synchronize(from: source, to: editor)
     }
 
+    /// The Read pane rendered for the first time: while linked, it takes the editor's place once
+    /// (a pane entered before it had content could not follow the editor's restore).
+    func previewDidFirstRender(_ view: UIScrollView) {
+        guard view === preview, isLinked else { return }
+        alignPreviewToEditor()
+    }
+
     /// Brings Preview to the editor's offset, linked or not (re-linking).
     func alignPreviewToEditor() {
         synchronize(from: editor, to: preview, requiresLink: false)

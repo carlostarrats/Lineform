@@ -90,7 +90,15 @@ final class LineformReadView: UITextView {
         var onScroll: ((UIScrollView) -> Void)?
         /// Set while the view moves its own offset for a layout change (no linked-scroll report).
         var isAdjustingLayout = false
-        weak var documentUndoManager: UndoManager?
+        /// Set while an explicit position restore (`scrollSourceLocationToTop`) moves the page,
+        /// which Preview's linked scrolling does follow.
+        var isRestoringPosition = false
+        /// Set from a tap on the status bar until the page reaches the top.
+        var isScrollingToTop = false
+        /// Called once, after the first render (Preview aligns itself to the editor then).
+        var onFirstRender: (() -> Void)?
+        /// The undo manager of the editor under Read: the document's one undo history.
+        var undoManagerProvider: (() -> UndoManager?)?
         #if DEBUG
         var pasteboardForTesting: UIPasteboard?
         #endif
@@ -126,11 +134,17 @@ final class LineformReadView: UITextView {
         get { state.onScroll }
         set { state.onScroll = newValue }
     }
-    /// The document's undo manager, so a shake or a three-finger swipe in Read undoes a checkbox
-    /// toggle or a Reconnect (they are document edits, `OpenDocument.edit`).
-    var documentUndoManager: UndoManager? {
-        get { state.documentUndoManager }
-        set { state.documentUndoManager = newValue }
+    /// The editor's undo manager, so a shake, ⌘Z or a three-finger swipe in Read undoes a
+    /// checkbox toggle or a Reconnect, and the typing before it: the editor applied them, and a
+    /// document has one undo history in every mode.
+    var undoManagerProvider: (() -> UndoManager?)? {
+        get { state.undoManagerProvider }
+        set { state.undoManagerProvider = newValue }
+    }
+    /// Called once, after the first render.
+    var onFirstRender: (() -> Void)? {
+        get { state.onFirstRender }
+        set { state.onFirstRender = newValue }
     }
     /// The source text the storage was rendered from; nil before the first render.
     var renderedSourceText: String? { state.renderedText }
@@ -148,7 +162,41 @@ final class LineformReadView: UITextView {
     #endif
 
     override var undoManager: UndoManager? {
-        state.documentUndoManager ?? super.undoManager
+        state.undoManagerProvider?() ?? super.undoManager
+    }
+
+    // MARK: - Undo keys
+
+    /// ⌘Z and ⇧⌘Z while Read has the focus: the editor's undo (a non-editable text view offers no
+    /// undo of its own). In Write, and in Preview's editor, the editor answers them itself.
+    private static let undoKeyCommands: [UIKeyCommand] = {
+        let undo = UIKeyCommand(title: String(localized: "Undo"), action: #selector(undoDocumentEdit(_:)),
+                                input: "z", modifierFlags: .command)
+        let redo = UIKeyCommand(title: String(localized: "Redo"), action: #selector(redoDocumentEdit(_:)),
+                                input: "z", modifierFlags: [.command, .shift])
+        undo.wantsPriorityOverSystemBehavior = true
+        redo.wantsPriorityOverSystemBehavior = true
+        return [undo, redo]
+    }()
+
+    override var keyCommands: [UIKeyCommand]? {
+        (super.keyCommands ?? []) + Self.undoKeyCommands
+    }
+
+    override func canPerformAction(_ action: Selector, withSender sender: Any?) -> Bool {
+        if action == #selector(undoDocumentEdit(_:)) { return undoManager?.canUndo ?? false }
+        if action == #selector(redoDocumentEdit(_:)) { return undoManager?.canRedo ?? false }
+        return super.canPerformAction(action, withSender: sender)
+    }
+
+    @objc func undoDocumentEdit(_ sender: Any?) {
+        guard let undoManager, undoManager.canUndo else { return }
+        undoManager.undo()
+    }
+
+    @objc func redoDocumentEdit(_ sender: Any?) {
+        guard let undoManager, undoManager.canRedo else { return }
+        undoManager.redo()
     }
 
     // MARK: - Making
@@ -248,6 +296,7 @@ final class LineformReadView: UITextView {
         // its SOURCE position, which survives the new storage.
         let sourceAnchor = (state.hasRendered && profile != state.renderedProfile) ? sourceAnchorAtTop() : nil
 
+        let isFirstRender = !state.hasRendered
         state.isAdjustingLayout = true
         defer { state.isAdjustingLayout = false }
         let metrics = RenderDisplayMetrics(scale: scale, visibleViewportHeight: window.bounds.height)
@@ -283,6 +332,16 @@ final class LineformReadView: UITextView {
         if let sourceAnchor { restoreSourceAnchor(sourceAnchor) }
         setNeedsOverlayLayout()
         applyPendingScrollIfPossible()
+        if isFirstRender, let onFirstRender = state.onFirstRender {
+            // Next turn, once laid out, so the page has its whole content size (an offset past
+            // the laid-out content would be clamped short).
+            DispatchQueue.main.async { [weak self] in
+                guard let self, self.window != nil else { return }
+                self.layoutManager.ensureLayout(for: self.textContainer)
+                self.layoutIfNeeded()
+                onFirstRender()
+            }
+        }
     }
 
     /// The column the renderer fits to: the profile's reading column (as on the Mac), but never
@@ -578,7 +637,6 @@ final class LineformReadView: UITextView {
             pills.append(Pill(kind: .copy, rect: rect, sourceRange: value.rangeValue))
         }
 
-        let width = ReadOverlayButton.reconnectPillWidth
         textStorage.enumerateAttribute(.imageReconnect, in: full, options: []) { value, range, _ in
             guard value != nil,
                   let sourceValue = textStorage.attribute(.imageSourceRange, at: range.location, effectiveRange: nil) as? NSValue
@@ -586,18 +644,29 @@ final class LineformReadView: UITextView {
             let glyphRange = layoutManager.glyphRange(forCharacterRange: range, actualCharacterRange: nil)
             let runRect = layoutManager.boundingRect(forGlyphRange: glyphRange, in: textContainer)
                 .offsetBy(dx: origin.x, dy: origin.y)
-            // After the run, as on the Mac; on a narrow phone a long label would push the pill
-            // off the page, so it stops at the view's right margin.
-            let x = min(runRect.maxX + ReadOverlayButton.reconnectPillLeadingGap, max(origin.x, bounds.width - width - 4))
-            let rect = CGRect(
-                x: x,
-                y: runRect.midY - ReadOverlayButton.reconnectPillHeight / 2 + ReadOverlayButton.reconnectPillVerticalNudge,
-                width: width,
-                height: ReadOverlayButton.reconnectPillHeight
-            )
+            let rect = Self.reconnectPillRect(after: runRect, columnMinX: origin.x, columnMaxX: origin.x + textContainer.size.width)
             pills.append(Pill(kind: .reconnect, rect: rect, sourceRange: sourceValue.rangeValue))
         }
         return pills
+    }
+
+    /// The Reconnect pill for a placeholder run: after the run, as on the Mac, while it fits inside
+    /// the reading column; otherwise (a long label on a narrow phone) under the run, 4 pt below
+    /// it, at the run's start, never past the column's right edge.
+    static func reconnectPillRect(after runRect: CGRect, columnMinX: CGFloat, columnMaxX: CGFloat) -> CGRect {
+        let width = ReadOverlayButton.reconnectPillWidth
+        let height = ReadOverlayButton.reconnectPillHeight
+        let afterX = runRect.maxX + ReadOverlayButton.reconnectPillLeadingGap
+        if afterX + width <= columnMaxX {
+            return CGRect(
+                x: afterX,
+                y: runRect.midY - height / 2 + ReadOverlayButton.reconnectPillVerticalNudge,
+                width: width,
+                height: height
+            )
+        }
+        let x = max(columnMinX, min(runRect.minX, columnMaxX - width))
+        return CGRect(x: x, y: runRect.maxY + 4, width: width, height: height)
     }
 
     /// Places the pills and redraws the table grid for the current layout. Pills are subviews in
@@ -822,6 +891,8 @@ final class LineformReadView: UITextView {
               bounds.height > 1
         else { return }
         state.pendingScrollSourceLocation = nil
+        state.isRestoringPosition = true
+        defer { state.isRestoringPosition = false }
         performScrollToSourceLocation(target)
     }
 
@@ -885,7 +956,9 @@ final class LineformReadView: UITextView {
         guard !rows.isEmpty else { return path }
         let originX = textContainerInset.left
         let originY = textContainerInset.top
-        let columnWidth = textContainer.size.width
+        // The width the rows' stops were placed for (`blockAttachmentFitWidth` once refitted):
+        // the row lines end there, and the column edges are its shares.
+        let fitWidth = state.tableTabBasisWidth > 0 ? state.tableTabBasisWidth : textContainer.size.width
 
         // Split into tables: a row index of 0 (the header) starts a new one.
         var tables: [[NSRange]] = []
@@ -911,11 +984,11 @@ final class LineformReadView: UITextView {
             guard let top = rowTops.first else { continue }
             for y in rowTops + [bottom] {
                 path.move(to: CGPoint(x: originX, y: y))
-                path.addLine(to: CGPoint(x: originX + columnWidth, y: y))
+                path.addLine(to: CGPoint(x: originX + fitWidth, y: y))
             }
             if let first = table.first,
-               let style = textStorage.attribute(.paragraphStyle, at: first.location, effectiveRange: nil) as? NSParagraphStyle {
-                for x in Self.columnEdges(for: style.tabStops) {
+               let fractions = textStorage.attribute(.markdownTableColumnFractions, at: first.location, effectiveRange: nil) as? [NSNumber] {
+                for x in Self.columnEdges(fractions: fractions.map { CGFloat($0.doubleValue) }, fitWidth: fitWidth) {
                     path.move(to: CGPoint(x: originX + x, y: top))
                     path.addLine(to: CGPoint(x: originX + x, y: bottom))
                 }
@@ -924,22 +997,17 @@ final class LineformReadView: UITextView {
         return path
     }
 
-    /// The inner column edges a row's tab stops imply. A left-aligned column's stop is its start;
-    /// after a right-aligned column the edge is that column's stop (its end); otherwise (a centred
-    /// column, whose stop is its middle) the edge falls halfway between the two stops.
-    static func columnEdges(for stops: [NSTextTab]) -> [CGFloat] {
-        guard stops.count > 1 else { return [] }
+    /// The inner column edges: the running sum of the renderer's column fractions
+    /// (`fitColumnPercentages`, the numbers the tab stops are placed with) times the fit width. A
+    /// column's edge is where its share ends, whatever its alignment, so a long right-aligned cell
+    /// after a centred column never has a line through it.
+    static func columnEdges(fractions: [CGFloat], fitWidth: CGFloat) -> [CGFloat] {
+        guard fractions.count > 1 else { return [] }
         var edges: [CGFloat] = []
-        for index in 1..<stops.count {
-            let stop = stops[index]
-            let previous = stops[index - 1]
-            if stop.alignment == .left || stop.alignment == .natural {
-                edges.append(stop.location)
-            } else if previous.alignment == .right {
-                edges.append(previous.location)
-            } else {
-                edges.append((previous.location + stop.location) / 2)
-            }
+        var running: CGFloat = 0
+        for fraction in fractions.dropLast() {
+            running += fraction
+            edges.append(running * fitWidth)
         }
         return edges
     }
@@ -948,9 +1016,30 @@ final class LineformReadView: UITextView {
 // MARK: - Scrolling
 
 extension LineformReadView: UITextViewDelegate {
+    /// Only the reader's own scrolling (a drag, its deceleration, a tap on the status bar) and an
+    /// explicit position restore reach Preview's linked scrolling. An offset UIKit or a layout pass
+    /// changes (content growing, a render, a refit) never drives the editor.
+    var forwardsScrollToLink: Bool {
+        guard !state.isAdjustingLayout else { return false }
+        return isTracking || isDragging || isDecelerating || state.isRestoringPosition || state.isScrollingToTop
+    }
+
     func scrollViewDidScroll(_ scrollView: UIScrollView) {
         scheduleVisibleTopReport()
-        if !state.isAdjustingLayout { state.onScroll?(scrollView) }
+        if forwardsScrollToLink { state.onScroll?(scrollView) }
+    }
+
+    func scrollViewShouldScrollToTop(_ scrollView: UIScrollView) -> Bool {
+        state.isScrollingToTop = true
+        return true
+    }
+
+    func scrollViewDidScrollToTop(_ scrollView: UIScrollView) {
+        state.isScrollingToTop = false
+    }
+
+    func scrollViewWillBeginDragging(_ scrollView: UIScrollView) {
+        state.isScrollingToTop = false
     }
 }
 

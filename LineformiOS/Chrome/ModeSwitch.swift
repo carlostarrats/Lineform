@@ -222,22 +222,59 @@ struct ModeSwitch: View {
     }
 }
 
+extension ModeSwitch {
+    /// The press animation: the Mac's hover, `easeInOut` over `LineformDesign.Motion.hover`
+    /// (0.12 s); none under Reduce Motion.
+    static func pressAnimation(reduceMotion: Bool) -> Animation? {
+        EditorMotionPolicy.animation(.easeInOut(duration: LineformDesign.Motion.hover), reduceMotion: reduceMotion)
+    }
+
+    /// The pressed pill's opacity: shown behind an unselected segment while it is held.
+    static func pressedPillOpacity(isPressed: Bool, isSelected: Bool) -> Double {
+        isPressed && !isSelected ? 1 : 0
+    }
+}
+
 /// A segment's pressed state: the Mac's hover pill behind an unselected segment while it is held.
+/// The pill is always drawn; only its opacity changes, so the press fades in and out as the Mac's
+/// hover does.
 private struct SegmentPressStyle: ButtonStyle {
     var pressedFill: Color
     var isSelected: Bool
 
     func makeBody(configuration: Configuration) -> some View {
-        configuration.label
+        SegmentPressBody(label: configuration.label, isPressed: configuration.isPressed,
+                         pressedFill: pressedFill, isSelected: isSelected)
+    }
+}
+
+private struct SegmentPressBody<Label: View>: View {
+    var label: Label
+    var isPressed: Bool
+    var pressedFill: Color
+    var isSelected: Bool
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    var body: some View {
+        label
             .background {
-                if configuration.isPressed, !isSelected {
-                    Capsule().fill(pressedFill)
-                }
+                Capsule()
+                    .fill(pressedFill)
+                    .opacity(ModeSwitch.pressedPillOpacity(isPressed: isPressed, isSelected: isSelected))
             }
+            .animation(ModeSwitch.pressAnimation(reduceMotion: reduceMotion), value: isPressed)
     }
 }
 
 extension UIScrollView {
+    /// Keeps the page's last line clear of the floating buttons at the bottom (the Menu button
+    /// and Preview's link button): the extra bottom inset is applied as content inset.
+    func setBottomChromeInset(_ inset: CGFloat) {
+        guard abs(contentInset.bottom - inset) > 0.5 else { return }
+        contentInset.bottom = inset
+    }
+
     /// Keeps the page's first line clear of the floating mode control: the extra top inset is
     /// applied as content inset, and a page showing its top stays at the (new) top.
     func setTopChromeInset(_ inset: CGFloat) {

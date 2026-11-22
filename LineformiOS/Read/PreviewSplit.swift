@@ -87,16 +87,47 @@ struct PreviewLinkButton: View {
     }
 }
 
+extension PreviewLinkButton {
+    /// The blue wash's opacity: the Mac's linked and hover values (pressed is hover on a phone);
+    /// 0 for an unlinked button at rest, so the wash is always drawn and only fades.
+    static func washOpacity(isLinked: Bool, isPressed: Bool, isDark: Bool) -> Double {
+        if isLinked { return isDark ? (isPressed ? 0.28 : 0.20) : (isPressed ? 0.17 : 0.11) }
+        if isPressed { return isDark ? 0.16 : 0.08 }
+        return 0
+    }
+
+    /// The blue ring's opacity; 0 for an unlinked button at rest (the hairline shows instead).
+    static func ringOpacity(isLinked: Bool, isPressed: Bool) -> Double {
+        if isLinked { return isPressed ? 0.95 : 0.72 }
+        return isPressed ? 0.55 : 0
+    }
+}
+
 private struct LinkButtonStyle: ButtonStyle {
     var isLinked: Bool
     var profile: ReadingProfile
 
     func makeBody(configuration: Configuration) -> some View {
+        LinkButtonBody(isLinked: isLinked, isPressed: configuration.isPressed, profile: profile)
+    }
+}
+
+/// The link button's face. Every layer is always drawn and only its opacity follows the press, so
+/// the press animates as the Mac's hover does (`ModeSwitch.pressAnimation`, off under Reduce
+/// Motion).
+private struct LinkButtonBody: View {
+    var isLinked: Bool
+    var isPressed: Bool
+    var profile: ReadingProfile
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    var body: some View {
         let theme = Theme.theme(for: profile)
         let isDark = theme.usesDarkChrome
-        let pressed = configuration.isPressed
         let blue = Color(uiColor: .systemBlue)
-        let ink = isLinked || pressed ? blue : Color(uiColor: theme.textColor).opacity(0.62)
+        let ink = isLinked || isPressed ? blue : Color(uiColor: theme.textColor).opacity(0.62)
+        let ringOpacity = PreviewLinkButton.ringOpacity(isLinked: isLinked, isPressed: isPressed)
         ZStack {
             Image(systemName: "link")
             if !isLinked {
@@ -112,23 +143,20 @@ private struct LinkButtonStyle: ButtonStyle {
         .background {
             ZStack {
                 Circle().fill(Color(uiColor: theme.backgroundColor))
-                if isLinked {
-                    Circle().fill(blue.opacity(isDark ? (pressed ? 0.28 : 0.20) : (pressed ? 0.17 : 0.11)))
-                } else if pressed {
-                    Circle().fill(blue.opacity(isDark ? 0.16 : 0.08))
-                }
+                Circle().fill(blue.opacity(PreviewLinkButton.washOpacity(isLinked: isLinked, isPressed: isPressed, isDark: isDark)))
             }
         }
         .overlay {
-            if isLinked || pressed {
-                Circle().strokeBorder(blue.opacity(isLinked ? (pressed ? 0.95 : 0.72) : 0.55), lineWidth: 1.25)
-            } else {
-                Circle().strokeBorder(
-                    isDark
-                        ? Color.white.opacity(LineformDesign.FloatingCard.hairlineOpacityDark)
-                        : Color.black.opacity(LineformDesign.FloatingCard.hairlineOpacityLight),
-                    lineWidth: LineformDesign.FloatingCard.hairlineWidth
-                )
+            ZStack {
+                Circle()
+                    .strokeBorder(
+                        isDark
+                            ? Color.white.opacity(LineformDesign.FloatingCard.hairlineOpacityDark)
+                            : Color.black.opacity(LineformDesign.FloatingCard.hairlineOpacityLight),
+                        lineWidth: LineformDesign.FloatingCard.hairlineWidth
+                    )
+                    .opacity(ringOpacity > 0 ? 0 : 1)
+                Circle().strokeBorder(blue.opacity(ringOpacity), lineWidth: 1.25)
             }
         }
         .shadow(
@@ -138,5 +166,6 @@ private struct LinkButtonStyle: ButtonStyle {
             y: LineformDesign.FloatingCard.shadowOffset.height
         )
         .contentShape(Circle())
+        .animation(ModeSwitch.pressAnimation(reduceMotion: reduceMotion), value: isPressed)
     }
 }

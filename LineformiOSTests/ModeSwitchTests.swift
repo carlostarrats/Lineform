@@ -6,8 +6,9 @@ import XCTest
 
 /// The Write / Read / Preview pill and the mode switch: the Mac's metrics and colours, Reduce
 /// Motion, the reading position kept across a switch (only the last of several quick switches
-/// restores), ⌘E, and undo across modes (a Read edit undoes in Read; Write afterwards starts a new
-/// undo history). Every document saves into its own temporary folder.
+/// restores), ⌘E, focus, and one undo history in every mode (a Read edit is a ranged edit in the
+/// editor, undone by ⌘Z in Write, Read and Preview, in order with the typing around it). Every
+/// document saves into its own temporary folder.
 @MainActor
 final class ModeSwitchTests: XCTestCase {
     private var folder: URL!
@@ -193,59 +194,195 @@ final class ModeSwitchTests: XCTestCase {
         _ = try await waitAsync { Self.find(LineformReadView.self, in: window) == nil ? true : nil }
     }
 
-    // MARK: - Undo across modes
+    // MARK: - One undo history in every mode
 
-    func testReadEditUndoesInRead() async throws {
+    func testReadTickUndoesWithCommandZInRead() async throws {
+        // A scene restored straight into Read: Read takes the focus, so a shake or ⌘Z routes.
         let document = await preparedDocument(text: "- [ ] one\n- [ ] two\n")
         let window = try hostScreen(document: document, mode: .read)
         let reader = try await waitAsync {
             Self.find(LineformReadView.self, in: window).flatMap { $0.renderedSourceText == nil ? nil : $0 }
         }
-        XCTAssertTrue(reader.undoManager === document.undoManager, "shake and ⌘Z in Read reach the document's undo")
-        let range = NSRange(location: 2, length: 3)
-        let rect = try XCTUnwrap(reader.checkboxGlyphRect(forSourceRange: range))
-        XCTAssertTrue(reader.activateCheckbox(at: CGPoint(x: rect.midX, y: rect.midY)))
+        let editor = try XCTUnwrap(Self.find(LineformTextView.self, in: window))
+        _ = try await waitAsync { reader.isFirstResponder ? true : nil }
+        XCTAssertTrue(reader.undoManager === editor.undoManager, "Read's undo is the editor's: one history")
+
+        try tick(reader, range: NSRange(location: 2, length: 3))
         XCTAssertEqual(document.text, "- [x] one\n- [ ] two\n")
-        XCTAssertTrue(document.undoManager.canUndo)
-        reader.undoManager?.undo()
-        XCTAssertEqual(document.text, "- [ ] one\n- [ ] two\n", "one undo step")
-        reader.undoManager?.redo()
-        XCTAssertEqual(document.text, "- [x] one\n- [ ] two\n")
+        XCTAssertEqual(editor.text, document.text, "the tick is an edit in the editor's own storage")
+
+        try pressUndo(from: reader)
+        XCTAssertEqual(document.text, "- [ ] one\n- [ ] two\n", "⌘Z undoes the tick, one step")
+        try pressUndo(from: reader, redo: true)
+        XCTAssertEqual(document.text, "- [x] one\n- [ ] two\n", "⇧⌘Z redoes it")
     }
 
-    func testWriteAfterReadEditResetsEditorUndo() async throws {
+    func testPreviewTypeThenTickUndoesInOrder() async throws {
         let document = await preparedDocument(text: "- [ ] one\n")
-        // Write's editor with an undo step of its own.
+        let window = try hostScreen(document: document, mode: .split)
+        let editor = try await waitAsync { Self.find(LineformTextView.self, in: window) }
+        let reader = try await waitAsync {
+            Self.find(LineformReadView.self, in: window).flatMap { $0.renderedSourceText == nil ? nil : $0 }
+        }
+
+        // Type in the editor pane.
+        XCTAssertTrue(editor.becomeFirstResponder())
+        editor.selectedRange = NSRange(location: (editor.text as NSString).length, length: 0)
+        type("Typed", into: editor)
+        XCTAssertEqual(document.text, "- [ ] one\nTyped")
+        try await Task.sleep(for: .milliseconds(50))
+
+        // Tick the box in the Read pane once it has caught up (the 0.12 s debounce).
+        _ = try await waitAsync { reader.renderedSourceText == document.text ? true : nil }
+        try tick(reader, range: NSRange(location: 2, length: 3))
+        XCTAssertEqual(document.text, "- [x] one\nTyped")
+        XCTAssertEqual(editor.text, document.text)
+        try await Task.sleep(for: .milliseconds(50))
+
+        // ⌘Z from the Read pane (tapped, so it has the focus): the tick, then the typing.
+        XCTAssertTrue(reader.becomeFirstResponder())
+        try pressUndo(from: reader)
+        XCTAssertEqual(document.text, "- [ ] one\nTyped", "⌘Z undoes the tick")
+        try pressUndo(from: reader)
+        XCTAssertEqual(document.text, "- [ ] one\n", "⌘Z again undoes the typing")
+        XCTAssertEqual(editor.text, document.text)
+    }
+
+    func testReadTickThenWriteEditUndoesInOrder() async throws {
+        let document = await preparedDocument(text: "- [ ] one\n")
+        let window = try hostScreen(document: document, mode: .read)
+        var reader = try await waitAsync {
+            Self.find(LineformReadView.self, in: window).flatMap { $0.renderedSourceText == nil ? nil : $0 }
+        }
+        let editor = try XCTUnwrap(Self.find(LineformTextView.self, in: window))
+        _ = try await waitAsync { reader.isFirstResponder ? true : nil }
+        try tick(reader, range: NSRange(location: 2, length: 3))
+        XCTAssertEqual(document.text, "- [x] one\n")
+        try await Task.sleep(for: .milliseconds(50))
+
+        // ⌘E to Write, type, ⌘E back to Read.
+        try pressCommandE(from: reader)
+        _ = try await waitAsync { Self.find(LineformReadView.self, in: window) == nil ? true : nil }
+        XCTAssertTrue(editor.becomeFirstResponder())
+        editor.selectedRange = NSRange(location: (editor.text as NSString).length, length: 0)
+        type("Typed", into: editor)
+        XCTAssertEqual(document.text, "- [x] one\nTyped")
+        XCTAssertTrue(editor.undoManager?.canUndo ?? false, "Write kept the tick in its history")
+        try await Task.sleep(for: .milliseconds(50))
+        try pressCommandE(from: editor)
+        reader = try await waitAsync {
+            Self.find(LineformReadView.self, in: window).flatMap { $0.renderedSourceText == document.text ? $0 : nil }
+        }
+        _ = try await waitAsync { reader.isFirstResponder ? true : nil }
+
+        try pressUndo(from: reader)
+        XCTAssertEqual(document.text, "- [x] one\n", "the Write edit first")
+        try pressUndo(from: reader)
+        XCTAssertEqual(document.text, "- [ ] one\n", "then the Read tick")
+    }
+
+    func testOutsideReplacementStillClearsEditorUndo() async throws {
+        // A live reload (or another file) is a replacement from outside: undo never puts the old
+        // text back over it.
+        let document = await preparedDocument(text: "one\n")
         let editor = LineformTextView.make()
         var bound = document.text
         let representable = MarkdownEditor(
             text: Binding(get: { bound }, set: { bound = $0; document.edit($0) }),
             profile: .original,
-            imageHost: nil
+            imageHost: nil,
+            readEditDocument: document
         )
         let coordinator = representable.makeCoordinator()
         editor.setDocumentText(document.text)
         editor.delegate = coordinator
+        representable.configure(editor)
         hostAlone(editor)
-        editor.selectedRange = NSRange(location: (document.text as NSString).length, length: 0)
-        editor.insertText("Typed")
-        coordinator.textViewDidChange(editor)
-        XCTAssertEqual(document.text, "- [ ] one\nTyped")
-        let editorUndo = try XCTUnwrap(editor.undoManager)
-        XCTAssertTrue(editorUndo.canUndo, "set-up: Write has an undo step")
+        XCTAssertTrue(document.readEditor === editor)
+        editor.selectedRange = NSRange(location: 4, length: 0)
+        type("Typed", into: editor)
+        XCTAssertTrue(try XCTUnwrap(editor.undoManager).canUndo)
 
-        // A checkbox toggled in Read: the document's undo has it, and Write's text is replaced.
-        document.toggleCheckbox(at: NSRange(location: 2, length: 3))
-        XCTAssertEqual(document.text, "- [x] one\nTyped")
-        bound = document.text
-        MarkdownEditor(
-            text: Binding(get: { bound }, set: { bound = $0; document.edit($0) }),
-            profile: .original,
-            imageHost: nil
-        ).configure(editor)
-        XCTAssertEqual(editor.text, "- [x] one\nTyped")
-        XCTAssertFalse(editorUndo.canUndo, "Write starts a new undo history after a Read edit, as after a live reload")
-        XCTAssertTrue(document.undoManager.canUndo, "the Read edit stays undoable in Read")
+        bound = "from disk\n"
+        representable.configure(editor)
+        XCTAssertEqual(editor.text, "from disk\n")
+        XCTAssertFalse(try XCTUnwrap(editor.undoManager).canUndo)
+    }
+
+    // MARK: - Focus
+
+    func testRapidSwitchEndingInWriteRefocusesEditor() throws {
+        let surfaces = try hostSurfaces(text: Self.longDocument)
+        window?.makeKey()
+        XCTAssertTrue(surfaces.editor.becomeFirstResponder())
+        surfaces.keeper.switchMode(from: .write, to: .read)
+        surfaces.keeper.switchMode(from: .read, to: .write)
+        XCTAssertFalse(surfaces.editor.isFirstResponder, "set-up: the Read switch took the focus away")
+        settle(ticks: 4)
+        XCTAssertTrue(surfaces.editor.isFirstResponder, "back in Write, the editor has its focus again")
+
+        // A Write → Read switch that settles leaves the focus with Read.
+        surfaces.keeper.switchMode(from: .write, to: .read)
+        surfaces.bringReaderToFront()
+        settle(ticks: 4)
+        XCTAssertTrue(surfaces.reader.isFirstResponder)
+        // A later Read → Write did not start with the editor focused: no keyboard is forced up.
+        surfaces.keeper.switchMode(from: .read, to: .write)
+        settle(ticks: 4)
+        XCTAssertFalse(surfaces.editor.isFirstResponder)
+    }
+
+    // MARK: - Pressed states
+
+    func testPressedStatesAnimateWithMotionPolicy() {
+        XCTAssertNil(ModeSwitch.pressAnimation(reduceMotion: true), "Reduce Motion: no press animation")
+        XCTAssertEqual(ModeSwitch.pressAnimation(reduceMotion: false),
+                       Animation.easeInOut(duration: LineformDesign.Motion.hover))
+        XCTAssertEqual(LineformDesign.Motion.hover, 0.12)
+        // The pressed pill is always drawn; only its opacity changes.
+        XCTAssertEqual(ModeSwitch.pressedPillOpacity(isPressed: true, isSelected: false), 1)
+        XCTAssertEqual(ModeSwitch.pressedPillOpacity(isPressed: false, isSelected: false), 0)
+        XCTAssertEqual(ModeSwitch.pressedPillOpacity(isPressed: true, isSelected: true), 0)
+        // The link button's wash and ring: the Mac's values, 0 at rest while unlinked.
+        XCTAssertEqual(PreviewLinkButton.washOpacity(isLinked: true, isPressed: false, isDark: false), 0.11)
+        XCTAssertEqual(PreviewLinkButton.washOpacity(isLinked: true, isPressed: true, isDark: false), 0.17)
+        XCTAssertEqual(PreviewLinkButton.washOpacity(isLinked: true, isPressed: true, isDark: true), 0.28)
+        XCTAssertEqual(PreviewLinkButton.washOpacity(isLinked: false, isPressed: true, isDark: false), 0.08)
+        XCTAssertEqual(PreviewLinkButton.washOpacity(isLinked: false, isPressed: false, isDark: true), 0)
+        XCTAssertEqual(PreviewLinkButton.ringOpacity(isLinked: true, isPressed: true), 0.95)
+        XCTAssertEqual(PreviewLinkButton.ringOpacity(isLinked: false, isPressed: true), 0.55)
+        XCTAssertEqual(PreviewLinkButton.ringOpacity(isLinked: false, isPressed: false), 0)
+    }
+
+    // MARK: - Undo helpers
+
+    /// Types `text` the way the keyboard does, and tells the delegate as UIKit does.
+    private func type(_ text: String, into editor: LineformTextView) {
+        editor.insertText(text)
+        editor.delegate?.textViewDidChange?(editor)
+    }
+
+    private func tick(_ reader: LineformReadView, range: NSRange, file: StaticString = #filePath, line: UInt = #line) throws {
+        let rect = try XCTUnwrap(reader.checkboxGlyphRect(forSourceRange: range), file: file, line: line)
+        XCTAssertTrue(reader.activateCheckbox(at: CGPoint(x: rect.midX, y: rect.midY)), file: file, line: line)
+    }
+
+    /// Presses ⌘Z (or ⇧⌘Z) as a hardware keyboard does: the key command found on the first
+    /// responder's chain, sent to the first responder.
+    private func pressUndo(from responder: UIResponder, redo: Bool = false,
+                           file: StaticString = #filePath, line: UInt = #line) throws {
+        let flags: UIKeyModifierFlags = redo ? [.command, .shift] : .command
+        let command = try XCTUnwrap(Self.keyCommand(input: "z", flags: flags, from: responder),
+                                    "⌘Z is on the responder chain", file: file, line: line)
+        let action = try XCTUnwrap(command.action, file: file, line: line)
+        XCTAssertTrue(responder.canPerformAction(action, withSender: command), "there is something to undo", file: file, line: line)
+        XCTAssertTrue(UIApplication.shared.sendAction(action, to: nil, from: command, for: nil), file: file, line: line)
+    }
+
+    private func pressCommandE(from responder: UIResponder, file: StaticString = #filePath, line: UInt = #line) throws {
+        let command = try XCTUnwrap(Self.keyCommand(input: "e", flags: .command, from: responder), file: file, line: line)
+        XCTAssertTrue(UIApplication.shared.sendAction(try XCTUnwrap(command.action), to: nil, from: command, for: nil),
+                      file: file, line: line)
     }
 
     // MARK: - Helpers

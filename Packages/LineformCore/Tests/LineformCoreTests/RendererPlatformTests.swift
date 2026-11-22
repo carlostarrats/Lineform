@@ -85,6 +85,18 @@ final class RendererPlatformTests: XCTestCase {
         // One paragraph per row, cells joined by tabs.
         let headerText = (output.string as NSString).substring(with: headerRange)
         XCTAssertTrue(headerText.hasPrefix("H1\tH2"), "header row text: \(headerText.debugDescription)")
+
+        // Every row carries the column fractions its stops were placed with (the grid's edges).
+        let expected = MarkdownPreviewRenderer.fitColumnPercentages(
+            rows: [(["H1", "H2"], true), (["a", "b"], false), (["c", "d"], false)], columns: 2
+        ).map { $0 / 100 }
+        for row in rows.values {
+            let fractions = try XCTUnwrap(output.attribute(.markdownTableColumnFractions, at: row.location, effectiveRange: nil) as? [NSNumber])
+            XCTAssertEqual(fractions.count, 2)
+            for (fraction, value) in zip(fractions, expected) {
+                XCTAssertEqual(CGFloat(fraction.doubleValue), value, accuracy: 0.0001)
+            }
+        }
     }
 
     func testLongTableCellDoesNotCrashAtNarrowWidth() {

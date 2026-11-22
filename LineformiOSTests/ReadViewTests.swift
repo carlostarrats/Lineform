@@ -69,7 +69,8 @@ final class ReadViewTests: XCTestCase {
 
     func testCheckboxTapTogglesSourceAndUndoes() async throws {
         let document = await preparedDocument(text: "- [ ] one\n- [ ] two\n")
-        let view = readView(for: document)
+        let editor = attachedEditor(for: document)
+        let view = readView(for: document, editor: editor)
 
         let second = NSRange(location: 12, length: 3)
         let rect = try XCTUnwrap(view.checkboxGlyphRect(forSourceRange: second))
@@ -80,13 +81,15 @@ final class ReadViewTests: XCTestCase {
         XCTAssertFalse(view.activateCheckbox(at: CGPoint(x: view.bounds.width - 30, y: rect.midY)))
         XCTAssertEqual(document.text, "- [ ] one\n- [x] two\n")
 
-        // One undo step, through the view's undo manager (the document's).
-        XCTAssertTrue(view.undoManager === document.undoManager)
-        XCTAssertTrue(document.undoManager.canUndo)
-        document.undoManager.undo()
+        // One undo step in the editor's history, which is the view's undo manager too.
+        let undo = try XCTUnwrap(editor.undoManager)
+        XCTAssertTrue(view.undoManager === undo)
+        XCTAssertEqual(editor.text, "- [ ] one\n- [x] two\n", "a ranged edit in the editor's storage")
+        XCTAssertTrue(undo.canUndo)
+        undo.undo()
         XCTAssertEqual(document.text, "- [ ] one\n- [ ] two\n")
-        XCTAssertFalse(document.undoManager.canUndo)
-        document.undoManager.redo()
+        XCTAssertFalse(undo.canUndo)
+        undo.redo()
         XCTAssertEqual(document.text, "- [ ] one\n- [x] two\n")
 
         // It is a normal edit: autosave writes it.
@@ -105,14 +108,12 @@ final class ReadViewTests: XCTestCase {
         document.edit("- [ ] z\n- [ ] a\n- [ ] b\n")
         XCTAssertTrue(view.activateCheckbox(at: CGPoint(x: rect.midX, y: rect.midY)), "the tap still lands on the old glyph")
         XCTAssertEqual(document.text, "- [ ] z\n- [ ] a\n- [ ] b\n", "a stale render toggles nothing")
-        XCTAssertFalse(document.undoManager.canUndo)
 
         // A range that no longer holds a marker does nothing either (`CheckboxToggle` is nil).
-        document.toggleCheckbox(at: NSRange(location: 3, length: 3))
+        XCTAssertFalse(document.toggleCheckbox(at: NSRange(location: 3, length: 3)))
         XCTAssertEqual(document.text, "- [ ] z\n- [ ] a\n- [ ] b\n")
-        document.toggleCheckbox(at: NSRange(location: 400, length: 3))
+        XCTAssertFalse(document.toggleCheckbox(at: NSRange(location: 400, length: 3)))
         XCTAssertEqual(document.text, "- [ ] z\n- [ ] a\n- [ ] b\n")
-        XCTAssertFalse(document.undoManager.canUndo, "nothing changed, so no undo step")
     }
 
     func testCheckboxToggleKeepsCRLF() async throws {
@@ -144,7 +145,6 @@ final class ReadViewTests: XCTestCase {
         copy.sendActions(for: .touchUpInside)
         XCTAssertEqual(pasteboard.string, "let a = 1\nlet b = 2")
         XCTAssertEqual(document.text, text, "Copy never edits")
-        XCTAssertFalse(document.undoManager.canUndo)
         XCTAssertTrue(copy.isShowingCopied, "the checkmark shows")
 
         try await Task.sleep(for: .milliseconds(700))
@@ -163,15 +163,21 @@ final class ReadViewTests: XCTestCase {
         try Self.pngData(width: 40, height: 20).write(to: picked)
 
         var reconnectRanges: [NSRange] = []
-        let view = readView(for: document, onImageReconnect: { reconnectRanges.append($0) })
+        var renderedTexts: [String?] = []
+        let editor = attachedEditor(for: document)
+        let view = readView(for: document, editor: editor, onImageReconnect: {
+            reconnectRanges.append($0)
+            renderedTexts.append($1)
+        })
         XCTAssertTrue(blockAttachments(in: view).isEmpty, "the missing file is a placeholder")
         let pill = try XCTUnwrap(view.overlayButtons.first { $0.kind == .reconnect })
         XCTAssertEqual(pill.frame.height, 22)
         XCTAssertEqual(pill.accessibilityLabel, "Reconnect image")
         pill.sendActions(for: .touchUpInside)
         let range = try XCTUnwrap(reconnectRanges.first)
+        XCTAssertEqual(renderedTexts.first, document.text, "the pill reports the source it was rendered from")
 
-        document.reconnectImage(at: range, with: picked)
+        XCTAssertTrue(document.reconnectImage(at: range, with: picked, renderedFrom: renderedTexts.first ?? nil))
         XCTAssertEqual(document.text, "Notes\n![pic](images/pic.png)\n", "relative to the document's folder")
 
         // The next render loads it, and the pill is gone.
@@ -180,16 +186,62 @@ final class ReadViewTests: XCTestCase {
         XCTAssertEqual(blockAttachments(in: view).count, 1)
         XCTAssertTrue(view.overlayButtons.filter { $0.kind == .reconnect }.isEmpty)
 
-        document.undoManager.undo()
-        XCTAssertEqual(document.text, "Notes\n![pic](old/pic.png)\n", "one undo step")
+        try XCTUnwrap(editor.undoManager).undo()
+        XCTAssertEqual(document.text, "Notes\n![pic](old/pic.png)\n", "one undo step, in the editor's history")
 
         // A CRLF document keeps every \r\n.
         document.edit("A\r\n![](gone.png)\r\nB\r\n")
+        syncEditor(editor, to: document)
         var crlfRanges: [NSRange] = []
-        let crlfView = readView(for: document, onImageReconnect: { crlfRanges.append($0) })
+        let crlfView = readView(for: document, editor: editor, onImageReconnect: { range, _ in crlfRanges.append(range) })
         try XCTUnwrap(crlfView.overlayButtons.first { $0.kind == .reconnect }).sendActions(for: .touchUpInside)
         document.reconnectImage(at: try XCTUnwrap(crlfRanges.first), with: picked)
         XCTAssertEqual(document.text, "A\r\n![](images/pic.png)\r\nB\r\n")
+    }
+
+    func testReconnectPillStaysInsideColumn() async throws {
+        // A long placeholder label on a narrow phone: the pill cannot follow the run, so it sits
+        // under it, inside the column.
+        let longName = String(repeating: "a-very-long-image-name-", count: 6) + "end.png"
+        let document = await preparedDocument(text: "Intro\n\n![a long description of a missing picture](\(longName))\n\nOutro\n")
+        let view = readView(for: document)
+        let columnMinX = view.textContainerInset.left
+        let columnMaxX = columnMinX + view.textContainer.size.width
+        let pill = try XCTUnwrap(view.overlayButtons.first { $0.kind == .reconnect })
+        XCTAssertGreaterThanOrEqual(pill.frame.minX, columnMinX - 0.5)
+        XCTAssertLessThanOrEqual(pill.frame.maxX, columnMaxX + 0.5, "inside the column, not just the view")
+
+        // The rule itself: after the run while it fits, else 4 pt under it.
+        let short = CGRect(x: 20, y: 100, width: 80, height: 20)
+        let after = LineformReadView.reconnectPillRect(after: short, columnMinX: 20, columnMaxX: 300)
+        XCTAssertEqual(after.minX, short.maxX + ReadOverlayButton.reconnectPillLeadingGap)
+        XCTAssertLessThan(after.minY, short.maxY, "beside the run")
+        let wide = CGRect(x: 20, y: 100, width: 260, height: 40)
+        let below = LineformReadView.reconnectPillRect(after: wide, columnMinX: 20, columnMaxX: 300)
+        XCTAssertEqual(below.minY, wide.maxY + 4)
+        XCTAssertEqual(below.minX, 20)
+        XCTAssertLessThanOrEqual(below.maxX, 300)
+    }
+
+    func testReconnectRefusesTextChangedSincePickerOpened() async throws {
+        let document = await preparedDocument(text: "Notes\n![pic](old/pic.png)\n")
+        let picked = folder.appendingPathComponent("pic.png")
+        try Self.pngData(width: 10, height: 10).write(to: picked)
+        var opened: (range: NSRange, rendered: String?)?
+        let view = readView(for: document, onImageReconnect: { opened = ($0, $1) })
+        try XCTUnwrap(view.overlayButtons.first { $0.kind == .reconnect }).sendActions(for: .touchUpInside)
+        let pick = try XCTUnwrap(opened)
+        XCTAssertEqual(pick.rendered, document.text, "the source is captured with the range")
+
+        // The writer typed above the image while the picker was open.
+        document.edit("New first line\nNotes\n![pic](old/pic.png)\n")
+        XCTAssertFalse(document.reconnectImage(at: pick.range, with: picked, renderedFrom: pick.rendered))
+        XCTAssertEqual(document.text, "New first line\nNotes\n![pic](old/pic.png)\n", "a stale pick changes nothing")
+
+        // The same pick against an unchanged text goes through.
+        document.edit("Notes\n![pic](old/pic.png)\n")
+        XCTAssertTrue(document.reconnectImage(at: pick.range, with: picked, renderedFrom: pick.rendered))
+        XCTAssertEqual(document.text, "Notes\n![pic](pic.png)\n")
     }
 
     func testRemoteImageStaysPlaceholder() async throws {
@@ -368,6 +420,113 @@ final class ReadViewTests: XCTestCase {
         XCTAssertTrue(grid === view.subviews.first, "the grid sits behind the text")
     }
 
+    func testTableGridEdgesFollowColumnFractions() async throws {
+        // A long right-aligned cell (one that still fits its column) after a centred column: an
+        // edge halfway between the two stops would cut through it.
+        let text = """
+        | Item | Qty | Description |
+        |---|:-:|--:|
+        | apple | 1 | crisp and sweet |
+        | pear | 12 | soft |
+        """
+        let document = await preparedDocument(text: text)
+        let view = readView(for: document)
+        let rows: [(cells: [String], isHeader: Bool)] = [
+            (["Item", "Qty", "Description"], true),
+            (["apple", "1", "crisp and sweet"], false),
+            (["pear", "12", "soft"], false)
+        ]
+        let fractions = MarkdownPreviewRenderer.fitColumnPercentages(rows: rows, columns: 3).map { $0 / 100 }
+        let fitWidth = EditorReadingLayout.blockAttachmentFitWidth(forContainerWidth: view.bounds.width, profile: .original)
+        let originX = view.textContainerInset.left
+        let expectedEdges = [fractions[0] * fitWidth, (fractions[0] + fractions[1]) * fitWidth]
+        XCTAssertEqual(LineformReadView.columnEdges(fractions: fractions, fitWidth: fitWidth).count, 2)
+        for (edge, expected) in zip(LineformReadView.columnEdges(fractions: fractions, fitWidth: fitWidth), expectedEdges) {
+            XCTAssertEqual(edge, expected, accuracy: 0.01)
+        }
+
+        // The path: horizontal row lines end at the fit width; vertical lines at the edges.
+        var segments: [(CGPoint, CGPoint)] = []
+        var start = CGPoint.zero
+        view.tableGridPath().cgPath.applyWithBlock { element in
+            switch element.pointee.type {
+            case .moveToPoint: start = element.pointee.points[0]
+            case .addLineToPoint: segments.append((start, element.pointee.points[0]))
+            default: break
+            }
+        }
+        let horizontal = segments.filter { abs($0.0.y - $0.1.y) < 0.01 }
+        let vertical = segments.filter { abs($0.0.x - $0.1.x) < 0.01 }
+        XCTAssertEqual(horizontal.count, 4, "above the header and under each of three rows")
+        for line in horizontal {
+            XCTAssertEqual(line.0.x, originX, accuracy: 0.01)
+            XCTAssertEqual(line.1.x, originX + fitWidth, accuracy: 0.5, "the row lines end at the fit width")
+        }
+        XCTAssertEqual(vertical.map { $0.0.x - originX }.sorted().count, 2)
+        for (line, expected) in zip(vertical.sorted { $0.0.x < $1.0.x }, expectedEdges) {
+            XCTAssertEqual(line.0.x - originX, expected, accuracy: 0.5)
+        }
+
+        // No edge falls inside any cell's glyphs.
+        let storage = view.textStorage
+        let string = storage.string as NSString
+        var cellRects: [(String, CGRect)] = []
+        storage.enumerateAttribute(.markdownTableRow, in: NSRange(location: 0, length: storage.length)) { value, range, _ in
+            guard value != nil else { return }
+            var location = range.location
+            let end = NSMaxRange(range)
+            while location < end {
+                var cellEnd = location
+                while cellEnd < end, string.character(at: cellEnd) != 9, string.character(at: cellEnd) != 10 { cellEnd += 1 }
+                if cellEnd > location {
+                    let cell = NSRange(location: location, length: cellEnd - location)
+                    let glyphs = view.layoutManager.glyphRange(forCharacterRange: cell, actualCharacterRange: nil)
+                    view.layoutManager.enumerateEnclosingRects(
+                        forGlyphRange: glyphs, withinSelectedGlyphRange: NSRange(location: NSNotFound, length: 0),
+                        in: view.textContainer
+                    ) { rect, _ in
+                        cellRects.append((string.substring(with: cell), rect.offsetBy(dx: originX, dy: 0)))
+                    }
+                }
+                location = cellEnd + 1
+            }
+        }
+        XCTAssertEqual(cellRects.count, 9, "every cell on one line (a wrapped cell crosses any grid)")
+        // The old midpoint rule would have cut the long right-aligned cell.
+        let stops = (storage.attribute(.paragraphStyle, at: 0, effectiveRange: nil) as? NSParagraphStyle)?.tabStops ?? []
+        XCTAssertEqual(stops.count, 3)
+        let midpoint = originX + (stops[1].location + stops[2].location) / 2
+        let longCell = try XCTUnwrap(cellRects.first { $0.0 == "crisp and sweet" }).1
+        XCTAssertTrue(midpoint > longCell.minX && midpoint < longCell.maxX, "set-up: the case the fix is for")
+        for line in vertical {
+            for (cell, rect) in cellRects {
+                XCTAssertFalse(line.0.x > rect.minX + 0.5 && line.0.x < rect.maxX - 0.5,
+                               "an edge at \(line.0.x) cuts through \"\(cell)\" (\(rect.minX)…\(rect.maxX))")
+            }
+        }
+    }
+
+    func testHorizontalRuleLaysOutInReadView() async throws {
+        let document = await preparedDocument(text: "a\n\n---\n\nb")
+        let view = readView(for: document)
+        XCTAssertNil(view.textLayoutManager, "TextKit 1: the rule attachment draws there")
+        view.layoutManager.ensureLayout(for: view.textContainer)
+        var ruleRange: NSRange?
+        view.textStorage.enumerateAttribute(.attachment, in: NSRange(location: 0, length: view.textStorage.length)) { value, range, stop in
+            if value is HorizontalRuleAttachment {
+                ruleRange = range
+                stop.pointee = true
+            }
+        }
+        let range = try XCTUnwrap(ruleRange, "the rule is rendered")
+        let glyphs = view.layoutManager.glyphRange(forCharacterRange: range, actualCharacterRange: nil)
+        let rect = view.layoutManager.boundingRect(forGlyphRange: glyphs, in: view.textContainer)
+        XCTAssertGreaterThan(view.textContainer.size.width, 100, "laid out at the column width")
+        XCTAssertGreaterThan(rect.width, 0, "the rule has a width")
+        XCTAssertGreaterThan(rect.height, 0, "the rule has a height")
+        XCTAssertLessThanOrEqual(rect.maxX, view.textContainer.size.width + 0.5)
+    }
+
     func testLongTableCellLaysOutAtNarrowWidth() {
         let longCell = String(repeating: "a long table cell that never stops ", count: 60)
         let text = "| Key | Value |\n|---|---|\n| one | \(longCell) |\n| two | short |\n"
@@ -429,7 +588,8 @@ final class ReadViewTests: XCTestCase {
         XCTAssertNil(view.textLayoutManager, "TextKit 1, like the Mac's Read view")
         XCTAssertNil(view.renderedSourceText)
         XCTAssertNil(view.lastRenderMetrics)
-        XCTAssertNil(view.documentUndoManager)
+        XCTAssertNil(view.undoManagerProvider)
+        XCTAssertNil(view.onFirstRender)
         XCTAssertTrue(view.overlayButtons.isEmpty)
         XCTAssertNil(view.onVisibleTopSourceLocationChanged)
 
@@ -484,10 +644,14 @@ final class ReadViewTests: XCTestCase {
     }
 
     /// A Read view in a portrait-sized window, wired to `document` the way `DocumentScreen` wires it.
-    private func readView(for document: OpenDocument, onImageReconnect: @escaping (NSRange) -> Void = { _ in }) -> LineformReadView {
+    private func readView(
+        for document: OpenDocument,
+        editor: LineformTextView? = nil,
+        onImageReconnect: @escaping (NSRange, String?) -> Void = { _, _ in }
+    ) -> LineformReadView {
         let view = LineformReadView.make()
         host(view)
-        configure(view, for: document, onImageReconnect: onImageReconnect)
+        configure(view, for: document, editor: editor, onImageReconnect: onImageReconnect)
         view.layoutIfNeeded()
         return view
     }
@@ -495,7 +659,8 @@ final class ReadViewTests: XCTestCase {
     private func configure(
         _ view: LineformReadView,
         for document: OpenDocument,
-        onImageReconnect: @escaping (NSRange) -> Void = { _ in },
+        editor: LineformTextView? = nil,
+        onImageReconnect: @escaping (NSRange, String?) -> Void = { _, _ in },
         onVisibleTop: ((Int) -> Void)? = nil
     ) {
         ReadViewRepresentable(
@@ -505,11 +670,40 @@ final class ReadViewTests: XCTestCase {
             onCheckboxToggle: { range, renderedFrom in document.toggleCheckbox(at: range, renderedFrom: renderedFrom) },
             onImageReconnect: onImageReconnect,
             onVisibleTopSourceLocationChanged: onVisibleTop,
-            undoManager: document.undoManager
+            undoManager: { [weak editor] in editor?.undoManager }
         ).configure(view)
     }
 
-    private func host(_ view: LineformReadView) {
+    /// The editor `DocumentScreen` keeps mounted under Read, wired to `document` the same way: it
+    /// applies the Read edits, with its own undo. Hidden behind the Read view.
+    private var editorCoordinators: [MarkdownEditor.Coordinator] = []
+
+    private func attachedEditor(for document: OpenDocument) -> LineformTextView {
+        let editor = LineformTextView.make()
+        let coordinator = editorRepresentable(for: document).makeCoordinator()
+        editorCoordinators.append(coordinator)
+        editor.setDocumentText(document.text)
+        editor.delegate = coordinator
+        syncEditor(editor, to: document)
+        host(editor)
+        editor.isHidden = true
+        return editor
+    }
+
+    private func syncEditor(_ editor: LineformTextView, to document: OpenDocument) {
+        editorRepresentable(for: document).configure(editor)
+    }
+
+    private func editorRepresentable(for document: OpenDocument) -> MarkdownEditor {
+        MarkdownEditor(
+            text: Binding(get: { document.text }, set: { document.edit($0) }),
+            profile: .original,
+            imageHost: nil,
+            readEditDocument: document
+        )
+    }
+
+    private func host(_ view: UIView) {
         let window = self.window ?? {
             let scene = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first
             let window = scene.map { UIWindow(windowScene: $0) } ?? UIWindow()

@@ -35,8 +35,10 @@ struct DocumentScreen: View {
     @State private var linkedScroll = LinkedScroll()
     /// The link button's state (mirrors `linkedScroll.isLinked`, which SwiftUI does not observe).
     @State private var arePanesLinked = true
-    /// The image line whose Reconnect pill opened the image picker.
+    /// The image line whose Reconnect pill opened the image picker, and the source the Read view
+    /// had rendered it from: a pick that returns after the text changed is refused.
     @State private var reconnectRange: NSRange?
+    @State private var reconnectRenderedText: String?
     @State private var isPickingReconnectImage = false
     @SceneStorage("openDocumentBookmark") private var openDocumentBookmark = ""
     /// The older form, a path. Read once for a scene stored before bookmarks, then cleared.
@@ -125,9 +127,12 @@ struct DocumentScreen: View {
             allowedContentTypes: Self.reconnectImageTypes,
             allowsMultipleSelection: false
         ) { result in
-            defer { reconnectRange = nil }
+            defer {
+                reconnectRange = nil
+                reconnectRenderedText = nil
+            }
             guard let range = reconnectRange, case .success(let urls) = result, let picked = urls.first else { return }
-            document.reconnectImage(at: range, with: picked)
+            document.reconnectImage(at: range, with: picked, renderedFrom: reconnectRenderedText)
         }
         .alert(
             String(localized: "That file couldn't be opened in Lineform."),
@@ -164,6 +169,9 @@ struct DocumentScreen: View {
 extension DocumentScreen {
     /// The gap between Preview's link button and the Menu button.
     static let bottomChromeSpacing: CGFloat = 12
+    /// The room the Read view (and Preview's lower pane) keeps below its last line, so it scrolls
+    /// clear of the floating Menu and link buttons.
+    static var bottomChromeClearance: CGFloat { MarkdownEditor.chromeMargin + PreviewLinkButton.diameter + 8 }
     /// ⌘E, the Mac's Toggle Write / Read.
     static let toggleWriteReadShortcut = KeyboardShortcut("e", modifiers: .command)
 
@@ -187,7 +195,8 @@ extension DocumentScreen {
             positionKeeper: positionKeeper,
             linkedScroll: displayMode == .split ? linkedScroll : nil,
             keepsCaretVisibleOnResize: displayMode == .split,
-            topChromeInset: ModeSwitch.pageTopClearance
+            topChromeInset: ModeSwitch.pageTopClearance,
+            readEditDocument: document
         )
     }
 
@@ -199,13 +208,16 @@ extension DocumentScreen {
             onCheckboxToggle: { range, renderedFrom in
                 document.toggleCheckbox(at: range, renderedFrom: renderedFrom)
             },
-            onImageReconnect: { range in
+            onImageReconnect: { range, renderedFrom in
                 reconnectRange = range
+                reconnectRenderedText = renderedFrom
                 isPickingReconnectImage = true
             },
-            undoManager: document.undoManager,
+            // One undo history in every mode: the editor's, which applied the Read edits.
+            undoManager: { [positionKeeper] in positionKeeper.editor?.undoManager },
             positionKeeper: positionKeeper,
             topChromeInset: displayMode == .split ? 0 : ModeSwitch.pageTopClearance,
+            bottomChromeInset: Self.bottomChromeClearance,
             linkedScroll: displayMode == .split ? linkedScroll : nil,
             textDelay: displayMode == .split ? LineformReadView.previewTextDelay : 0
         )
