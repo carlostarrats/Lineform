@@ -7,6 +7,9 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		1F000041000000000000001F /* LineformiOSTextView+SpellCheck.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F000040000000000000001F /* LineformiOSTextView+SpellCheck.swift */; };
+		1F000041000000000000001E /* SpellCheckPass.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F000040000000000000001E /* SpellCheckPass.swift */; };
+		1F000041000000000000001D /* SpellCheckTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F000040000000000000001D /* SpellCheckTests.swift */; };
 		1F000041000000000000001C /* LineformiOSTextView+ReadingAssists.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F000040000000000000001C /* LineformiOSTextView+ReadingAssists.swift */; };
 		1F000041000000000000001B /* ReadingAssistsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F000040000000000000001B /* ReadingAssistsTests.swift */; };
 		1F0000010000000000000001 /* LineformDocumentTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000001 /* LineformDocumentTests.swift */; };
@@ -197,6 +200,9 @@
  /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		1F000040000000000000001F /* LineformiOSTextView+SpellCheck.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "LineformiOSTextView+SpellCheck.swift"; sourceTree = "<group>"; };
+		1F000040000000000000001E /* SpellCheckPass.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpellCheckPass.swift; sourceTree = "<group>"; };
+		1F000040000000000000001D /* SpellCheckTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpellCheckTests.swift; sourceTree = "<group>"; };
 		1F000040000000000000001C /* LineformiOSTextView+ReadingAssists.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "LineformiOSTextView+ReadingAssists.swift"; sourceTree = "<group>"; };
 		1F000040000000000000001B /* ReadingAssistsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReadingAssistsTests.swift; sourceTree = "<group>"; };
 		1F0000020000000000000001 /* LineformDocumentTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LineformDocumentTests.swift; sourceTree = "<group>"; };
@@ -685,6 +691,7 @@
 				1F0000400000000000000018 /* HighlightingTests.swift */,
 				1F0000400000000000000019 /* ReadingLayoutTests.swift */,
 				1F000040000000000000001A /* EditingRulesTests.swift */,
+				1F000040000000000000001D /* SpellCheckTests.swift */,
 				1F000040000000000000001B /* ReadingAssistsTests.swift */,
 				1F000040000000000000000C /* DocumentLaunchTests.swift */,
 				1F0000400000000000000012 /* OpenDocumentTests.swift */,
@@ -699,6 +706,8 @@
 				1F0000400000000000000014 /* LineformiOSTextView.swift */,
 				1F0000400000000000000015 /* MarkdownEditor.swift */,
 				1F0000400000000000000016 /* LineformiOSTextView+Editing.swift */,
+				1F000040000000000000001F /* LineformiOSTextView+SpellCheck.swift */,
+				1F000040000000000000001E /* SpellCheckPass.swift */,
 				1F000040000000000000001C /* LineformiOSTextView+ReadingAssists.swift */,
 			);
 			path = Editor;
@@ -1092,6 +1101,8 @@
 				1F0000410000000000000014 /* LineformiOSTextView.swift in Sources */,
 				1F0000410000000000000015 /* MarkdownEditor.swift in Sources */,
 				1F0000410000000000000016 /* LineformiOSTextView+Editing.swift in Sources */,
+				1F000041000000000000001F /* LineformiOSTextView+SpellCheck.swift in Sources */,
+				1F000041000000000000001E /* SpellCheckPass.swift in Sources */,
 				1F000041000000000000001C /* LineformiOSTextView+ReadingAssists.swift in Sources */,
 				1F0000410000000000000010 /* OpenDocument.swift in Sources */,
 				1F0000410000000000000011 /* FileListSheet.swift in Sources */,
@@ -1105,6 +1116,7 @@
 				1F0000410000000000000018 /* HighlightingTests.swift in Sources */,
 				1F0000410000000000000019 /* ReadingLayoutTests.swift in Sources */,
 				1F000041000000000000001A /* EditingRulesTests.swift in Sources */,
+				1F000041000000000000001D /* SpellCheckTests.swift in Sources */,
 				1F000041000000000000001B /* ReadingAssistsTests.swift in Sources */,
 				1F000041000000000000000C /* DocumentLaunchTests.swift in Sources */,
 				1F0000410000000000000012 /* OpenDocumentTests.swift in Sources */,

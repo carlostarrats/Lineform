@@ -8,7 +8,9 @@ import UIKit
 /// The coordinator is the text view's delegate. It writes each change back to the binding (so
 /// `OpenDocument` autosaves) and schedules the debounced highlight pass; `scrollViewDidScroll`
 /// schedules the visible-window coverage check; `shouldChangeTextIn` routes Return through the
-/// editing rules; a selection change or an edit refreshes the reading assists (ruler, typewriter).
+/// editing rules; a selection change or an edit refreshes the reading assists (ruler, typewriter);
+/// the edit menu leads with spelling guesses on a misspelling; Writing Tools is told which
+/// Markdown regions to leave alone.
 struct MarkdownEditor: UIViewRepresentable {
     @Binding var text: String
     var profile: ReadingProfile
@@ -59,6 +61,17 @@ struct MarkdownEditor: UIViewRepresentable {
 
         func scrollViewDidScroll(_ scrollView: UIScrollView) {
             (scrollView as? LineformTextView)?.visibleRangeDidChange()
+        }
+
+        /// On a misspelling, the spelling group (guesses, Learn, Ignore) leads the system's menu.
+        func textView(_ textView: UITextView, editMenuForTextIn range: NSRange, suggestedActions: [UIMenuElement]) -> UIMenu? {
+            guard let spelling = (textView as? LineformTextView)?.spellingMenu(for: range) else { return nil }
+            return UIMenu(children: [spelling] + suggestedActions)
+        }
+
+        /// The Markdown regions Writing Tools must leave alone, should it ever be turned on.
+        func textView(_ textView: UITextView, writingToolsIgnoredRangesInEnclosingRange enclosingRange: NSRange) -> [NSValue] {
+            (textView as? LineformTextView)?.writingToolsIgnoredRanges(in: enclosingRange) ?? []
         }
     }
 }

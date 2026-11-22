@@ -47,6 +47,24 @@ final class LineformTextView: UITextView {
     /// avoidance.
     var isKeyboardAnimating = false
 
+    // MARK: Spell-check state (logic in LineformiOSTextView+SpellCheck.swift)
+
+    /// This document's spell-check pass and checker, made on first use. Not a `let` with a
+    /// default value: the editor comes from UIKit's `textViewUsingTextLayoutManager:` factory, on
+    /// which a non-optional stored property's initial value is not set (it read as nil and
+    /// crashed). Optional storage starts as nil either way.
+    var spellCheck: SpellCheckPass {
+        if let spellCheckStorage { return spellCheckStorage }
+        let pass = SpellCheckPass()
+        spellCheckStorage = pass
+        return pass
+    }
+    private var spellCheckStorage: SpellCheckPass?
+    /// The shape layer that strokes the misspelling underlines. Made on first use.
+    var spellingUnderlines: CAShapeLayer?
+    /// An edit or a re-style moved the text; the next layout pass re-strokes the underlines.
+    var needsSpellingUnderlineRedraw = false
+
     /// The range the last token pass covered; a scroll inside it does no work.
     private(set) var lastHighlightedTokenRange: NSRange?
     #if DEBUG
@@ -66,15 +84,28 @@ final class LineformTextView: UITextView {
         let textView = LineformTextView(usingTextLayoutManager: false)
         textView.configureForMarkdownEditing()
         textView.observeKeyboardForTypewriterMode()
+        textView.observeTextStorageForSpellCheck()
+        textView.registerForTraitChanges([UITraitUserInterfaceStyle.self]) { (textView: LineformTextView, _) in
+            textView.redrawSpellingUnderlines()
+        }
         textView.profile = profile
         if !textView.hasAppliedProfile { textView.applyProfile() }
         return textView
     }
 
+    /// The Mac's `configureForMarkdownEditing`: no silent rewrites (autocorrection, smart quotes,
+    /// dashes and inserts are off), the system spell checker off because it cannot skip Markdown
+    /// (the app's `SpellCheckPass` replaces it), and Writing Tools off with `writingToolsBehavior
+    /// = .none` (the Mac's `configureWritingTools`).
     private func configureForMarkdownEditing() {
         autocapitalizationType = .sentences
+        autocorrectionType = .no
+        spellCheckingType = .no
         smartQuotesType = .no
         smartDashesType = .no
+        smartInsertDeleteType = .no
+        writingToolsBehavior = .none
+        allowedWritingToolsResultOptions = [.plainText, .list]
         alwaysBounceVertical = true
         keyboardDismissMode = .interactive
         textContainer.lineFragmentPadding = 0
@@ -94,6 +125,7 @@ final class LineformTextView: UITextView {
         updateTextContainerInset()
         refreshHighlighting()
         refreshReadingAssists()
+        setNeedsSpellingUnderlineRedraw()
     }
 
     private func updateTextContainerInset() {
@@ -113,7 +145,10 @@ final class LineformTextView: UITextView {
             // writes from inside layout.
             visibleRangeDidChange()
             refreshReadingAssists()
+            needsSpellingUnderlineRedraw = true
         }
+        // After super: the underlines follow this layout pass (an edit, a re-style, a new size).
+        redrawSpellingUnderlinesIfNeeded()
     }
 
     override func tintColorDidChange() {
@@ -148,6 +183,7 @@ final class LineformTextView: UITextView {
         selectedRange = NSRange(location: location, length: min(selection.length, length - location))
         refreshHighlighting()
         refreshReadingAssists()
+        scheduleSpellCheck()
     }
 
     // MARK: - Highlighting
@@ -195,11 +231,13 @@ final class LineformTextView: UITextView {
         lastHighlightedTokenRange = scope
     }
 
-    /// Called for every text change: schedules the typing-delay pass, never a synchronous one.
+    /// Called for every text change: schedules the typing-delay pass and the spell-check pass,
+    /// never a synchronous one.
     func textDidChangeForHighlighting() {
         let selector = #selector(refreshHighlightingAfterTypingDelay)
         NSObject.cancelPreviousPerformRequests(withTarget: self, selector: selector, object: nil)
         perform(selector, with: nil, afterDelay: Self.typingHighlightDelay, inModes: [.common])
+        scheduleSpellCheck()
     }
 
     /// Called from `scrollViewDidScroll` and on a size change.
@@ -207,6 +245,7 @@ final class LineformTextView: UITextView {
         let selector = #selector(refreshVisibleTokensIfNeeded)
         NSObject.cancelPreviousPerformRequests(withTarget: self, selector: selector, object: nil)
         perform(selector, with: nil, afterDelay: Self.scrollHighlightDebounce, inModes: [.common])
+        scheduleSpellCheck()
     }
 
     /// The visible character range expanded by `highlightMargin` and snapped to line boundaries.
@@ -221,7 +260,7 @@ final class LineformTextView: UITextView {
 
     /// The on-screen character range. `glyphRange(forBoundingRect:)` lays out lazily, only what
     /// the rect needs, so this stays cheap on a large document.
-    private func visibleCharacterRange() -> NSRange? {
+    func visibleCharacterRange() -> NSRange? {
         guard bounds.width > 0, bounds.height > 0 else { return nil }
         var rect = bounds
         rect.origin.x -= textContainerInset.left

@@ -342,6 +342,16 @@ iPhone only. Details: `docs/architecture/iphone-app.md`.
   bookmark.
 - **TextKit 1.** The editor is `UITextView(usingTextLayoutManager: false)`, matching the Mac
   editor's TextKit 1 stack. Do not switch it to TextKit 2.
+- **Spell check.** The system checker is off (`spellCheckingType = .no`); `SpellCheckPass` runs
+  `UITextChecker` over `MarkdownSpellCheckRegions.checkableRanges` of the visible window plus
+  2,000 characters, 0.4 s after typing and after a scroll, never during marked text. Underlines
+  are drawn by a shape layer and never stored in the text. Like the Mac's path it must never call
+  `MarkdownWritingToolsProtection.ignoredRanges` or `MarkdownRangeAnalyzer.ranges(in:)`;
+  `SpellCheckTests.testSpellPassIsScopedRatio` guards it. Writing Tools is `.none`, as on the Mac.
+- **No non-optional stored property with a default on `LineformTextView`.** UIKit builds it
+  through the `textViewUsingTextLayoutManager:` factory, on which such a default is never set (a
+  `let spellCheck = SpellCheckPass()` read as nil and crashed). Use optional storage behind a
+  lazy computed property.
 - **Strings.** iPhone strings live in `LineformiOS/Localizable.xcstrings` (six languages), reusing
   the Mac's translation for the same English text. `LocalizationSourceSweepTests` scans
   `LineformiOS/` against that catalog.

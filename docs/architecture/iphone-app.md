@@ -95,6 +95,28 @@ for line alike. Do not switch it to TextKit 2.
   prefix up to the caret is laid out first (only past `firstUnlaidGlyphIndex()`), and a scroll
   past the laid-out content is put back once while UITextView grows `contentSize`, so it is set
   a second time.
+- **Spell check that skips code** (`SpellCheckPass.swift`, `LineformiOSTextView+SpellCheck.swift`).
+  The system checker, autocorrection and smart quotes, dashes and inserts are off, as in the
+  Mac's `configureForMarkdownEditing`. `SpellCheckPass` runs `UITextChecker` on the main actor
+  over `MarkdownSpellCheckRegions.checkableRanges` of the visible range plus 2,000 characters
+  (snapped to lines), so fenced code, inline code, front matter, math and link or image
+  destinations are never flagged. It runs 0.4 s after the last edit and after a scroll, never
+  per keystroke and never while there is marked text. The language is the keyboard's primary
+  language, else the first preferred language; without a `UITextChecker` dictionary for it,
+  nothing is checked. Each misspelling gets a 1.5 pt dotted red line, stroked by a `CAShapeLayer`
+  above the text from TextKit 1 line fragments; nothing is written to the text storage, so copy,
+  paste and the saved file never see it. An edit that touches a misspelling drops its underline
+  at once, and one before it shifts it. On a misspelling the edit menu
+  (`textView(_:editMenuForTextIn:suggestedActions:)`) leads with up to five guesses, then Learn
+  Spelling (the system dictionary) and Ignore Spelling (this document's checker). A guess goes
+  through `applyRuleEdit`: one undo step, and autosave sees it. Never call a whole-document pass
+  from here; `testSpellPassIsScopedRatio` gates it at 4× on the Mac's 730 KB corpus.
+- **Writing Tools** is off (`writingToolsBehavior = .none`, results limited to plain text and
+  lists, as on the Mac), and the delegate's `writingToolsIgnoredRangesIn` returns
+  `MarkdownWritingToolsProtection.ignoredRanges`, so the protection holds if it is turned on.
+- **Stored properties.** `LineformTextView` comes from UIKit's `textViewUsingTextLayoutManager:`
+  factory, on which a non-optional stored property's default value is never set. Keep editor
+  state optional (or a plain `Bool`), behind a lazy computed property where it needs an object.
 - Chrome floats over the text. No bar spans the top of the page; the page colour runs edge to
   edge, and only the container safe area is ignored so the editor still resizes for the keyboard.
 - Text set from code keeps the selection, clamped to the new text, so a live reload does not move
