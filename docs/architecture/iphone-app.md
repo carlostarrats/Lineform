@@ -751,8 +751,9 @@ from search.md carries over; see the iPhone Search paragraph there.
 - Show Hidden Folders, the Files setting (`FilesStore.setShowsHidden`, `Lineform.outline.showsHiddenFolders`).
 - Lineform Guide, Privacy Policy and Terms of Use open in Safari (`openURL`) at the package's
   `LineformLinks`, which the Mac's Help menu also forwards to.
-- Export, Print, Share and Read aloud arrive with roadmap step 10, in the spot marked in the
-  source after Check Document Now. Save As waits for step 10 too. No placeholder rows.
+- Export As, Print…, Share… and read aloud follow Check Document Now as their own section
+  (`ExportRows`, roadmap step 10; see "Export, print, share and read aloud"). Save As is not on
+  iPhone yet. No placeholder row.
 
 ### Settings
 

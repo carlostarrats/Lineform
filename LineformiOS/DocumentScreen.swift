@@ -216,6 +216,9 @@ struct DocumentScreen: View {
                 files: files,
                 settings: settings,
                 profile: profile,
+                exportCommands: exportCommands,
+                selection: { [positionKeeper] in positionKeeper.editor?.selectedRange },
+                mode: displayMode,
                 onDismiss: { isShowingMenu = false }
             )
         }

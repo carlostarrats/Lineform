@@ -117,6 +117,12 @@ struct ExportRows: View {
     // MARK: - State
 
     /// Share has no file while an Untitled document has nothing typed.
+    /// The rows' titles while nothing is being read, in order (the Document section's row list).
+    static var idleRowTitles: [String] {
+        [String(localized: "Export As"), String(localized: "Print\u{2026}"), String(localized: "Share\u{2026}")]
+            + speechTitles(for: .idle)
+    }
+
     static func isShareDisabled(_ commands: ExportCommands) -> Bool {
         !commands.canShareDocument
     }
