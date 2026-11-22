@@ -43,51 +43,6 @@ enum AtomicFileWrite {
     }
 }
 
-/// Paper sizes offered for PDF export / print. Sizes are in PostScript points (1/72"). Covers the
-/// common US (Letter/Legal/Tabloid) and ISO (A3/A4/A5) sheets printers use.
-enum ExportPaperSize: CaseIterable {
-    case usLetter
-    case usLegal
-    case tabloid
-    case a4
-    case a3
-    case a5
-
-    var sizeInPoints: NSSize {
-        switch self {
-        case .usLetter:
-            return NSSize(width: 612, height: 792)    // 8.5 × 11"
-        case .usLegal:
-            return NSSize(width: 612, height: 1008)   // 8.5 × 14"
-        case .tabloid:
-            return NSSize(width: 792, height: 1224)   // 11 × 17"
-        case .a4:
-            return NSSize(width: 595, height: 842)     // 210 × 297 mm
-        case .a3:
-            return NSSize(width: 842, height: 1191)    // 297 × 420 mm
-        case .a5:
-            return NSSize(width: 420, height: 595)     // 148 × 210 mm
-        }
-    }
-
-    var displayName: String {
-        switch self {
-        case .usLetter:
-            return String(localized: "US Letter")
-        case .usLegal:
-            return String(localized: "US Legal")
-        case .tabloid:
-            return String(localized: "Tabloid")
-        case .a4:
-            return String(localized: "A4")
-        case .a3:
-            return String(localized: "A3")
-        case .a5:
-            return String(localized: "A5")
-        }
-    }
-}
-
 /// Builds the rich, print-ready rendering of a document for **Print (⌘P)** and **Export as PDF**.
 ///
 /// The export reuses the exact Read-mode renderer (`MarkdownPreviewRenderer`), so the printed
@@ -133,12 +88,7 @@ enum DocumentExportRenderer {
     /// same flat 72pt as `margin` on every edge, so the default is byte-identical to before
     /// presets existed).
     static func contentSize(for paper: ExportPaperSize, preset: ExportTypographyPreset = .standard) -> NSSize {
-        let paperSize = paper.sizeInPoints
-        let insets = preset.pageMargins
-        return NSSize(
-            width: paperSize.width - insets.left - insets.right,
-            height: paperSize.height - insets.top - insets.bottom
-        )
+        paper.contentSize(preset: preset)
     }
 
     // MARK: - Rendering

@@ -3097,15 +3097,7 @@ struct EditorContainerView: View {
     /// world, Letter in the US/Canada). Compared on portrait dimensions so a landscape default
     /// printer isn't misread.
     private var defaultExportPaperSize: ExportPaperSize {
-        let paper = NSPrintInfo.shared.paperSize
-        let width = min(paper.width, paper.height)
-        let height = max(paper.width, paper.height)
-        return ExportPaperSize.allCases.min(by: { a, b in
-            let sa = a.sizeInPoints, sb = b.sizeInPoints
-            let da = abs(sa.width - width) + abs(sa.height - height)
-            let db = abs(sb.width - width) + abs(sb.height - height)
-            return da < db
-        }) ?? .usLetter
+        ExportPaperSize.closest(toPortrait: NSPrintInfo.shared.paperSize)
     }
 
     private func notificationPayloadValue(_ notification: Notification) -> String? {
