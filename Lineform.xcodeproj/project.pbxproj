@@ -7,6 +7,8 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		1F0000410000000000000098 /* PhonePrintRendererTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000400000000000000098 /* PhonePrintRendererTests.swift */; };
+		1F0000410000000000000097 /* PhonePrintRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000400000000000000097 /* PhonePrintRenderer.swift */; };
 		1F000041000000000000001F /* LineformiOSTextView+SpellCheck.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F000040000000000000001F /* LineformiOSTextView+SpellCheck.swift */; };
 		1F0000410000000000000020 /* EditorConstructionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000400000000000000020 /* EditorConstructionTests.swift */; };
 		1F0000410000000000000021 /* LineformiOSTextView+ImagePaste.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000400000000000000021 /* LineformiOSTextView+ImagePaste.swift */; };
@@ -252,6 +254,8 @@
  /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		1F0000400000000000000098 /* PhonePrintRendererTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhonePrintRendererTests.swift; sourceTree = "<group>"; };
+		1F0000400000000000000097 /* PhonePrintRenderer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhonePrintRenderer.swift; sourceTree = "<group>"; };
 		1F000040000000000000001F /* LineformiOSTextView+SpellCheck.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "LineformiOSTextView+SpellCheck.swift"; sourceTree = "<group>"; };
 		1F0000400000000000000020 /* EditorConstructionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditorConstructionTests.swift; sourceTree = "<group>"; };
 		1F0000400000000000000021 /* LineformiOSTextView+ImagePaste.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "LineformiOSTextView+ImagePaste.swift"; sourceTree = "<group>"; };
@@ -823,6 +827,7 @@
 				1F0000400000000000000096 /* PhoneExportWriterTests.swift */,
 				1F0000400000000000000093 /* PhoneRasterInk.swift */,
 				1F0000400000000000000092 /* PhonePDFExportTests.swift */,
+				1F0000400000000000000098 /* PhonePrintRendererTests.swift */,
 			);
 			path = LineformiOSTests;
 			sourceTree = "<group>";
@@ -912,6 +917,7 @@
 				1F0000400000000000000091 /* PhonePDFRenderer.swift */,
 				1F0000400000000000000094 /* PhoneExportFormat.swift */,
 				1F0000400000000000000095 /* PhoneExportWriter.swift */,
+				1F0000400000000000000097 /* PhonePrintRenderer.swift */,
 			);
 			path = Export;
 			sourceTree = "<group>";
@@ -1310,6 +1316,7 @@
 				1F0000410000000000000021 /* LineformiOSTextView+ImagePaste.swift in Sources */,
 				1F0000410000000000000023 /* LineformReadView.swift in Sources */,
 				1F0000410000000000000095 /* PhoneExportWriter.swift in Sources */,
+				1F0000410000000000000097 /* PhonePrintRenderer.swift in Sources */,
 				1F0000410000000000000094 /* PhoneExportFormat.swift in Sources */,
 				1F0000410000000000000091 /* PhonePDFRenderer.swift in Sources */,
 				1F0000410000000000000090 /* PhonePageLayout.swift in Sources */,
@@ -1359,6 +1366,7 @@
 				1F0000410000000000000096 /* PhoneExportWriterTests.swift in Sources */,
 				1F0000410000000000000093 /* PhoneRasterInk.swift in Sources */,
 				1F0000410000000000000092 /* PhonePDFExportTests.swift in Sources */,
+				1F0000410000000000000098 /* PhonePrintRendererTests.swift in Sources */,
 				1F000041000000000000002A /* ModeSwitchTests.swift in Sources */,
 				1F000041000000000000002D /* LinkedScrollTests.swift in Sources */,
 				1F0000410000000000000072 /* StylingSheetTests.swift in Sources */,
