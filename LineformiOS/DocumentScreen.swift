@@ -4,10 +4,16 @@ import SwiftUI
 /// The full-screen document. A normal launch opens a blank document; there is no bar across the
 /// top of the text, and the page colour runs edge to edge under the status bar and home
 /// indicator. The editor still resizes for the keyboard (only the container safe area is ignored).
+///
+/// After iOS ends the app, the next launch reopens the document that was open: `@SceneStorage`
+/// keeps its path, and the system discards it when the user force-quits, so a normal launch is
+/// blank. Going to the background saves at once.
 struct DocumentScreen: View {
     var document: OpenDocument
     private let profile = ReadingProfile.original
     @State private var isShowingFiles = false
+    @SceneStorage("openDocumentPath") private var openDocumentPath = ""
+    @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {
         PlainTextEditor(
@@ -32,6 +38,15 @@ struct DocumentScreen: View {
         ) {
             Button(String(localized: "OK"), role: .cancel) {}
         }
-        .task { await document.prepare() }
+        .task {
+            await document.prepare(restoringStoredPath: openDocumentPath)
+            openDocumentPath = document.storedPath
+        }
+        .onChange(of: document.url) {
+            openDocumentPath = document.storedPath
+        }
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .background { document.flushForBackground() }
+        }
     }
 }

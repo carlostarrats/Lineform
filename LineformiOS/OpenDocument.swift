@@ -1,6 +1,8 @@
 import Foundation
 import LineformCore
 import Observation
+import UIKit
+import os
 
 /// The one document the iPhone app has open: its file (nil for a new document that has no text
 /// yet), its text, and the live-reload watcher on that file.
@@ -9,6 +11,13 @@ import Observation
 /// leading BOM, CRLF line endings). Live reload follows `DocumentReloadPolicy`: an external change
 /// replaces the text only while the text still equals `lastSyncedText`, so in-memory edits that
 /// disk does not have yet are never overwritten.
+///
+/// Saving is automatic and never asks. `AutosavePlanner` decides each save: a new document gets
+/// a file in the save folder once it has text, named from its first line, and is renamed while
+/// that name still follows the first line; an opened file is written in place. Saves run 1 s
+/// after the last keystroke, at once when the app goes to the background, and before another
+/// file replaces this one. Writes and renames are coordinated with this document's own file
+/// presenter, so they never come back as a reload.
 @MainActor
 @Observable
 final class OpenDocument {
@@ -25,7 +34,10 @@ final class OpenDocument {
     private(set) var lastSyncedText = ""
     /// True while the file name follows the document's first line. A new document starts named
     /// from its first line; an opened file never is.
-    private(set) var isNamedFromFirstLine = true
+    var isNamedFromFirstLine: Bool { planner.isNamedFromFirstLine }
+
+    /// How long after the last keystroke an autosave runs.
+    static let autosaveDelay: Duration = .seconds(1)
 
     /// Where new documents save. Resolved off the main thread by `prepare`, because the live
     /// folder asks for the iCloud container.
@@ -38,6 +50,9 @@ final class OpenDocument {
     /// The URL whose security scope this document holds (a file from outside the app).
     @ObservationIgnored private var securityScopedURL: URL?
     @ObservationIgnored private var isPrepared = false
+    private var planner = AutosavePlanner(existingFileName: nil, isNamedFromFirstLine: true)
+    @ObservationIgnored private var autosaveTask: Task<Void, Never>?
+    @ObservationIgnored private let log = Logger(subsystem: "com.lineform.app", category: "autosave")
 
     /// - Parameters:
     ///   - folderProvider: returns the folder new documents save into. It is called off the main
@@ -59,17 +74,45 @@ final class OpenDocument {
 
     // MARK: - Preparing
 
-    /// Resolves the save folder off the main thread and makes sure it exists. Only the first call
-    /// does anything.
-    func prepare() async {
+    /// Resolves the save folder off the main thread and makes sure it exists, then reopens the
+    /// document the scene had open (`storedPath`, kept in `@SceneStorage`), if there was one and it
+    /// can still be read. A stored file that is gone or unreadable leaves the blank document. Only
+    /// the first call does anything.
+    func prepare(restoringStoredPath storedPath: String = "") async {
         guard !isPrepared else { return }
         isPrepared = true
         let provider = folderProvider
-        saveFolder = await Task.detached {
+        let folder = await Task.detached {
             let folder = provider()
             try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
             return folder
         }.value
+        saveFolder = folder
+
+        // Restore only into an untouched document: never replace something already typed or opened.
+        if !storedPath.isEmpty, url == nil, text.isEmpty {
+            let stored = storedPath.hasPrefix("/")
+                ? URL(fileURLWithPath: storedPath)
+                : folder.appendingPathComponent(storedPath)
+            try? open(stored)
+        }
+        // Text typed before the folder was known has been waiting for it.
+        if text != lastSyncedText { scheduleAutosave() }
+    }
+
+    /// What `@SceneStorage` keeps to reopen this document: "" for a document with no file, the
+    /// path relative to the save folder for a file in it (the app container's path can change
+    /// between launches), and the absolute path otherwise.
+    var storedPath: String {
+        guard let url else { return "" }
+        if let folder = saveFolder {
+            let folderPath = folder.standardizedFileURL.path
+            let path = url.standardizedFileURL.path
+            if path.hasPrefix(folderPath + "/") {
+                return String(path.dropFirst(folderPath.count + 1))
+            }
+        }
+        return url.path
     }
 
     // MARK: - Opening
@@ -86,6 +129,8 @@ final class OpenDocument {
             throw OpenError.unreadable(url)
         }
 
+        // The document being replaced keeps what was typed into it.
+        flush()
         stopWatching()
         releaseSecurityScope()
         if didAccess { securityScopedURL = url }
@@ -93,7 +138,7 @@ final class OpenDocument {
         self.url = url
         text = diskText
         lastSyncedText = diskText
-        isNamedFromFirstLine = false
+        planner = AutosavePlanner(existingFileName: url.lastPathComponent, isNamedFromFirstLine: false)
         startWatching(url)
     }
 
@@ -115,6 +160,72 @@ final class OpenDocument {
     func edit(_ newText: String) {
         guard newText != text else { return }
         text = newText
+        scheduleAutosave()
+    }
+
+    // MARK: - Autosave
+
+    /// Saves `autosaveDelay` after the last keystroke.
+    private func scheduleAutosave() {
+        autosaveTask?.cancel()
+        autosaveTask = Task { [weak self] in
+            try? await Task.sleep(for: Self.autosaveDelay)
+            guard !Task.isCancelled else { return }
+            self?.flush()
+        }
+    }
+
+    /// Saves now whatever disk does not have yet: creates, writes or renames the file as
+    /// `AutosavePlanner` decides. Does nothing when there is nothing to save.
+    func flush() {
+        autosaveTask?.cancel()
+        autosaveTask = nil
+        guard text != lastSyncedText else { return }
+        guard let folder = url?.deletingLastPathComponent() ?? saveFolder else {
+            // The save folder is still being resolved; `prepare` saves once it is known.
+            return
+        }
+
+        let textToSave = text
+        let previousPlanner = planner
+        switch planner.textChanged(textToSave, existingNames: Self.existingNames(in: folder)) {
+        case .none:
+            return
+        case .create(let fileName):
+            let newURL = folder.appendingPathComponent(fileName)
+            guard coordinatedWrite(textToSave, to: newURL) else {
+                planner = previousPlanner
+                return
+            }
+            url = newURL
+            startWatching(newURL)
+        case .write:
+            guard let url, coordinatedWrite(textToSave, to: url) else { return }
+        case .rename(let fileName):
+            guard let oldURL = url else { return }
+            let newURL = folder.appendingPathComponent(fileName)
+            if coordinatedMove(from: oldURL, to: newURL) {
+                stopWatching()
+                url = newURL
+                startWatching(newURL)
+            } else {
+                // Keep the old name; the text still saves.
+                planner = previousPlanner
+            }
+            guard let url, coordinatedWrite(textToSave, to: url) else { return }
+        }
+        lastSyncedText = textToSave
+    }
+
+    /// `flush`, inside a background-task assertion, for the scene going to the background: the
+    /// text must be on disk before iOS may suspend the app.
+    func flushForBackground(using tasks: any BackgroundTaskAsserting = UIApplication.shared) {
+        let assertion = BackgroundAssertion()
+        assertion.identifier = tasks.beginAssertion(name: "Save document") {
+            assertion.end(using: tasks)
+        }
+        flush()
+        assertion.end(using: tasks)
     }
 
     // MARK: - Live reload
@@ -182,6 +293,7 @@ final class OpenDocument {
     private func followMove(to newURL: URL) {
         stopWatching()
         url = newURL
+        planner.fileWasRenamed(to: newURL.lastPathComponent)
         startWatching(newURL)
     }
 
@@ -191,6 +303,58 @@ final class OpenDocument {
     }
 
     // MARK: - Disk
+
+    /// A coordinated write of `text`'s exact bytes to `url`. This document's own presenter is
+    /// passed to the coordinator, so the write is not reported back to it as an external change.
+    private func coordinatedWrite(_ text: String, to url: URL) -> Bool {
+        var coordinationError: NSError?
+        var writeError: Error?
+        NSFileCoordinator(filePresenter: watcher)
+            .coordinate(writingItemAt: url, options: .forReplacing, error: &coordinationError) { writeURL in
+                do {
+                    try MarkdownFileCodec.encode(text).write(to: writeURL, options: .atomic)
+                } catch {
+                    writeError = error
+                }
+            }
+        if let error = coordinationError ?? writeError {
+            log.error("Autosave could not write \(url.lastPathComponent, privacy: .private): \(error.localizedDescription, privacy: .public)")
+            return false
+        }
+        return true
+    }
+
+    /// A coordinated rename, announced to other presenters with `item(at:willMoveTo:)` and
+    /// `item(at:didMoveTo:)`.
+    private func coordinatedMove(from source: URL, to destination: URL) -> Bool {
+        let coordinator = NSFileCoordinator(filePresenter: watcher)
+        var coordinationError: NSError?
+        var moveError: Error?
+        coordinator.coordinate(
+            writingItemAt: source, options: .forMoving,
+            writingItemAt: destination, options: .forReplacing,
+            error: &coordinationError
+        ) { from, to in
+            coordinator.item(at: from, willMoveTo: to)
+            do {
+                try FileManager.default.moveItem(at: from, to: to)
+                coordinator.item(at: from, didMoveTo: to)
+            } catch {
+                moveError = error
+            }
+        }
+        if let error = coordinationError ?? moveError {
+            log.error("Autosave could not rename \(source.lastPathComponent, privacy: .private): \(error.localizedDescription, privacy: .public)")
+            return false
+        }
+        return true
+    }
+
+    /// The file names in `folder`, with an iCloud placeholder counted under its real name.
+    private static func existingNames(in folder: URL) -> Set<String> {
+        let entries = (try? FileManager.default.contentsOfDirectory(atPath: folder.path)) ?? []
+        return Set(entries.compactMap(FileListModel.displayName(of:)))
+    }
 
     /// A coordinated read of `url`, decoded with `MarkdownFileCodec`; nil when the read fails or
     /// the bytes are not UTF-8.
@@ -204,5 +368,35 @@ final class OpenDocument {
                 }
             }
         return text
+    }
+}
+
+/// Begins and ends the background-task assertion around the background flush. `UIApplication`
+/// is the real one; tests record the calls instead.
+@MainActor
+protocol BackgroundTaskAsserting {
+    func beginAssertion(name: String, expiration: @escaping @MainActor () -> Void) -> UIBackgroundTaskIdentifier
+    func endAssertion(_ identifier: UIBackgroundTaskIdentifier)
+}
+
+extension UIApplication: BackgroundTaskAsserting {
+    func beginAssertion(name: String, expiration: @escaping @MainActor () -> Void) -> UIBackgroundTaskIdentifier {
+        beginBackgroundTask(withName: name) { MainActor.assumeIsolated { expiration() } }
+    }
+
+    func endAssertion(_ identifier: UIBackgroundTaskIdentifier) {
+        endBackgroundTask(identifier)
+    }
+}
+
+/// Ends a background-task assertion exactly once, whether the flush finishes or time runs out.
+@MainActor
+private final class BackgroundAssertion {
+    var identifier = UIBackgroundTaskIdentifier.invalid
+
+    func end(using tasks: any BackgroundTaskAsserting) {
+        guard identifier != .invalid else { return }
+        tasks.endAssertion(identifier)
+        identifier = .invalid
     }
 }

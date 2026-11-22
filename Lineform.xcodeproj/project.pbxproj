@@ -169,6 +169,7 @@
 		1F0000410000000000000010 /* OpenDocument.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000400000000000000010 /* OpenDocument.swift */; };
 		1F0000410000000000000011 /* FileListSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000400000000000000011 /* FileListSheet.swift */; };
 		1F0000410000000000000012 /* OpenDocumentTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000400000000000000012 /* OpenDocumentTests.swift */; };
+		1F0000410000000000000013 /* AutosaveTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000400000000000000013 /* AutosaveTests.swift */; };
 /* End PBXBuildFile section */
 
  /* Begin PBXContainerItemProxy section */
@@ -365,6 +366,7 @@
 		1F0000400000000000000010 /* OpenDocument.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenDocument.swift; sourceTree = "<group>"; };
 		1F0000400000000000000011 /* FileListSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileListSheet.swift; sourceTree = "<group>"; };
 		1F0000400000000000000012 /* OpenDocumentTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenDocumentTests.swift; sourceTree = "<group>"; };
+		1F0000400000000000000013 /* AutosaveTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AutosaveTests.swift; sourceTree = "<group>"; };
  /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -691,6 +693,7 @@
 				1F000040000000000000000B /* PlainTextEditorTests.swift */,
 				1F000040000000000000000C /* DocumentLaunchTests.swift */,
 				1F0000400000000000000012 /* OpenDocumentTests.swift */,
+				1F0000400000000000000013 /* AutosaveTests.swift */,
 			);
 			path = LineformiOSTests;
 			sourceTree = "<group>";
@@ -1099,6 +1102,7 @@
 				1F000041000000000000000B /* PlainTextEditorTests.swift in Sources */,
 				1F000041000000000000000C /* DocumentLaunchTests.swift in Sources */,
 				1F0000410000000000000012 /* OpenDocumentTests.swift in Sources */,
+				1F0000410000000000000013 /* AutosaveTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
