@@ -328,10 +328,13 @@ iPhone only. Details: `docs/architecture/iphone-app.md`.
   text, named from its first line; an Untitled document with nothing typed creates no file.
   While the name follows the first line, editing that line renames the file; a user rename or an
   opened file is never renamed automatically. Saves run 1 s after the last keystroke, at once on
-  `scenePhase == .background` inside a background-task assertion, and before another document
-  replaces this one. There is no "Not saved" state and no Save / Don't Save prompt. An open file
-  deleted elsewhere keeps its text on screen and is never written back; the next change saves it
-  as a new document. After iOS ends the app, `@SceneStorage` reopens the open file from its
+  `scenePhase` `.inactive` or `.background` inside a background-task assertion, and before another
+  document replaces this one. There is no "Not saved" state and no Save / Don't Save prompt. If
+  that save fails, the current document stays (its text is never replaced) and a small calm notice
+  shows. An open file deleted elsewhere, or moved into a Trash folder, keeps its text on screen and
+  is never written back; the next change saves it as a new document. A new file is created with a
+  non-replacing write. Every open reads off the main thread; a file iCloud has not downloaded is
+  downloaded first. A reload read that a save overtook is read again, never applied stale. After iOS ends the app, `@SceneStorage` reopens the open file from its
   bookmark.
 - **TextKit 1.** The editor is `UITextView(usingTextLayoutManager: false)`, matching the Mac
   editor's TextKit 1 stack. Do not switch it to TextKit 2.

@@ -1,6 +1,7 @@
 import Foundation
 import LineformCore
 import Observation
+import SwiftUI
 import UIKit
 import os
 
@@ -19,15 +20,25 @@ import os
 /// file replaces this one. Writes and renames are coordinated with this document's own file
 /// presenter, so they never come back as a reload.
 ///
-/// When the open file is deleted elsewhere (Files, another device), the text stays on screen but
-/// the document lets go of that path: it becomes a new document again, so the next change saves
-/// it under a new name from its first line, and nothing writes the deleted file back.
+/// When the open file is deleted elsewhere (Files, another device), or moved into a Trash folder,
+/// the text stays on screen but the document lets go of that path: it becomes a new document
+/// again, so the next change saves it under a new name from its first line, and nothing writes
+/// the deleted file back.
+///
+/// Text is never thrown away to make room for something else. Opening a file or starting a new
+/// document first saves the current one; if that save fails, the current document stays and the
+/// screen shows `saveFailed`'s quiet notice. Every read of a file happens off the main thread, and
+/// a file iCloud has not downloaded yet is downloaded first while the screen shows `downloadingName`.
 @MainActor
 @Observable
 final class OpenDocument {
     enum OpenError: Error, Equatable {
         /// The file could not be read, or it is not valid UTF-8 text.
         case unreadable(URL)
+        /// The current document could not be saved, so it stays open instead of being replaced.
+        case currentDocumentNotSaved
+        /// A later open or New Document took over before this open finished.
+        case superseded
     }
 
     /// The open file, or nil for a new document that has not been saved yet.
@@ -40,8 +51,17 @@ final class OpenDocument {
     /// from its first line; an opened file never is.
     var isNamedFromFirstLine: Bool { planner.isNamedFromFirstLine }
 
+    /// True after a save failed, until a save succeeds. The screen shows a small, calm notice;
+    /// the text is still in memory and the next save tries again.
+    private(set) var saveFailed = false
+    /// The name of a file iCloud is downloading so it can be opened, or nil. While it is set the
+    /// screen shows a quiet downloading state in place of the text.
+    private(set) var downloadingName: String?
+
     /// How long after the last keystroke an autosave runs.
     static let autosaveDelay: Duration = .seconds(1)
+    /// How often a file iCloud is downloading is checked again.
+    static let downloadPollInterval: Duration = .milliseconds(250)
 
     /// Where new documents save. Resolved off the main thread by `prepare`, because the live
     /// folder asks for the iCloud container.
@@ -49,6 +69,16 @@ final class OpenDocument {
 
     @ObservationIgnored private let folderProvider: @Sendable () -> URL
     @ObservationIgnored private let reader: any DocumentDiskReading
+    @ObservationIgnored private let writer: any DocumentFileWriting
+    @ObservationIgnored private let ubiquitousItems: any UbiquitousItemAccessing
+    /// The one resolution of the save folder that `prepare`, `flush` and the file list share.
+    @ObservationIgnored private var folderTask: Task<URL, Never>?
+    /// Bumped by every open and New Document, so an open still reading or downloading can tell
+    /// that something newer took over.
+    @ObservationIgnored private var openGeneration = 0
+    /// Bumped whenever `lastSyncedText` is set (open, our own save, a reload, a detach), so a
+    /// reload read that was in flight meanwhile can tell its snapshot is stale.
+    @ObservationIgnored private var syncGeneration = 0
     @ObservationIgnored private var watcher: DocumentFileWatcher?
     @ObservationIgnored private var reloadTask: Task<Void, Never>?
     /// The URL whose security scope this document holds (a file from outside the app).
@@ -61,13 +91,20 @@ final class OpenDocument {
     /// - Parameters:
     ///   - folderProvider: returns the folder new documents save into. It is called off the main
     ///     thread (the live one asks for the iCloud container). Tests pass a temporary folder.
-    ///   - reader: the coordinated disk reader live reload uses.
+    ///   - reader: the coordinated disk reader that opening and live reload use, off the main thread.
+    ///   - writer: writes the bytes inside the coordinated save. Tests inject failures.
+    ///   - ubiquitousItems: tells whether iCloud still has to download a file, and starts that
+    ///     download. Tests inject a fake; real iCloud is never touched in tests.
     init(
         folderProvider: @escaping @Sendable () -> URL,
-        reader: any DocumentDiskReading = FileSystemDiskReader()
+        reader: any DocumentDiskReading = FileSystemDiskReader(),
+        writer: any DocumentFileWriting = FileSystemDocumentWriter(),
+        ubiquitousItems: any UbiquitousItemAccessing = LiveUbiquitousItems()
     ) {
         self.folderProvider = folderProvider
         self.reader = reader
+        self.writer = writer
+        self.ubiquitousItems = ubiquitousItems
     }
 
     /// The document the app uses: new documents save into iCloud Drive's Lineform folder when it
@@ -89,13 +126,7 @@ final class OpenDocument {
     func prepare(restoringBookmark bookmark: String = "", restoringStoredPath storedPath: String = "") async {
         guard !isPrepared else { return }
         isPrepared = true
-        let provider = folderProvider
-        let folder = await Task.detached {
-            let folder = provider()
-            try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
-            return folder
-        }.value
-        saveFolder = folder
+        let folder = await resolveSaveFolder()
 
         // Restore only into an untouched document: never replace something already typed or opened.
         var stored: URL?
@@ -107,10 +138,33 @@ final class OpenDocument {
                 : folder.appendingPathComponent(storedPath)
         }
         if let stored, url == nil, text.isEmpty {
-            try? open(stored)
+            try? await open(stored, onlyIntoUntouchedDocument: true)
         }
         // Text typed before the folder was known has been waiting for it.
         if text != lastSyncedText { scheduleAutosave() }
+    }
+
+    /// The folder new documents save into. The first caller starts resolving it off the main
+    /// thread (the live folder asks for the iCloud container) and creates it if needed; every
+    /// caller, including ones that arrive while that is still running, gets the same folder.
+    @discardableResult
+    func resolveSaveFolder() async -> URL {
+        if let saveFolder { return saveFolder }
+        let task: Task<URL, Never>
+        if let folderTask {
+            task = folderTask
+        } else {
+            let provider = folderProvider
+            task = Task.detached {
+                let folder = provider()
+                try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+                return folder
+            }
+            folderTask = task
+        }
+        let folder = await task.value
+        if saveFolder == nil { saveFolder = folder }
+        return folder
     }
 
     /// What `@SceneStorage` keeps to reopen this document: "" for a document with no file, the
@@ -152,47 +206,121 @@ final class OpenDocument {
     /// Opens `url`, replacing the current document. A file from outside the app (Files, "Open in
     /// Lineform") is opened through its security scope, which the document keeps while it is open.
     ///
-    /// Throws `OpenError.unreadable` when the file cannot be read or is not valid UTF-8; the
-    /// current document then stays as it was.
-    func open(_ url: URL) throws {
+    /// The file is read off the main thread. A file iCloud has not downloaded yet (or its
+    /// `.Name.md.icloud` placeholder) is downloaded first: the current document is saved and put
+    /// away, `downloadingName` is set while iCloud works, and the file opens once it is current.
+    ///
+    /// Throws `OpenError.unreadable` when the file cannot be read or is not valid UTF-8, and
+    /// `OpenError.currentDocumentNotSaved` when the current document could not be saved; in both
+    /// cases the current document stays as it was. Throws `OpenError.superseded` when a later
+    /// open or New Document took over meanwhile.
+    func open(_ requestedURL: URL) async throws {
+        try await open(requestedURL, onlyIntoUntouchedDocument: false)
+    }
+
+    /// `open`; with `onlyIntoUntouchedDocument` (the launch restore), the file opens only if the
+    /// writer has not typed or opened anything while it was being read.
+    private func open(_ requestedURL: URL, onlyIntoUntouchedDocument: Bool) async throws {
+        let url = Self.realURL(for: requestedURL)
+        openGeneration += 1
+        let generation = openGeneration
         let didAccess = url.startAccessingSecurityScopedResource()
-        guard let diskText = Self.coordinatedRead(url) else {
-            if didAccess { url.stopAccessingSecurityScopedResource() }
-            throw OpenError.unreadable(url)
+        var keepsScope = false
+        defer { if didAccess, !keepsScope { url.stopAccessingSecurityScopedResource() } }
+
+        let items = ubiquitousItems
+        if await Task.detached(operation: { items.needsDownload(url) }).value {
+            guard generation == openGeneration else { throw OpenError.superseded }
+            // The download can take a while: save and put away the current document first, so
+            // nothing typed meanwhile can be lost, and show the downloading state in its place.
+            guard await flush() else { throw OpenError.currentDocumentNotSaved }
+            guard generation == openGeneration else { throw OpenError.superseded }
+            closeCurrentDocument()
+            downloadingName = url.lastPathComponent
+            do {
+                try await Task.detached(operation: { try items.startDownloading(url) }).value
+            } catch {
+                if generation == openGeneration { downloadingName = nil }
+                throw OpenError.unreadable(url)
+            }
+            while await Task.detached(operation: { items.needsDownload(url) }).value {
+                guard generation == openGeneration else { throw OpenError.superseded }
+                try? await Task.sleep(for: Self.downloadPollInterval)
+                guard generation == openGeneration else { throw OpenError.superseded }
+            }
         }
 
-        // The document being replaced keeps what was typed into it.
-        flush()
-        stopWatching()
-        releaseSecurityScope()
-        if didAccess { securityScopedURL = url }
+        let reader = self.reader
+        let diskText = await Task.detached(operation: { reader.readText(at: url) }).value
+        guard generation == openGeneration else { throw OpenError.superseded }
+        guard let diskText else {
+            downloadingName = nil
+            throw OpenError.unreadable(url)
+        }
+        if onlyIntoUntouchedDocument, self.url != nil || !text.isEmpty { throw OpenError.superseded }
+
+        // The document being replaced keeps what was typed into it, including while the read ran.
+        guard await flush() else { throw OpenError.currentDocumentNotSaved }
+        guard generation == openGeneration else { throw OpenError.superseded }
+        closeCurrentDocument()
+        if didAccess {
+            securityScopedURL = url
+            keepsScope = true
+        }
 
         self.url = url
         text = diskText
-        lastSyncedText = diskText
+        setLastSyncedText(diskText)
         planner = AutosavePlanner(existingFileName: url.lastPathComponent, isNamedFromFirstLine: false)
         startWatching(url)
     }
 
     /// Starts a blank Untitled document, after saving whatever the current one has not saved yet.
-    /// Like any new document, it creates no file until it has text.
-    func newDocument() {
-        flush()
+    /// Like any new document, it creates no file until it has text. Returns false, and keeps the
+    /// current document, when that save failed.
+    @discardableResult
+    func newDocument() async -> Bool {
+        openGeneration += 1
+        guard await flush() else { return false }
+        closeCurrentDocument()
+        return true
+    }
+
+    /// Puts the current document away (after it was saved): stops watching, releases its scope,
+    /// and leaves a blank, untouched new document.
+    private func closeCurrentDocument() {
+        autosaveTask?.cancel()
+        autosaveTask = nil
         stopWatching()
         releaseSecurityScope()
         url = nil
         text = ""
-        lastSyncedText = ""
+        setLastSyncedText("")
         planner = AutosavePlanner(existingFileName: nil, isNamedFromFirstLine: true)
+        downloadingName = nil
+    }
+
+    /// The file a URL stands for: an iCloud placeholder `.Name.md.icloud` stands for `Name.md`
+    /// next to it. Downloading and reading always use the real URL.
+    nonisolated static func realURL(for url: URL) -> URL {
+        let entry = url.lastPathComponent
+        guard entry.hasPrefix("."), entry.hasSuffix(".icloud"),
+              let name = FileListModel.displayName(of: entry)
+        else { return url }
+        return url.deletingLastPathComponent().appendingPathComponent(name)
     }
 
     /// Set when `openReportingFailure` could not open a file; the screen shows an alert for it.
     var failedOpenURL: URL?
 
     /// `open`, for the UI: a file that cannot be opened sets `failedOpenURL` instead of throwing.
-    func openReportingFailure(_ url: URL) {
+    /// A failed save of the current document already shows its own notice, and a superseded open
+    /// is not a failure.
+    func openReportingFailure(_ url: URL) async {
         do {
-            try open(url)
+            try await open(url)
+        } catch OpenError.currentDocumentNotSaved, OpenError.superseded {
+            return
         } catch {
             failedOpenURL = url
         }
@@ -215,83 +343,152 @@ final class OpenDocument {
         autosaveTask = Task { [weak self] in
             try? await Task.sleep(for: Self.autosaveDelay)
             guard !Task.isCancelled else { return }
-            self?.flush()
+            await self?.flush()
         }
     }
 
     /// Saves now whatever disk does not have yet: creates, writes or renames the file as
-    /// `AutosavePlanner` decides. Does nothing when there is nothing to save.
-    func flush() {
+    /// `AutosavePlanner` decides. A new document typed before the save folder is known waits for
+    /// it. Returns true when disk has the text (or there was nothing to save), false when the save
+    /// failed; the text is then still in memory, and `saveFailed` is set.
+    @discardableResult
+    func flush() async -> Bool {
         autosaveTask?.cancel()
         autosaveTask = nil
-        guard text != lastSyncedText else { return }
-        guard let folder = url?.deletingLastPathComponent() ?? saveFolder else {
-            // The save folder is still being resolved; `prepare` saves once it is known.
-            return
+        guard text != lastSyncedText else { return true }
+        if url == nil, saveFolder == nil {
+            await resolveSaveFolder()
         }
-
-        let textToSave = text
-        let previousPlanner = planner
-        switch planner.textChanged(textToSave, existingNames: Self.existingNames(in: folder)) {
-        case .none:
-            return
-        case .create(let fileName):
-            let newURL = folder.appendingPathComponent(fileName)
-            guard coordinatedWrite(textToSave, to: newURL) else {
-                planner = previousPlanner
-                return
-            }
-            url = newURL
-            startWatching(newURL)
-        case .write:
-            guard let url, coordinatedWrite(textToSave, to: url) else { return }
-        case .rename(let fileName):
-            guard let oldURL = url else { return }
-            let newURL = folder.appendingPathComponent(fileName)
-            if coordinatedMove(from: oldURL, to: newURL) {
-                stopWatching()
-                url = newURL
-                startWatching(newURL)
-            } else {
-                // Keep the old name; the text still saves.
-                planner = previousPlanner
-            }
-            guard let url, coordinatedWrite(textToSave, to: url) else { return }
-        }
-        lastSyncedText = textToSave
+        return saveNow()
     }
 
-    /// `flush`, inside a background-task assertion, for the scene going to the background: the
-    /// text must be on disk before iOS may suspend the app.
+    /// The synchronous part of `flush`, once the folder is known.
+    @discardableResult
+    private func saveNow() -> Bool {
+        autosaveTask?.cancel()
+        autosaveTask = nil
+        guard text != lastSyncedText else { return true }
+        guard let folder = url?.deletingLastPathComponent() ?? saveFolder else { return false }
+        let saved = save(text, in: folder)
+        saveFailed = !saved
+        return saved
+    }
+
+    private func save(_ textToSave: String, in folder: URL) -> Bool {
+        let previousPlanner = planner
+        var takenNames: Set<String> = []
+        // A name can be taken between planning and writing (another device, Files); then plan
+        // again with that name counted as taken. A few tries is plenty.
+        for _ in 0..<5 {
+            let existingNames = Self.existingNames(in: folder).union(takenNames)
+            switch planner.textChanged(textToSave, existingNames: existingNames) {
+            case .none:
+                return true
+            case .create(let fileName):
+                let newURL = folder.appendingPathComponent(fileName)
+                switch coordinatedWrite(textToSave, to: newURL, replaceExisting: false) {
+                case .written:
+                    url = newURL
+                    startWatching(newURL)
+                    setLastSyncedText(textToSave)
+                    return true
+                case .fileExists:
+                    planner = previousPlanner
+                    takenNames.insert(fileName)
+                    continue
+                case .failed:
+                    planner = previousPlanner
+                    return false
+                }
+            case .write:
+                guard let url, coordinatedWrite(textToSave, to: url, replaceExisting: true) == .written else { return false }
+                setLastSyncedText(textToSave)
+                return true
+            case .rename(let fileName):
+                guard let oldURL = url else { return false }
+                let newURL = folder.appendingPathComponent(fileName)
+                if coordinatedMove(from: oldURL, to: newURL) {
+                    stopWatching()
+                    url = newURL
+                    startWatching(newURL)
+                } else {
+                    // Keep the old name; the text still saves.
+                    planner = previousPlanner
+                }
+                guard let url, coordinatedWrite(textToSave, to: url, replaceExisting: true) == .written else { return false }
+                setLastSyncedText(textToSave)
+                return true
+            }
+        }
+        planner = previousPlanner
+        return false
+    }
+
+    private func setLastSyncedText(_ newValue: String) {
+        lastSyncedText = newValue
+        syncGeneration += 1
+    }
+
+    /// `flush`, inside a background-task assertion, for the scene going inactive or to the
+    /// background: the text must be on disk before iOS may suspend the app. The save runs at once
+    /// when the folder is known; at launch it finishes once the folder is.
     func flushForBackground(using tasks: any BackgroundTaskAsserting = UIApplication.shared) {
         let assertion = BackgroundAssertion()
         assertion.identifier = tasks.beginAssertion(name: "Save document") {
             assertion.end(using: tasks)
         }
-        flush()
-        assertion.end(using: tasks)
+        if text == lastSyncedText || url != nil || saveFolder != nil {
+            saveNow()
+            assertion.end(using: tasks)
+        } else {
+            Task {
+                await self.flush()
+                assertion.end(using: tasks)
+            }
+        }
+    }
+
+    /// The scene phases that save at once: leaving the foreground starts at `.inactive` (the app
+    /// switcher, a call, Control Center), and iOS may suspend the app soon after `.background`.
+    static func savesImmediately(on phase: ScenePhase) -> Bool {
+        phase == .inactive || phase == .background
     }
 
     // MARK: - Live reload
 
     /// Reads the file again and applies `DocumentReloadPolicy.decide`. Returns the outcome, or nil
     /// when there is no file or it could not be read.
+    ///
+    /// The read runs off the main thread. If the document changed while it was in flight (our own
+    /// save landed, the writer typed, another file opened), the result is stale: deciding on it
+    /// could put older disk text back over a save that just happened. The file is then read again,
+    /// a few times at most, and a result that is still stale is dropped.
     @discardableResult
     func applyExternalChange() async -> ReloadOutcome? {
-        guard let url else { return nil }
-        let reader = self.reader
-        let diskText = await Task.detached { reader.readText(at: url) }.value
-        // The document may have changed while the read was in flight.
-        guard self.url == url, let diskText else { return nil }
+        for _ in 0..<3 {
+            guard let url else { return nil }
+            let snapshotText = text
+            let snapshotSynced = lastSyncedText
+            let snapshotGeneration = syncGeneration
+            let reader = self.reader
+            let diskText = await Task.detached(operation: { reader.readText(at: url) }).value
+            guard self.url == url,
+                  text == snapshotText,
+                  lastSyncedText == snapshotSynced,
+                  syncGeneration == snapshotGeneration
+            else { continue }
+            guard let diskText else { return nil }
 
-        let outcome = DocumentReloadPolicy.decide(
-            diskText: diskText, currentText: text, lastSyncedText: lastSyncedText
-        )
-        if outcome == .reload {
-            text = diskText
-            lastSyncedText = diskText
+            let outcome = DocumentReloadPolicy.decide(
+                diskText: diskText, currentText: text, lastSyncedText: lastSyncedText
+            )
+            if outcome == .reload {
+                text = diskText
+                setLastSyncedText(diskText)
+            }
+            return outcome
         }
-        return outcome
+        return nil
     }
 
     /// Coalesces a burst of presenter callbacks into one reload, `debounceInterval` after the last.
@@ -339,8 +536,14 @@ final class OpenDocument {
         watcher = nil
     }
 
-    /// The file was moved or renamed by someone else (Files, iCloud): keep editing it there.
+    /// The file was moved or renamed by someone else (Files, iCloud): keep editing it there. A move
+    /// into a Trash folder (Files' Recently Deleted) is a delete, as on the Mac, where a trashed
+    /// file's window keeps its text as unsaved content.
     private func followMove(to newURL: URL) {
+        if Self.isTrashLocation(newURL) {
+            detachFromDeletedFile()
+            return
+        }
         stopWatching()
         url = newURL
         planner.fileWasRenamed(to: newURL.lastPathComponent)
@@ -356,8 +559,21 @@ final class OpenDocument {
         stopWatching()
         releaseSecurityScope()
         url = nil
-        lastSyncedText = text
+        setLastSyncedText(text)
         planner = AutosavePlanner(existingFileName: nil, isNamedFromFirstLine: true)
+    }
+
+    /// True for a URL inside a Trash folder: a path component `.Trash` or `Trash`, or a place the
+    /// system's trash directory contains.
+    nonisolated static func isTrashLocation(_ url: URL) -> Bool {
+        if url.pathComponents.contains(where: { $0 == ".Trash" || $0 == "Trash" }) { return true }
+        var relationship = FileManager.URLRelationship.other
+        if (try? FileManager.default.getRelationship(
+            &relationship, of: .trashDirectory, in: .allDomainsMask, toItemAt: url
+        )) != nil, relationship == .contains {
+            return true
+        }
+        return false
     }
 
     private func releaseSecurityScope() {
@@ -367,24 +583,37 @@ final class OpenDocument {
 
     // MARK: - Disk
 
+    enum WriteResult: Equatable {
+        case written
+        /// A new file's name was taken just before the write; nothing was overwritten.
+        case fileExists
+        case failed
+    }
+
     /// A coordinated write of `text`'s exact bytes to `url`. This document's own presenter is
     /// passed to the coordinator, so the write is not reported back to it as an external change.
-    private func coordinatedWrite(_ text: String, to url: URL) -> Bool {
+    /// With `replaceExisting` false (a new file), a file that appeared at that name meanwhile is
+    /// never overwritten: the result is `.fileExists`.
+    private func coordinatedWrite(_ text: String, to url: URL, replaceExisting: Bool) -> WriteResult {
         var coordinationError: NSError?
         var writeError: Error?
+        let writer = self.writer
         NSFileCoordinator(filePresenter: watcher)
-            .coordinate(writingItemAt: url, options: .forReplacing, error: &coordinationError) { writeURL in
+            .coordinate(writingItemAt: url, options: replaceExisting ? .forReplacing : [], error: &coordinationError) { writeURL in
                 do {
-                    try MarkdownFileCodec.encode(text).write(to: writeURL, options: .atomic)
+                    try writer.write(MarkdownFileCodec.encode(text), to: writeURL, replaceExisting: replaceExisting)
                 } catch {
                     writeError = error
                 }
             }
+        if !replaceExisting, let error = writeError as? CocoaError, error.code == .fileWriteFileExists {
+            return .fileExists
+        }
         if let error = coordinationError ?? writeError {
             log.error("Autosave could not write \(url.lastPathComponent, privacy: .private): \(error.localizedDescription, privacy: .public)")
-            return false
+            return .failed
         }
-        return true
+        return .written
     }
 
     /// A coordinated rename, announced to other presenters with `item(at:willMoveTo:)` and
@@ -418,20 +647,6 @@ final class OpenDocument {
         let entries = (try? FileManager.default.contentsOfDirectory(atPath: folder.path)) ?? []
         return Set(entries.compactMap(FileListModel.displayName(of:)))
     }
-
-    /// A coordinated read of `url`, decoded with `MarkdownFileCodec`; nil when the read fails or
-    /// the bytes are not UTF-8.
-    private static func coordinatedRead(_ url: URL) -> String? {
-        var coordinationError: NSError?
-        var text: String?
-        NSFileCoordinator(filePresenter: nil)
-            .coordinate(readingItemAt: url, options: [], error: &coordinationError) { readURL in
-                if let data = try? Data(contentsOf: readURL) {
-                    text = MarkdownFileCodec.decode(data)
-                }
-            }
-        return text
-    }
 }
 
 /// Begins and ends the background-task assertion around the background flush. `UIApplication`
@@ -461,5 +676,50 @@ private final class BackgroundAssertion {
         guard identifier != .invalid else { return }
         tasks.endAssertion(identifier)
         identifier = .invalid
+    }
+}
+
+/// Writes a document's bytes inside the coordinated save. The real one writes to disk; tests
+/// inject failures and last-moment collisions.
+protocol DocumentFileWriting: Sendable {
+    /// Writes `data` to `url`. With `replaceExisting` false, throws
+    /// `CocoaError(.fileWriteFileExists)` instead of overwriting a file already there.
+    func write(_ data: Data, to url: URL, replaceExisting: Bool) throws
+}
+
+struct FileSystemDocumentWriter: DocumentFileWriting {
+    func write(_ data: Data, to url: URL, replaceExisting: Bool) throws {
+        // `.withoutOverwriting` cannot be combined with `.atomic`; it creates the file
+        // exclusively, so a file that appeared at the last moment is never replaced.
+        try data.write(to: url, options: replaceExisting ? .atomic : .withoutOverwriting)
+    }
+}
+
+/// Whether iCloud still has to download a file before it can be read, and starting that
+/// download. The real one asks the file system; tests inject a fake.
+protocol UbiquitousItemAccessing: Sendable {
+    /// True while `url` is an iCloud item that is not downloaded and current: its
+    /// `.Name.md.icloud` placeholder is there, or its downloading status is not `.current`.
+    func needsDownload(_ url: URL) -> Bool
+    func startDownloading(_ url: URL) throws
+}
+
+struct LiveUbiquitousItems: UbiquitousItemAccessing {
+    func needsDownload(_ url: URL) -> Bool {
+        let placeholder = url.deletingLastPathComponent()
+            .appendingPathComponent("." + url.lastPathComponent + ".icloud")
+        if FileManager.default.fileExists(atPath: placeholder.path) { return true }
+        // A fresh URL value each time: `URL` caches resource values per instance.
+        let fresh = URL(fileURLWithPath: url.path)
+        guard let values = try? fresh.resourceValues(forKeys: [.isUbiquitousItemKey, .ubiquitousItemDownloadingStatusKey]),
+              values.isUbiquitousItem == true,
+              let status = values.ubiquitousItemDownloadingStatus
+        else { return false }
+        return status != .current
+    }
+
+    func startDownloading(_ url: URL) throws {
+        let downloader: any UbiquitousItemDownloader = FileManager.default
+        try downloader.startDownloadingUbiquitousItem(at: url)
     }
 }

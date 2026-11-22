@@ -108,7 +108,7 @@ struct FileListSheet: View {
             List {
                 Section {
                     Button {
-                        document.newDocument()
+                        Task { await document.newDocument() }
                         dismiss()
                     } label: {
                         Label(String(localized: "New Document"), systemImage: "square.and.pencil")
@@ -146,14 +146,15 @@ struct FileListSheet: View {
             if case .success(let url) = result { open(url) }
         }
         .task {
-            await document.prepare()
-            if let folder = document.saveFolder { model.start(folder: folder) }
+            // Shares the screen's folder resolution, so a sheet opened at launch waits for the
+            // folder instead of listing nothing.
+            model.start(folder: await document.resolveSaveFolder())
         }
         .onDisappear { model.stop() }
     }
 
     private func open(_ url: URL) {
-        document.openReportingFailure(url)
+        Task { await document.openReportingFailure(url) }
         dismiss()
     }
 

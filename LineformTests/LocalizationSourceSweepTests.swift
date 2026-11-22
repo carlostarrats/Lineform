@@ -165,6 +165,8 @@ final class LocalizationSourceSweepTests: XCTestCase {
             "Background-task debug name passed to beginBackgroundTask(withName:); only system diagnostics show it.",
         "OpenDocument.swift|Autosave could not write %@: %@": "os_log diagnostic (Logger.error), never drawn.",
         "OpenDocument.swift|Autosave could not rename %@: %@": "os_log diagnostic (Logger.error), never drawn.",
+        "OpenDocument.swift|Trash":
+            "A folder name matched in a file path (isTrashLocation), never drawn.",
     ]
 
     /// Positions where SwiftUI (or App Intents) reads a bare literal as a `LocalizedStringKey`.

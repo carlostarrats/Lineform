@@ -18,23 +18,23 @@ final class OpenDocumentTests: XCTestCase {
         try? FileManager.default.removeItem(at: folder)
     }
 
-    func testOpeningAFileShowsItsText() throws {
+    func testOpeningAFileShowsItsText() async throws {
         let url = try write("# Notes\r\nSecond line", named: "Notes.md")
         let document = makeDocument()
 
-        try document.open(url)
+        try await document.open(url)
 
         XCTAssertEqual(document.url, url)
         XCTAssertEqual(document.text, "# Notes\r\nSecond line", "CRLF is kept as it is")
         XCTAssertEqual(document.lastSyncedText, document.text)
     }
 
-    func testOpeningKeepsALeadingByteOrderMark() throws {
+    func testOpeningKeepsALeadingByteOrderMark() async throws {
         let url = folder.appendingPathComponent("BOM.md")
         try (Data([0xEF, 0xBB, 0xBF]) + Data("Hi".utf8)).write(to: url)
         let document = makeDocument()
 
-        try document.open(url)
+        try await document.open(url)
 
         XCTAssertEqual(document.text, "\u{FEFF}Hi")
     }
@@ -42,7 +42,7 @@ final class OpenDocumentTests: XCTestCase {
     func testExternalWriteReloadsWhenClean() async throws {
         let url = try write("Before", named: "Shared.md")
         let document = makeDocument()
-        try document.open(url)
+        try await document.open(url)
 
         try coordinatedWrite("After, from another device", to: url)
         let outcome = await document.applyExternalChange()
@@ -55,7 +55,7 @@ final class OpenDocumentTests: XCTestCase {
     func testExternalWriteKeepsLocalEdits() async throws {
         let url = try write("Before", named: "Shared.md")
         let document = makeDocument()
-        try document.open(url)
+        try await document.open(url)
         document.edit("Before, and my local edit")
 
         try coordinatedWrite("Their edit", to: url)
@@ -66,38 +66,43 @@ final class OpenDocumentTests: XCTestCase {
     }
 
     /// The file presenter alone (no explicit call) brings an external write in.
-    func testExternalWriteReloadsLiveThroughTheWatcher() throws {
+    func testExternalWriteReloadsLiveThroughTheWatcher() async throws {
         let url = try write("Before", named: "Live.md")
         let document = makeDocument()
-        try document.open(url)
+        try await document.open(url)
 
         try coordinatedWrite("After", to: url)
 
         let deadline = Date().addingTimeInterval(3)
         while document.text != "After", Date() < deadline {
-            RunLoop.main.run(until: Date().addingTimeInterval(0.05))
+            try await Task.sleep(for: .milliseconds(50))
         }
         XCTAssertEqual(document.text, "After")
     }
 
-    func testOpenedFileIsNeverAutoRenamed() throws {
+    func testOpenedFileIsNeverAutoRenamed() async throws {
         let url = try write("# Old title", named: "Kept Name.md")
         let document = makeDocument()
         XCTAssertTrue(document.isNamedFromFirstLine, "a new document is named from its first line")
 
-        try document.open(url)
+        try await document.open(url)
 
         XCTAssertFalse(document.isNamedFromFirstLine)
     }
 
-    func testInvalidUTF8FileIsRefused() throws {
+    func testInvalidUTF8FileIsRefused() async throws {
         let good = try write("Good text", named: "Good.md")
         let bad = folder.appendingPathComponent("Bad.md")
         try Data([0x48, 0xFF, 0xFE, 0x49]).write(to: bad)
         let document = makeDocument()
-        try document.open(good)
+        try await document.open(good)
 
-        XCTAssertThrowsError(try document.open(bad))
+        do {
+            try await document.open(bad)
+            XCTFail("an invalid UTF-8 file is refused")
+        } catch {
+            XCTAssertEqual(error as? OpenDocument.OpenError, .unreadable(bad))
+        }
 
         XCTAssertEqual(document.url, good, "the current document stays")
         XCTAssertEqual(document.text, "Good text")
@@ -141,11 +146,116 @@ final class OpenDocumentTests: XCTestCase {
         XCTAssertEqual(FileListModel.displayName(of: "Notes.md"), "Notes.md")
     }
 
+
+    // MARK: - Reading off the main thread, and iCloud downloads
+
+    func testOpeningReadsOffTheMainThread() async throws {
+        let url = try write("Read elsewhere", named: "Off main.md")
+        let reader = GatedReader()
+        let document = OpenDocument(folderProvider: { [folder] in folder! }, reader: reader)
+
+        try await document.open(url)
+
+        XCTAssertEqual(document.text, "Read elsewhere")
+        XCTAssertGreaterThan(reader.readCount, 0, "opening goes through the injected reader")
+        XCTAssertEqual(reader.readsOnTheMainThread, 0)
+    }
+
+    /// A file iCloud has not downloaded yet: the download starts on the real file, the screen
+    /// shows the downloading state, and the text opens once the file is current.
+    func testOpeningAPlaceholderDownloadsTheFileFirst() async throws {
+        try write("", named: ".Cloud.md.icloud")
+        let real = folder.appendingPathComponent("Cloud.md")
+        let cloud = FakeUbiquitousItems(pending: [real], arrivingText: "From iCloud")
+        let document = makeDocument(ubiquitousItems: cloud)
+        document.edit("Typed before")
+
+        let opening = Task { try await document.open(folder.appendingPathComponent(".Cloud.md.icloud")) }
+        try await waitUntil { document.downloadingName == "Cloud.md" }
+        XCTAssertEqual(document.text, "", "the downloading state stands in place of the text")
+        XCTAssertEqual(try String(contentsOf: folder.appendingPathComponent("Typed before.md"), encoding: .utf8),
+                       "Typed before", "the document put away was saved first")
+        try await opening.value
+
+        XCTAssertEqual(cloud.startedURLs, [real], "the download is started on the real file")
+        XCTAssertNil(document.downloadingName)
+        XCTAssertEqual(document.url, real)
+        XCTAssertEqual(document.text, "From iCloud")
+    }
+
+    func testNewDocumentWhileDownloadingCancelsTheOpen() async throws {
+        let real = folder.appendingPathComponent("Never.md")
+        let cloud = FakeUbiquitousItems(pending: [real], arrivingText: nil)
+        let document = makeDocument(ubiquitousItems: cloud)
+
+        let opening = Task { try await document.open(real) }
+        try await waitUntil { document.downloadingName != nil }
+        await document.newDocument()
+
+        do {
+            try await opening.value
+            XCTFail("the open was superseded")
+        } catch {
+            XCTAssertEqual(error as? OpenDocument.OpenError, .superseded)
+        }
+        XCTAssertNil(document.downloadingName)
+        XCTAssertNil(document.url)
+    }
+
+    // MARK: - Moved elsewhere
+
+    /// Files or iCloud renames the open file: the document follows it, stays attached, and the
+    /// next save goes to the new path without leaving a copy at the old one.
+    func testExternalCoordinatedMoveIsFollowed() async throws {
+        let url = try write("Moving text", named: "Before.md")
+        let document = makeDocument()
+        try await document.open(url)
+        let destination = folder.appendingPathComponent("After.md")
+
+        try coordinatedMove(url, to: destination)
+        try await waitUntil { document.url == destination }
+        try await Task.sleep(for: .milliseconds(600))
+
+        XCTAssertEqual(document.url, destination, "still attached after the move settles")
+        XCTAssertEqual(document.text, "Moving text")
+        document.edit("Moving text, edited")
+        await document.flush()
+        XCTAssertEqual(try FileManager.default.contentsOfDirectory(atPath: folder.path).sorted(), ["After.md"])
+        XCTAssertEqual(try String(contentsOf: destination, encoding: .utf8), "Moving text, edited")
+    }
+
     // MARK: - Helpers
 
-    private func makeDocument() -> OpenDocument {
+    private func makeDocument(ubiquitousItems: any UbiquitousItemAccessing = LiveUbiquitousItems()) -> OpenDocument {
         let folder = self.folder!
-        return OpenDocument(folderProvider: { folder })
+        return OpenDocument(folderProvider: { folder }, ubiquitousItems: ubiquitousItems)
+    }
+
+    private func waitUntil(_ condition: () -> Bool, timeout: TimeInterval = 3) async throws {
+        let deadline = Date().addingTimeInterval(timeout)
+        while !condition(), Date() < deadline {
+            try await Task.sleep(for: .milliseconds(20))
+        }
+        XCTAssertTrue(condition(), "timed out")
+    }
+
+    /// Moves as Files or iCloud would: through file coordination, announced to presenters.
+    private func coordinatedMove(_ source: URL, to destination: URL) throws {
+        let coordinator = NSFileCoordinator(filePresenter: nil)
+        var coordinationError: NSError?
+        var moveError: Error?
+        coordinator.coordinate(
+            writingItemAt: source, options: .forMoving,
+            writingItemAt: destination, options: .forReplacing,
+            error: &coordinationError
+        ) { from, to in
+            coordinator.item(at: from, willMoveTo: to)
+            do {
+                try FileManager.default.moveItem(at: from, to: to)
+                coordinator.item(at: from, didMoveTo: to)
+            } catch { moveError = error }
+        }
+        if let error = coordinationError ?? moveError { throw error }
     }
 
     @discardableResult
@@ -164,5 +274,37 @@ final class OpenDocumentTests: XCTestCase {
                 do { try Data(text.utf8).write(to: writeURL) } catch { writeError = error }
             }
         if let error = coordinationError ?? writeError { throw error }
+    }
+}
+
+/// Stands in for iCloud: the listed files need downloading until a download is started; then,
+/// a moment later, the file "arrives" with `arrivingText` (or never, when it is nil).
+final class FakeUbiquitousItems: UbiquitousItemAccessing, @unchecked Sendable {
+    private let lock = NSLock()
+    private var pending: Set<URL>
+    private var started: [URL] = []
+    private let arrivingText: String?
+
+    init(pending: Set<URL>, arrivingText: String?) {
+        self.pending = Set(pending.map(\.standardizedFileURL))
+        self.arrivingText = arrivingText
+    }
+
+    var startedURLs: [URL] { lock.withLock { started } }
+
+    func needsDownload(_ url: URL) -> Bool {
+        lock.withLock { pending.contains(url.standardizedFileURL) }
+    }
+
+    func startDownloading(_ url: URL) throws {
+        lock.withLock { started.append(url) }
+        guard let arrivingText else { return }
+        DispatchQueue.global().asyncAfter(deadline: .now() + 0.3) { [self] in
+            try? Data(arrivingText.utf8).write(to: url)
+            let placeholder = url.deletingLastPathComponent()
+                .appendingPathComponent("." + url.lastPathComponent + ".icloud")
+            try? FileManager.default.removeItem(at: placeholder)
+            _ = lock.withLock { pending.remove(url.standardizedFileURL) }
+        }
     }
 }

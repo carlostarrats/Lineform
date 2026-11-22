@@ -95,10 +95,41 @@ for line alike. Do not switch it to TextKit 2.
 - While the name still follows the first line, editing the first line renames the file. Once the
   user renames the file, or the document was opened from an existing file, it is never renamed
   automatically.
-- Saves run 1 s after the last keystroke, at once when the scene goes to the background (inside a
-  background-task assertion), and before another file or a New Document replaces this one.
-- The app never shows a "Not saved" state and never asks Save / Don't Save. A failed write keeps
-  the text in memory, logs to os_log and is retried on the next save.
+- Saves run 1 s after the last keystroke, at once when the scene goes inactive or to the
+  background (inside a background-task assertion), and before another file or a New Document
+  replaces this one. A save that starts before the save folder is resolved waits for it;
+  `prepare`, `flush` and the file sheet share one resolution (`resolveSaveFolder`).
+- A new file is created with a non-replacing write (`.withoutOverwriting`, coordinated without
+  `.forReplacing`). If a file appeared under the planned name at the last moment, the name is
+  planned again with that name counted as taken.
+- The app never shows a "Not saved" state and never asks Save / Don't Save. `flush()` reports
+  whether disk has the text. A failed write keeps the text in memory, logs to os_log, shows a small
+  calm notice ("Couldn’t save this document. Your text is still here.") until a save succeeds, and
+  is retried on the next save. Opening another file or New Document does not go ahead while the
+  current document's save fails.
+
+## Reload and save races
+
+`applyExternalChange` snapshots `text`, `lastSyncedText` and a sync generation (bumped whenever
+`lastSyncedText` is set) before its off-main read. If any of them changed while the read was in
+flight, such as our own save landing, the result is stale: deciding on it could put older disk
+text back over that save. The file is read again (three tries at most) and a still-stale result
+is dropped.
+
+## Opening and iCloud downloads
+
+Every open reads through the injected `DocumentDiskReading` off the main thread. A file iCloud has
+not downloaded yet (a `.Name.md.icloud` placeholder is there, or its
+`ubiquitousItemDownloadingStatus` is not `.current`) is handled first: the current document is
+saved and put away, `startDownloadingUbiquitousItem` runs on the real URL, the screen shows a quiet
+"Downloading…" state in place of the text, and the file is read once it is current. A later open
+or New Document supersedes a pending one. A placeholder URL always maps to the real file.
+
+## Moves
+
+An external rename is followed. A move into a Trash folder (a `.Trash` or `Trash` path component,
+or a place the system trash directory contains) is a delete, as on the Mac. `DocumentFileWatcher`
+reports no `onDelete` once it has seen `presentedItemDidMove`, so a rename is never a delete.
 
 ## Launch and scene restoration
 

@@ -60,6 +60,10 @@ public struct FileSystemDiskReader: DocumentDiskReading {
 /// writer finishes, because the coordinator also announces a deletion for a `.forReplacing` write
 /// that puts the file straight back.
 ///
+/// A rename is never a delete: once the watcher has seen `presentedItemDidMove`, the old path
+/// being empty is not reported through `onDelete`. The owner follows the move and watches the new
+/// path with a new watcher, so this one's `presentedItemURL` is stale from then on.
+///
 /// When `onDelete` is nil (the Mac, where the framework NSDocument handles deletes), the watcher
 /// behaves exactly as before: it does not answer the delete and relinquish callbacks at all, and
 /// a change notice is always `onChange`.
@@ -71,6 +75,9 @@ public final class DocumentFileWatcher: NSObject, NSFilePresenter {
     public var onMove: ((URL) -> Void)?
     /// Called when the presented file is deleted. Optional; nil keeps the watcher as it was.
     public var onDelete: (() -> Void)?
+    /// Set once the presented file has moved. Only touched on `presentedItemOperationQueue`
+    /// (or by a caller driving the presenter methods directly, as tests do).
+    private var hasMoved = false
 
     public init(url: URL) {
         self.presentedItemURL = url
@@ -80,14 +87,17 @@ public final class DocumentFileWatcher: NSObject, NSFilePresenter {
     }
 
     public func presentedItemDidChange() {
-        if onDelete != nil, isPresentedItemMissing {
+        if onDelete != nil, !hasMoved, isPresentedItemMissing {
             onDelete?()
             return
         }
         onChange?()
     }
 
-    public func presentedItemDidMove(to newURL: URL) { onMove?(newURL) }
+    public func presentedItemDidMove(to newURL: URL) {
+        hasMoved = true
+        onMove?(newURL)
+    }
 
     /// Only answered when `onDelete` is set (see `responds(to:)`). The file still exists here; the
     /// check runs when the writer hands the file back.
@@ -102,7 +112,7 @@ public final class DocumentFileWatcher: NSObject, NSFilePresenter {
         nonisolated(unsafe) let watcher = self
         writer {
             watcher.presentedItemOperationQueue.addOperation {
-                guard watcher.onDelete != nil, watcher.isPresentedItemMissing else { return }
+                guard watcher.onDelete != nil, !watcher.hasMoved, watcher.isPresentedItemMissing else { return }
                 watcher.onDelete?()
             }
         }

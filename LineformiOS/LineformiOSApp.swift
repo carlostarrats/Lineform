@@ -10,7 +10,7 @@ struct LineformiOSApp: App {
     var body: some Scene {
         WindowGroup {
             DocumentScreen(document: document)
-                .onOpenURL { url in document.openReportingFailure(url) }
+                .onOpenURL { url in Task { await document.openReportingFailure(url) } }
         }
     }
 }

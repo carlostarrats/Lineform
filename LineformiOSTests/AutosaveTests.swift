@@ -29,7 +29,7 @@ final class AutosaveTests: XCTestCase {
         let document = await preparedDocument()
         for prefix in ["H", "He", "Hel", "Hell", "Hello"] { document.edit(prefix) }
 
-        document.flush()
+        await document.flush()
 
         let url = folder.appendingPathComponent("Hello.md")
         XCTAssertEqual(try Data(contentsOf: url), Data("Hello".utf8))
@@ -42,7 +42,7 @@ final class AutosaveTests: XCTestCase {
         let document = await preparedDocument()
         document.edit("   ")
 
-        document.flush()
+        await document.flush()
 
         XCTAssertNil(document.url)
         XCTAssertEqual(try fileNames(), [])
@@ -68,11 +68,11 @@ final class AutosaveTests: XCTestCase {
     func testEditingTheFirstLineRenamesTheNewFile() async throws {
         let document = await preparedDocument()
         document.edit("H")
-        document.flush()
+        await document.flush()
         XCTAssertEqual(try fileNames(), ["H.md"])
 
         document.edit("Hello there\nBody")
-        document.flush()
+        await document.flush()
 
         XCTAssertEqual(try fileNames(), ["Hello there.md"])
         XCTAssertEqual(document.url, folder.appendingPathComponent("Hello there.md"))
@@ -82,10 +82,10 @@ final class AutosaveTests: XCTestCase {
     func testCaseOnlyFirstLineChangeRenamesTheFile() async throws {
         let document = await preparedDocument()
         document.edit("hello")
-        document.flush()
+        await document.flush()
 
         document.edit("Hello")
-        document.flush()
+        await document.flush()
 
         XCTAssertEqual(try fileNames(), ["Hello.md"])
     }
@@ -94,10 +94,10 @@ final class AutosaveTests: XCTestCase {
         try Data("theirs".utf8).write(to: folder.appendingPathComponent("Taken.md"))
         let document = await preparedDocument()
         document.edit("T")
-        document.flush()
+        await document.flush()
 
         document.edit("Taken")
-        document.flush()
+        await document.flush()
 
         XCTAssertEqual(try fileNames(), ["Taken 2.md", "Taken.md"])
         XCTAssertEqual(try String(contentsOf: folder.appendingPathComponent("Taken.md"), encoding: .utf8), "theirs")
@@ -107,10 +107,10 @@ final class AutosaveTests: XCTestCase {
         let url = folder.appendingPathComponent("Kept Name.md")
         try (Data([0xEF, 0xBB, 0xBF]) + Data("# Old\r\nBody".utf8)).write(to: url)
         let document = await preparedDocument()
-        try document.open(url)
+        try await document.open(url)
 
         document.edit(document.text.replacingOccurrences(of: "Old", with: "A different title"))
-        document.flush()
+        await document.flush()
 
         XCTAssertEqual(document.url, url)
         XCTAssertEqual(try fileNames(), ["Kept Name.md"])
@@ -124,7 +124,7 @@ final class AutosaveTests: XCTestCase {
         let document = await preparedDocument()
         document.edit("Unsaved thought")
 
-        try document.open(other)
+        try await document.open(other)
 
         XCTAssertEqual(try Data(contentsOf: folder.appendingPathComponent("Unsaved thought.md")), Data("Unsaved thought".utf8))
         XCTAssertEqual(document.text, "other")
@@ -155,7 +155,7 @@ final class AutosaveTests: XCTestCase {
         XCTAssertEqual(document.text, "Hello world", "typing reaches the document")
         textView.selectedRange = NSRange(location: 5, length: 0)
 
-        document.flush()
+        await document.flush()
         let outcome = await document.applyExternalChange()
         // Give a presenter callback, if one were coming, time to land and debounce.
         try await Task.sleep(for: .seconds(DocumentReloadPolicy.debounceInterval * 2))
@@ -170,7 +170,7 @@ final class AutosaveTests: XCTestCase {
     func testSceneStorageReopensDocument() async throws {
         let first = await preparedDocument()
         first.edit("Restored after a system termination")
-        first.flush()
+        await first.flush()
         let stored = first.storedPath
         XCTAssertEqual(stored, "Restored after a system termination.md", "a file in the save folder is stored relative to it")
 
@@ -199,7 +199,7 @@ final class AutosaveTests: XCTestCase {
         defer { try? FileManager.default.removeItem(at: elsewhere) }
         let document = await preparedDocument()
 
-        try document.open(elsewhere)
+        try await document.open(elsewhere)
 
         XCTAssertEqual(document.storedPath, elsewhere.path)
         let restored = makeDocument()
@@ -214,14 +214,14 @@ final class AutosaveTests: XCTestCase {
     func testExternalDeleteDoesNotResurrectFile() async throws {
         let document = await preparedDocument()
         document.edit("Doomed")
-        document.flush()
+        await document.flush()
         let url = folder.appendingPathComponent("Doomed.md")
         XCTAssertTrue(FileManager.default.fileExists(atPath: url.path))
 
         try coordinatedDelete(url)
         try await waitUntil { document.url == nil }
 
-        document.flush()
+        await document.flush()
         try await Task.sleep(for: OpenDocument.autosaveDelay + .milliseconds(300))
         XCTAssertEqual(document.text, "Doomed", "the text stays on screen")
         XCTAssertEqual(try fileNames(), [], "nothing is written back")
@@ -234,12 +234,12 @@ final class AutosaveTests: XCTestCase {
         let url = folder.appendingPathComponent("Old name.md")
         try Data("Kept text".utf8).write(to: url)
         let document = await preparedDocument()
-        try document.open(url)
+        try await document.open(url)
 
         try coordinatedDelete(url)
         try await waitUntil { document.url == nil }
         document.edit("Kept text, continued")
-        document.flush()
+        await document.flush()
 
         let newURL = folder.appendingPathComponent("Kept text, continued.md")
         XCTAssertEqual(document.url, newURL)
@@ -253,22 +253,22 @@ final class AutosaveTests: XCTestCase {
         let url = folder.appendingPathComponent("Open.md")
         try Data("Open".utf8).write(to: url)
         let document = await preparedDocument()
-        try document.open(url)
+        try await document.open(url)
         document.edit("Open, with a pending edit")
 
-        document.newDocument()
+        await document.newDocument()
 
         XCTAssertEqual(try Data(contentsOf: url), Data("Open, with a pending edit".utf8), "the pending save is flushed first")
         XCTAssertNil(document.url)
         XCTAssertEqual(document.text, "")
         XCTAssertEqual(document.lastSyncedText, "")
         XCTAssertTrue(document.isNamedFromFirstLine)
-        document.flush()
+        await document.flush()
         try await Task.sleep(for: OpenDocument.autosaveDelay + .milliseconds(300))
         XCTAssertEqual(try fileNames(), ["Open.md"], "a blank document creates no file")
 
         document.edit("Fresh")
-        document.flush()
+        await document.flush()
         XCTAssertEqual(try fileNames(), ["Fresh.md", "Open.md"])
     }
 
@@ -284,7 +284,7 @@ final class AutosaveTests: XCTestCase {
         let url = outside.appendingPathComponent("From Files.md")
         try Data("From outside".utf8).write(to: url)
         let document = await preparedDocument()
-        try document.open(url)
+        try await document.open(url)
 
         let bookmark = document.storedBookmark
         XCTAssertFalse(bookmark.isEmpty)
@@ -320,15 +320,172 @@ final class AutosaveTests: XCTestCase {
         XCTAssertEqual(document.text, "")
     }
 
-    // MARK: - Helpers
 
-    private func makeDocument() -> OpenDocument {
-        let folder = self.folder!
-        return OpenDocument(folderProvider: { folder })
+    // MARK: - Races and failures
+
+    /// A reload read that was in flight while our own save landed must not put the older disk
+    /// text back on screen: the save would then lose what was just typed.
+    func testReloadInFlightDuringASaveKeepsTheSavedText() async throws {
+        let url = folder.appendingPathComponent("Race.md")
+        try Data("Disk 0".utf8).write(to: url)
+        let reader = GatedReader()
+        let document = makeDocument(reader: reader)
+        await document.prepare()
+        try await document.open(url)
+
+        // Another device writes D1 (not coordinated, so the watcher stays out of it).
+        try Data("Disk 1 from elsewhere".utf8).write(to: url)
+        reader.holdNextRead()
+        let reload = Task { _ = await document.applyExternalChange() }
+        try await waitUntil { reader.isHolding }
+
+        // Meanwhile the writer types and the autosave writes T.
+        document.edit("Typed while the read was in flight")
+        await document.flush()
+        reader.release()
+        await reload.value
+
+        XCTAssertEqual(document.text, "Typed while the read was in flight", "the stale disk text does not come back")
+        await document.flush()
+        XCTAssertEqual(try String(contentsOf: url, encoding: .utf8), "Typed while the read was in flight")
     }
 
-    private func preparedDocument() async -> OpenDocument {
+    /// Before the folder is known (launch), a flush waits for it instead of dropping the save.
+    func testFlushBeforeTheFolderIsKnownWaitsForIt() async throws {
         let document = makeDocument()
+        document.edit("Typed at launch")
+
+        await document.flush()
+        try await waitUntil { document.url != nil }
+
+        XCTAssertEqual(try Data(contentsOf: folder.appendingPathComponent("Typed at launch.md")), Data("Typed at launch".utf8))
+    }
+
+    /// The open file moved into a Trash folder (Files' Recently Deleted): that is a delete.
+    func testMoveIntoTrashIsADelete() async throws {
+        let url = folder.appendingPathComponent("Trashed.md")
+        try Data("Trashed".utf8).write(to: url)
+        let document = await preparedDocument()
+        try await document.open(url)
+        let trash = folder.appendingPathComponent(".Trash", isDirectory: true)
+        try FileManager.default.createDirectory(at: trash, withIntermediateDirectories: true)
+        let trashed = trash.appendingPathComponent("Trashed.md")
+
+        try coordinatedMove(url, to: trashed)
+        try await waitUntil { document.url == nil }
+
+        document.edit("Trashed, then typed")
+        await document.flush()
+        XCTAssertEqual(try String(contentsOf: trashed, encoding: .utf8), "Trashed", "nothing writes into the Trash")
+        XCTAssertEqual(document.url, folder.appendingPathComponent("Trashed, then typed.md"))
+    }
+
+    func testTrashLocations() {
+        XCTAssertTrue(OpenDocument.isTrashLocation(URL(fileURLWithPath: "/private/var/mobile/.Trash/A.md")))
+        XCTAssertTrue(OpenDocument.isTrashLocation(URL(fileURLWithPath: "/Users/me/Library/Mobile Documents/x/Trash/A.md")))
+        XCTAssertFalse(OpenDocument.isTrashLocation(URL(fileURLWithPath: "/Users/me/Documents/Trash talk.md")))
+        XCTAssertFalse(OpenDocument.isTrashLocation(URL(fileURLWithPath: "/Users/me/Documents/A.md")))
+    }
+
+
+    /// A save that fails before another file opens keeps the current text on screen.
+    func testFailedSaveKeepsTheTextWhenOpeningAnotherFile() async throws {
+        let other = folder.appendingPathComponent("Other.md")
+        try Data("other".utf8).write(to: other)
+        let document = await preparedDocument(writer: FailingWriter())
+        document.edit("Precious words")
+
+        do {
+            try await document.open(other)
+            XCTFail("the open does not go ahead")
+        } catch {
+            XCTAssertEqual(error as? OpenDocument.OpenError, .currentDocumentNotSaved)
+        }
+        await document.openReportingFailure(other)
+
+        XCTAssertEqual(document.text, "Precious words", "the text stays")
+        XCTAssertNil(document.url)
+        XCTAssertTrue(document.saveFailed, "the screen shows the quiet notice")
+        XCTAssertNil(document.failedOpenURL, "it is not reported as the other file failing to open")
+    }
+
+    func testFailedSaveKeepsTheTextOnNewDocument() async throws {
+        let document = await preparedDocument(writer: FailingWriter())
+        document.edit("Precious words")
+
+        let started = await document.newDocument()
+
+        XCTAssertFalse(started)
+        XCTAssertEqual(document.text, "Precious words")
+        XCTAssertTrue(document.saveFailed)
+    }
+
+    func testSaveFailureNoticeClearsOnTheNextSave() async throws {
+        let writer = FailingWriter(failures: 1)
+        let document = await preparedDocument(writer: writer)
+        document.edit("Second try")
+
+        let first = await document.flush()
+        XCTAssertFalse(first)
+        XCTAssertTrue(document.saveFailed)
+        let second = await document.flush()
+
+        XCTAssertTrue(second)
+        XCTAssertFalse(document.saveFailed)
+        XCTAssertEqual(try Data(contentsOf: folder.appendingPathComponent("Second try.md")), Data("Second try".utf8))
+    }
+
+    /// A file that appears under the planned name just before the first save is never overwritten.
+    func testCreateNeverOverwritesAFileThatAppearedAtTheLastMoment() async throws {
+        let document = await preparedDocument(writer: CollidingWriter(theirText: "theirs"))
+        document.edit("Clash")
+
+        let saved = await document.flush()
+
+        XCTAssertTrue(saved)
+        XCTAssertEqual(try fileNames(), ["Clash 2.md", "Clash.md"])
+        XCTAssertEqual(try String(contentsOf: folder.appendingPathComponent("Clash.md"), encoding: .utf8), "theirs")
+        XCTAssertEqual(try String(contentsOf: folder.appendingPathComponent("Clash 2.md"), encoding: .utf8), "Clash")
+        XCTAssertEqual(document.url, folder.appendingPathComponent("Clash 2.md"))
+    }
+
+    /// The file list asks for the folder while `prepare` is still resolving it: it waits for the
+    /// same folder instead of listing nothing.
+    func testFolderResolutionIsSharedWhilePrepareIsRunning() async throws {
+        let folder = self.folder!
+        let gate = DispatchSemaphore(value: 0)
+        let document = OpenDocument(folderProvider: { gate.wait(); return folder })
+
+        let preparing = Task { await document.prepare() }
+        let listing = Task { await document.resolveSaveFolder() }
+        try await Task.sleep(for: .milliseconds(100))
+        XCTAssertNil(document.saveFolder, "still resolving")
+        gate.signal()
+
+        let listed = await listing.value
+        await preparing.value
+        XCTAssertEqual(listed, folder)
+        XCTAssertEqual(document.saveFolder, folder)
+    }
+
+    func testLeavingTheForegroundSavesAtOnce() {
+        XCTAssertTrue(OpenDocument.savesImmediately(on: .inactive))
+        XCTAssertTrue(OpenDocument.savesImmediately(on: .background))
+        XCTAssertFalse(OpenDocument.savesImmediately(on: .active))
+    }
+
+    // MARK: - Helpers
+
+    private func makeDocument(
+        reader: any DocumentDiskReading = FileSystemDiskReader(),
+        writer: any DocumentFileWriting = FileSystemDocumentWriter()
+    ) -> OpenDocument {
+        let folder = self.folder!
+        return OpenDocument(folderProvider: { folder }, reader: reader, writer: writer)
+    }
+
+    private func preparedDocument(writer: any DocumentFileWriting = FileSystemDocumentWriter()) async -> OpenDocument {
+        let document = makeDocument(writer: writer)
         await document.prepare(restoringStoredPath: "")
         return document
     }
@@ -342,6 +499,25 @@ final class AutosaveTests: XCTestCase {
                 do { try FileManager.default.removeItem(at: deleteURL) } catch { deleteError = error }
             }
         if let error = coordinationError ?? deleteError { throw error }
+    }
+
+    /// Moves as Files or iCloud would: through file coordination, announced to presenters.
+    private func coordinatedMove(_ source: URL, to destination: URL) throws {
+        let coordinator = NSFileCoordinator(filePresenter: nil)
+        var coordinationError: NSError?
+        var moveError: Error?
+        coordinator.coordinate(
+            writingItemAt: source, options: .forMoving,
+            writingItemAt: destination, options: .forReplacing,
+            error: &coordinationError
+        ) { from, to in
+            coordinator.item(at: from, willMoveTo: to)
+            do {
+                try FileManager.default.moveItem(at: from, to: to)
+                coordinator.item(at: from, didMoveTo: to)
+            } catch { moveError = error }
+        }
+        if let error = coordinationError ?? moveError { throw error }
     }
 
     private func waitUntil(_ condition: () -> Bool, timeout: TimeInterval = 3) async throws {
@@ -398,5 +574,79 @@ private final class RecordingBackgroundTasks: BackgroundTaskAsserting {
 
     func endAssertion(_ identifier: UIBackgroundTaskIdentifier) {
         events.append("end \(identifier.rawValue)")
+    }
+}
+
+/// A disk reader that can hold one read after it has read the file, until the test releases it:
+/// the read is then "in flight" while the test does other work on the main actor.
+final class GatedReader: DocumentDiskReading, @unchecked Sendable {
+    private let lock = NSLock()
+    private var shouldHold = false
+    private var holding = false
+    private let gate = DispatchSemaphore(value: 0)
+    private var mainThreadReads = 0
+    private var reads = 0
+
+    var isHolding: Bool { lock.withLock { holding } }
+    var readCount: Int { lock.withLock { reads } }
+    var readsOnTheMainThread: Int { lock.withLock { mainThreadReads } }
+
+    func holdNextRead() { lock.withLock { shouldHold = true } }
+    func release() { gate.signal() }
+
+    func readText(at url: URL) -> String? {
+        let text = FileSystemDiskReader().readText(at: url)
+        let hold = lock.withLock {
+            reads += 1
+            if Thread.isMainThread { mainThreadReads += 1 }
+            let hold = shouldHold
+            shouldHold = false
+            holding = hold
+            return hold
+        }
+        if hold {
+            gate.wait()
+            lock.withLock { holding = false }
+        }
+        return text
+    }
+
+    func modificationDate(at url: URL) -> Date? { FileSystemDiskReader().modificationDate(at: url) }
+}
+
+/// A writer that fails, always or for the first `failures` writes.
+final class FailingWriter: DocumentFileWriting, @unchecked Sendable {
+    private let lock = NSLock()
+    private var remaining: Int?
+
+    init(failures: Int? = nil) { remaining = failures }
+
+    func write(_ data: Data, to url: URL, replaceExisting: Bool) throws {
+        let fails = lock.withLock { () -> Bool in
+            guard let left = remaining else { return true }
+            remaining = left - 1
+            return left > 0
+        }
+        if fails { throw CocoaError(.fileWriteNoPermission) }
+        try FileSystemDocumentWriter().write(data, to: url, replaceExisting: replaceExisting)
+    }
+}
+
+/// A writer that, on the first new file, lets another device create a file at that name a moment
+/// before the write, then writes for real.
+final class CollidingWriter: DocumentFileWriting, @unchecked Sendable {
+    private let lock = NSLock()
+    private var hasCollided = false
+    private let theirText: String
+
+    init(theirText: String) { self.theirText = theirText }
+
+    func write(_ data: Data, to url: URL, replaceExisting: Bool) throws {
+        let collide = lock.withLock { () -> Bool in
+            defer { hasCollided = true }
+            return !replaceExisting && !hasCollided
+        }
+        if collide { try Data(theirText.utf8).write(to: url) }
+        try FileSystemDocumentWriter().write(data, to: url, replaceExisting: replaceExisting)
     }
 }

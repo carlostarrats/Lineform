@@ -139,4 +139,64 @@ final class DocumentFileWatchingTests: XCTestCase {
         XCTAssertTrue(watcher.responds(to: accommodate))
         XCTAssertTrue(watcher.responds(to: relinquish))
     }
+
+    /// An external rename (Files, iCloud) is a move, not a delete: once the watcher has seen
+    /// `presentedItemDidMove`, the old path being empty is not reported through `onDelete`.
+    func testCoordinatedMoveReportsOnMoveAndNeverOnDelete() throws {
+        let folder = FileManager.default.temporaryDirectory
+            .appendingPathComponent("move-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: folder) }
+        let url = folder.appendingPathComponent("Before.md")
+        let destination = folder.appendingPathComponent("After.md")
+        try Data("moving".utf8).write(to: url)
+
+        let watcher = DocumentFileWatcher(url: url)
+        let lock = NSLock()
+        nonisolated(unsafe) var events: [String] = []
+        let moved = expectation(description: "onMove")
+        watcher.onMove = { newURL in
+            lock.withLock { events.append("move \(newURL.lastPathComponent)") }
+            moved.fulfill()
+        }
+        watcher.onDelete = { lock.withLock { events.append("delete") } }
+        watcher.onChange = { lock.withLock { events.append("change") } }
+        NSFileCoordinator.addFilePresenter(watcher)
+        defer { NSFileCoordinator.removeFilePresenter(watcher) }
+
+        let coordinator = NSFileCoordinator(filePresenter: nil)
+        var coordinationError: NSError?
+        coordinator.coordinate(
+            writingItemAt: url, options: .forMoving,
+            writingItemAt: destination, options: .forReplacing,
+            error: &coordinationError
+        ) { from, to in
+            coordinator.item(at: from, willMoveTo: to)
+            try? FileManager.default.moveItem(at: from, to: to)
+            coordinator.item(at: from, didMoveTo: to)
+        }
+        XCTAssertNil(coordinationError)
+
+        wait(for: [moved], timeout: 3)
+        // Give a delete, if one were coming after the writer, time to land.
+        RunLoop.current.run(until: Date().addingTimeInterval(0.5))
+        XCTAssertEqual(lock.withLock { events }.filter { $0 == "delete" }, [], "a rename is not a delete")
+        XCTAssertEqual(lock.withLock { events }.first, "move After.md")
+    }
+
+    /// After a move, a change notice for the (now empty) old path is not a delete either.
+    func testChangeAfterAMoveIsNotADelete() {
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent("moved-away-\(UUID().uuidString).md")
+        let watcher = DocumentFileWatcher(url: url)
+        var events: [String] = []
+        watcher.onMove = { _ in events.append("move") }
+        watcher.onChange = { events.append("change") }
+        watcher.onDelete = { events.append("delete") }
+
+        watcher.presentedItemDidMove(to: url.deletingLastPathComponent().appendingPathComponent("Elsewhere.md"))
+        watcher.presentedItemDidChange()
+
+        XCTAssertEqual(events, ["move", "change"])
+    }
 }
