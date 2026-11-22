@@ -154,6 +154,8 @@
 		1F0000410000000000000002 /* DocumentScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000400000000000000002 /* DocumentScreen.swift */; };
 		1F0000410000000000000014 /* LineformiOSTextView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000400000000000000014 /* LineformiOSTextView.swift */; };
 		1F0000410000000000000015 /* MarkdownEditor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000400000000000000015 /* MarkdownEditor.swift */; };
+		1F0000410000000000000016 /* LineformiOSTextView+Editing.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000400000000000000016 /* LineformiOSTextView+Editing.swift */; };
+		1F000041000000000000001A /* EditingRulesTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F000040000000000000001A /* EditingRulesTests.swift */; };
 		1F0000410000000000000017 /* Fonts in Resources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000120 /* Fonts */; };
 		1F0000410000000000000007 /* Localizable.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = 1F0000400000000000000007 /* Localizable.xcstrings */; };
 		1F0000410000000000000008 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 1F0000400000000000000008 /* Assets.xcassets */; };
@@ -344,6 +346,8 @@
 		1F0000400000000000000002 /* DocumentScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DocumentScreen.swift; sourceTree = "<group>"; };
 		1F0000400000000000000014 /* LineformiOSTextView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LineformiOSTextView.swift; sourceTree = "<group>"; };
 		1F0000400000000000000015 /* MarkdownEditor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkdownEditor.swift; sourceTree = "<group>"; };
+		1F0000400000000000000016 /* LineformiOSTextView+Editing.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "LineformiOSTextView+Editing.swift"; sourceTree = "<group>"; };
+		1F000040000000000000001A /* EditingRulesTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditingRulesTests.swift; sourceTree = "<group>"; };
 		1F0000400000000000000004 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		1F0000400000000000000005 /* LineformiOS.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = LineformiOS.entitlements; sourceTree = "<group>"; };
 		1F0000400000000000000006 /* LineformiOSDebug.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = LineformiOSDebug.entitlements; sourceTree = "<group>"; };
@@ -676,6 +680,7 @@
 			children = (
 				1F0000400000000000000018 /* HighlightingTests.swift */,
 				1F0000400000000000000019 /* ReadingLayoutTests.swift */,
+				1F000040000000000000001A /* EditingRulesTests.swift */,
 				1F000040000000000000000C /* DocumentLaunchTests.swift */,
 				1F0000400000000000000012 /* OpenDocumentTests.swift */,
 				1F0000400000000000000013 /* AutosaveTests.swift */,
@@ -688,6 +693,7 @@
 			children = (
 				1F0000400000000000000014 /* LineformiOSTextView.swift */,
 				1F0000400000000000000015 /* MarkdownEditor.swift */,
+				1F0000400000000000000016 /* LineformiOSTextView+Editing.swift */,
 			);
 			path = Editor;
 			sourceTree = "<group>";
@@ -1079,6 +1085,7 @@
 				1F0000410000000000000002 /* DocumentScreen.swift in Sources */,
 				1F0000410000000000000014 /* LineformiOSTextView.swift in Sources */,
 				1F0000410000000000000015 /* MarkdownEditor.swift in Sources */,
+				1F0000410000000000000016 /* LineformiOSTextView+Editing.swift in Sources */,
 				1F0000410000000000000010 /* OpenDocument.swift in Sources */,
 				1F0000410000000000000011 /* FileListSheet.swift in Sources */,
 			);
@@ -1090,6 +1097,7 @@
 			files = (
 				1F0000410000000000000018 /* HighlightingTests.swift in Sources */,
 				1F0000410000000000000019 /* ReadingLayoutTests.swift in Sources */,
+				1F000041000000000000001A /* EditingRulesTests.swift in Sources */,
 				1F000041000000000000000C /* DocumentLaunchTests.swift in Sources */,
 				1F0000410000000000000012 /* OpenDocumentTests.swift in Sources */,
 				1F0000410000000000000013 /* AutosaveTests.swift in Sources */,

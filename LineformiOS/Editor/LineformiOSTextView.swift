@@ -99,6 +99,18 @@ final class LineformTextView: UITextView {
         }
     }
 
+    // MARK: - Key commands (rules in LineformiOSTextView+Editing.swift)
+
+    private static let markdownKeyCommands = makeMarkdownKeyCommands()
+
+    override var keyCommands: [UIKeyCommand]? {
+        (super.keyCommands ?? []) + Self.markdownKeyCommands
+    }
+
+    override func canPerformAction(_ action: Selector, withSender sender: Any?) -> Bool {
+        canPerformMarkdownAction(action) ?? super.canPerformAction(action, withSender: sender)
+    }
+
     // MARK: - Text
 
     /// Replaces the whole text, styled with the base attributes, then runs a full pass. The

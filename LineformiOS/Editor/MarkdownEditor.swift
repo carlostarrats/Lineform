@@ -7,7 +7,8 @@ import UIKit
 ///
 /// The coordinator is the text view's delegate. It writes each change back to the binding (so
 /// `OpenDocument` autosaves) and schedules the debounced highlight pass; `scrollViewDidScroll`
-/// schedules the visible-window coverage check.
+/// schedules the visible-window coverage check; `shouldChangeTextIn` routes Return through the
+/// editing rules.
 struct MarkdownEditor: UIViewRepresentable {
     @Binding var text: String
     var profile: ReadingProfile
@@ -37,6 +38,12 @@ struct MarkdownEditor: UIViewRepresentable {
         var parent: MarkdownEditor
 
         init(parent: MarkdownEditor) { self.parent = parent }
+
+        /// Return's list continuation and CRLF rule (`LineformTextView.handlesChange`).
+        func textView(_ textView: UITextView, shouldChangeTextIn range: NSRange, replacementText text: String) -> Bool {
+            guard let textView = textView as? LineformTextView else { return true }
+            return !textView.handlesChange(in: range, replacementText: text)
+        }
 
         func textViewDidChange(_ textView: UITextView) {
             parent.text = textView.text

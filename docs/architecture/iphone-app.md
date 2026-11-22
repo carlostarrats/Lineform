@@ -69,6 +69,19 @@ for line alike. Do not switch it to TextKit 2.
   3,000 characters (`MarkdownTokenScope`). The token pass runs 0.25 s after the last edit, and on
   scroll only when the window is no longer covered. **Every pass is skipped while there is marked
   text**, the typing-delay pass included; a skipped full pass runs once composition ends.
+- **Editing rules** (`LineformiOSTextView+Editing.swift`) use the package's pure rules. Return is
+  decided in the delegate's `shouldChangeTextIn` with `"\n"`, never from a raw key event, and
+  only with no marked text: `MarkdownListContinuation` continues or ends a list, task or quote,
+  and otherwise a CRLF document gets CRLF (`MarkdownLineEnding.inForce`); an LF Return is the
+  system's. Tab and Shift-Tab are `UIKeyCommand`s that move between table cells
+  (`MarkdownTableEditing.tabTarget`); outside a table `canPerformAction` declines them, so Tab is
+  an ordinary Tab. The Mac's Format shortcuts (⌘1–⌘6, ⌘0, ⌘B, ⌘I, ⌘`, ⌘⇧X, ⌘⇧8, ⌘⇧7, ⌘L,
+  ⌃⌘T, ⌃⌘R) are key commands with priority over the system's. The public commands for later
+  steps are `insertTable()`, `reformatTable()`, `setHeadingLevel(_:)` and `apply(_:)`.
+- **One edit path.** Every rule edit goes through `applyRuleEdit`: one localized
+  `replaceCharacters` (a whole-text `MarkdownEdit` is reduced to the span between its common
+  prefix and suffix), one undo step, then the delegate's `textViewDidChange` so `OpenDocument`
+  autosaves. An edit that changes nothing registers no undo step and posts nothing.
 - Chrome floats over the text. No bar spans the top of the page; the page colour runs edge to
   edge, and only the container safe area is ignored so the editor still resizes for the keyboard.
 - Text set from code keeps the selection, clamped to the new text, so a live reload does not move
