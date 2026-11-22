@@ -385,6 +385,13 @@ iPhone only. Details: `docs/architecture/iphone-app.md`.
   network), "What to expect", then the three points (`FirstRunCopy`, the one place the copy lives).
   Scene-storage recovery wins over it, and the launch call site skips it under XCTest. WebKit
   stays in the iPhone target, never in the package.
+- **Styling sheet.** The "Aa" button (`StylingButton`, beside Menu) opens `StylingSheet`, the Mac's
+  Reading Experience panel with the same controls, order, ranges and wording
+  (`ReadingExperienceControls` in the package is the one definition both read). It writes only
+  through `ReadingProfileStore` (per device). While a slider is held (`StylingDrag`), the editor
+  skips the reading assists and the Read view skips rendering: on 1 MB they cost about 0.64 s and
+  1.2 s per change. Both catch up once when the drag ends. Details: `docs/architecture/iphone-app.md`,
+  "Styling sheet".
 - **Strings.** iPhone strings live in `LineformiOS/Localizable.xcstrings` (six languages), reusing
   the Mac's translation for the same English text. `LocalizationSourceSweepTests` scans
   `LineformiOS/` against that catalog.
