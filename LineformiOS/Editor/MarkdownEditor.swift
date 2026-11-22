@@ -10,10 +10,13 @@ import UIKit
 /// schedules the visible-window coverage check; `shouldChangeTextIn` routes Return through the
 /// editing rules; a selection change or an edit refreshes the reading assists (ruler, typewriter);
 /// the edit menu leads with spelling guesses on a misspelling; Writing Tools is told which
-/// Markdown regions to leave alone.
+/// Markdown regions to leave alone. A pasted or dropped image is saved beside `imageHost`'s
+/// document (`LineformiOSTextView+ImagePaste.swift`).
 struct MarkdownEditor: UIViewRepresentable {
     @Binding var text: String
     var profile: ReadingProfile
+    /// The document a pasted or dropped image is saved beside (`OpenDocument`).
+    var imageHost: (any ImageInsertionHost)?
 
     /// Padding for the chrome that floats over the page (the menu button, the save notice).
     static let chromeMargin: CGFloat = 20
@@ -22,12 +25,14 @@ struct MarkdownEditor: UIViewRepresentable {
         let textView = LineformTextView.make(profile: profile)
         textView.setDocumentText(text)
         textView.delegate = context.coordinator
+        textView.imageInsertionHost = imageHost
         return textView
     }
 
     func updateUIView(_ textView: LineformTextView, context: Context) {
         context.coordinator.parent = self
         textView.profile = profile
+        textView.imageInsertionHost = imageHost
         if textView.text != text {
             textView.setDocumentText(text)
         }

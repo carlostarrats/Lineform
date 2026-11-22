@@ -41,6 +41,7 @@ final class EditorConstructionTests: XCTestCase {
         XCTAssertFalse(textView.needsFullHighlight)
         XCTAssertNotNil(textView.lastHighlightedTokenRange, "make runs one full pass")
         XCTAssertTrue(textView.spellCheck.misspelledRanges.isEmpty)
+        XCTAssertNil(textView.imageInsertionHost)
     }
 
     private func assertFreshState(_ textView: LineformTextView, path: String, file: StaticString = #filePath, line: UInt = #line) {
@@ -56,6 +57,8 @@ final class EditorConstructionTests: XCTestCase {
         XCTAssertFalse(textView.needsFullHighlight, "needsFullHighlight, \(path)", file: file, line: line)
         XCTAssertFalse(textView.hasAppliedProfile, "hasAppliedProfile, \(path)", file: file, line: line)
         XCTAssertTrue(textView.spellCheck.misspelledRanges.isEmpty, "spellCheck, \(path)", file: file, line: line)
+        XCTAssertNil(textView.imageInsertionHost, "imageInsertionHost, \(path)", file: file, line: line)
+        XCTAssertNil(textView.imagePasteTask, "imagePasteTask, \(path)", file: file, line: line)
 
         // And the state is writable and reads back.
         textView.profile = .original

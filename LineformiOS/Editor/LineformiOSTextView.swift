@@ -62,6 +62,12 @@ final class LineformTextView: UITextView {
         var needsFullHighlight = false
         var hasAppliedProfile = false
         var lastLayoutSize: CGSize = .zero
+        weak var imageInsertionHost: (any ImageInsertionHost)?
+        var imagePasteTask: Task<Void, Never>?
+        var imageDropInteraction: UIDropInteraction?
+        #if DEBUG
+        var pasteboardForTesting: UIPasteboard?
+        #endif
     }
 
     private var stateStorage: State?
@@ -112,6 +118,21 @@ final class LineformTextView: UITextView {
         set { state.needsSpellingUnderlineRedraw = newValue }
     }
 
+    // MARK: Image paste state (logic in LineformiOSTextView+ImagePaste.swift)
+
+    /// The document a pasted or dropped image is saved beside. `MarkdownEditor` sets it to the
+    /// open `OpenDocument`; without one, an image paste does nothing.
+    var imageInsertionHost: (any ImageInsertionHost)? {
+        get { state.imageInsertionHost }
+        set { state.imageInsertionHost = newValue }
+    }
+    /// The image paste or drop in flight, if any (reading the image, saving a new document,
+    /// writing the file). Tests await it.
+    var imagePasteTask: Task<Void, Never>? {
+        get { state.imagePasteTask }
+        set { state.imagePasteTask = newValue }
+    }
+
     // MARK: Highlighting state
 
     /// The range the last token pass covered; a scroll inside it does no work.
@@ -146,6 +167,7 @@ final class LineformTextView: UITextView {
         textView.configureForMarkdownEditing()
         textView.observeKeyboardForTypewriterMode()
         textView.observeTextStorageForSpellCheck()
+        textView.configureImagePasteAndDrop()
         textView.registerForTraitChanges([UITraitUserInterfaceStyle.self]) { (textView: LineformTextView, _) in
             textView.redrawSpellingUnderlines()
         }
@@ -226,7 +248,9 @@ final class LineformTextView: UITextView {
     }
 
     override func canPerformAction(_ action: Selector, withSender sender: Any?) -> Bool {
-        canPerformMarkdownAction(action) ?? super.canPerformAction(action, withSender: sender)
+        canPerformMarkdownAction(action)
+            ?? canPerformImagePaste(action)
+            ?? super.canPerformAction(action, withSender: sender)
     }
 
     // MARK: - Text

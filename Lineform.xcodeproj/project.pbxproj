@@ -9,6 +9,8 @@
 /* Begin PBXBuildFile section */
 		1F000041000000000000001F /* LineformiOSTextView+SpellCheck.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F000040000000000000001F /* LineformiOSTextView+SpellCheck.swift */; };
 		1F0000410000000000000020 /* EditorConstructionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000400000000000000020 /* EditorConstructionTests.swift */; };
+		1F0000410000000000000021 /* LineformiOSTextView+ImagePaste.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000400000000000000021 /* LineformiOSTextView+ImagePaste.swift */; };
+		1F0000410000000000000022 /* ImagePasteTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000400000000000000022 /* ImagePasteTests.swift */; };
 		1F000041000000000000001E /* SpellCheckPass.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F000040000000000000001E /* SpellCheckPass.swift */; };
 		1F000041000000000000001D /* SpellCheckTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F000040000000000000001D /* SpellCheckTests.swift */; };
 		1F000041000000000000001C /* LineformiOSTextView+ReadingAssists.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F000040000000000000001C /* LineformiOSTextView+ReadingAssists.swift */; };
@@ -203,6 +205,8 @@
 /* Begin PBXFileReference section */
 		1F000040000000000000001F /* LineformiOSTextView+SpellCheck.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "LineformiOSTextView+SpellCheck.swift"; sourceTree = "<group>"; };
 		1F0000400000000000000020 /* EditorConstructionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditorConstructionTests.swift; sourceTree = "<group>"; };
+		1F0000400000000000000021 /* LineformiOSTextView+ImagePaste.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "LineformiOSTextView+ImagePaste.swift"; sourceTree = "<group>"; };
+		1F0000400000000000000022 /* ImagePasteTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImagePasteTests.swift; sourceTree = "<group>"; };
 		1F000040000000000000001E /* SpellCheckPass.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpellCheckPass.swift; sourceTree = "<group>"; };
 		1F000040000000000000001D /* SpellCheckTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpellCheckTests.swift; sourceTree = "<group>"; };
 		1F000040000000000000001C /* LineformiOSTextView+ReadingAssists.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "LineformiOSTextView+ReadingAssists.swift"; sourceTree = "<group>"; };
@@ -694,6 +698,7 @@
 				1F0000400000000000000019 /* ReadingLayoutTests.swift */,
 				1F000040000000000000001A /* EditingRulesTests.swift */,
 				1F000040000000000000001D /* SpellCheckTests.swift */,
+				1F0000400000000000000022 /* ImagePasteTests.swift */,
 				1F0000400000000000000020 /* EditorConstructionTests.swift */,
 				1F000040000000000000001B /* ReadingAssistsTests.swift */,
 				1F000040000000000000000C /* DocumentLaunchTests.swift */,
@@ -712,6 +717,7 @@
 				1F000040000000000000001F /* LineformiOSTextView+SpellCheck.swift */,
 				1F000040000000000000001E /* SpellCheckPass.swift */,
 				1F000040000000000000001C /* LineformiOSTextView+ReadingAssists.swift */,
+				1F0000400000000000000021 /* LineformiOSTextView+ImagePaste.swift */,
 			);
 			path = Editor;
 			sourceTree = "<group>";

@@ -24,7 +24,8 @@ struct DocumentScreen: View {
     var body: some View {
         MarkdownEditor(
             text: Binding(get: { document.text }, set: { document.edit($0) }),
-            profile: profile
+            profile: profile,
+            imageHost: document
         )
         .ignoresSafeArea(.container)
         .background(Color(uiColor: Theme.theme(for: profile).backgroundColor))

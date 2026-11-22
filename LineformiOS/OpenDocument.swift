@@ -31,7 +31,7 @@ import os
 /// a file iCloud has not downloaded yet is downloaded first while the screen shows `downloadingName`.
 @MainActor
 @Observable
-final class OpenDocument {
+final class OpenDocument: ImageInsertionHost {
     enum OpenError: Error, Equatable {
         /// The file could not be read, or it is not valid UTF-8 text.
         case unreadable(URL)
@@ -462,6 +462,27 @@ final class OpenDocument {
         }
         planner = previousPlanner
         return false
+    }
+
+    // MARK: - Images
+
+    /// The folder a pasted or dropped image goes in (its `images/` subfolder): the open file's own
+    /// folder. A document that was never saved is saved first, through `flush` and so the normal
+    /// autosave rules, which gives it a file beside that folder. If that save fails, the answer is
+    /// nil, `saveFailed` shows the usual notice, and the editor inserts nothing. A document with
+    /// nothing to be named from yet (blank: `AutosavePlanner` creates no file for it) gets the save
+    /// folder, where `imageLinkInserted` creates its file from the link.
+    func folderForInsertedImage() async -> URL? {
+        if let url { return url.deletingLastPathComponent() }
+        guard await flush() else { return nil }
+        if let url { return url.deletingLastPathComponent() }
+        return await resolveSaveFolder()
+    }
+
+    /// The editor inserted an image link: save now rather than a second later, so a new document's
+    /// file is on disk next to its `images/` folder.
+    func imageLinkInserted() async {
+        await flush()
     }
 
     private func setLastSyncedText(_ newValue: String) {
