@@ -46,4 +46,97 @@ final class DocumentFileWatchingTests: XCTestCase {
         XCTAssertNotNil(second)
         XCTAssertNotEqual(first, second)
     }
+
+    /// A coordinated delete (Files, iCloud) reaches the owner through `onDelete`, not `onChange`.
+    func testWatcherReportsACoordinatedDeleteThroughOnDelete() throws {
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent("delete-\(UUID().uuidString).md")
+        try Data("doomed".utf8).write(to: url)
+        defer { try? FileManager.default.removeItem(at: url) }
+
+        let watcher = DocumentFileWatcher(url: url)
+        let deleted = expectation(description: "onDelete")
+        deleted.assertForOverFulfill = false
+        watcher.onDelete = { deleted.fulfill() }
+        NSFileCoordinator.addFilePresenter(watcher)
+        defer { NSFileCoordinator.removeFilePresenter(watcher) }
+
+        var coordinationError: NSError?
+        NSFileCoordinator(filePresenter: nil)
+            .coordinate(writingItemAt: url, options: .forDeleting, error: &coordinationError) { deleteURL in
+                try? FileManager.default.removeItem(at: deleteURL)
+            }
+        XCTAssertNil(coordinationError)
+
+        wait(for: [deleted], timeout: 3)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: url.path))
+    }
+
+    /// A change notice for a file that is gone counts as a delete when the owner asked for deletes.
+    func testChangeToAMissingFileIsReportedAsADelete() {
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent("missing-\(UUID().uuidString).md")
+        let watcher = DocumentFileWatcher(url: url)
+        var events: [String] = []
+        watcher.onChange = { events.append("change") }
+        watcher.onDelete = { events.append("delete") }
+
+        watcher.presentedItemDidChange()
+
+        XCTAssertEqual(events, ["delete"])
+    }
+
+    /// Without `onDelete` (the Mac), a change notice is still a change, whatever is on disk.
+    func testWithoutOnDeleteAChangeIsStillAChange() {
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent("missing-\(UUID().uuidString).md")
+        let watcher = DocumentFileWatcher(url: url)
+        var events: [String] = []
+        watcher.onChange = { events.append("change") }
+
+        watcher.presentedItemDidChange()
+
+        XCTAssertEqual(events, ["change"])
+    }
+
+    /// The coordinator announces a deletion for a `.forReplacing` write too; that is a change.
+    func testReplacingWriteIsAChangeNotADelete() throws {
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent("replace-\(UUID().uuidString).md")
+        try Data("one".utf8).write(to: url)
+        defer { try? FileManager.default.removeItem(at: url) }
+
+        let watcher = DocumentFileWatcher(url: url)
+        let lock = NSLock()
+        nonisolated(unsafe) var events: [String] = []
+        let changed = expectation(description: "onChange")
+        changed.assertForOverFulfill = false
+        watcher.onChange = { lock.withLock { events.append("change") }; changed.fulfill() }
+        watcher.onDelete = { lock.withLock { events.append("delete") } }
+        NSFileCoordinator.addFilePresenter(watcher)
+        defer { NSFileCoordinator.removeFilePresenter(watcher) }
+
+        var coordinationError: NSError?
+        NSFileCoordinator(filePresenter: nil)
+            .coordinate(writingItemAt: url, options: .forReplacing, error: &coordinationError) { writeURL in
+                try? Data("two".utf8).write(to: writeURL, options: .atomic)
+            }
+
+        wait(for: [changed], timeout: 3)
+        RunLoop.current.run(until: Date().addingTimeInterval(0.3))
+        XCTAssertEqual(lock.withLock { events }.filter { $0 == "delete" }, [])
+    }
+
+    /// Without `onDelete` (the Mac) the watcher does not take part in deletes or writer handoffs.
+    func testWithoutOnDeleteTheWatcherDoesNotAnswerDeleteCallbacks() {
+        let watcher = DocumentFileWatcher(url: FileManager.default.temporaryDirectory)
+        let accommodate = #selector(NSFilePresenter.accommodatePresentedItemDeletion(completionHandler:))
+        let relinquish = #selector(NSFilePresenter.relinquishPresentedItem(toWriter:))
+        XCTAssertFalse(watcher.responds(to: accommodate))
+        XCTAssertFalse(watcher.responds(to: relinquish))
+
+        watcher.onDelete = {}
+        XCTAssertTrue(watcher.responds(to: accommodate))
+        XCTAssertTrue(watcher.responds(to: relinquish))
+    }
 }

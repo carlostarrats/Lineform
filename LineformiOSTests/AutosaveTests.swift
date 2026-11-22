@@ -207,6 +207,119 @@ final class AutosaveTests: XCTestCase {
         XCTAssertEqual(restored.text, "x")
     }
 
+    // MARK: - Deleted elsewhere
+
+    /// The open file is deleted in Files or on another device: the text stays on screen, and
+    /// nothing writes the file back.
+    func testExternalDeleteDoesNotResurrectFile() async throws {
+        let document = await preparedDocument()
+        document.edit("Doomed")
+        document.flush()
+        let url = folder.appendingPathComponent("Doomed.md")
+        XCTAssertTrue(FileManager.default.fileExists(atPath: url.path))
+
+        try coordinatedDelete(url)
+        try await waitUntil { document.url == nil }
+
+        document.flush()
+        try await Task.sleep(for: OpenDocument.autosaveDelay + .milliseconds(300))
+        XCTAssertEqual(document.text, "Doomed", "the text stays on screen")
+        XCTAssertEqual(try fileNames(), [], "nothing is written back")
+        XCTAssertTrue(document.isNamedFromFirstLine, "it is a new document again")
+        XCTAssertEqual(document.storedBookmark, "")
+    }
+
+    /// After the delete, the next change saves the text as a new document named from its first line.
+    func testTypingAfterDeleteCreatesNewFile() async throws {
+        let url = folder.appendingPathComponent("Old name.md")
+        try Data("Kept text".utf8).write(to: url)
+        let document = await preparedDocument()
+        try document.open(url)
+
+        try coordinatedDelete(url)
+        try await waitUntil { document.url == nil }
+        document.edit("Kept text, continued")
+        document.flush()
+
+        let newURL = folder.appendingPathComponent("Kept text, continued.md")
+        XCTAssertEqual(document.url, newURL)
+        XCTAssertEqual(try fileNames(), ["Kept text, continued.md"])
+        XCTAssertEqual(try Data(contentsOf: newURL), Data("Kept text, continued".utf8))
+    }
+
+    // MARK: - New Document
+
+    func testNewDocumentStartsBlankAndCreatesNoFile() async throws {
+        let url = folder.appendingPathComponent("Open.md")
+        try Data("Open".utf8).write(to: url)
+        let document = await preparedDocument()
+        try document.open(url)
+        document.edit("Open, with a pending edit")
+
+        document.newDocument()
+
+        XCTAssertEqual(try Data(contentsOf: url), Data("Open, with a pending edit".utf8), "the pending save is flushed first")
+        XCTAssertNil(document.url)
+        XCTAssertEqual(document.text, "")
+        XCTAssertEqual(document.lastSyncedText, "")
+        XCTAssertTrue(document.isNamedFromFirstLine)
+        document.flush()
+        try await Task.sleep(for: OpenDocument.autosaveDelay + .milliseconds(300))
+        XCTAssertEqual(try fileNames(), ["Open.md"], "a blank document creates no file")
+
+        document.edit("Fresh")
+        document.flush()
+        XCTAssertEqual(try fileNames(), ["Fresh.md", "Open.md"])
+    }
+
+    // MARK: - Restoring by bookmark
+
+    /// A file from outside the save folder is stored as a bookmark, so it reopens after iOS ends
+    /// the app even when it has been renamed meanwhile.
+    func testFileOutsideTheSaveFolderReopensByBookmark() async throws {
+        let outside = FileManager.default.temporaryDirectory
+            .appendingPathComponent("outside-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: outside, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: outside) }
+        let url = outside.appendingPathComponent("From Files.md")
+        try Data("From outside".utf8).write(to: url)
+        let document = await preparedDocument()
+        try document.open(url)
+
+        let bookmark = document.storedBookmark
+        XCTAssertFalse(bookmark.isEmpty)
+        XCTAssertNotNil(Data(base64Encoded: bookmark), "the bookmark is stored as base64")
+        let renamed = outside.appendingPathComponent("Renamed.md")
+        try FileManager.default.moveItem(at: url, to: renamed)
+
+        let restored = makeDocument()
+        await restored.prepare(restoringBookmark: bookmark)
+
+        XCTAssertEqual(restored.text, "From outside")
+        XCTAssertEqual(restored.url?.lastPathComponent, "Renamed.md", "the bookmark, not the path, found it")
+    }
+
+    /// A document stored the old way, by path, still reopens once.
+    func testLegacyStoredPathStillReopens() async throws {
+        let url = folder.appendingPathComponent("Legacy.md")
+        try Data("Stored by path".utf8).write(to: url)
+
+        let document = makeDocument()
+        await document.prepare(restoringBookmark: "", restoringStoredPath: "Legacy.md")
+
+        XCTAssertEqual(document.text, "Stored by path")
+        XCTAssertFalse(document.storedBookmark.isEmpty, "from now on it is stored as a bookmark")
+    }
+
+    func testBrokenBookmarkFallsBackToBlank() async throws {
+        let document = makeDocument()
+
+        await document.prepare(restoringBookmark: "bm90IGEgYm9va21hcms=")
+
+        XCTAssertNil(document.url)
+        XCTAssertEqual(document.text, "")
+    }
+
     // MARK: - Helpers
 
     private func makeDocument() -> OpenDocument {
@@ -218,6 +331,25 @@ final class AutosaveTests: XCTestCase {
         let document = makeDocument()
         await document.prepare(restoringStoredPath: "")
         return document
+    }
+
+    /// Deletes as Files or iCloud would: through file coordination, with no presenter.
+    private func coordinatedDelete(_ url: URL) throws {
+        var coordinationError: NSError?
+        var deleteError: Error?
+        NSFileCoordinator(filePresenter: nil)
+            .coordinate(writingItemAt: url, options: .forDeleting, error: &coordinationError) { deleteURL in
+                do { try FileManager.default.removeItem(at: deleteURL) } catch { deleteError = error }
+            }
+        if let error = coordinationError ?? deleteError { throw error }
+    }
+
+    private func waitUntil(_ condition: () -> Bool, timeout: TimeInterval = 3) async throws {
+        let deadline = Date().addingTimeInterval(timeout)
+        while !condition(), Date() < deadline {
+            try await Task.sleep(for: .milliseconds(50))
+        }
+        XCTAssertTrue(condition(), "timed out")
     }
 
     private func fileNames() throws -> [String] {

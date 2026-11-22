@@ -18,6 +18,10 @@ import os
 /// after the last keystroke, at once when the app goes to the background, and before another
 /// file replaces this one. Writes and renames are coordinated with this document's own file
 /// presenter, so they never come back as a reload.
+///
+/// When the open file is deleted elsewhere (Files, another device), the text stays on screen but
+/// the document lets go of that path: it becomes a new document again, so the next change saves
+/// it under a new name from its first line, and nothing writes the deleted file back.
 @MainActor
 @Observable
 final class OpenDocument {
@@ -75,10 +79,14 @@ final class OpenDocument {
     // MARK: - Preparing
 
     /// Resolves the save folder off the main thread and makes sure it exists, then reopens the
-    /// document the scene had open (`storedPath`, kept in `@SceneStorage`), if there was one and it
-    /// can still be read. A stored file that is gone or unreadable leaves the blank document. Only
-    /// the first call does anything.
-    func prepare(restoringStoredPath storedPath: String = "") async {
+    /// document the scene had open, if there was one and it can still be read. A stored file that
+    /// is gone or unreadable leaves the blank document. Only the first call does anything.
+    ///
+    /// - Parameters:
+    ///   - bookmark: `storedBookmark` as `@SceneStorage` kept it (base64 bookmark data).
+    ///   - storedPath: the older path form (`storedPath`), read when there is no bookmark, for a
+    ///     scene stored before bookmarks.
+    func prepare(restoringBookmark bookmark: String = "", restoringStoredPath storedPath: String = "") async {
         guard !isPrepared else { return }
         isPrepared = true
         let provider = folderProvider
@@ -90,10 +98,15 @@ final class OpenDocument {
         saveFolder = folder
 
         // Restore only into an untouched document: never replace something already typed or opened.
-        if !storedPath.isEmpty, url == nil, text.isEmpty {
-            let stored = storedPath.hasPrefix("/")
+        var stored: URL?
+        if !bookmark.isEmpty {
+            stored = await Task.detached { Self.resolveBookmark(bookmark) }.value
+        } else if !storedPath.isEmpty {
+            stored = storedPath.hasPrefix("/")
                 ? URL(fileURLWithPath: storedPath)
                 : folder.appendingPathComponent(storedPath)
+        }
+        if let stored, url == nil, text.isEmpty {
             try? open(stored)
         }
         // Text typed before the folder was known has been waiting for it.
@@ -113,6 +126,25 @@ final class OpenDocument {
             }
         }
         return url.path
+    }
+
+    /// What `@SceneStorage` keeps to reopen this document: "" for a document with no file,
+    /// otherwise the file's bookmark data, base64-encoded. A bookmark, unlike a path, also reopens
+    /// a file from outside the app (Files, "Open in Lineform") with its security scope, and follows
+    /// the file if it was renamed meanwhile.
+    var storedBookmark: String {
+        guard let url,
+              let data = try? url.bookmarkData(options: [], includingResourceValuesForKeys: nil, relativeTo: nil)
+        else { return "" }
+        return data.base64EncodedString()
+    }
+
+    /// The file a `storedBookmark` points at, or nil when it no longer resolves.
+    nonisolated private static func resolveBookmark(_ bookmark: String) -> URL? {
+        guard let data = Data(base64Encoded: bookmark) else { return nil }
+        var isStale = false
+        // A stale bookmark still resolves; the screen stores a fresh one once the file is open.
+        return try? URL(resolvingBookmarkData: data, options: [], relativeTo: nil, bookmarkDataIsStale: &isStale)
     }
 
     // MARK: - Opening
@@ -140,6 +172,18 @@ final class OpenDocument {
         lastSyncedText = diskText
         planner = AutosavePlanner(existingFileName: url.lastPathComponent, isNamedFromFirstLine: false)
         startWatching(url)
+    }
+
+    /// Starts a blank Untitled document, after saving whatever the current one has not saved yet.
+    /// Like any new document, it creates no file until it has text.
+    func newDocument() {
+        flush()
+        stopWatching()
+        releaseSecurityScope()
+        url = nil
+        text = ""
+        lastSyncedText = ""
+        planner = AutosavePlanner(existingFileName: nil, isNamedFromFirstLine: true)
     }
 
     /// Set when `openReportingFailure` could not open a file; the screen shows an alert for it.
@@ -270,6 +314,12 @@ final class OpenDocument {
             Task { @MainActor in self?.scheduleReload() }
         }
         let watcherID = ObjectIdentifier(watcher)
+        watcher.onDelete = { @Sendable [weak self] in
+            Task { @MainActor in
+                guard let self, let current = self.watcher, ObjectIdentifier(current) == watcherID else { return }
+                self.detachFromDeletedFile()
+            }
+        }
         watcher.onMove = { @Sendable [weak self] newURL in
             Task { @MainActor in
                 guard let self, let current = self.watcher, ObjectIdentifier(current) == watcherID else { return }
@@ -295,6 +345,19 @@ final class OpenDocument {
         url = newURL
         planner.fileWasRenamed(to: newURL.lastPathComponent)
         startWatching(newURL)
+    }
+
+    /// The file was deleted by someone else. Keep the text on screen, but never write to that path
+    /// again: the document becomes new, and nothing is saved until the text changes, when it gets
+    /// a file named from its first line.
+    private func detachFromDeletedFile() {
+        autosaveTask?.cancel()
+        autosaveTask = nil
+        stopWatching()
+        releaseSecurityScope()
+        url = nil
+        lastSyncedText = text
+        planner = AutosavePlanner(existingFileName: nil, isNamedFromFirstLine: true)
     }
 
     private func releaseSecurityScope() {

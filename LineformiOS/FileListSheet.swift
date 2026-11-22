@@ -96,7 +96,7 @@ final class FileListModel {
     }
 }
 
-/// The temporary file list: the save folder's documents, and "Open from Files…".
+/// The temporary file list: "New Document", "Open from Files…", and the save folder's documents.
 struct FileListSheet: View {
     var document: OpenDocument
     @State private var model = FileListModel()
@@ -107,6 +107,12 @@ struct FileListSheet: View {
         NavigationStack {
             List {
                 Section {
+                    Button {
+                        document.newDocument()
+                        dismiss()
+                    } label: {
+                        Label(String(localized: "New Document"), systemImage: "square.and.pencil")
+                    }
                     Button {
                         isImporting = true
                     } label: {
