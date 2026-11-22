@@ -7,8 +7,8 @@ links the same `LineformCore` package. Minimum iOS: 26.0. iPhone only
 all off, so the iPhone build of `com.lineform.app` can never run on a Mac.
 
 This page covers roadmap step 3 (shell and files), step 4 (Write mode), step 5 (Read and
-Preview, with the Write/Read/Preview switch), step 7 (the Styling sheet) and step 11 (first run).
-The Menu sheet and the rest arrive in later steps.
+Preview, with the Write/Read/Preview switch), step 6 (the Menu sheet), step 7 (the Styling
+sheet) and step 11 (first run). The rest arrive in later steps.
 
 ## Each app stands alone
 
@@ -17,9 +17,10 @@ a fully working state, never an error or a prompt.
 
 ## Target, scheme and tests
 
-- Sources: `LineformiOS/` (`LineformiOSApp`, `DocumentScreen`, `OpenDocument`; `Menu/`: `MenuSheet`,
-  `MenuSection`, `EditorCommands`, `FilesStore`, `FilesSection`, `FolderView`, `OutlineSection`,
-  `BasicsSection`, `SearchSection`, `SearchController`;
+- Sources: `LineformiOS/` (`LineformiOSApp`, `DocumentScreen`, `OpenDocument`, `AppSettings`;
+  `Menu/`: `MenuSheet`, `MenuSection`, `EditorCommands`, `FilesStore`, `FilesSection`, `FolderView`,
+  `OutlineSection`, `BasicsSection`, `SearchSection`, `SearchController`, `DocumentSection`,
+  `SettingsSection`;
   `Editor/`: `MarkdownEditor`, and `LineformTextView` in `LineformiOSTextView.swift`; `Read/`:
   `LineformReadView`, `ReadViewRepresentable`, `ReadOverlayButtons`, `PreviewSplit` and
   `LinkedScroll`; `Chrome/`: `ModeSwitch`, `ModePositionKeeper`, `MotionPolicy` and
@@ -498,8 +499,7 @@ as against ⌘S, and every iPhone write is an autosave, so it would add nothing.
 
 The section bar scrolls sideways: Files, Outline, Markdown Basics, Search, Document, Settings
 (`MenuSection`; raw values are identity, never localized). The section is kept in
-`@SceneStorage("menuSection")` and starts on Files. Document and Settings are placeholders until
-their roadmap tasks.
+`@SceneStorage("menuSection")` and starts on Files.
 
 ### Files
 
@@ -577,12 +577,73 @@ the match; tapping a file opens it and, for a content match, selects the first h
 snippet's location in the opened text. Every Mac rule from search.md carries over; see the iPhone
 Search paragraph there.
 
+### Document
+
+`DocumentSection`, in order:
+
+- New Document and Open from Files…, as in Files.
+- Insert Table and Reformat Table, for Markdown only (the Mac shows its formatting commands for
+  Markdown only too). Each closes the sheet so the change is seen.
+- **Convert to Plain Text / Convert to Markdown.** The title follows `OpenDocument.textFormat`
+  (`DocumentSection.conversionTitle`, the Mac's strings). The state machine is the Mac's
+  `LineformDocument.convertMarkdownToPlainText` / `restoreConvertedMarkdown`, verbatim, in
+  `TextFormatConversion`, over the package's `MarkdownPlainTextConverter` (lines split on `\n`
+  only, never `CharacterSet.newlines`; fenced code and display math verbatim). The new text goes
+  through the editor (`applyReadEdit`), so a conversion is ONE undo step. Convert to Markdown
+  restores only while the converted text is unchanged; otherwise the document stays plain text
+  and forgets the conversion. A `.txt` file opens as plain text with nothing to restore, so the
+  row is off for it; New Document is Markdown. Every iPhone write is the text verbatim, so a
+  converted `.md` saves as its plain text. The command converts the whole document: a Write
+  selection is not on screen under the sheet. The sheet stays open, so the new title shows.
+- **Check Document Now** closes the sheet and runs `SpellCheckPass` once over the prose of the
+  whole document (`misspelledRangesInWholeDocument`), whether or not Check spelling while typing
+  is on, as the Mac's command does. Every misspelling is underlined, and the first one after the
+  selection (wrapping) is selected and brought to the top of the surface on screen. It is the
+  only whole-document spelling pass, and it is never scheduled.
+- Show Hidden Folders, the Files setting (`FilesStore.setShowsHidden`, `Lineform.outline.showsHiddenFolders`).
+- Lineform Guide, Privacy Policy and Terms of Use open in Safari (`openURL`) at the package's
+  `LineformLinks`, which the Mac's Help menu also forwards to.
+- Export, Print, Share and Read aloud arrive with roadmap step 10, in the spot marked in the
+  source after Check Document Now. Save As waits for step 10 too. No placeholder rows.
+
+### Settings
+
+`SettingsSection` over `AppSettings` (an `ObservableObject`, `AppSettings.shared` on
+`UserDefaults.standard`). Each value is per device, under the Mac's `Lineform.settings.*` key
+(`LineformSettingKeys`), on by default, and loads through `Published(initialValue:)`. The notes
+are worded for iPhone: no iPhone string names a Mac or a sidebar
+(`SettingsTests.testNoMacOrSidebarWordingInIPhoneStrings` sweeps the catalog's English).
+
+- **Automatic Dark Mode** (`automaticDarkMode`). `DocumentScreen` draws with
+  `AppSettings.displayProfile`: the Mac's `ReadingProfile.displayProfile(automaticDarkMode:systemIsDark:)`,
+  with "dark" read from the trait collection's `userInterfaceStyle` (SwiftUI's `colorScheme`). In
+  Dark appearance a light theme draws as Quiet; Quiet and Night keep their own. The page, Read,
+  the Menu button and the sheet re-render when the appearance changes. The stored profile keeps
+  the writer's theme.
+- **Show iCloud in Files** (`showICloudInSidebar`, the Mac's key): the Files root for Lineform's
+  iCloud folder. New documents still save there.
+- **Check spelling while typing** (`checksSpellingWhileTyping`): `MarkdownEditor` hands it to
+  `LineformTextView.checksSpellingWhileTyping`. Off, no typing pass is scheduled or run and the
+  underlines clear; on, a pass is scheduled.
+- **In-app notifications** (`checksForAnnouncements`): it gates the announcement request itself.
+  Announcements reach the iPhone in roadmap step 12; until then the switch only keeps the choice.
+
+Connect Your AI, Clear History and Check for Updates arrive with steps 8, 9 and 12.
+
+### Markdown Basics on iPhone
+
+`MarkdownReference` has iPhone wording behind `#if os(iOS)`, in all six languages: "Tap it in
+Read to toggle" for a done task (the Mac says Click), the heading shortcuts marked "with a
+keyboard", the table row pointing at Document (the Mac names ⌃⌘T and ⌃⌘R), and the Search row as
+"Tap" (the iPhone's search field has no Return-to-next). The Mac's text is unchanged
+(`MarkdownReferenceSectionsTests.testIPhoneWordingSpeaksToTouch` pins both).
+
 ### Editor commands
 
 Sections act on the editor only through `EditorCommands`, which the screen implements over the
 live editor (`LiveEditorCommands`): top-aligned scrolling through `ModePositionKeeper` in the
-current mode, selection, Insert and Reformat Table, and `replace` / `replaceAll`, each ONE undo
-step through `applyRuleEdit`. `replaceAll` rewrites one span from the first range to the last and
+current mode, selection, Insert and Reformat Table, Check Document Now, and `replace` /
+`replaceAll`, each ONE undo step through `applyRuleEdit`. `replaceAll` rewrites one span from the first range to the last and
 copies the text between the ranges through unchanged, so line endings survive.
 `DocumentScreen.bottomChromeClearance` uses the Menu button's 44 pt, the taller of the two
 floating buttons.

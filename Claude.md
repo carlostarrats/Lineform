@@ -99,7 +99,6 @@ file named after it carries the full story and the reasoning.
 - Every sidebar sub-view takes `usesDarkChrome` THREADED from the theme. Reading `@Environment(\.colorScheme)` in a nested control renders invisible text after a tab/inspector transition. A dynamic `NSColor` (the selection grey and its blue label) is the same rule for AppKit: resolve it inside `performAsCurrentDrawingAppearance` for that appearance, or it silently follows the SYSTEM light/dark instead of the theme.
 - `directoryRescanDebounceInterval` MUST exceed `DirectoryEventMonitor.coalescingLatency`, or autosave churn hitches typing.
 - EVERY write to `workspaceURL` must call `retargetWorkspaceWatcher()`. `DirectoryEventMonitor` binds FSEvents to a path string with no `kFSEventStreamCreateFlagWatchRoot`, so a stream on a moved or renamed folder is silently dead — `setWorkspaceURL` retargeted and the bookmark-re-resolution branch did not, so renaming the workspace in Finder killed live refresh for the session while the tree still looked correct.
-- Toggling Show Hidden Folders OFF must RE-SCAN a live root, for the same reason a sort change does: the 80-per-folder cap is applied in display order, BEFORE hidden filtering, so a hidden-inclusive scan is not a superset. Filtering it in memory deleted ordinary Markdown files from the tree. In-memory filtering is only for the cached/disconnected fallbacks, where no scan is possible.
 - The expensive iCloud scan runs ONLY when the Files tab appears — never at launch or view construction. Preserve this laziness.
 - Never add an iCloud entitlement to Debug: it cannot be satisfied under ad-hoc signing and the test host stops launching (CI red).
 - `@Published` didSet observers DO fire for assignments in `OutlineFileBrowserStore.init`, so persisted prefs must load via `Published(initialValue:)` backing storage — a plain assignment runs the init-forbidden iCloud scan.
@@ -396,9 +395,22 @@ iPhone only. Details: `docs/architecture/iphone-app.md`.
   skips the reading assists and the Read view skips rendering: on 1 MB they cost about 0.64 s and
   1.2 s per change. Both catch up once when the drag ends. Details: `docs/architecture/iphone-app.md`,
   "Styling sheet".
+- **Menu sheet.** The floating Menu button opens `MenuSheet` (medium and large detents): Files,
+  Outline, Markdown Basics, Search, Document and Settings. Sections reach the editor only through
+  `EditorCommands`, each command ONE undo step. Files rename and Trash are coordinated
+  (`.forMoving`), unlike the Mac (ruling in `docs/architecture/files-sidebar.md`); Trash is
+  `trashItem` only, and nothing is scanned until Files or a file search is on screen. Convert to
+  Plain Text / Markdown is the Mac's state machine verbatim (`TextFormatConversion`), through the
+  editor. Check Document Now is the only whole-document spelling pass, and is never scheduled.
+  Settings are per device under the Mac's `Lineform.settings.*` keys (`AppSettings`); Automatic
+  Dark Mode applies the Mac's Quiet mapping from the trait collection's `userInterfaceStyle`.
+  Details: `docs/architecture/iphone-app.md`, "The Menu sheet".
 - **Strings.** iPhone strings live in `LineformiOS/Localizable.xcstrings` (six languages), reusing
   the Mac's translation for the same English text. `LocalizationSourceSweepTests` scans
-  `LineformiOS/` against that catalog.
+  `LineformiOS/` against that catalog. No iPhone string names a Mac or a sidebar
+  (`SettingsTests.testNoMacOrSidebarWordingInIPhoneStrings`); package text that differs by
+  platform (`MarkdownReference`) uses `#if os(iOS)` with its own keys, and the Mac's text stays
+  byte for byte.
 
 ## iCloud Storage
 
