@@ -45,9 +45,11 @@ struct DocumentScreen: View {
     @SceneStorage("openDocumentPath") private var legacyOpenDocumentPath = ""
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    /// First run (roadmap step 11), while this launch wants it. A restored scene wins
-    /// (`FirstRunGate.shouldPresent`), and finishing it clears this and focuses the editor.
-    @State private var isShowingFirstRun: Bool
+    /// First run (roadmap step 11): decided once, then latched off for the session by a restored
+    /// scene, an opened document or finishing (`FirstRunPresentation`); it never comes back.
+    @State private var firstRun: FirstRunPresentation
+    /// Whether `onAppear` has checked the restored scene against first run yet.
+    @State private var hasCheckedFirstRunRestore = false
 
     /// The quiet notice over the bottom of the page, if any: a failed save, else an image that
     /// could not be written beside the document.
@@ -68,24 +70,44 @@ struct DocumentScreen: View {
         self.document = document
         self.profileStore = profileStore
         _storedDisplayMode = SceneStorage(wrappedValue: initialMode, "displayMode")
-        _isShowingFirstRun = State(initialValue: showsFirstRun)
+        _firstRun = State(initialValue: FirstRunPresentation(launchWantsFirstRun: showsFirstRun))
     }
 
     private var presentsFirstRun: Bool {
-        FirstRunGate.shouldPresent(
-            launchWantsFirstRun: isShowingFirstRun,
+        guard firstRun.isShowing else { return false }
+        // Before `onAppear` latches the decision, a stored scene already hides first run, so a
+        // restored document never flashes it.
+        return hasCheckedFirstRunRestore || FirstRunGate.shouldPresent(
+            launchWantsFirstRun: true,
             restoredBookmark: openDocumentBookmark,
             restoredPath: legacyOpenDocumentPath
         )
     }
 
-    /// First run is over: fade it out (at once under Reduce Motion), then put the caret in the
-    /// blank document.
+    /// The fade first run leaves with (none under Reduce Motion).
+    private var firstRunFade: Animation? {
+        EditorMotionPolicy.animation(.easeInOut(duration: 0.32), reduceMotion: reduceMotion)
+    }
+
+    /// First run is over: fade it out, switch to Write if another mode was left on, then put the
+    /// caret in the blank document.
     private func finishFirstRun() {
-        withAnimation(EditorMotionPolicy.animation(.easeInOut(duration: 0.32), reduceMotion: reduceMotion)) {
-            isShowingFirstRun = false
+        withAnimation(firstRunFade) {
+            firstRun.finished()
         }
-        positionKeeper.editor?.becomeFirstResponder()
+        let needsSwitch = displayMode != .write
+        if needsSwitch { switchMode(to: .write) }
+        Task { @MainActor in
+            if needsSwitch { await Task.yield() }
+            positionKeeper.editor?.becomeFirstResponder()
+        }
+    }
+
+    /// A document reached the screen some other way (restored, or opened): first run ends for
+    /// good, and counts as completed.
+    private func endFirstRun(_ ended: Bool) {
+        guard ended else { return }
+        FirstRunGate.markCompleted()
     }
 
     /// The mode control's binding: every switch goes through the position keeper first.
@@ -151,6 +173,7 @@ struct DocumentScreen: View {
                 switchMode(to: displayMode.toggledWriteRead)
             }
             .keyboardShortcut(Self.toggleWriteReadShortcut)
+            .disabled(presentsFirstRun)
             .hidden()
         }
         .sheet(isPresented: $isShowingFiles) {
@@ -178,6 +201,10 @@ struct DocumentScreen: View {
             Button(String(localized: "OK"), role: .cancel) {}
         }
         .onAppear {
+            if !hasCheckedFirstRunRestore {
+                endFirstRun(firstRun.restored(bookmark: openDocumentBookmark, path: legacyOpenDocumentPath))
+                hasCheckedFirstRunRestore = true
+            }
             shownDisplayMode = shownDisplayMode ?? storedDisplayMode
             positionKeeper.adopt(displayMode)
             let linkedScroll = linkedScroll
@@ -193,6 +220,11 @@ struct DocumentScreen: View {
         }
         .onChange(of: document.url) {
             openDocumentBookmark = document.storedBookmark
+            if document.url != nil {
+                withAnimation(firstRunFade) {
+                    endFirstRun(firstRun.documentOpened())
+                }
+            }
         }
         .onChange(of: scenePhase) { _, phase in
             if OpenDocument.savesImmediately(on: phase) { document.flushForBackground() }
