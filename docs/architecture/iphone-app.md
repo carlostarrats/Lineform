@@ -395,6 +395,41 @@ reports no `onDelete` once it has seen `presentedItemDidMove`, so a rename is ne
   for scenes stored before bookmarks, then cleared.
 - A stored file that no longer resolves leaves the blank document.
 
+## First run
+
+The first launch on a device shows `FirstRunOverlay` over the already-loaded blank document; every
+later launch opens straight into a fresh Untitled document, as on the Mac.
+
+- **The gate.** `FirstRunGate.shouldShowAtLaunch` reads the per-device flag
+  `LineformiOSFirstRunCompleted.v1` in `UserDefaults.standard` (never iCloud key-value storage).
+  `LINEFORM_SHOW_FIRST_RUN=1` forces it for QA (`SIMCTL_CHILD_LINEFORM_SHOW_FIRST_RUN=1` with
+  `simctl launch`). The flag is set only when the writer reaches the document, so quitting
+  mid-intro shows it again.
+- **Restoration wins.** `DocumentScreen` shows the overlay only while `openDocumentBookmark` and
+  `openDocumentPath` are both empty (`FirstRunGate.shouldPresent`), so a scene iOS ended with a
+  document open reopens that document.
+- **Tests.** The test host is the app, so `LineformiOSApp` skips first run under XCTest at the
+  launch call site (`XCTestConfigurationFilePath`); the gate itself stays pure and is tested
+  directly (`FirstRunTests`).
+- **Stages** (`FirstRunStage`): `.line` → `.expect` → `.points` → `.done`. `.line` is
+  `FirstRunLineView`, a `WKWebView` loading the Mac's bundled `FirstLaunchIntro/` folder (the same
+  folder reference in both targets' Resources phases, never a copy). Its timer starts when the page
+  has loaded, not when the view appears, because a cold WebKit start takes about a second to paint.
+  `.expect` shows "What to expect", which fades out; `.points` shows the three points and Start
+  Writing and waits. A tap or a sideways swipe skips ahead (a vertical drag scrolls the points at
+  large Dynamic Type); Return and the VoiceOver "Continue" action do the same. Reaching `.done`
+  marks the flag once, fades the overlay out and focuses the editor.
+- **The web view** uses a non-persistent data store, allows only file URLs and cancels every other
+  navigation without opening it, and takes no touches. A document-end user script localizes the
+  tagline and restyles it for the phone (dark ink over the paper, pinned right and wrapping); the
+  Mac files are untouched. WebKit is linked only by the iPhone target; the package purity test bans
+  it there.
+- **Reduce Motion.** The page shows the finished line at once (`prefers-reduced-motion`), `.line`
+  holds for 1.2 s instead of 2.6 s, and every native fade is off.
+- **Copy.** `FirstRunCopy` is the one place the heading, the three points and the button title
+  live, keyed by their English in `LineformiOS/Localizable.xcstrings` (six languages; the
+  translations still need a native speaker's check). The owner edits the wording there.
+
 ## The temporary file sheet
 
 `FileListSheet` and the floating `MenuButton` (bottom right, Mac floating-card chrome) are a

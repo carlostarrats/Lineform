@@ -176,6 +176,12 @@
 		1F0000410000000000000016 /* LineformiOSTextView+Editing.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000400000000000000016 /* LineformiOSTextView+Editing.swift */; };
 		1F000041000000000000001A /* EditingRulesTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F000040000000000000001A /* EditingRulesTests.swift */; };
 		1F0000410000000000000017 /* Fonts in Resources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000120 /* Fonts */; };
+		1F0000B20000000000000005 /* FirstRunTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000B10000000000000005 /* FirstRunTests.swift */; };
+		1F0000B20000000000000002 /* FirstRunGate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000B10000000000000002 /* FirstRunGate.swift */; };
+		1F0000B20000000000000003 /* FirstRunOverlay.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000B10000000000000003 /* FirstRunOverlay.swift */; };
+		1F0000B20000000000000004 /* FirstRunLineView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000B10000000000000004 /* FirstRunLineView.swift */; };
+		1F0000B20000000000000007 /* FirstRunFlow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000B10000000000000006 /* FirstRunFlow.swift */; };
+		1F0000B20000000000000006 /* FirstLaunchIntro in Resources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000131 /* FirstLaunchIntro */; };
 		1F0000410000000000000007 /* Localizable.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = 1F0000400000000000000007 /* Localizable.xcstrings */; };
 		1F0000410000000000000008 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 1F0000400000000000000008 /* Assets.xcassets */; };
 		1F000041000000000000000E /* AppIcon.icon in Resources */ = {isa = PBXBuildFile; fileRef = 1F0000040000000000000108 /* AppIcon.icon */; };
@@ -381,6 +387,11 @@
 		1F0000310000000000000003 /* AppShortcuts.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = AppShortcuts.xcstrings; sourceTree = "<group>"; };
 		1F00000200000000000005C4 /* LineformCore */ = {isa = PBXFileReference; lastKnownFileType = wrapper; name = LineformCore; path = Packages/LineformCore; sourceTree = "<group>"; };
 		1F0000400000000000000001 /* LineformiOSApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LineformiOSApp.swift; sourceTree = "<group>"; };
+		1F0000B10000000000000005 /* FirstRunTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FirstRunTests.swift; sourceTree = "<group>"; };
+		1F0000B10000000000000002 /* FirstRunGate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FirstRunGate.swift; sourceTree = "<group>"; };
+		1F0000B10000000000000003 /* FirstRunOverlay.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FirstRunOverlay.swift; sourceTree = "<group>"; };
+		1F0000B10000000000000004 /* FirstRunLineView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FirstRunLineView.swift; sourceTree = "<group>"; };
+		1F0000B10000000000000006 /* FirstRunFlow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FirstRunFlow.swift; sourceTree = "<group>"; };
 		1F0000400000000000000002 /* DocumentScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DocumentScreen.swift; sourceTree = "<group>"; };
 		1F0000400000000000000014 /* LineformiOSTextView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LineformiOSTextView.swift; sourceTree = "<group>"; };
 		1F0000400000000000000015 /* MarkdownEditor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkdownEditor.swift; sourceTree = "<group>"; };
@@ -704,6 +715,7 @@
 				1F0000420000000000000003 /* Editor */,
 				1F0000420000000000000004 /* Read */,
 				1F0000420000000000000005 /* Chrome */,
+				1F0000B10000000000000001 /* FirstRun */,
 				1F0000400000000000000008 /* Assets.xcassets */,
 				1F0000400000000000000007 /* Localizable.xcstrings */,
 				1F0000400000000000000004 /* Info.plist */,
@@ -731,8 +743,20 @@
 				1F000040000000000000000C /* DocumentLaunchTests.swift */,
 				1F0000400000000000000012 /* OpenDocumentTests.swift */,
 				1F0000400000000000000013 /* AutosaveTests.swift */,
+				1F0000B10000000000000005 /* FirstRunTests.swift */,
 			);
 			path = LineformiOSTests;
+			sourceTree = "<group>";
+		};
+		1F0000B10000000000000001 /* FirstRun */ = {
+			isa = PBXGroup;
+			children = (
+				1F0000B10000000000000002 /* FirstRunGate.swift */,
+				1F0000B10000000000000003 /* FirstRunOverlay.swift */,
+				1F0000B10000000000000004 /* FirstRunLineView.swift */,
+				1F0000B10000000000000006 /* FirstRunFlow.swift */,
+			);
+			path = FirstRun;
 			sourceTree = "<group>";
 		};
 		1F0000420000000000000003 /* Editor */ = {
@@ -977,6 +1001,7 @@
 				1F000041000000000000000E /* AppIcon.icon in Resources */,
 				1F0000410000000000000007 /* Localizable.xcstrings in Resources */,
 				1F0000410000000000000017 /* Fonts in Resources */,
+				1F0000B20000000000000006 /* FirstLaunchIntro in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -1173,6 +1198,10 @@
 				1F000041000000000000002C /* PreviewSplit.swift in Sources */,
 				1F0000410000000000000010 /* OpenDocument.swift in Sources */,
 				1F0000410000000000000011 /* FileListSheet.swift in Sources */,
+				1F0000B20000000000000002 /* FirstRunGate.swift in Sources */,
+				1F0000B20000000000000003 /* FirstRunOverlay.swift in Sources */,
+				1F0000B20000000000000004 /* FirstRunLineView.swift in Sources */,
+				1F0000B20000000000000007 /* FirstRunFlow.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -1193,6 +1222,7 @@
 				1F000041000000000000000C /* DocumentLaunchTests.swift in Sources */,
 				1F0000410000000000000012 /* OpenDocumentTests.swift in Sources */,
 				1F0000410000000000000013 /* AutosaveTests.swift in Sources */,
+				1F0000B20000000000000005 /* FirstRunTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

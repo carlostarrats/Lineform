@@ -358,6 +358,12 @@ iPhone only. Details: `docs/architecture/iphone-app.md`.
   inset-normalised distance from the top, clamped, with an echo guard and no block mapping.
   Images load only from the document's folder or a Reconnect pick. Details:
   `docs/architecture/iphone-app.md`, "Write, Read and Preview".
+- **First run.** On first launch only (`FirstRunGate`, per-device flag
+  `LineformiOSFirstRunCompleted.v1`, set when the writer reaches the document), `FirstRunOverlay`
+  plays the Mac's `FirstLaunchIntro/` web animation (referenced, not copied; file URLs only, no
+  network), "What to expect", then the three points (`FirstRunCopy`, the one place the copy lives).
+  Scene-storage recovery wins over it, and the launch call site skips it under XCTest. WebKit
+  stays in the iPhone target, never in the package.
 - **Strings.** iPhone strings live in `LineformiOS/Localizable.xcstrings` (six languages), reusing
   the Mac's translation for the same English text. `LocalizationSourceSweepTests` scans
   `LineformiOS/` against that catalog.
