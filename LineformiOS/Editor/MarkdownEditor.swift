@@ -8,7 +8,7 @@ import UIKit
 /// The coordinator is the text view's delegate. It writes each change back to the binding (so
 /// `OpenDocument` autosaves) and schedules the debounced highlight pass; `scrollViewDidScroll`
 /// schedules the visible-window coverage check; `shouldChangeTextIn` routes Return through the
-/// editing rules.
+/// editing rules; a selection change or an edit refreshes the reading assists (ruler, typewriter).
 struct MarkdownEditor: UIViewRepresentable {
     @Binding var text: String
     var profile: ReadingProfile
@@ -47,7 +47,14 @@ struct MarkdownEditor: UIViewRepresentable {
 
         func textViewDidChange(_ textView: UITextView) {
             parent.text = textView.text
-            (textView as? LineformTextView)?.textDidChangeForHighlighting()
+            guard let textView = textView as? LineformTextView else { return }
+            textView.textDidChangeForHighlighting()
+            textView.refreshReadingAssists()
+        }
+
+        /// The Reading Ruler follows the caret, and Typewriter Mode re-centres it.
+        func textViewDidChangeSelection(_ textView: UITextView) {
+            (textView as? LineformTextView)?.refreshReadingAssists()
         }
 
         func scrollViewDidScroll(_ scrollView: UIScrollView) {

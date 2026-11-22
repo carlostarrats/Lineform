@@ -82,6 +82,19 @@ for line alike. Do not switch it to TextKit 2.
   `replaceCharacters` (a whole-text `MarkdownEdit` is reduced to the span between its common
   prefix and suffix), one undo step, then the delegate's `textViewDidChange` so `OpenDocument`
   autosaves. An edit that changes nothing registers no undo step and posts nothing.
+- **Reading assists** (`LineformiOSTextView+ReadingAssists.swift`) follow the profile's
+  `readingRulerEnabled` and `typewriterModeEnabled`, with the current line from
+  `ReadingAssistRangeResolver.focusRange(…, mode: .currentLine)`. The **Reading Ruler** is a band
+  of the tint colour at alpha 0.12 over the line's enclosing rects (every visual line of a wrapped
+  line), widened to the column and outset 6 × 2 pt like the Mac's. It is a plain view kept as the
+  text view's lowest subview, behind UIKit's text view, so it never covers a glyph and never
+  touches the text storage. **Typewriter Mode** centres the caret's line fragment with
+  `setContentOffset(TypewriterScroll.origin(…), animated: false)` after each selection change and
+  edit; turning it off scrolls back to where the page was when it came on, and it waits while
+  the keyboard animates. Two UIKit facts shape it: TextKit 1 layout here is non-contiguous, so the
+  prefix up to the caret is laid out first (only past `firstUnlaidGlyphIndex()`), and a scroll
+  past the laid-out content is put back once while UITextView grows `contentSize`, so it is set
+  a second time.
 - Chrome floats over the text. No bar spans the top of the page; the page colour runs edge to
   edge, and only the container safe area is ignored so the editor still resizes for the keyboard.
 - Text set from code keeps the selection, clamped to the new text, so a live reload does not move

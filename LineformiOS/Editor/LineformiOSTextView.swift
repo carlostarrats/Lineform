@@ -29,9 +29,23 @@ final class LineformTextView: UITextView {
     /// insets from `EditorReadingLayout`.
     var profile: ReadingProfile = .original {
         didSet {
-            if profile != oldValue || !hasAppliedProfile { applyProfile() }
+            if profile != oldValue || !hasAppliedProfile {
+                let restoredOffset = updateTypewriterScrollState(from: oldValue, to: profile)
+                applyProfile()
+                if let restoredOffset { restoreOffsetBeforeTypewriterMode(restoredOffset) }
+            }
         }
     }
+
+    // MARK: Reading assists state (logic in LineformiOSTextView+ReadingAssists.swift)
+
+    /// The Reading Ruler band: the lowest subview, so it sits behind the text. Made on first use.
+    var readingRulerView: UIView?
+    /// Where the page was when Typewriter Mode came on; turning it off scrolls back here.
+    var scrollOffsetBeforeTypewriterMode: CGPoint?
+    /// The keyboard is animating its frame; Typewriter Mode waits so it does not fight keyboard
+    /// avoidance.
+    var isKeyboardAnimating = false
 
     /// The range the last token pass covered; a scroll inside it does no work.
     private(set) var lastHighlightedTokenRange: NSRange?
@@ -51,6 +65,7 @@ final class LineformTextView: UITextView {
     static func make(profile: ReadingProfile = .original) -> LineformTextView {
         let textView = LineformTextView(usingTextLayoutManager: false)
         textView.configureForMarkdownEditing()
+        textView.observeKeyboardForTypewriterMode()
         textView.profile = profile
         if !textView.hasAppliedProfile { textView.applyProfile() }
         return textView
@@ -78,6 +93,7 @@ final class LineformTextView: UITextView {
         typingAttributes = MarkdownTextStyle.baseAttributes(for: profile)
         updateTextContainerInset()
         refreshHighlighting()
+        refreshReadingAssists()
     }
 
     private func updateTextContainerInset() {
@@ -96,7 +112,13 @@ final class LineformTextView: UITextView {
             // A new size can uncover lines the last pass never reached. Deferred: no storage
             // writes from inside layout.
             visibleRangeDidChange()
+            refreshReadingAssists()
         }
+    }
+
+    override func tintColorDidChange() {
+        super.tintColorDidChange()
+        updateReadingRulerColor()
     }
 
     // MARK: - Key commands (rules in LineformiOSTextView+Editing.swift)
@@ -125,6 +147,7 @@ final class LineformTextView: UITextView {
         let location = min(selection.location, length)
         selectedRange = NSRange(location: location, length: min(selection.length, length - location))
         refreshHighlighting()
+        refreshReadingAssists()
     }
 
     // MARK: - Highlighting
