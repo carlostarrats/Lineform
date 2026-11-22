@@ -79,21 +79,32 @@ final class ExportParityTests: XCTestCase {
     func testPDFTextMatchesMac() throws {
         let mac = try mac()
         assertSameWords(Self.words(try pdf(.usLetter, .standard).string), mac.normalWords, "Normal PDF")
-        assertSameWords(Self.extractionNormalized(Self.words(try pdf(.usLetter, .styled).string)),
-                        Self.extractionNormalized(mac.styledWords), "Styled PDF")
+        let phone = Self.words(try pdf(.usLetter, .styled).string)
+        // The run dedupe is for a Mac artifact only: on the iPhone a repeated run is a block
+        // drawn twice (a pagination bug), so it must not be there to remove.
+        XCTAssertEqual(Self.deduplicatedRuns(phone), phone, "the iPhone Styled PDF repeats a run of words")
+        assertSameWords(Self.oneL(phone), Self.oneL(Self.deduplicatedRuns(mac.styledWords)), "Styled PDF")
     }
 
-    /// Two artifacts of reading text BACK out of the Mac's Styled PDF with PDFKit, applied to both
-    /// sides alike. Neither is on the page (checked by rendering the Mac PDF: "bullet" is spelled
-    /// in full and the table is drawn once), so neither is a difference a reader would see:
+    /// Two artifacts of reading text BACK out of the Mac's Styled PDF with PDFKit. Neither is on
+    /// the page (checked by rendering the Mac PDF: "bullet" is spelled in full and the table is
+    /// drawn once), so neither is a difference a reader would see:
     ///
     /// - A table that `NSTextTable` splits across a page break carries ALL its cells in the
     ///   content of both pages (clipped on each), so the table's words come out twice in a row.
-    ///   A run of six or more words immediately followed by the same run is kept once. Prose
-    ///   never repeats itself that way, so this cannot hide a real duplicate.
-    /// - In the tracked list text, PDFKit reads the "ll" of "bullet" as one "l" ("bulet"). A
-    ///   doubled "l" is read as one on both sides.
+    ///   `deduplicatedRuns` keeps a run of six or more words immediately followed by the same run
+    ///   once. It is applied to the Mac's words only; the iPhone's must have no such run.
+    /// - In the tracked list text, PDFKit reads the "ll" of "bullet" as one "l" ("bulet").
+    ///   `oneL` reads a doubled "l" as one, on both sides.
     static func extractionNormalized(_ words: [String]) -> [String] {
+        oneL(deduplicatedRuns(words))
+    }
+
+    static func oneL(_ words: [String]) -> [String] {
+        words.map { $0.replacingOccurrences(of: "ll", with: "l") }
+    }
+
+    static func deduplicatedRuns(_ words: [String]) -> [String] {
         var kept: [String] = []
         var index = 0
         while index < words.count {
@@ -107,7 +118,7 @@ final class ExportParityTests: XCTestCase {
             kept.append(words[index])
             index += 1
         }
-        return kept.map { $0.replacingOccurrences(of: "ll", with: "l") }
+        return kept
     }
 
     func testExtractionNormalizationKeepsOneCopyAndOneL() {
