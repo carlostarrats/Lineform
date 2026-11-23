@@ -1022,6 +1022,40 @@
         }
       }
     },
+    "Lineform couldn't save the new note." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lineform konnte die neue Notiz nicht sichern."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lineform no ha podido guardar la nota nueva."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lineform n’a pas pu enregistrer la nouvelle note."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lineformは新規メモを保存できませんでした。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lineform 无法保存新笔记。"
+          }
+        }
+      }
+    },
     "Lineform couldn’t export “%@”." : {
       "localizations" : {
         "de" : {

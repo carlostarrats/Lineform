@@ -625,6 +625,27 @@ final class OpenDocument: ImageInsertionHost {
         return false
     }
 
+    /// Writes `text` as a new file in the save folder, named from its first line like any new
+    /// document, without touching the open document. New Lineform Note's fallback when the open
+    /// document could not be replaced (its save failed, or another open took over): the note's
+    /// text still reaches disk. Never overwrites a file; returns nil when nothing could be written.
+    func saveNewNoteBeside(_ text: String) async -> URL? {
+        let folder = await resolveSaveFolder()
+        var takenNames: Set<String> = []
+        for _ in 0..<5 {
+            var planner = AutosavePlanner(existingFileName: nil, isNamedFromFirstLine: true)
+            guard case .create(let fileName) = planner.textChanged(text, existingNames: Self.existingNames(in: folder).union(takenNames))
+            else { return nil }
+            let newURL = folder.appendingPathComponent(fileName)
+            switch coordinatedWrite(text, to: newURL, replaceExisting: false) {
+            case .written: return newURL
+            case .fileExists: takenNames.insert(fileName)
+            case .failed: return nil
+            }
+        }
+        return nil
+    }
+
     // MARK: - Save As
 
     /// A copy of the document's text, written for Save As's export picker to place where the

@@ -10,10 +10,9 @@ This page covers roadmap step 3 (shell and files), step 4 (Write mode), step 5 (
 Preview, with the Write/Read/Preview switch), step 6 (the Menu sheet), step 7 (the Styling
 sheet), step 8 (the selection row, the comment field, AI actions with their review, and
 whole-document AI), step 9 (History and History sync), step 10 (export, print, share and read
-aloud), step 11 (first run) and, from step 12 (polish and release), the performance budgets. The
-rest arrive in later steps.
-aloud), step 11 (first run) and, from step 12, Check for Updates, announcements, the review
-prompt and App Intents. The rest arrive in later steps.
+aloud), step 11 (first run) and, from step 12 (polish and release), the performance budgets,
+Check for Updates, announcements, the review prompt and App Intents. The rest arrive in later
+steps.
 
 ## Each app stands alone
 
@@ -1134,6 +1133,14 @@ update itself, so it only says whether a newer version is on the App Store and o
   package's `AppUpdatePresentation`, so the Mac's text and translations. For an update, Open App
   Store (the preferred action) and Not Now in Cancel's role; otherwise one OK. The App Store page
   opens (`UIApplication.open`) only on Open App Store. No iPhone wording names a Mac.
+- **Always answers, never sticks.** `presentAlert` always returns (`PhoneUpdateAlertOutcome`). With
+  no presenter, or one busy presenting or dismissing (the Menu sheet mid-animation), it asks again
+  a few times, 150 ms apart. When the alert still cannot come up — or UIKit refuses it, which a
+  watchdog notices — `run()` shows the result's title as the screen's quiet notice instead
+  (`PhoneUpdateCommand.notice`, cleared after the notice duration). An alert taken down without a
+  button (its presenter dismissed) ends the wait as Not Now, through
+  `PhoneUpdateAlertController`'s `viewDidDisappear` or the watchdog; both wait a short grace first
+  so a button chosen as the alert left still wins. So `isChecking` can never stay true.
 
 ## Announcements
 
@@ -1160,6 +1167,12 @@ The Mac's in-app announcements (`app-integration.md` ▸ In-app announcements) o
   comment field, an AI card, a notice, first run, a download). Its entrance is a fade-and-move that
   Reduce Motion turns into a fade. VoiceOver: "Announcement: %@" for the card, "Dismiss
   announcement" for the ✕, and the escape gesture dismisses (the Mac's Esc).
+- **Platform targeting.** A feed entry may carry `platforms` (`["mac"]`, `["ios"]`, both). The
+  iPhone shows only entries without the field or naming "ios"; the Mac only those without it or
+  naming "mac" (`Announcement.appliesTo(appVersion:platform:)`, `.current` by default). An entry
+  WITHOUT `platforms` reaches both apps, so its text must be platform-neutral (never "your Mac",
+  never "iPhone"). Older Mac builds ignore the key and show every entry, as before (so an "ios"-only entry still
+  reaches them).
 
 ## Review prompt
 
@@ -1194,9 +1207,30 @@ in the iPhone catalog with the Mac's translations.
 - **Through `OpenDocument`.** `PhoneIntentRouter` hands each intent to the screen's document. New
   Note is New Document (the current document is saved first; a failed save keeps it and shows its
   notice), then the text goes in with `edit`, so it autosaves like typing, named from its first
-  line. Nothing is staged, unlike the Mac. Open is `openReportingFailure`: an unreadable file shows
-  the screen's "That file couldn't be opened in Lineform." A file the intent hands over without a
-  URL throws that message.
+  line. Nothing is staged, unlike the Mac. Open is `OpenDocument.open`: an unreadable file shows
+  the screen's "That file couldn't be opened in Lineform." alert, and the intent throws it too.
+- **`perform()` reports what happened.** It returns only once the request has actually run — on
+  a cold launch it waits (a continuation) until the screen attaches its document and the request
+  runs — and throws `LineformShortcutError` on failure, so Shortcuts never shows a success that
+  did not happen.
+- **Ruling: Open in Lineform never edits a temporary copy** (2026-11-23). A file Shortcuts hands
+  over is often a copy in a temporary or system-managed place; editing it would look like saving
+  while the writer's real file never changed. `PhoneIntentFile` opens a file IN PLACE only from a
+  save folder (iCloud Drive's Lineform folder, On My iPhone ▸ Lineform) or under a security-scoped
+  grant (a file picked in Files), and never from the app's temporary folder or `Documents/Inbox`,
+  grant or not. Anything else, and a file with no URL, is read at once, while the intent still
+  runs, and opens through the New Note path as a new untitled document holding its text; the
+  original is never written. A copy that is not UTF-8 text throws. **Still needs a hand check in
+  Shortcuts on a device** (which `IntentFile` URLs real Shortcuts runs hand over, from Files and
+  from a share sheet); the simulator tests cover the policy, not Shortcuts itself.
+- **Ruling: New Lineform Note never drops its text** (2026-11-23). When New Document cannot put
+  the current document away (its save failed, or a later open took over), the note is written
+  straight into the save folder as a new file named from its first line
+  (`OpenDocument.saveNewNoteBeside`, never overwriting), and the current document stays on screen.
+  Only when that write fails too does the intent throw ("Lineform couldn't save the new note."), so
+  Shortcuts shows the failure and its input still holds the text. Chosen over throwing at once
+  because the text then reaches disk in the common case (a current document that can't be saved
+  says nothing about the save folder). A queued cold-launch request follows the same path.
 - **Cold launch.** The screen attaches its document after `prepare` (and the launch restore); an
   intent that arrives earlier waits and runs then, so a restore never lands over it.
 - **Registration.** `AppIntents.framework` is LINKED in the iPhone target's Frameworks phase, the

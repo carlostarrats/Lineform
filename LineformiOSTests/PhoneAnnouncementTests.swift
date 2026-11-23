@@ -136,6 +136,18 @@ final class PhoneAnnouncementTests: XCTestCase {
         XCTAssertNil(store.visible)
     }
 
+    /// A feed entry may name its apps: the iPhone skips one meant only for the Mac, and shows one
+    /// with no `platforms` or naming "ios".
+    func testAnAnnouncementMeantOnlyForTheMacIsSkipped() async throws {
+        let defaults = try makeDefaults()
+        let feed = try announcements(#"{"version":1,"announcements":[{"id":"mac","title":"T","body":"B","platforms":["mac"]},{"id":"ios","title":"T","body":"B","platforms":["ios"]},{"id":"both","title":"T","body":"B"}]}"#)
+        let store = PhoneAnnouncementStore(defaults: defaults, fetcher: SpyFetcher(result: feed), appVersion: "1.8.0")
+        await store.checkIfNeeded(isEnabled: true)
+        XCTAssertEqual(store.visible?.id, "ios")
+        XCTAssertEqual(PhoneAnnouncementStore.firstShowable(in: feed, dismissedIDs: ["ios"], appVersion: "1.8.0")?.id, "both")
+        XCTAssertNil(PhoneAnnouncementStore.firstShowable(in: [feed[0]], dismissedIDs: [], appVersion: "1.8.0"))
+    }
+
     /// Acting on an announcement opens its link (through the injected opener) and dismisses it.
     func testTheActionOpensTheLinkAndDismisses() async throws {
         let defaults = try makeDefaults()

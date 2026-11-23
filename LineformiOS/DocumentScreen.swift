@@ -34,6 +34,8 @@ struct DocumentScreen: View {
     /// When to ask for the App Store review sheet (`PhoneReviewPromptStore.shared` in the app,
     /// inert in the test host).
     @ObservedObject var reviewPrompt: PhoneReviewPromptStore
+    /// Check for Updates: its result shows here as the quiet notice when no alert could come up.
+    @ObservedObject var updateCommand: PhoneUpdateCommand
     @Environment(\.colorScheme) private var colorScheme
     private var profile: ReadingProfile {
         settings.displayProfile(profileStore.activeProfile, userInterfaceStyle: UIUserInterfaceStyle(colorScheme))
@@ -80,11 +82,13 @@ struct DocumentScreen: View {
     @State private var asksAIForWholeDocument = false
 
     /// The quiet notice over the bottom of the page, if any: a failed save, else an image that
-    /// could not be written beside the document.
+    /// could not be written beside the document, else a Check for Updates result whose alert
+    /// could not come up.
     private var noticeMessage: String? {
         if document.saveFailed { return String(localized: "Couldn’t save this document. Your text is still here.") }
         if let exportFailure = exportCommands?.failureNotice { return exportFailure }
         if document.imageSaveFailed { return String(localized: "Can't save images beside this document.") }
+        if let updateNotice = updateCommand.notice { return updateNotice }
         return nil
     }
 
@@ -97,6 +101,7 @@ struct DocumentScreen: View {
         settings: AppSettings = .shared,
         announcements: PhoneAnnouncementStore = .shared,
         reviewPrompt: PhoneReviewPromptStore = .shared,
+        updateCommand: PhoneUpdateCommand = .shared,
         initialMode: EditorDisplayMode = .write,
         showsFirstRun: Bool = false,
         selection: SelectionController? = nil
@@ -107,6 +112,7 @@ struct DocumentScreen: View {
         self.settings = settings
         self.announcements = announcements
         self.reviewPrompt = reviewPrompt
+        self.updateCommand = updateCommand
         _storedDisplayMode = SceneStorage(wrappedValue: initialMode, "displayMode")
         _firstRun = State(initialValue: FirstRunPresentation(launchWantsFirstRun: showsFirstRun))
         _selection = StateObject(wrappedValue: selection ?? SelectionController())
@@ -402,7 +408,7 @@ struct DocumentScreen: View {
             || selection.phase != .hidden || selection.aiState != .idle
             || announcements.visible != nil || noticeMessage != nil
             || document.failedOpenURL != nil || document.downloadingName != nil
-            || PhoneUpdateCommand.shared.isChecking
+            || updateCommand.isChecking
         let presenter = ActivityShareSheet.topPresenter()
         return PhoneReviewPromptStore.canPresent(
             isSceneActive: scenePhase == .active && Self.foregroundScene() != nil,

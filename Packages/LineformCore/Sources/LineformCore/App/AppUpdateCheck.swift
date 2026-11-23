@@ -91,8 +91,10 @@ enum AppStoreLookup {
     }
 
     /// Decode and validate raw response bytes. Reads only the first result that is
-    /// `platform`'s (`AppStorePlatform.accepts(kind:)`); for the Mac's lookup that is the first
-    /// result, as it always was.
+    /// `platform`'s (`AppStorePlatform.accepts(kind:)`): for the Mac, the first result whose
+    /// `kind` is absent or "mac-software" (an iOS "software" entry ahead of it is skipped, where
+    /// the Mac once read the first result whatever its kind); for the iPhone, the first
+    /// "software" result.
     ///
     /// Returns nil when the payload is unusable — too large, not JSON (an HTML sign-in
     /// page with status 200), no result for `platform`, or a version or store link that
