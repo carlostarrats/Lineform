@@ -419,6 +419,23 @@ final class PhoneHistoryController {
         bump()
     }
 
+    /// Select Next / Previous Passage (the Mac's `moveSelection`): the next or previous located
+    /// passage in text order, clamped at the ends; with nothing selected, the first (forward) or
+    /// the last. The non-visual path to a passage, which a tap on its wash is for sighted writers.
+    /// Returns the passage selected, or nil when History mode is off or shows nothing.
+    @discardableResult
+    func moveSelection(by delta: Int) -> LocatedPassage? {
+        guard isHistoryModeActive, !located.isEmpty, delta != 0 else { return nil }
+        let target: Int
+        if let id = selectedPassageID, let index = located.firstIndex(where: { $0.id == id }) {
+            target = min(max(index + delta, 0), located.count - 1)
+        } else {
+            target = delta > 0 ? 0 : located.count - 1
+        }
+        select(located[target].id)
+        return located[target]
+    }
+
     @discardableResult
     func step(by delta: Int, text: String) -> HistoryEdit? {
         guard isHistoryModeActive, let id = selectedPassageID else { return nil }

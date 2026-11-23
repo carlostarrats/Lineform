@@ -199,9 +199,15 @@ extension LineformTextView {
             historyTapRecognizer().isEnabled = active
             contentInset.bottom = active ? Self.historyCardClearance : 0
             verticalScrollIndicatorInsets.bottom = contentInset.bottom
+            // Entering is heard as the card's title, which takes VoiceOver's focus (`HistoryCard`);
+            // leaving is said.
+            if !active, window != nil { UIAccessibility.post(notification: .announcement, argument: Self.historyClosedAnnouncement) }
         }
         setNeedsHistoryWashRedraw()
     }
+
+    /// What VoiceOver hears when History mode ends.
+    static var historyClosedAnnouncement: String { String(localized: "History closed") }
 
     /// True while the view shows History mode (read-only, washes, History keys).
     var isShowingHistoryMode: Bool { state.isShowingHistoryMode }

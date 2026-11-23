@@ -528,3 +528,126 @@ final class LineformTextView: UITextView {
         set { state.keepsCaretVisibleOnResize = newValue }
     }
 }
+
+// MARK: - Accessibility: rotors and History's actions
+
+/// The non-visual paths to what the editor only DRAWS (the accessibility mirror rule): custom
+/// rotors over the misspellings (`SpellCheckPass`'s results — the system checker is off, so
+/// VoiceOver's own Misspelled Words rotor would find nothing), Mark's sentences while they show,
+/// and History's passages in History mode; and History mode's commands as custom actions (the
+/// Mac's `HistoryModeAccessibilityAction`). The text view's accessibility VALUE is its text and is
+/// never overridden.
+extension LineformTextView {
+    override var accessibilityCustomRotors: [UIAccessibilityCustomRotor]? {
+        get {
+            var rotors: [UIAccessibilityCustomRotor] = [misspellingRotor()]
+            if !state.aiMarkRanges.isEmpty { rotors.append(markedSentenceRotor()) }
+            if isShowingHistoryMode { rotors.append(historyPassageRotor()) }
+            return rotors
+        }
+        set {}
+    }
+
+    override var accessibilityCustomActions: [UIAccessibilityCustomAction]? {
+        get {
+            let base = super.accessibilityCustomActions ?? []
+            return base + historyAccessibilityActions()
+        }
+        set {}
+    }
+
+    /// The rotor's name for Mark's sentences.
+    static var markedSentencesRotorName: String { String(localized: "Marked sentences") }
+    /// The rotor's name for History's passages.
+    static var historyPassagesRotorName: String { String(localized: "Passages") }
+
+    /// The range a rotor lands on from `current` (nil: the rotor starts at `caret`): the first of
+    /// `ranges` after it going forward, the last before it going back. Nil at either end.
+    static func rotorTarget(in ranges: [NSRange], from current: NSRange?, caret: Int, forward: Bool) -> NSRange? {
+        let sorted = ranges.filter { $0.location != NSNotFound && $0.length > 0 }
+            .sorted { ($0.location, $1.length) < ($1.location, $0.length) }
+        if let current {
+            return forward
+                ? sorted.first { $0.location > current.location || ($0.location == current.location && $0.length < current.length) }
+                : sorted.last { $0.location < current.location || ($0.location == current.location && $0.length > current.length) }
+        }
+        return forward ? sorted.first { $0.location >= caret } : sorted.last { $0.location < caret }
+    }
+
+    /// The text range of `range`, clamped to the text; nil when it falls outside.
+    func accessibilityTextRange(for range: NSRange) -> UITextRange? {
+        guard range.location != NSNotFound, NSMaxRange(range) <= textStorage.length,
+              let start = position(from: beginningOfDocument, offset: range.location),
+              let end = position(from: start, offset: range.length) else { return nil }
+        return textRange(from: start, to: end)
+    }
+
+    /// A rotor over `ranges()` (read each time it moves). `landed` runs on the range it lands on.
+    private func rangeRotor(
+        _ make: (@escaping UIAccessibilityCustomRotor.Search) -> UIAccessibilityCustomRotor,
+        ranges: @escaping @MainActor (LineformTextView) -> [NSRange],
+        landed: (@MainActor (LineformTextView, NSRange) -> Void)? = nil
+    ) -> UIAccessibilityCustomRotor {
+        make { [weak self] predicate in
+            guard let self else { return nil }
+            return MainActor.assumeIsolated {
+                var current: NSRange?
+                if let item = predicate.currentItem.targetRange, predicate.currentItem.targetElement === self {
+                    current = NSRange(location: self.offset(from: self.beginningOfDocument, to: item.start),
+                                      length: self.offset(from: item.start, to: item.end))
+                }
+                guard let target = Self.rotorTarget(in: ranges(self), from: current, caret: self.selectedRange.location,
+                                                    forward: predicate.searchDirection == .next),
+                      let textRange = self.accessibilityTextRange(for: target) else { return nil }
+                landed?(self, target)
+                return UIAccessibilityCustomRotorItemResult(targetElement: self, targetRange: textRange)
+            }
+        }
+    }
+
+    private func misspellingRotor() -> UIAccessibilityCustomRotor {
+        rangeRotor({ search in UIAccessibilityCustomRotor(systemType: .misspelledWord, itemSearch: search) },
+                   ranges: { view in view.spellCheck.misspelledRanges })
+    }
+
+    private func markedSentenceRotor() -> UIAccessibilityCustomRotor {
+        rangeRotor({ search in UIAccessibilityCustomRotor(name: Self.markedSentencesRotorName, itemSearch: search) },
+                   ranges: { view in view.aiMarkRanges })
+    }
+
+    /// History's passages in text order. Landing on one selects it, as a tap on its wash does, so
+    /// the card shows its versions.
+    private func historyPassageRotor() -> UIAccessibilityCustomRotor {
+        rangeRotor({ search in UIAccessibilityCustomRotor(name: Self.historyPassagesRotorName, itemSearch: search) },
+                   ranges: { view in view.historyWashDisplay?.passages.map(\.range) ?? [] },
+                   landed: { view, range in
+                       guard let display = view.historyWashDisplay,
+                             let passage = display.passages.first(where: { $0.range == range }) else { return }
+                       view.historyController?.select(passage.id)
+                   })
+    }
+
+    /// History mode's commands, in the Mac's rotor order: Select Next / Previous Passage, then
+    /// (a passage selected) Previous / Next Version, then Exit History. None outside History mode.
+    func historyAccessibilityActions() -> [UIAccessibilityCustomAction] {
+        guard isShowingHistoryMode, let controller = historyController, controller.isHistoryModeActive else { return [] }
+        var actions: [(String, @MainActor (LineformTextView) -> Void)] = [
+            (HistoryCardModel.nextPassageTitle, { view in view.historyController?.moveSelection(by: 1) }),
+            (HistoryCardModel.previousPassageTitle, { view in view.historyController?.moveSelection(by: -1) }),
+        ]
+        if controller.selectedPassageID != nil {
+            actions.append((String(localized: "Previous Version"), { view in view.historyPreviousVersion(nil) }))
+            actions.append((String(localized: "Next Version"), { view in view.historyNextVersion(nil) }))
+        }
+        actions.append((HistoryCardModel.exitTitle, { view in
+            view.historyController?.exitHistoryMode(text: view.textStorage.string)
+        }))
+        return actions.map { name, perform in
+            UIAccessibilityCustomAction(name: name) { [weak self] _ in
+                guard let self else { return false }
+                MainActor.assumeIsolated { perform(self) }
+                return true
+            }
+        }
+    }
+}

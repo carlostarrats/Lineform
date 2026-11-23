@@ -117,6 +117,21 @@ struct ConnectAISheet: View {
     var usesDarkChrome: Bool
     var onDone: () -> Void
 
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
+    /// The Form's readable inks for the sheet's forced scheme. The `form*` roles depend only on
+    /// light or dark (a Form draws the system's cells), so a built-in theme of that darkness
+    /// stands in for the writer's.
+    private var ink: PhoneInk { Self.ink(usesDarkChrome: usesDarkChrome) }
+
+    static func ink(usesDarkChrome: Bool) -> PhoneInk {
+        PhoneInk(theme: usesDarkChrome ? .night : .system, userInterfaceStyle: usesDarkChrome ? .dark : .light)
+    }
+
+    /// Four providers do not fit a segmented control at accessibility sizes (it neither wraps
+    /// nor scales): there the provider is a menu.
+    static func usesProviderMenu(at size: DynamicTypeSize) -> Bool { size.isAccessibilitySize }
+
     init(form: ConnectAIFormModel, usesDarkChrome: Bool, onDone: @escaping () -> Void) {
         self.form = form
         _store = ObservedObject(wrappedValue: form.store)
@@ -128,18 +143,10 @@ struct ConnectAISheet: View {
         NavigationStack {
             Form {
                 Section {
-                    Picker(ConnectAIPresentation.title, selection: Binding(
-                        get: { form.selection },
-                        set: { form.select($0) }
-                    )) {
-                        ForEach(AIProvider.allCases) { provider in
-                            Text(provider.displayName).tag(provider)
-                        }
-                    }
-                    .pickerStyle(.segmented)
-                    .accessibilityIdentifier("connectAI.provider")
+                    providerPicker
                 } footer: {
                     Text(ConnectAIPresentation.billingNote(for: form.selection))
+                        .foregroundStyle(ink.color(.formFooter))
                 }
 
                 switch form.paneState {
@@ -165,12 +172,13 @@ struct ConnectAISheet: View {
     private var connectedSections: some View {
         Section {
             Label(ConnectAIPresentation.connectedText, systemImage: "checkmark.circle.fill")
-                .foregroundStyle(.green)
+                .foregroundStyle(ink.color(.formSuccess))
+                .accessibilityIdentifier("connectAI.connected")
             if form.showsTierPicker { tierPicker }
             if form.selection == .other, let endpoint = store.otherEndpoint {
                 Text(verbatim: endpoint.absoluteString)
                     .font(.footnote)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(ink.color(.formSecondary))
                     .textSelection(.enabled)
             }
         }
@@ -211,6 +219,7 @@ struct ConnectAISheet: View {
         } footer: {
             if let guidance = ConnectAIPresentation.keyGuidance(for: form.selection) {
                 Text(guidance)
+                    .foregroundStyle(ink.color(.formFooter))
             }
         }
         if form.showsTierPicker {
@@ -219,13 +228,14 @@ struct ConnectAISheet: View {
         Section {
             if let error = form.error {
                 Text(error.message)
-                    .foregroundStyle(.red)
+                    .foregroundStyle(ink.color(.formDestructive))
                     .accessibilityIdentifier("connectAI.error")
             }
-            Button(form.connectTitle) { form.connect() }
+            Button(form.connectTitle) { connect() }
                 .accessibilityIdentifier("connectAI.connect")
         } footer: {
             Text(ConnectAIPresentation.privacyNote)
+                .foregroundStyle(ink.color(.formFooter))
         }
     }
 
@@ -246,8 +256,43 @@ struct ConnectAISheet: View {
         if let model = provider.model(for: store.tier(for: provider)) {
             Text(verbatim: model)
                 .font(.footnote)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(ink.color(.formSecondary))
                 .accessibilityIdentifier("connectAI.tierModel")
         }
+    }
+
+    /// Claude, ChatGPT, Google, Other: segmented, or a menu at accessibility sizes.
+    @ViewBuilder
+    private var providerPicker: some View {
+        let picker = Picker(ConnectAIPresentation.title, selection: Binding(
+            get: { form.selection },
+            set: { form.select($0) }
+        )) {
+            ForEach(AIProvider.allCases) { provider in
+                Text(provider.displayName).tag(provider)
+            }
+        }
+        if Self.usesProviderMenu(at: dynamicTypeSize) {
+            picker
+                .pickerStyle(.menu)
+                .accessibilityIdentifier("connectAI.provider")
+        } else {
+            picker
+                .pickerStyle(.segmented)
+                .accessibilityIdentifier("connectAI.provider")
+        }
+    }
+
+    /// The consent step, with what happened said aloud: "Connected", or the refusal.
+    private func connect() {
+        let connected = form.connect()
+        if let spoken = Self.connectAnnouncement(connected: connected, error: form.error) {
+            UIAccessibility.post(notification: .announcement, argument: spoken)
+        }
+    }
+
+    /// What VoiceOver hears after Connect.
+    static func connectAnnouncement(connected: Bool, error: AIConnectError?) -> String? {
+        connected ? ConnectAIPresentation.connectedText : error?.message
     }
 }

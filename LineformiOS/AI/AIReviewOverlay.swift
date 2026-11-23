@@ -19,9 +19,10 @@ import UIKit
 ///   ← / → move between changes. A typed key is refused, with the review's status said again.
 ///   No key hints are drawn: a phone usually has no keyboard.
 /// - **Touch.** It scrolls on its own. A tap on a pending change makes it current (Proofread).
-/// - **Accessibility.** "Suggested changes", its value the composition as drawn, and custom
-///   actions: Accept Change, Reject Change, Accept All, Next / Previous Change (two or more
-///   pending), End Review.
+/// - **Accessibility.** "Suggested changes", its value the current change in words ("Replace “X”
+///   with “Y”", `spokenChange`), and custom actions: Accept Change, Reject Change, Accept All,
+///   Next / Previous Change (two or more pending), End Review. VoiceOver focus moves to it when the
+///   review opens, and it is read again after each decision.
 final class AIReviewOverlayTextView: UITextView {
     enum ReviewKey { case accept, reject, previous, next }
 
@@ -362,9 +363,37 @@ final class AIReviewOverlayTextView: UITextView {
 
     // MARK: - Accessibility
 
+    /// The CURRENT change in words ("Replace “X” with “Y”"), never the struck original and the
+    /// replacement read as one run with nothing saying which is which.
     override var accessibilityValue: String? {
-        get { composition.string }
+        get { Self.spokenChange(in: composition, currentID: currentID) ?? composition.string }
         set {}
+    }
+
+    /// The change VoiceOver speaks: `currentID`'s (or the only change's) struck text and its
+    /// replacement, each part of a change joined by an ellipsis. Insert / Delete when one side is
+    /// empty; nil when there is no change.
+    static func spokenChange(in composition: AIReviewComposition, currentID: Int?) -> String? {
+        let ids = Set(composition.changeRanges.keys).union(composition.removedRanges.keys)
+            .union(composition.replacementRanges.keys)
+        guard let id = currentID ?? (ids.count == 1 ? ids.first : nil) else { return nil }
+        let ns = composition.string as NSString
+        func text(_ ranges: [NSRange]?) -> String {
+            (ranges ?? [])
+                .map { NSIntersectionRange($0, NSRange(location: 0, length: ns.length)) }
+                .filter { $0.length > 0 }
+                .map { ns.substring(with: $0).trimmingCharacters(in: .whitespacesAndNewlines) }
+                .filter { !$0.isEmpty }
+                .joined(separator: " … ")
+        }
+        let removed = text(composition.removedRanges[id])
+        let inserted = text(composition.replacementRanges[id])
+        switch (removed.isEmpty, inserted.isEmpty) {
+        case (false, false): return String(localized: "Replace “\(removed)” with “\(inserted)”")
+        case (true, false): return String(localized: "Insert “\(inserted)”")
+        case (false, true): return String(localized: "Delete “\(removed)”")
+        case (true, true): return nil
+        }
     }
 
     override var accessibilityCustomActions: [UIAccessibilityCustomAction]? {
@@ -390,6 +419,13 @@ final class AIReviewOverlayTextView: UITextView {
             }
         }
         set {}
+    }
+
+    /// VoiceOver's escape (two-finger scrub) ends the review, as Done on the card does.
+    override func accessibilityPerformEscape() -> Bool {
+        guard let handler = commandHandler else { return false }
+        handler(.end)
+        return true
     }
 
     // MARK: - Scroll hand-over by character
@@ -504,6 +540,11 @@ struct AIReviewOverlay: UIViewRepresentable {
             // The overlay holds the keyboard focus: the software keyboard goes down, and the
             // read-only editor underneath gets no keys.
             if let view, view.window != nil, !view.isFirstResponder { view.becomeFirstResponder() }
+            // VoiceOver goes to the review: it hears "Suggested changes" and the change itself,
+            // with Accept, Reject and the rest as its actions.
+            if let view, view.window != nil, UIAccessibility.isVoiceOverRunning {
+                UIAccessibility.post(notification: .screenChanged, argument: view)
+            }
             DispatchQueue.main.async { showAnchor() }
         }
         return view
@@ -511,10 +552,16 @@ struct AIReviewOverlay: UIViewRepresentable {
 
     func updateUIView(_ view: AIReviewOverlayTextView, context: Context) {
         let previousCurrent = context.coordinator.presented?.1
+        let previousComposition = context.coordinator.presented?.0
         let hadPresented = context.coordinator.presented != nil
         update(view, context: context)
         if hadPresented, previousCurrent != currentID {
             view.revealCurrentChange(bottomObscured: bottomObscured(view))
+        }
+        // An accept, a reject or a move changed the current change: VoiceOver reads it again.
+        if hadPresented, context.coordinator.presented?.0 != previousComposition || previousCurrent != currentID,
+           UIAccessibility.isVoiceOverRunning, view.accessibilityElementIsFocused() {
+            UIAccessibility.post(notification: .layoutChanged, argument: view)
         }
     }
 

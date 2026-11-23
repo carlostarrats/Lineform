@@ -45,6 +45,9 @@ struct HistoryCardModel: Equatable {
     var selectedPassageID: UUID?
     /// Replace With… asked for the field on the selected passage.
     var opensReplacementField = false
+    /// Select Next / Previous Passage, for VoiceOver and Switch Control (a passage is otherwise
+    /// picked by tapping its wash).
+    var navigator = HistoryPassageNavigator()
 
     var hasSelection: Bool { selectedPassageID != nil }
 
@@ -61,6 +64,7 @@ struct HistoryCardModel: Equatable {
 
     @MainActor
     init(controller: PhoneHistoryController) {
+        navigator = HistoryPassageNavigator(controller: controller)
         guard controller.isHistoryModeActive, let passage = controller.selectedPassage else { return }
         selectedPassageID = passage.id
         currentLevel = passage.level
@@ -84,6 +88,28 @@ struct HistoryCardModel: Equatable {
     static var replacementPlaceholder: String { String(localized: "Type a replacement") }
     static var addTitle: String { String(localized: "Add") }
     static var deleteVersionTitle: String { String(localized: "Delete from History") }
+    static var nextPassageTitle: String { String(localized: "Select Next Passage") }
+    static var previousPassageTitle: String { String(localized: "Select Previous Passage") }
+    static var exitTitle: String { String(localized: "Exit History") }
+}
+
+/// The card's way to the controller's passage navigation (the Mac's Select Next / Previous
+/// Passage). Weak, and equal to any other navigator: it is not something the card shows.
+struct HistoryPassageNavigator: Equatable {
+    weak var controller: PhoneHistoryController?
+
+    init(controller: PhoneHistoryController? = nil) {
+        self.controller = controller
+    }
+
+    /// Selects the next (`delta` > 0) or previous located passage. False when there is none.
+    @MainActor
+    @discardableResult
+    func move(by delta: Int) -> Bool {
+        controller?.moveSelection(by: delta) != nil
+    }
+
+    static func == (lhs: HistoryPassageNavigator, rhs: HistoryPassageNavigator) -> Bool { true }
 }
 
 /// History mode's card (D10): at the bottom of the page, above the keyboard and the home
@@ -110,33 +136,43 @@ struct HistoryCard: View {
     /// The passage the draft belongs to; another selection clears it.
     @State private var draftPassageID: UUID?
     @FocusState private var fieldFocused: Bool
+    /// VoiceOver lands on the card's title when History mode opens.
+    @AccessibilityFocusState private var titleFocused: Bool
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
-    /// The tallest the version list grows before it scrolls.
+    /// The tallest the version list grows before it scrolls, and a row's height, at the default
+    /// size; both scale with Dynamic Type.
     static let versionListMaxHeight: CGFloat = 176
     static let rowHeight: CGFloat = 40
+    @ScaledMetric(relativeTo: .body) private var scaledRowHeight: CGFloat = HistoryCard.rowHeight
+    @ScaledMetric(relativeTo: .body) private var scaledListMaxHeight: CGFloat = HistoryCard.versionListMaxHeight
+    @ScaledMetric(relativeTo: .body) private var iconSize: CGFloat = 13
+    @ScaledMetric(relativeTo: .body) private var iconColumn: CGFloat = 20
+    @ScaledMetric(relativeTo: .body) private var addGlyphSize: CGFloat = 13
+
+    /// The smallest touch target (Apple's 44 × 44 pt).
+    static let minimumTarget: CGFloat = 44
 
     var body: some View {
         let theme = Theme.theme(for: profile)
         let ink = Color(uiColor: theme.textColor)
-        let secondary = Color(uiColor: theme.readableInk(theme.textColor.withAlphaComponent(0.6)))
+        let phoneInk = PhoneInk(theme: theme)
+        let secondary = phoneInk.secondary
+        let stacks = dynamicTypeSize.isAccessibilitySize
         VStack(alignment: .leading, spacing: 12) {
-            HStack(alignment: .firstTextBaseline) {
-                Text(HistoryCardModel.title)
-                    .font(.headline)
-                    .accessibilityAddTraits(.isHeader)
-                Spacer(minLength: 0)
-                Button(HistoryCardModel.doneTitle, action: onDone)
-                    .font(.body.weight(.semibold))
-            }
+            header(stacks: stacks)
             if model.hasSelection {
                 if model.showsLevelSwitcher { levelSwitcher(ink: ink, secondary: secondary) }
                 versionList(ink: ink, theme: theme)
-                replacementField(ink: ink, secondary: secondary)
+                replacementField(ink: ink, secondary: secondary, edge: phoneInk.color(.controlEdge))
             } else {
                 Text(HistoryCardModel.emptySelectionText)
                     .font(.subheadline)
                     .foregroundStyle(secondary)
                     .fixedSize(horizontal: false, vertical: true)
+                    // The tap it asks for has a VoiceOver path: Select Next Passage, here, on the
+                    // card and on the editor, and the editor's Passages rotor.
+                    .accessibilityAction(named: Text(HistoryCardModel.nextPassageTitle)) { model.navigator.move(by: 1) }
             }
         }
         .foregroundStyle(ink)
@@ -144,7 +180,19 @@ struct HistoryCard: View {
         .padding(16)
         .background { HistoryCardBackground(theme: theme) }
         .environment(\.colorScheme, theme.usesDarkChrome ? .dark : .light)
-        .onAppear { openFieldIfRequested() }
+        .accessibilityElement(children: .contain)
+        .accessibilityAction(named: Text(HistoryCardModel.nextPassageTitle)) { model.navigator.move(by: 1) }
+        .accessibilityAction(named: Text(HistoryCardModel.previousPassageTitle)) { model.navigator.move(by: -1) }
+        .accessibilityAction(named: Text(HistoryCardModel.exitTitle)) { onDone() }
+        .accessibilityAction(.escape) { onDone() }
+        .onAppear {
+            openFieldIfRequested()
+            // After the editor takes the focus on entry, VoiceOver is moved to the card.
+            Task { @MainActor in
+                try? await Task.sleep(for: .milliseconds(150))
+                titleFocused = true
+            }
+        }
         .onChange(of: model.opensReplacementField) { _, _ in openFieldIfRequested() }
         .onChange(of: model.selectedPassageID) { _, id in
             guard id != draftPassageID else { return }
@@ -160,8 +208,47 @@ struct HistoryCard: View {
 
     // MARK: - Parts
 
+    /// "History" and Done; at accessibility sizes Done goes under the title.
+    @ViewBuilder
+    private func header(stacks: Bool) -> some View {
+        let title = Text(HistoryCardModel.title)
+            .font(.headline)
+            .accessibilityAddTraits(.isHeader)
+            .accessibilityFocused($titleFocused)
+        if stacks {
+            VStack(alignment: .leading, spacing: 8) {
+                title
+                doneButton(reachesPastLayout: false)
+            }
+        } else {
+            HStack(alignment: .firstTextBaseline) {
+                title
+                Spacer(minLength: 0)
+                doneButton(reachesPastLayout: true)
+            }
+        }
+    }
+
+    /// Done, with a 44 pt target; the reach is taken back with negative padding, so the header
+    /// lays out as it always did.
+    private func doneButton(reachesPastLayout: Bool) -> some View {
+        Button(action: onDone) {
+            Text(HistoryCardModel.doneTitle)
+                .font(.body.weight(.semibold))
+                .frame(minWidth: Self.minimumTarget, minHeight: Self.minimumTarget)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.borderless)
+        .padding(.vertical, reachesPastLayout ? -11 : 0)
+        .accessibilityIdentifier("history.done")
+    }
+
+    /// Paragraph · Sentence · Word in a row; one per line at accessibility sizes.
     private func levelSwitcher(ink: Color, secondary: Color) -> some View {
-        HStack(spacing: 18) {
+        let layout = dynamicTypeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: 0))
+            : AnyLayout(HStackLayout(spacing: 18))
+        return layout {
             ForEach(model.levels, id: \.self) { level in
                 let isCurrent = level == model.currentLevel
                 Button {
@@ -171,13 +258,16 @@ struct HistoryCard: View {
                         .font(.subheadline.weight(isCurrent ? .semibold : .regular))
                         .foregroundStyle(isCurrent ? ink : secondary)
                         .padding(.vertical, 4)
+                        .frame(minHeight: Self.minimumTarget)
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
+                // The 44 pt target reaches past the drawn row; the row keeps its height.
+                .padding(.vertical, dynamicTypeSize.isAccessibilitySize ? 0 : -8)
                 .accessibilityAddTraits(isCurrent ? .isSelected : [])
             }
         }
-        .frame(maxWidth: .infinity)
+        .frame(maxWidth: .infinity, alignment: dynamicTypeSize.isAccessibilitySize ? .leading : .center)
     }
 
     private func versionList(ink: Color, theme: Theme) -> some View {
@@ -190,7 +280,7 @@ struct HistoryCard: View {
                     }
                 }
             }
-            .frame(maxHeight: min(Self.versionListMaxHeight, CGFloat(model.rows.count) * (Self.rowHeight + 2)))
+            .frame(maxHeight: min(scaledListMaxHeight, CGFloat(model.rows.count) * (scaledRowHeight + 2)))
             .onAppear { scrollToCurrent(proxy) }
             .onChange(of: model.rows) { _, _ in scrollToCurrent(proxy) }
         }
@@ -203,20 +293,21 @@ struct HistoryCard: View {
     private func versionRow(_ row: HistoryCardRow, position: Int, ink: Color) -> some View {
         HStack(spacing: 10) {
             Image(systemName: row.symbolName)
-                .font(.system(size: 13, weight: .semibold))
-                .frame(width: 20)
+                .font(.system(size: iconSize, weight: .semibold))
+                .frame(width: iconColumn)
             Text(row.text)
                 .font(.body.weight(row.isCurrent ? .semibold : .regular))
-                .lineLimit(1)
+                // At accessibility sizes a version gets room for more than a few words.
+                .lineLimit(dynamicTypeSize.isAccessibilitySize ? 3 : 1)
                 .truncationMode(.tail)
             Spacer(minLength: 0)
             if row.isCurrent {
                 Image(systemName: "checkmark")
-                    .font(.system(size: 13, weight: .semibold))
+                    .font(.system(size: iconSize, weight: .semibold))
             }
         }
         .padding(.horizontal, 10)
-        .frame(maxWidth: .infinity, minHeight: Self.rowHeight, alignment: .leading)
+        .frame(maxWidth: .infinity, minHeight: scaledRowHeight, alignment: .leading)
         .background {
             RoundedRectangle(cornerRadius: LineformDesign.Radius.row, style: .continuous)
                 .fill(ink.opacity(row.isCurrent ? 0.08 : 0))
@@ -233,12 +324,13 @@ struct HistoryCard: View {
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(row.accessibilityLabel(position: position, of: model.rows.count))
         .accessibilityAddTraits(row.isCurrent ? [.isButton, .isSelected] : [.isButton])
+        .accessibilityIdentifier("history.versionRow")
         .accessibilityAction { onSelectVersion(row.id) }
         // The context menu must not be the only path to Delete.
         .accessibilityAction(named: Text(HistoryCardModel.deleteVersionTitle)) { onDeleteVersion(row.id) }
     }
 
-    private func replacementField(ink: Color, secondary: Color) -> some View {
+    private func replacementField(ink: Color, secondary: Color, edge: Color) -> some View {
         let canCommit = !draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         return HStack(spacing: 8) {
             TextField(
@@ -254,15 +346,19 @@ struct HistoryCard: View {
             .textInputAutocapitalization(.never)
             Button { commit() } label: {
                 Image(systemName: "arrow.turn.down.left")
-                    .font(.system(size: 13, weight: .bold))
+                    .font(.system(size: addGlyphSize, weight: .bold))
                     .foregroundStyle(ink.opacity(canCommit ? 0.85 : 0.35))
                     .frame(width: 30, height: 30)
                     .background(Circle().fill(ink.opacity(canCommit ? 0.10 : 0.05)))
-                    .contentShape(Circle())
+                    .frame(width: Self.minimumTarget, height: Self.minimumTarget)
+                    .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
+            // A 30 pt circle drawn, a 44 pt target: the field keeps its height.
+            .padding(-(Self.minimumTarget - 30) / 2)
             .disabled(!canCommit)
             .accessibilityLabel(HistoryCardModel.addTitle)
+            .accessibilityIdentifier("history.add")
         }
         .padding(.leading, 12)
         .padding(.trailing, 5)
@@ -273,7 +369,7 @@ struct HistoryCard: View {
         }
         .overlay {
             RoundedRectangle(cornerRadius: LineformDesign.Radius.row, style: .continuous)
-                .strokeBorder(ink.opacity(0.22), lineWidth: 1)
+                .strokeBorder(edge, lineWidth: 1)
         }
     }
 
