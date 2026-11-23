@@ -123,8 +123,14 @@ public final class SharedPassageHistoryStore: @unchecked Sendable {
         let deleted = target.versions[index]
         var stones: [VersionTombstone] = []
         let remaining = target.versions.enumerated().filter { $0.offset != index }.map(\.element)
-        // A tombstone names a date and author, so it would remove a twin too: skip it then.
-        if !remaining.contains(where: { $0.createdAt == deleted.createdAt && $0.author == deleted.author }) {
+        if remaining.count < 2 {
+            // The engine removes the whole passage: every version of it goes (another device's
+            // later version, with its own date, still survives).
+            for version in target.versions {
+                stones.append(VersionTombstone(passage: passage, createdAt: version.createdAt, author: version.author, deletedAt: date))
+            }
+        } else if !remaining.contains(where: { $0.createdAt == deleted.createdAt && $0.author == deleted.author }) {
+            // A tombstone names a date and author, so it would remove a twin too: skip it then.
             stones.append(VersionTombstone(passage: passage, createdAt: deleted.createdAt, author: deleted.author, deletedAt: date))
         }
         var doomed: Set<UUID> = remaining.count < 2
@@ -401,7 +407,8 @@ public final class SharedPassageHistoryStore: @unchecked Sendable {
         return record.format <= SharedHistoryRecord.currentFormat
     }
 
-    /// Removes the folder only when everything in it is a readable record with no passages: a
+    /// Removes the folder only when everything in it is a readable record with no passages and no
+    /// live tombstones (a tombstone must outlive a stale record another device may still upload): a
     /// record that cannot be read (or a placeholder) may hold History, so it is never deleted.
     private func removeFolderIfEmpty(_ key: String) {
         guard let items = CoordinatedFileAccess.contents(of: folder(key)) else { return }
@@ -409,7 +416,8 @@ public final class SharedPassageHistoryStore: @unchecked Sendable {
             guard item.pathExtension == "json", !item.lastPathComponent.hasPrefix("."),
                   let data = CoordinatedFileAccess.read(item),
                   let record = try? HistoryMerge.decoder.decode(SharedHistoryRecord.self, from: data),
-                  record.format <= SharedHistoryRecord.currentFormat, record.passages.isEmpty else { return }
+                  record.format <= SharedHistoryRecord.currentFormat,
+                  record.passages.isEmpty, record.deletedVersions.isEmpty else { return }
         }
         CoordinatedFileAccess.remove(folder(key))
         forget(key)

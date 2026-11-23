@@ -121,4 +121,15 @@ final class SettingsClearHistoryTests: XCTestCase {
         reopened.open(url: a, text: text)
         XCTAssertFalse(reopened.hasHistory)
     }
+
+    /// The app's store routes by document: local History keeps the 1.8/1.9 directory, and Clear
+    /// History in Settings clears that same store object (its notification's `object`).
+    func testSharedStoreRoutesThroughTheUnchangedLocalDirectory() throws {
+        let router = try XCTUnwrap(DocumentHistoryController.sharedStore as? RoutingPassageHistoryStore)
+        XCTAssertEqual(router.local.directory.standardizedFileURL,
+                       FilePassageHistoryStore.defaultDirectory(
+                           home: URL(fileURLWithPath: NSHomeDirectory(), isDirectory: true)).standardizedFileURL)
+        XCTAssertTrue(DocumentHistoryController.sharedStore === router, "one store object for the app")
+        XCTAssertEqual(HistoryLocation.classify(directory.appendingPathComponent("a.md")), .local)
+    }
 }

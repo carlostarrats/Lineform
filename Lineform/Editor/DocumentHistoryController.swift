@@ -90,11 +90,12 @@ final class DocumentHistoryController: ObservableObject {
     /// on the main thread, and opening a document never waits for it.
     private static let pruneQueue = DispatchQueue(label: "com.lineform.history.prune", qos: .utility)
 
-    /// The app's one store, under the (sandboxed) home's Application Support. Creating it touches
-    /// nothing on disk.
-    static let sharedStore: PassageHistoryPersisting = FilePassageHistoryStore(
-        directory: FilePassageHistoryStore.defaultDirectory(home: URL(fileURLWithPath: NSHomeDirectory(), isDirectory: true))
-    )
+    /// The app's one store: the unchanged local store under the (sandboxed) home's Application
+    /// Support, and for documents in the Lineform iCloud folder the shared store in the container's
+    /// `History/` folder (`RoutingPassageHistoryStore`). Creating it touches no History file (it
+    /// reads, or makes once, this Mac's device name in user defaults).
+    static let sharedStore: PassageHistoryPersisting = RoutingPassageHistoryStore.live(
+        platform: "mac", home: URL(fileURLWithPath: NSHomeDirectory(), isDirectory: true))
 
     /// Posted (object: the store) after `clearAllHistory(in:)` emptied a store. Every controller
     /// on that store re-reads it, so no open editor keeps — or later writes back — cleared history.
@@ -469,6 +470,10 @@ final class DocumentHistoryController: ObservableObject {
         let before = engine.history
         let edit = engine.deleteVersion(id, at: index, in: text)
         guard edit != nil || engine.history != before else { return nil }
+        // With the history from BEFORE the delete, and only once the engine really deleted: a
+        // shared store records it, so the version (or the passage removed with it) is not brought
+        // back from another device's copy.
+        if let url { store.noteVersionDeleted(passage: id, at: index, in: before, for: url) }
         sessionDeletedVersions = true
         return didProduce(edit, in: text, alwaysRefresh: true)
     }

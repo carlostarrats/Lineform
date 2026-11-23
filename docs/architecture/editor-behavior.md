@@ -658,7 +658,9 @@ shows passages with history and steps their versions. Spec:
 `DocumentHistoryController` (one per editor window; the only thing that applies History's edits),
 `LineformTextView+History.swift` (drawing, keys, applying edits), `HistorySidebar*` (sidebar).
 
-- **Never in the document file.** The store is JSON under
+- **Never in the document file.** The app's store is `RoutingPassageHistoryStore` (see **Sync**
+  below): a document in the Lineform iCloud folder goes to the shared store, every other document to
+  the local store, which is unchanged since 1.8. The local store is JSON under
   `~/Library/Application Support/Lineform/History/` (inside the sandbox container): `index.json`
   maps `FileIdentity.key` plus a bookmark to a `<uuid>.json` per document. Nothing is written until a
   version is actually kept. Cleanup: a deleted (or Trashed) file's entry goes, a passage no longer
@@ -676,6 +678,38 @@ shows passages with history and steps their versions. Spec:
   that store runs `reloadFromStore()`. `reloadFromStore` replaces the engine BEFORE leaving
   History mode, because leaving saves — the other order wrote the cleared history straight back
   (`SettingsClearHistoryTests.testClearHistoryCallsClearAll` catches it).
+- **Sync (2026-11-22).** History for documents inside `<container>/Documents/` lives in
+  `<container>/History/v1/` — a sibling of `Documents/`, so it syncs but never shows in Finder or
+  Files. `HistoryLocation.classify` recognises the container from the URL alone (first ancestor
+  `iCloud~com~lineform~app` with a `Documents` child); `load`/`save` never look the container up,
+  only `prune` and `clearAll` do, on a background queue. Layout:
+  `Documents/<key>/<device>.json`, one record per device per document (`key` = SHA-256 of the
+  relative path, NFC + lowercased), and `Cleared/<device>.json` markers. Device names are
+  `mac-<UUID>` / `iphone-<UUID>` (`HistoryDeviceIdentity`, `LineformHistoryDeviceID.v1`).
+  - **Merge, never last-writer-wins.** A device writes only its own record; `HistoryMerge.merge`
+    unions every record on read (passages by id, versions by createdAt + author + ordinal, scalars
+    from the newest record). A passage missing from a record never deletes it (the engine drops
+    what it cannot find in a stale `.md`); a version leaves only through a tombstone, a Clear
+    History marker, or the 30-day rule. Unreadable, half-synced, future-format records and
+    `.icloud` placeholders are skipped and never deleted (a placeholder is asked to download).
+  - **Tombstones.** A save tombstones versions gone from a passage still present. Delete Version
+    also calls `noteVersionDeleted` (with the history from before the delete): the engine removes a
+    two-version passage whole, which by itself would write nothing, and the version came back from
+    the other device. A folder holding live tombstones is kept until they expire.
+  - **Moves.** Inside → inside merges at the new key with `formerPaths += [old]` and deletes the old
+    folder; a reader also merges records still filed under a former path (a device that wrote there
+    offline). Local → inside carries the local History in; inside → local saves it locally and
+    deletes the shared folder. Moves made while the app was closed are followed by the local
+    store's bookmarks and by a sidecar (`Lineform/HistoryShared/bookmarks.json`) for shared ones.
+  - **Migration** of 1.8/1.9 local History is lazy: on the document's first load, and at the
+    session prune for every local entry inside the container; the local entry is removed only after
+    the shared write succeeded.
+  - **Clear History** clears local at once, hides shared History from every later load, then writes
+    this device's `Cleared` marker and deletes every shared folder — a device that was offline drops
+    its pre-clear passages at its next merge; passages touched after the clear survive.
+  - **Prune** deletes a shared folder only when the document is confirmed missing (an `.icloud`
+    placeholder counts as present), rewrites only this device's record, and deletes another
+    device's record only when it was written more than 30 days ago.
 - **Add stores only the original; replacements are the writer's (1.8 QA follow-ups, 2026-11-13).**
   `DocumentHistoryEngine.add` creates ONE version (the live text, `currentIndex 0`); adding a range
   that is already a passage adds nothing and returns that passage. 1.8.0 stored a frozen copy plus

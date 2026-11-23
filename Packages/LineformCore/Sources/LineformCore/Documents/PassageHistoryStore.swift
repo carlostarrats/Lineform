@@ -12,6 +12,15 @@ public protocol PassageHistoryPersisting: AnyObject {
     func retargetDirectory(from oldDir: URL, to newDir: URL)
     func prune(now: Date)
     func clearAll()
+    /// Delete Version is about to remove version `index` of `passage` from `history` (the history
+    /// BEFORE the engine deletes it). A store that merges History from several devices records it,
+    /// so the version — or a passage the engine removes with it — is not brought back from another
+    /// device's copy. Default: nothing.
+    func noteVersionDeleted(passage: UUID, at index: Int, in history: DocumentHistory, for url: URL)
+}
+
+public extension PassageHistoryPersisting {
+    func noteVersionDeleted(passage: UUID, at index: Int, in history: DocumentHistory, for url: URL) {}
 }
 
 /// Keeps nothing. Used by tests and by untitled documents (no file to key history to).
@@ -42,7 +51,7 @@ public final class FilePassageHistoryStore: PassageHistoryPersisting, @unchecked
         var bookmark: Data?
     }
 
-    private let directory: URL
+    let directory: URL
     private let isConfirmedMissing: (URL) -> Bool
     private let fileManager = FileManager.default
     private let lock = NSLock()

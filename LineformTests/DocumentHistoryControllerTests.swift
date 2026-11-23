@@ -502,6 +502,38 @@ final class DocumentHistoryControllerTests: XCTestCase {
         XCTAssertNil(controller.display)
     }
 
+    /// Delete Version tells the store (with the history from before the delete), so a shared store
+    /// can keep the deletion from coming back from another device's copy. A refused delete does not.
+    func testDeleteVersionNotesTheDeletionWithThePreviousHistory() throws {
+        final class NotingStore: PassageHistoryPersisting {
+            var notes: [(passage: UUID, index: Int, history: DocumentHistory, url: URL)] = []
+            func load(for url: URL) -> DocumentHistory { DocumentHistory(passages: []) }
+            func save(_ history: DocumentHistory, for url: URL) {}
+            func retarget(from old: URL, to new: URL) {}
+            func retargetDirectory(from oldDir: URL, to newDir: URL) {}
+            func prune(now: Date) {}
+            func clearAll() {}
+            func noteVersionDeleted(passage: UUID, at index: Int, in history: DocumentHistory, for url: URL) {
+                notes.append((passage, index, history, url))
+            }
+        }
+        let store = NotingStore()
+        let url = try makeFile("noted.md", contents: text)
+        let (controller, edited) = controllerWithEditedPassage(store: store, url: url)
+        controller.enterHistoryMode(text: edited)
+        let id = try XCTUnwrap(controller.display?.passages.first?.id)
+        _ = controller.handle(.select(id), text: edited)
+        XCTAssertNil(controller.deleteVersion(5, text: edited), "no such version")
+        XCTAssertTrue(store.notes.isEmpty)
+        _ = controller.deleteVersion(0, text: edited)
+        let note = try XCTUnwrap(store.notes.first)
+        XCTAssertEqual(store.notes.count, 1)
+        XCTAssertEqual(note.passage, id)
+        XCTAssertEqual(note.index, 0)
+        XCTAssertEqual(note.url, url)
+        XCTAssertEqual(note.history.passages.first { $0.id == id }?.versions.count, 2, "the history before the delete")
+    }
+
     func testTypingCommandExitsHistoryMode() throws {
         let (controller, edited) = controllerWithEditedPassage()
         controller.enterHistoryMode(text: edited)
