@@ -28,6 +28,8 @@ struct DocumentScreen: View {
     var files: FilesStore
     /// The Settings section's values: Automatic Dark Mode and the spelling switch apply here.
     @ObservedObject var settings: AppSettings
+    /// The announcement card's store (`PhoneAnnouncementStore.shared` in the app).
+    @ObservedObject var announcements: PhoneAnnouncementStore
     @Environment(\.colorScheme) private var colorScheme
     private var profile: ReadingProfile {
         settings.displayProfile(profileStore.activeProfile, userInterfaceStyle: UIUserInterfaceStyle(colorScheme))
@@ -89,6 +91,7 @@ struct DocumentScreen: View {
         profileStore: ReadingProfileStore,
         files: FilesStore = .shared,
         settings: AppSettings = .shared,
+        announcements: PhoneAnnouncementStore = .shared,
         initialMode: EditorDisplayMode = .write,
         showsFirstRun: Bool = false,
         selection: SelectionController? = nil
@@ -97,6 +100,7 @@ struct DocumentScreen: View {
         self.profileStore = profileStore
         self.files = files
         self.settings = settings
+        self.announcements = announcements
         _storedDisplayMode = SceneStorage(wrappedValue: initialMode, "displayMode")
         _firstRun = State(initialValue: FirstRunPresentation(launchWantsFirstRun: showsFirstRun))
         _selection = StateObject(wrappedValue: selection ?? SelectionController())
@@ -231,6 +235,25 @@ struct DocumentScreen: View {
             EditorMotionPolicy.animation(.easeOut(duration: LineformDesign.Motion.standard), reduceMotion: reduceMotion),
             value: SelectionController.showsBottomButtons(phase: selection.phase, aiState: selection.aiState)
         )
+        .overlay(alignment: .bottomTrailing) {
+            // The announcement floats above the Menu and Aa buttons, only while they show and
+            // nothing else holds the bottom (the Mac hides it under its AI card too).
+            if let announcement = shownAnnouncement {
+                PhoneAnnouncementCard(
+                    announcement: announcement,
+                    profile: profile,
+                    onAction: { announcements.performAction(for: announcement) },
+                    onDismiss: { announcements.dismiss(announcement) }
+                )
+                .padding(.horizontal, MarkdownEditor.chromeMargin)
+                .padding(.bottom, MarkdownEditor.chromeMargin + MenuButton.diameter + 12)
+                .transition(EditorMotionPolicy.fadeAndMoveTransition(y: 24, reduceMotion: reduceMotion))
+            }
+        }
+        .animation(
+            EditorMotionPolicy.animation(.easeOut(duration: LineformDesign.Motion.standard), reduceMotion: reduceMotion),
+            value: shownAnnouncement?.id
+        )
         .overlay {
             SelectionBottomChrome(controller: selection, profile: profile)
         }
@@ -307,6 +330,8 @@ struct DocumentScreen: View {
                 hasCheckedFirstRunRestore = true
             }
             makeExportCommandsIfNeeded()
+            // In-app notifications off takes the card away at once (the request is gated at the check).
+            announcements.follow(settings)
             // History for AI actions: the document's, the ONE assignment (`SelectionController`).
             selection.aiHistory = document.history
             shownDisplayMode = shownDisplayMode ?? storedDisplayMode
@@ -346,6 +371,19 @@ struct DocumentScreen: View {
     }
 
     private var isHistoryModeActive: Bool { document.history?.isHistoryModeActive == true }
+
+    /// The announcement on screen: the store's, while the Menu and Aa buttons show and nothing
+    /// else holds the bottom of the page (History's card, the selection row or comment field, an
+    /// AI card, a notice, first run, a download).
+    private var shownAnnouncement: Announcement? {
+        guard let visible = announcements.visible, settings.checksForAnnouncements,
+              !isHistoryModeActive, !presentsFirstRun,
+              noticeMessage == nil, document.downloadingName == nil,
+              selection.aiState == .idle,
+              SelectionController.showsBottomButtons(phase: selection.phase, aiState: selection.aiState)
+        else { return nil }
+        return visible
+    }
 
     /// The editor's text now (the document's before the editor exists).
     private var editorText: String { positionKeeper.editor?.textStorage.string ?? document.text }

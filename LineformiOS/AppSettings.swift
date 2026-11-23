@@ -13,8 +13,8 @@ import UIKit
 /// - `showICloudInFiles` (the Mac's `showICloudInSidebar`): the Files section shows Lineform's
 ///   iCloud folder. New documents still save there.
 /// - `checksSpellingWhileTyping`: the editor's `SpellCheckPass` runs as the writer types.
-/// - `checksForAnnouncements`: gates the announcement request itself. Announcements arrive on
-///   iPhone in roadmap step 12; until then this only keeps the writer's choice.
+/// - `checksForAnnouncements`: gates the announcement request itself (`PhoneAnnouncementStore`),
+///   and off takes a card on screen away.
 @MainActor
 final class AppSettings: ObservableObject {
     static let shared = AppSettings(defaults: .standard)

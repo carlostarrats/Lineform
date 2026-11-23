@@ -26,10 +26,19 @@ struct LineformiOSApp: App {
         BundledFontRegistrar.registerFonts()
     }
 
+    @Environment(\.scenePhase) private var scenePhase
+
     var body: some Scene {
         WindowGroup {
             DocumentScreen(document: document, profileStore: profileStore, showsFirstRun: showsFirstRun)
                 .onOpenURL { url in Task { await document.openReportingFailure(url) } }
+        }
+        .onChange(of: scenePhase, initial: true) { _, phase in
+            // The announcement check (once a day at most, gated by the setting) when the app
+            // comes to the foreground: launch included. Never in the test host, at this call site.
+            if PhoneAnnouncementStore.checksOnSceneChange(to: phase, isRunningUnderTests: Self.isRunningUnderTests) {
+                Task { await PhoneAnnouncementStore.shared.checkIfNeeded(isEnabled: AppSettings.shared.checksForAnnouncements) }
+            }
         }
     }
 }
