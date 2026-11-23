@@ -9028,6 +9028,111 @@
           }
         }
       }
+    },
+    "Use a model you run yourself — Ollama, LM Studio, llama.cpp — or any OpenAI-compatible server." : {
+      "comment" : "iPhone variant of Connect Your AI's note for Other (the Mac's says “on this Mac”).",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nutze ein Modell, das du selbst betreibst – Ollama, LM Studio, llama.cpp – oder einen beliebigen OpenAI-kompatiblen Server."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Usa un modelo que ejecutes tú mismo (Ollama, LM Studio, llama.cpp) o cualquier servidor compatible con OpenAI."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Utilisez un modèle que vous exécutez vous-même — Ollama, LM Studio, llama.cpp — ou tout serveur compatible OpenAI."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "自分で動かすモデル（Ollama、LM Studio、llama.cpp）や、OpenAI 互換の任意のサーバーを使えます。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "使用你自己运行的模型（Ollama、LM Studio、llama.cpp），或任何兼容 OpenAI 的服务器。"
+          }
+        }
+      }
+    },
+    "Connect your AI again in Menu ▸ Settings ▸ Connect Your AI…." : {
+      "comment" : "iPhone variant of the reconnect message: Menu, Settings and Connect Your AI… as the iPhone app names them.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Verbinde deine KI erneut unter Menü ▸ Einstellungen ▸ KI verbinden…."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vuelve a conectar tu IA en Menú ▸ Ajustes ▸ Conectar tu IA…."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Connectez de nouveau votre IA dans Menu ▸ Réglages ▸ Connecter votre IA…."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "メニュー ▸ 設定 ▸ AI を接続… で AI をもう一度接続してください。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "请在 菜单 ▸ 设置 ▸ 连接你的 AI… 中重新连接你的 AI。"
+          }
+        }
+      }
+    },
+    "Plain http:// is only allowed for a server on this iPhone. Use https:// for other addresses." : {
+      "comment" : "iPhone variant of the plain-http refusal (the Mac's says “on this Mac”).",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Unverschlüsseltes http:// ist nur für einen Server auf diesem iPhone erlaubt. Verwende für andere Adressen https://."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "http:// sin cifrar solo se permite para un servidor en este iPhone. Usa https:// para otras direcciones."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Le http:// simple n’est autorisé que pour un serveur sur cet iPhone. Utilisez https:// pour les autres adresses."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "暗号化されない http:// は、この iPhone 上のサーバにのみ使用できます。それ以外のアドレスには https:// を使用してください。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "纯 http:// 仅允许用于这台 iPhone 上的服务器。其他地址请使用 https://。"
+          }
+        }
+      }
     }
   },
   "version" : "1.0"

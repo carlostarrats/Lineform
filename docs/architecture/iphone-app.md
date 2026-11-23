@@ -808,12 +808,14 @@ are worded for iPhone: no iPhone string names a Mac or a sidebar
 - **In-app notifications** (`checksForAnnouncements`): it gates the announcement request itself.
   Announcements reach the iPhone in roadmap step 12; until then the switch only keeps the choice.
 
+- **Connect Your AI…** (`ConnectAISheet`) connects Claude, ChatGPT, Google or Other, one provider
+  at a time, with the Mac's `ConnectAIPresentation` and `AIConnectionStore`.
 - **Clear History** (the Mac's row, note "Removes saved versions for every document. Your files
   are not changed.", button "Clear…" and destructive confirmation "Clear all history?"):
   `SettingsSection.clearHistory(store:)` → `PhoneHistoryController.clearAllHistory(in:)`, the same
   path as the Mac (see "History").
 
-Connect Your AI and Check for Updates arrive with steps 8 and 12.
+Check for Updates arrives with step 12.
 
 ### Markdown Basics on iPhone
 

@@ -147,6 +147,25 @@ final class SettingsTests: XCTestCase {
         // The rows the Mac words differently are the iPhone's own.
         XCTAssertTrue(strings.keys.contains("Show iCloud in Files"))
         XCTAssertFalse(strings.keys.contains("Show iCloud in sidebar"))
+
+        // The package strings the iPhone shows (Connect Your AI and the AI messages) follow the same
+        // rule, in every language: the Mac's "on this Mac" and "Lineform ▸ Connect Your AI…" have
+        // iPhone variants.
+        let package = try ConnectAITests.packageCatalog()
+        var checkedPackageStrings = 0
+        for key in ConnectAIFormModel.allDisplayedStrings {
+            var values = [key]
+            if let localizations = (package[key] as? [String: Any])?["localizations"] as? [String: [String: Any]] {
+                checkedPackageStrings += 1
+                values += localizations.values.compactMap { ($0["stringUnit"] as? [String: Any])?["value"] as? String }
+            }
+            for value in values {
+                let range = NSRange(value.startIndex..., in: value)
+                XCTAssertNil(mac.firstMatch(in: value, range: range), "an iPhone AI string names a Mac: \(value)")
+                XCTAssertFalse(value.contains("Lineform ▸"), "an iPhone AI string points at the Mac's menu bar: \(value)")
+            }
+        }
+        XCTAssertGreaterThan(checkedPackageStrings, 10)
     }
 
     // MARK: - Helpers

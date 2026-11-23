@@ -10,6 +10,19 @@ public enum ConnectAIPaneState: Equatable {
     case needsKey(reconnect: Bool)
 }
 
+/// Which device the AI strings name. The Mac's strings say "on this Mac" and point at the menu bar
+/// ("Lineform ▸ Connect Your AI…"); the iPhone shows its own variants, which never name a Mac.
+/// Both variants compile on both platforms, so each catalog key stays in use everywhere.
+enum AIDeviceWording {
+    static var namesPhone: Bool {
+        #if os(iOS)
+        true
+        #else
+        false
+        #endif
+    }
+}
+
 /// Copy and display decisions for Connect Your AI, kept out of the view so they can be
 /// tested without a window. Every string is chrome and localizes; brand and company names
 /// do not.
@@ -46,6 +59,9 @@ public enum ConnectAIPresentation {
         case .google:
             return String(localized: "A Gemini subscription doesn't cover this. API keys are billed per use by Google.", bundle: bundle)
         case .other:
+            guard !AIDeviceWording.namesPhone else {
+                return String(localized: "Use a model you run yourself — Ollama, LM Studio, llama.cpp — or any OpenAI-compatible server.", bundle: bundle)
+            }
             return String(localized: "Use a model on this Mac — Ollama, LM Studio, llama.cpp — or any OpenAI-compatible server.", bundle: bundle)
         }
     }

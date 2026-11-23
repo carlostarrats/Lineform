@@ -134,7 +134,14 @@ public final class AIActionController: ObservableObject {
     // MARK: - Messages
 
     public static var tooMuchTextMessage: String { String(localized: "Select less text — about 4,000 words at most.", bundle: .module) }
-    public static var reconnectMessage: String { String(localized: "Connect your AI again in Lineform ▸ Connect Your AI….", bundle: .module) }
+    public static var reconnectMessage: String { reconnectMessage(bundle: .module) }
+    /// The Mac points at its menu bar; the iPhone at Menu ▸ Settings.
+    static func reconnectMessage(bundle: Bundle) -> String {
+        guard !AIDeviceWording.namesPhone else {
+            return String(localized: "Connect your AI again in Menu ▸ Settings ▸ Connect Your AI….", bundle: bundle)
+        }
+        return String(localized: "Connect your AI again in Lineform ▸ Connect Your AI….", bundle: bundle)
+    }
     public static var textChangedMessage: String { String(localized: "The text changed while Lineform was waiting. Nothing was changed.", bundle: .module) }
     public static var noChangesMessage: String { String(localized: "No changes suggested.", bundle: .module) }
     public static var nothingToMarkMessage: String { String(localized: "No sentences found.", bundle: .module) }

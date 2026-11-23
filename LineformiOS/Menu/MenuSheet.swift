@@ -158,7 +158,7 @@ struct MenuSheet: View {
                 exportCommands: exportCommands, selection: selection, mode: mode
             )
         case .settings:
-            SettingsSection(settings: settings)
+            SettingsSection(settings: settings, usesDarkChrome: Theme.theme(for: profile).usesDarkChrome)
         case .history:
             // Never a page (`section` falls back to the default).
             EmptyView()

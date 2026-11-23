@@ -5,15 +5,38 @@ import SwiftUI
 /// Mac's notes name a Mac and a sidebar). The values are `AppSettings`, per device, under the
 /// Mac's keys.
 ///
-/// Then Clear History (the Mac's row, note and confirmation): it removes every document's saved
-/// versions — on this iPhone and, for documents in the Lineform iCloud folder, everywhere they
-/// sync — and leaves the files alone. Connect Your AI and Check for Updates arrive with roadmap
-/// steps 8 and 12.
+/// Below the switches, Connect Your AI… opens `ConnectAISheet` over the sheet. Then Clear History
+/// (the Mac's row, note and confirmation): it removes every document's saved versions — on this
+/// iPhone and, for documents in the Lineform iCloud folder, everywhere they sync — and leaves the
+/// files alone. Check for Updates arrives with roadmap step 12.
 struct SettingsSection: View {
     @ObservedObject var settings: AppSettings
+    /// The one AI connection (`AIConnectionStore.shared` in the app). Reading it reads
+    /// UserDefaults only; the Keychain is never read here.
+    @ObservedObject var aiStore: AIConnectionStore
     /// The store Clear History empties: the app's one History store.
-    var historyStore: PassageHistoryPersisting = PhoneHistoryController.sharedStore
+    var historyStore: PassageHistoryPersisting
+    /// Made fresh each time Connect Your AI… is tapped, so a typed key never outlives the sheet.
+    @State private var connectForm: ConnectAIFormModel?
     @State private var isConfirmingClearHistory = false
+    var usesDarkChrome = false
+
+    init(
+        settings: AppSettings,
+        aiStore: AIConnectionStore = .shared,
+        historyStore: PassageHistoryPersisting = PhoneHistoryController.sharedStore,
+        usesDarkChrome: Bool = false
+    ) {
+        self.settings = settings
+        self.aiStore = aiStore
+        self.historyStore = historyStore
+        self.usesDarkChrome = usesDarkChrome
+    }
+
+    static var connectAITitle: String { String(localized: "Connect Your AI…") }
+    static var connectAINote: String {
+        String(localized: "Rewrite and proofread with an AI account of your own. Only the passage you select is sent, or the whole document when you choose Ask AI for it, and only when you choose an action.")
+    }
 
     // MARK: Clear History (the Mac's strings)
 
@@ -26,7 +49,8 @@ struct SettingsSection: View {
     }
     static var cancelTitle: String { String(localized: "Cancel") }
 
-    /// Every row's title, in order: the switches, then Clear History.
+    /// Every switch's title, in order, then Clear History. (Connect Your AI… sits between them; it
+    /// is a navigation row with its own `connectAITitle`.)
     static var rowTitles: [String] { rows.map(\.title) + [clearHistoryTitle] }
 
     /// The confirmed Clear History: empties the store, and every History controller on it
@@ -90,12 +114,42 @@ struct SettingsSection: View {
                 .padding(.vertical, 4)
                 .listRowBackground(Color.clear)
             }
+            Button {
+                connectForm = ConnectAIFormModel(store: aiStore)
+            } label: {
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text(Self.connectAITitle)
+                        Text(Self.connectAINote)
+                            .font(.footnote)
+                            .opacity(0.6)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    Spacer(minLength: 0)
+                    if let provider = aiStore.connectedProvider {
+                        Text(verbatim: provider.displayName)
+                            .font(.footnote)
+                            .opacity(0.6)
+                    }
+                    Image(systemName: "chevron.right")
+                        .font(.footnote.weight(.semibold))
+                        .opacity(0.35)
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .padding(.vertical, 4)
+            .listRowBackground(Color.clear)
+            .accessibilityIdentifier("settings.connectAI")
             clearHistoryRow
                 .padding(.vertical, 4)
                 .listRowBackground(Color.clear)
         }
         .listStyle(.plain)
         .scrollContentBackground(.hidden)
+        .sheet(item: $connectForm) { form in
+            ConnectAISheet(form: form, usesDarkChrome: usesDarkChrome) { connectForm = nil }
+        }
     }
 
     private var clearHistoryRow: some View {

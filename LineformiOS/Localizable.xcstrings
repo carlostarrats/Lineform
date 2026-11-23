@@ -5230,6 +5230,76 @@
           }
         }
       }
+    },
+    "Connect Your AI…" : {
+      "comment" : "Settings row that opens Connect Your AI (the Mac's menu item title and translations).",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KI verbinden…"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Conectar tu IA…"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Connecter votre IA…"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AI を接続…"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "连接你的 AI…"
+          }
+        }
+      }
+    },
+    "Rewrite and proofread with an AI account of your own. Only the passage you select is sent, or the whole document when you choose Ask AI for it, and only when you choose an action." : {
+      "comment" : "Settings note under Connect Your AI….",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Überarbeite und korrigiere mit deinem eigenen KI-Konto. Gesendet wird nur die Passage, die du auswählst, oder das ganze Dokument, wenn du dafür „KI fragen“ wählst – und nur, wenn du eine Aktion wählst."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reescribe y corrige con tu propia cuenta de IA. Solo se envía el pasaje que seleccionas, o el documento entero cuando eliges Preguntar a la IA para él, y solo cuando eliges una acción."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Réécrivez et corrigez avec votre propre compte d’IA. Seul le passage que vous sélectionnez est envoyé, ou le document entier si vous choisissez Demander à l’IA pour lui, et seulement quand vous choisissez une action."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "自分の AI アカウントで書き直しや校正ができます。送信されるのは選択した部分だけで、文書全体に「AI に依頼」を選んだときは文書全体です。送信は操作を選んだときだけです。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "用你自己的 AI 账户改写和校对。只发送你选中的段落；若你对整个文稿选择“询问 AI”，则发送整个文稿。只有在你选择操作时才会发送。"
+          }
+        }
+      }
     }
   },
   "version" : "1.0"
