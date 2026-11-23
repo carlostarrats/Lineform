@@ -59,12 +59,26 @@ struct OutlineSection: View {
     /// Built once, when the section first appears, then kept current by its debounced rebuild:
     /// never in `init`, which SwiftUI runs on every update of the sheet (each keystroke).
     @State private var model: OutlineModel?
+    @Environment(\.menuTheme) private var theme
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     /// Points per level of indent.
     static let indentStep: CGFloat = 14
 
     /// The Mac's empty-state wording.
     static var emptyText: String { String(localized: "Add # Title or ## Section to build an outline.") }
+
+    /// What VoiceOver says after a heading's title: its Markdown level (the indent says it to the
+    /// eye).
+    static func accessibilityValue(for row: OutlineRow) -> String {
+        let level = row.item.level
+        return String(localized: "Heading level \(level)")
+    }
+
+    /// Two lines for a heading; no limit at accessibility sizes, where two lines hold few words.
+    static func lineLimit(for dynamicTypeSize: DynamicTypeSize) -> Int? {
+        dynamicTypeSize.isAccessibilitySize ? nil : 2
+    }
 
     /// A heading tap: the sheet goes first, then the heading is scrolled to the top.
     static func open(_ row: OutlineRow, editor: any EditorCommands, dismiss: () -> Void) {
@@ -92,7 +106,7 @@ struct OutlineSection: View {
             if model.rows.isEmpty {
                 Text(Self.emptyText)
                     .font(.callout)
-                    .opacity(0.6)
+                    .foregroundStyle(PhoneInk.menu(theme).secondary)
                     .multilineTextAlignment(.center)
                     .frame(maxWidth: .infinity)
                     .padding(.horizontal, 32)
@@ -104,12 +118,13 @@ struct OutlineSection: View {
                     } label: {
                         Text(row.item.title)
                             .font(row.depth == 0 ? .body.weight(.semibold) : .body)
-                            .lineLimit(2)
+                            .lineLimit(Self.lineLimit(for: dynamicTypeSize))
                             .padding(.leading, CGFloat(row.depth) * Self.indentStep)
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
+                    .accessibilityValue(Text(Self.accessibilityValue(for: row)))
                     .listRowBackground(Color.clear)
                 }
                 .listStyle(.plain)

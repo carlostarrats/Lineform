@@ -30,12 +30,19 @@ struct MenuSheet: View {
 
     static let sectionStorageKey = "menuSection"
     static let detents: Set<PresentationDetent> = [.medium, .large]
+
+    /// At accessibility sizes the medium detent shows little more than the header and the section
+    /// bar, so the sheet opens (and stays) at full height.
+    static func detents(for dynamicTypeSize: DynamicTypeSize) -> Set<PresentationDetent> {
+        dynamicTypeSize.isAccessibilitySize ? [.large] : detents
+    }
     static let cornerRadius: CGFloat = LineformDesign.Radius.modal
 
     @SceneStorage(MenuSheet.sectionStorageKey) private var storedSection: MenuSection = .defaultSection
     /// The section on screen: the stored one, then every pick (written back to the scene). Plain
     /// state as well, because a sheet hosted outside a SwiftUI scene (a test) has no scene storage.
     @State private var shownSection: MenuSection?
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     private var section: MenuSection {
         let section = shownSection ?? storedSection
         return section.isPage ? section : .defaultSection
@@ -93,6 +100,16 @@ struct MenuSheet: View {
         DocumentStatusText.counts(DocumentStatistics(text: text))
     }
 
+    /// The header as VoiceOver reads it: the save state, then the counts in words. A localized
+    /// format (the Mac's "%@, %@"), so Japanese and Chinese get their own comma.
+    static func headerAccessibilityLabel(saveState: String, statistics: DocumentStatistics) -> String {
+        let counts = DocumentStatusText.countsAccessibilityText(statistics)
+        return String(localized: "\(saveState), \(counts)")
+    }
+
+    /// The History section button's hint: it is not a page, it leaves the sheet.
+    static var historyHint: String { String(localized: "Closes the menu and opens History.") }
+
     // MARK: - Body
 
     var body: some View {
@@ -108,8 +125,12 @@ struct MenuSheet: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         }
         .foregroundStyle(Color(uiColor: theme.textColor))
+        .environment(\.menuTheme, theme)
         .environment(\.colorScheme, theme.usesDarkChrome ? .dark : .light)
-        .presentationDetents(Self.detents)
+        // A system sheet is already modal for VoiceOver; said here too, so nothing behind it is
+        // reachable however it is hosted.
+        .accessibilityAddTraits(.isModal)
+        .presentationDetents(Self.detents(for: dynamicTypeSize))
         .presentationDragIndicator(.visible)
         .presentationCornerRadius(Self.cornerRadius)
         .presentationBackground {
@@ -130,24 +151,50 @@ struct MenuSheet: View {
     private func header(theme: Theme) -> some View {
         let saveState = Self.saveStateText(for: document)
         let statistics = DocumentStatistics(text: document.text)
-        return HStack(alignment: .firstTextBaseline, spacing: 12) {
-            VStack(alignment: .leading, spacing: 2) {
-                Text(saveState)
-                    .font(.subheadline.weight(.medium))
-                Text(DocumentStatusText.counts(statistics))
-                    .font(.footnote)
-                    .foregroundStyle(Color(uiColor: theme.textColor).opacity(0.6))
+        let ink = PhoneInk.menu(theme)
+        let status = VStack(alignment: .leading, spacing: 2) {
+            Text(saveState)
+                .font(.subheadline.weight(.medium))
+            Text(DocumentStatusText.counts(statistics))
+                .font(.footnote)
+                .foregroundStyle(ink.secondary)
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(Text(verbatim: Self.headerAccessibilityLabel(saveState: saveState, statistics: statistics)))
+        // Done's target reaches 44 pt inside the button; the negative padding outside gives the
+        // room back, so the header keeps its height and Done its place.
+        let done = Button(action: onDismiss) {
+            Text(String(localized: "Done"))
+                .padding(.vertical, Self.doneTargetPadding.height)
+                .padding(.horizontal, Self.doneTargetPadding.width)
+                .contentShape(Rectangle())
+        }
+        .font(.body.weight(.semibold))
+        .padding(.vertical, -Self.doneTargetPadding.height)
+        .padding(.horizontal, -Self.doneTargetPadding.width)
+        return Group {
+            // At accessibility sizes the save state and Done would collide on one line.
+            if dynamicTypeSize.isAccessibilitySize {
+                VStack(alignment: .leading, spacing: 4) {
+                    status
+                    done
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            } else {
+                HStack(alignment: .firstTextBaseline, spacing: 12) {
+                    status
+                    Spacer(minLength: 0)
+                    done
+                }
             }
-            .accessibilityElement(children: .ignore)
-            .accessibilityLabel(Text(verbatim: "\(saveState), \(DocumentStatusText.countsAccessibilityText(statistics))"))
-            Spacer(minLength: 0)
-            Button(String(localized: "Done"), action: onDismiss)
-                .font(.body.weight(.semibold))
         }
         .padding(.horizontal, 20)
         .padding(.top, 20)
         .padding(.bottom, 10)
     }
+
+    /// The room around Done's text that makes its target at least 44 × 44 pt.
+    static let doneTargetPadding = CGSize(width: 8, height: 14)
 
     @ViewBuilder
     private var content: some View {
@@ -196,16 +243,24 @@ struct MenuSectionBar: View {
                             .background(
                                 Capsule().fill(Color(uiColor: theme.textColor).opacity(isSelected ? 0.1 : 0))
                             )
-                            .contentShape(Capsule())
+                            // The capsule is drawn at its text's height; the target reaches
+                            // 44 pt, and the negative padding gives the room back to the bar.
+                            .padding(.vertical, Self.targetPadding)
+                            .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
+                    .padding(.vertical, -Self.targetPadding)
                     .accessibilityAddTraits(isSelected ? .isSelected : [])
+                    .accessibilityHint(section.isPage ? Text(verbatim: "") : Text(MenuSheet.historyHint))
                 }
             }
             .padding(.horizontal, 14)
             .padding(.vertical, 4)
         }
     }
+
+    /// Above and below a section button's capsule, inside its target.
+    static let targetPadding: CGFloat = 7
 }
 
 /// The sheet's card: the page colour with the floating-card hairline and soft shadow.
@@ -245,12 +300,13 @@ struct MenuButton: View {
 
     static let diameter: CGFloat = 44
     static var accessibilityTitle: String { String(localized: "Menu") }
+    static let systemImage = "line.3.horizontal"
 
     var body: some View {
         let theme = Theme.theme(for: profile)
         let isDark = theme.usesDarkChrome
         Button(action: action) {
-            Image(systemName: "line.3.horizontal")
+            Image(systemName: Self.systemImage)
                 .font(.system(size: 17, weight: .medium))
                 .foregroundStyle(Color(uiColor: theme.textColor))
                 .frame(width: Self.diameter, height: Self.diameter)
@@ -276,5 +332,22 @@ struct MenuButton: View {
         }
         .buttonStyle(.plain)
         .accessibilityLabel(Self.accessibilityTitle)
+        // Fixed-size floating chrome: a long press at accessibility sizes shows it enlarged.
+        .accessibilityShowsLargeContentViewer {
+            Label(Self.accessibilityTitle, systemImage: Self.systemImage)
+        }
+    }
+}
+
+extension EnvironmentValues {
+    /// The Menu sheet's display theme, so its sections draw their quiet inks with `PhoneInk`.
+    @Entry var menuTheme: Theme = Theme.theme(for: .original)
+}
+
+extension PhoneInk {
+    /// The inks of a sheet drawn in `theme`: resolved for the colour scheme the sheet forces
+    /// (`theme.usesDarkChrome`).
+    static func menu(_ theme: Theme) -> PhoneInk {
+        PhoneInk(theme: theme, userInterfaceStyle: theme.usesDarkChrome ? .dark : .light)
     }
 }
