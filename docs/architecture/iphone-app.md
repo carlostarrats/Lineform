@@ -633,9 +633,11 @@ after its file was deleted elsewhere (its next change, typed or on the way to th
 saves it as a new document). The Mac's "Autosaved" is not used: it is the Mac's flash for an autosave
 as against ⌘S, and every iPhone write is an autosave, so it would add nothing.
 
-The section bar scrolls sideways: Files, Outline, Markdown Basics, Search, Document, Settings
-(`MenuSection`; raw values are identity, never localized). The section is kept in
-`@SceneStorage("menuSection")` and starts on Files.
+The section bar scrolls sideways: Files, Outline, Markdown Basics, Search, History (only while
+the document has history), Document, Settings (`MenuSection`; raw values are identity, never
+localized). The section is kept in `@SceneStorage("menuSection")` and starts on Files. History is
+not a page: choosing it closes the sheet and enters History mode (see "History"), and it is never
+kept as the scene's section.
 
 ### Files
 
@@ -806,7 +808,12 @@ are worded for iPhone: no iPhone string names a Mac or a sidebar
 - **In-app notifications** (`checksForAnnouncements`): it gates the announcement request itself.
   Announcements reach the iPhone in roadmap step 12; until then the switch only keeps the choice.
 
-Connect Your AI, Clear History and Check for Updates arrive with steps 8, 9 and 12.
+- **Clear History** (the Mac's row, note "Removes saved versions for every document. Your files
+  are not changed.", button "Clear…" and destructive confirmation "Clear all history?"):
+  `SettingsSection.clearHistory(store:)` → `PhoneHistoryController.clearAllHistory(in:)`, the same
+  path as the Mac (see "History").
+
+Connect Your AI and Check for Updates arrive with steps 8 and 12.
 
 ### Markdown Basics on iPhone
 
@@ -825,6 +832,69 @@ current mode, selection, Insert and Reformat Table, Check Document Now, and `rep
 copies the text between the ranges through unchanged, so line endings survive.
 `DocumentScreen.bottomChromeClearance` uses the tallest bottom-right button: Menu and Aa are
 both 44 pt (the link button is 38), and they share one row (`bottomChromeSpacing`, 12 pt).
+
+## History
+
+Per-passage History on iPhone (roadmap step 9) is the Mac's feature on the Mac's engine and store:
+`PhoneHistoryController` (`LineformiOS/History/`) is the Mac's `DocumentHistoryController` without
+AppKit, over the package's `DocumentHistoryEngine`, and the store is the Mac's
+`RoutingPassageHistoryStore` (platform `iphone`): a document in the Lineform iCloud folder keeps its
+History in the container's `History/v1/` and so shares it with the Mac (the merge, tombstones,
+moves and Clear History are in `editor-behavior.md` § History, Sync); every other document's
+History is local to this iPhone. History never writes into the document file.
+
+- **Nothing at launch.** `PhoneHistoryController.sharedStore` is a `LazyHistoryStore`: the app's
+  `OpenDocument.live()` is built at launch, but the router (which reads, or makes once, the device
+  name `LineformHistoryDeviceID.v1` in user defaults) is made at the store's first use — the first
+  document opened with a file, or Clear History. The session's one prune runs at that first open, on
+  a background queue (`HistoryModeTests.testTheLiveDocumentMakesNoHistoryStoreAtLaunch`).
+- **Lifecycle.** `OpenDocument` drives the controller: open, close before a swap, persist after a
+  save, `documentGotFile` when an Untitled document is first saved, `fileMoved` for the first-line
+  rename, a user rename, a presenter move and Save As, `documentReloaded` for live reload (History
+  mode ends without the collapse), and close when the file is deleted or trashed elsewhere.
+- **Edits.** Every character change reaches History from ONE text-storage hook
+  (`didProcessEditing`, `.editedCharacters`), in pre-change coordinates; History's own edits run in
+  `performHistoryEdit` and are not reported; `setDocumentText` and edits over 1 000 UTF-16 units are
+  whole-text replacements (`LineformiOSTextView+History.swift`).
+- **Entry points (D10, D11).** Menu ▸ **History** closes the sheet, switches to Write and enters
+  History mode (`HistoryEntry.enterFromMenu`; a passage an AI accept left is selected). **Replace
+  With…** is on the system edit menu (`editMenuForTextIn`, after the spelling group), offered only
+  outside History mode and where the Mac offers it (`PhoneHistoryController.canAdd`: one line, no
+  front matter, fenced code or math). It keeps the selection as the passage's original, enters
+  History mode on it, and the card opens "Type a replacement" with focus; leaving without a
+  replacement discards the passage (Mac parity). Until step 8 merges, the edit menu is its home;
+  it moves to the selection row then. History mode is Write's: entering it from Preview switches to
+  Write, and switching to Read or Preview leaves it (with the collapse).
+- **The editor in History mode.** Read-only (`isEditable` false, so the keyboard goes); a tap
+  selects the innermost passage under it (shortest range, then the finer level) and a tap on
+  ordinary text returns to the overview; the page keeps `historyCardClearance` (300 pt) below its
+  last line for the card. Hardware keyboard: ← / → step the selected passage, Esc deselects, then
+  leaves; a printable key leaves History mode (with the collapse) and types. ⌘Z and shake find an
+  empty stand-in undo manager while History mode is up; leaving collapses the session into ONE
+  undoable edit plus a version-restore undo action, as on the Mac.
+- **The wash (phone exception).** Every located passage is drawn as a rounded box with the Mac's
+  `HistoryPalette` fills and depth layering (`HistoryWashDisplay`, the Mac's `layerFills` without
+  hover): the overview wash stacked per depth; with a passage selected, it is blue, passages inside
+  it add ink layers, and every other passage takes the focus-other fill. The boxes are
+  `CAShapeLayer`s in `HistoryWashView`, a subview BEHIND the text container's view (above the
+  Reading Ruler), built from TextKit 1 line fragments like the spelling underlines — never text
+  attributes (`HistoryModeTests.testWashIsNeverInTextStorage`). **Exception:** the Mac also recedes
+  the ink outside the selected passage with layout-manager temporary attributes; iOS TextKit 1 has
+  no temporary attributes, and a storage colour change would churn highlighting and undo, so the
+  phone draws the wash only. Full ink on every fill is AA in every theme (`HistoryPaletteTests`).
+- **The card** (`HistoryCard`): at the bottom, above the keyboard and the home indicator, full
+  width inside the 20 pt chrome margin, in the floating-card chrome (page colour, hairline, shadow,
+  radius 12); the Menu and Aa buttons are hidden while it is up. With nothing selected it reads
+  "Tap a highlighted passage to see its versions."; with a passage selected: the level switcher
+  (only when its group has more than one level), the versions (the original a page, the writer's a
+  pencil, AI a sparkle, the current one bold with a checkmark; a tap makes one current; Delete from
+  History on its context menu and as a VoiceOver action), and the "Type a replacement" field (its
+  return button is "Add"). Done leaves History mode. Each row's VoiceOver label is the Mac's ("…, by
+  you, version 2 of 3"), and every step, level change or new selection is announced with the Mac's
+  "Sentence, version 2 of 3" (`UIAccessibility.post(.announcement)`).
+- **Clear History** (Settings): the store's `clearAll()`, then `didClearAllNotification`; every
+  controller on the store re-reads it, replacing its engine BEFORE leaving History mode (leaving
+  saves).
 
 ## Strings
 

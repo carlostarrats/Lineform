@@ -397,8 +397,15 @@ iPhone only. Details: `docs/architecture/iphone-app.md`.
   skips the reading assists and the Read view skips rendering: on 1 MB they cost about 0.64 s and
   1.2 s per change. Both catch up once when the drag ends. Details: `docs/architecture/iphone-app.md`,
   "Styling sheet".
+- **History.** Menu ▸ History (listed only when the document has history) and Replace With… (the
+  system edit menu until step 8's selection row) enter History mode: read-only editor, passages on a
+  wash drawn by `CAShapeLayer`s behind the text (never text attributes; the Mac's receded ink is not
+  drawn — phone exception), tap selects the innermost passage, ← / → / Esc on a hardware keyboard,
+  and `HistoryCard` at the bottom (levels, versions, Delete, "Type a replacement", Done). The store is
+  the Mac's router, made lazily (`LazyHistoryStore`: nothing at launch). Details:
+  `docs/architecture/iphone-app.md`, "History".
 - **Menu sheet.** The floating Menu button opens `MenuSheet` (medium and large detents): Files,
-  Outline, Markdown Basics, Search, Document and Settings. Sections reach the editor only through
+  Outline, Markdown Basics, Search, History (only with history), Document and Settings. Sections reach the editor only through
   `EditorCommands`, each command ONE undo step. Files rename and Trash are coordinated
   (`.forMoving`), unlike the Mac (ruling in `docs/architecture/files-sidebar.md`); Trash is
   `trashItem` only, and nothing is scanned until Files or a file search is on screen. Convert to

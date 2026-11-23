@@ -157,12 +157,13 @@ final class OpenDocument: ImageInsertionHost {
 
     /// The document the app uses: new documents save into iCloud Drive's Lineform folder when it
     /// is available, otherwise into the app's on-device Documents folder.
-    /// Its History uses the app's one store (`PhoneHistoryController.sharedStore`), which nothing
-    /// reads until a document with a file opens.
-    static func live() -> OpenDocument {
+    /// Its History uses the app's one store (`PhoneHistoryController.sharedStore`), which is not
+    /// even made until a document with a file opens (or Clear History runs): building this at
+    /// launch runs nothing History-related. Tests pass their own lazy store.
+    static func live(historyStore: PassageHistoryPersisting = PhoneHistoryController.sharedStore) -> OpenDocument {
         OpenDocument(
             folderProvider: { DocumentFolderResolver.live().saveFolder() },
-            history: PhoneHistoryController(store: PhoneHistoryController.sharedStore)
+            history: PhoneHistoryController(store: historyStore)
         )
     }
 

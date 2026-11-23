@@ -27,11 +27,13 @@ final class MenuSheetTests: XCTestCase {
     }
 
     func testSectionsInSpecOrder() {
-        XCTAssertEqual(MenuSection.allCases, [.files, .outline, .basics, .search, .document, .settings])
+        XCTAssertEqual(MenuSection.allCases, [.files, .outline, .basics, .search, .history, .document, .settings])
         // Raw values are scene-storage identity, never localized.
-        XCTAssertEqual(MenuSection.allCases.map(\.rawValue), ["files", "outline", "basics", "search", "document", "settings"])
+        XCTAssertEqual(MenuSection.allCases.map(\.rawValue), ["files", "outline", "basics", "search", "history", "document", "settings"])
         // pinned-en: the Mac's strings, under the test plan's English.
-        XCTAssertEqual(MenuSection.allCases.map(\.title), ["Files", "Outline", "Markdown Basics", "Search", "Document", "Settings"])
+        XCTAssertEqual(MenuSection.allCases.map(\.title), ["Files", "Outline", "Markdown Basics", "Search", "History", "Document", "Settings"])
+        // History is listed only while the document has history (HistoryModeTests).
+        XCTAssertEqual(MenuSection.visible(hasHistory: false), [.files, .outline, .basics, .search, .document, .settings])
         XCTAssertEqual(Set(MenuSection.allCases.map(\.systemImage)).count, MenuSection.allCases.count)
     }
 

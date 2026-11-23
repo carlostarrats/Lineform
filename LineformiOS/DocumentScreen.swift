@@ -138,6 +138,10 @@ struct DocumentScreen: View {
 
     private func switchMode(to mode: EditorDisplayMode) {
         guard mode != displayMode else { return }
+        // History mode is Write's: switching to Read or Preview leaves it (with the collapse).
+        if mode != .write, let history = document.history, history.isHistoryModeActive {
+            history.exitHistoryMode(text: editorText)
+        }
         positionKeeper.switchMode(from: displayMode, to: mode)
         shownDisplayMode = mode
         storedDisplayMode = mode
@@ -182,18 +186,29 @@ struct DocumentScreen: View {
             ModeSwitch(mode: modeSelection, usesDarkChrome: Theme.theme(for: profile).usesDarkChrome)
                 .padding(.top, ModeSwitch.topMargin)
         }
-        .overlay(alignment: .bottomTrailing) {
-            HStack(spacing: Self.bottomChromeSpacing) {
-                if displayMode == .split {
-                    PreviewLinkButton(isLinked: arePanesLinked, profile: profile) {
-                        linkedScroll.toggleLink()
-                        arePanesLinked = linkedScroll.isLinked
-                    }
-                }
-                MenuButton(profile: profile) { isShowingMenu = true }
-                StylingButton(profile: profile) { isShowingStyling = true }
+        .overlay(alignment: .bottom) {
+            // History mode's card replaces the bottom chrome while it is up (Done leaves).
+            if let history = document.history, history.isHistoryModeActive {
+                historyCard(history)
+                    .padding(.horizontal, MarkdownEditor.chromeMargin)
+                    .padding(.bottom, 12)
+                    .transition(.opacity)
             }
-            .padding(MarkdownEditor.chromeMargin)
+        }
+        .overlay(alignment: .bottomTrailing) {
+            if !isHistoryModeActive {
+                HStack(spacing: Self.bottomChromeSpacing) {
+                    if displayMode == .split {
+                        PreviewLinkButton(isLinked: arePanesLinked, profile: profile) {
+                            linkedScroll.toggleLink()
+                            arePanesLinked = linkedScroll.isLinked
+                        }
+                    }
+                    MenuButton(profile: profile) { isShowingMenu = true }
+                    StylingButton(profile: profile) { isShowingStyling = true }
+                }
+                .padding(MarkdownEditor.chromeMargin)
+            }
         }
         .overlay {
             // Above all the other chrome, so nothing of the document shows through or takes taps.
@@ -221,6 +236,7 @@ struct DocumentScreen: View {
                 exportCommands: exportCommands,
                 selection: { [positionKeeper] in positionKeeper.editor?.selectedRange },
                 mode: displayMode,
+                onShowHistory: { showHistoryFromMenu() },
                 onDismiss: { isShowingMenu = false }
             )
         }
@@ -284,6 +300,62 @@ struct DocumentScreen: View {
         .onChange(of: scenePhase) { _, phase in
             if OpenDocument.savesImmediately(on: phase) { document.flushForBackground() }
         }
+        .onChange(of: isHistoryModeActive) { _, active in
+            // History mode is Write's: Replace With… from Preview's editor lands here too.
+            if active, displayMode != .write { switchMode(to: .write) }
+        }
+    }
+
+    private var isHistoryModeActive: Bool { document.history?.isHistoryModeActive == true }
+
+    /// The editor's text now (the document's before the editor exists).
+    private var editorText: String { positionKeeper.editor?.textStorage.string ?? document.text }
+
+    /// Menu ▸ History (D10): the sheet closes, Write comes up, and History mode opens.
+    private func showHistoryFromMenu() {
+        guard let history = document.history else { return }
+        HistoryEntry.enterFromMenu(
+            history: history,
+            text: editorText,
+            dismissMenu: { isShowingMenu = false },
+            switchToWrite: { switchMode(to: .write) }
+        )
+        // Hardware ← / → and Esc reach the read-only editor once it is first responder.
+        Task { @MainActor in
+            if history.isHistoryModeActive { positionKeeper.editor?.becomeFirstResponder() }
+        }
+    }
+
+    private func historyCard(_ history: PhoneHistoryController) -> some View {
+        let text = { [positionKeeper, document] in positionKeeper.editor?.textStorage.string ?? document.text }
+        return HistoryCard(
+            model: HistoryCardModel(controller: history),
+            profile: profile,
+            onSelectLevel: { level in history.selectLevel(level) },
+            onSelectVersion: { index in history.selectVersion(index, text: text()) },
+            onDeleteVersion: { index in history.deleteVersion(index, text: text()) },
+            onAddReplacement: { replacement, id in history.addReplacement(replacement, text: text(), for: id) },
+            onReplacementFieldOpened: { history.replacementFieldDidOpen() },
+            onDone: { history.exitHistoryMode(text: text()) }
+        )
+    }
+}
+
+/// Entering History mode from the Menu sheet (D10), apart from the screen so it can be tested:
+/// the sheet closes, the screen switches to Write, then History mode opens (selecting a passage
+/// an AI accept left remembered). False when there was nothing to show.
+@MainActor
+enum HistoryEntry {
+    @discardableResult
+    static func enterFromMenu(
+        history: PhoneHistoryController,
+        text: String,
+        dismissMenu: () -> Void,
+        switchToWrite: () -> Void
+    ) -> Bool {
+        dismissMenu()
+        switchToWrite()
+        return history.enterHistoryModeFromMenu(text: text)
     }
 }
 

@@ -131,3 +131,180 @@ extension LineformTextView {
         textDidChangeForHighlighting()
     }
 }
+
+// MARK: - History mode on screen
+
+/// What the editor does while History mode is up (D10): the text is READ-ONLY (`isEditable`
+/// false, so the keyboard goes and a tap selects instead of placing a caret), every located
+/// passage is drawn on a wash (`HistoryWashLayer.swift`), a tap selects the innermost passage
+/// under it (ordinary text deselects), the page leaves room under the text for the History card,
+/// and a hardware keyboard steps versions with ← / → and leaves with Esc (deselecting first).
+/// A printable key on a hardware keyboard leaves History mode, with the collapse, and types —
+/// the Mac's `.typedWhileInHistoryMode`.
+extension LineformTextView {
+    /// Room below the last line while History mode is up, so the card never hides the end of the
+    /// document: about the card's height with a passage selected.
+    static let historyCardClearance: CGFloat = 300
+
+    /// The Mac's string and translations.
+    static var replaceWithTitle: String { String(localized: "Replace With…") }
+
+    /// The controller's display changed (any `revision` bump, and attach): follow the mode and
+    /// redraw the washes on the next layout pass.
+    func historyDisplayDidChange() {
+        let active = historyController?.isHistoryModeActive == true
+        if active != state.isShowingHistoryMode {
+            state.isShowingHistoryMode = active
+            let wasFirstResponder = isFirstResponder
+            if active, selectedRange.length > 0 {
+                // A selection left under the read-only text would be the next keystroke's target.
+                selectedRange = NSRange(location: NSMaxRange(selectedRange), length: 0)
+            }
+            isEditable = !active
+            // Hardware keys reach the view only while it is first responder; read-only keeps no
+            // keyboard on screen.
+            if wasFirstResponder, !isFirstResponder { becomeFirstResponder() }
+            historyTapRecognizer().isEnabled = active
+            contentInset.bottom = active ? Self.historyCardClearance : 0
+            verticalScrollIndicatorInsets.bottom = contentInset.bottom
+        }
+        setNeedsHistoryWashRedraw()
+    }
+
+    /// True while the view shows History mode (read-only, washes, History keys).
+    var isShowingHistoryMode: Bool { state.isShowingHistoryMode }
+
+    // MARK: Taps
+
+    /// The tap that selects a passage, made on first use and enabled only in History mode.
+    func historyTapRecognizer() -> UITapGestureRecognizer {
+        if let existing = state.historyTapRecognizer { return existing }
+        let tap = UITapGestureRecognizer(target: self, action: #selector(historyTapped(_:)))
+        tap.cancelsTouchesInView = false
+        // Its delegate lets it recognise alongside the text view's own gestures.
+        tap.delegate = historyWashView ?? {
+            let view = HistoryWashView(frame: .zero)
+            historyWashView = view
+            return view
+        }()
+        tap.isEnabled = false
+        addGestureRecognizer(tap)
+        state.historyTapRecognizer = tap
+        return tap
+    }
+
+    @objc private func historyTapped(_ recognizer: UITapGestureRecognizer) {
+        guard recognizer.state == .ended else { return }
+        selectHistoryPassage(at: recognizer.location(in: self))
+    }
+
+    /// A tap at `point` (content coordinates): the innermost passage under it is selected; a tap
+    /// on ordinary text goes back to the overview (History stays on).
+    func selectHistoryPassage(at point: CGPoint) {
+        guard let controller = historyController, controller.isHistoryModeActive else { return }
+        controller.select(historyPassage(at: point)?.id)
+    }
+
+    /// The innermost located passage whose glyphs are under `point`, or nil.
+    func historyPassage(at point: CGPoint) -> LocatedPassage? {
+        guard let display = historyWashDisplay, textStorage.length > 0 else { return nil }
+        let inContainer = CGPoint(x: point.x - textContainerInset.left, y: point.y - textContainerInset.top)
+        var fraction: CGFloat = 0
+        let glyph = layoutManager.glyphIndex(for: inContainer, in: textContainer, fractionOfDistanceThroughGlyph: &fraction)
+        let box = layoutManager.boundingRect(forGlyphRange: NSRange(location: glyph, length: 1), in: textContainer)
+        guard box.insetBy(dx: -Self.historyWashOutset, dy: 0).contains(inContainer) else { return nil }
+        return display.innermostPassage(containing: layoutManager.characterIndexForGlyph(at: glyph))
+    }
+
+    // MARK: Hardware keys
+
+    /// ← / → step the selected passage, Esc deselects then leaves; only in History mode.
+    static let historyKeyCommands: [UIKeyCommand] = {
+        func command(_ input: String, _ action: Selector) -> UIKeyCommand {
+            let command = UIKeyCommand(input: input, modifierFlags: [], action: action)
+            command.wantsPriorityOverSystemBehavior = true
+            return command
+        }
+        return [
+            command(UIKeyCommand.inputLeftArrow, #selector(historyPreviousVersion(_:))),
+            command(UIKeyCommand.inputRightArrow, #selector(historyNextVersion(_:))),
+            command(UIKeyCommand.inputEscape, #selector(historyEscape(_:))),
+        ]
+    }()
+
+    @objc func historyPreviousVersion(_ sender: Any?) {
+        guard let controller = historyController else { return }
+        controller.step(by: -1, text: textStorage.string)
+    }
+
+    @objc func historyNextVersion(_ sender: Any?) {
+        guard let controller = historyController else { return }
+        controller.step(by: 1, text: textStorage.string)
+    }
+
+    /// Esc: back to the overview when a passage is selected, else out of History mode.
+    @objc func historyEscape(_ sender: Any?) {
+        guard let controller = historyController, controller.isHistoryModeActive else { return }
+        if controller.selectedPassageID != nil {
+            controller.select(nil)
+        } else {
+            controller.exitHistoryMode(text: textStorage.string)
+        }
+    }
+
+    /// A printable key while History mode is up: leave it (with the collapse), make the text
+    /// editable again, and type `characters` at the caret through the normal path. False outside
+    /// History mode.
+    @discardableResult
+    func typeWhileInHistoryMode(_ characters: String) -> Bool {
+        guard let controller = historyController, controller.isHistoryModeActive, !characters.isEmpty else { return false }
+        controller.exitHistoryMode(text: textStorage.string)
+        guard isEditable else { return false }
+        if !isFirstResponder { becomeFirstResponder() }
+        insertText(characters)
+        return true
+    }
+
+    /// A printable key from a hardware keyboard while History mode is up types (leaving it);
+    /// everything else — arrows, Esc, shortcuts — goes on as usual.
+    override func pressesBegan(_ presses: Set<UIPress>, with event: UIPressesEvent?) {
+        if isShowingHistoryMode, let key = presses.first?.key,
+           key.modifierFlags.intersection([.command, .control, .alternate]).isEmpty,
+           let typed = Self.historyTypedCharacters(key.characters) {
+            typeWhileInHistoryMode(typed)
+            return
+        }
+        super.pressesBegan(presses, with: event)
+    }
+
+    /// `characters` when they are text a key would type (no control characters, no function-key
+    /// codes), else nil.
+    static func historyTypedCharacters(_ characters: String) -> String? {
+        guard !characters.isEmpty, !characters.hasPrefix("UIKeyInput"),
+              characters.unicodeScalars.allSatisfy({ !CharacterSet.controlCharacters.contains($0)
+                  && !(0xF700...0xF8FF).contains($0.value) })
+        else { return nil }
+        return characters
+    }
+
+    // MARK: Replace With…
+
+    /// The edit menu's Replace With… for `range`, or nil where it is not offered: outside History
+    /// mode only, and only where the controller can add the passage (one line, no front matter,
+    /// fenced code or math — `PhoneHistoryController.canAdd`).
+    func replaceWithMenuAction(for range: NSRange) -> UIAction? {
+        guard markedTextRange == nil, let controller = historyController, !controller.isHistoryModeActive,
+              range.length > 0, controller.canAdd(range, text: textStorage.string) else { return nil }
+        return UIAction(title: Self.replaceWithTitle, image: UIImage(systemName: "clock.arrow.circlepath")) { [weak self] _ in
+            self?.performReplaceWith(range)
+        }
+    }
+
+    /// Replace With…: the selection becomes a passage (its text the original), History mode opens
+    /// on it and the card opens its "Type a replacement" field.
+    @discardableResult
+    func performReplaceWith(_ range: NSRange) -> Bool {
+        guard let controller = historyController, !controller.isHistoryModeActive else { return false }
+        return controller.add(range, text: textStorage.string) != nil
+    }
+}

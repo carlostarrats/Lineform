@@ -113,10 +113,22 @@ struct MarkdownEditor: UIViewRepresentable {
             parent.linkedScroll?.editorDidScroll(scrollView)
         }
 
-        /// On a misspelling, the spelling group (guesses, Learn, Ignore) leads the system's menu.
+        /// On a misspelling, the spelling group (guesses, Learn, Ignore) leads the system's menu;
+        /// on a selection History can keep, Replace With… comes next (outside History mode).
         func textView(_ textView: UITextView, editMenuForTextIn range: NSRange, suggestedActions: [UIMenuElement]) -> UIMenu? {
-            guard let spelling = (textView as? LineformTextView)?.spellingMenu(for: range) else { return nil }
-            return UIMenu(children: [spelling] + suggestedActions)
+            guard let textView = textView as? LineformTextView else { return nil }
+            let leading = Self.leadingMenuElements(for: textView, range: range)
+            guard !leading.isEmpty else { return nil }
+            return UIMenu(children: leading + suggestedActions)
+        }
+
+        /// The app's own items ahead of the system's: spelling, then Replace With…. Internal so
+        /// tests read the menu.
+        static func leadingMenuElements(for textView: LineformTextView, range: NSRange) -> [UIMenuElement] {
+            var elements: [UIMenuElement] = []
+            if let spelling = textView.spellingMenu(for: range) { elements.append(spelling) }
+            if let replace = textView.replaceWithMenuAction(for: range) { elements.append(replace) }
+            return elements
         }
 
         /// The Markdown regions Writing Tools must leave alone, should it ever be turned on.

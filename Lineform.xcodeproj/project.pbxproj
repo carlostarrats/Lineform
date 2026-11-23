@@ -210,6 +210,9 @@
 		1F0000C10000000000000002 /* LineformiOSTextView+History.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000C00000000000000002 /* LineformiOSTextView+History.swift */; };
 		1F0000C10000000000000003 /* HistoryControllerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000C00000000000000003 /* HistoryControllerTests.swift */; };
 		1F0000C10000000000000004 /* HistoryEditReportingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000C00000000000000004 /* HistoryEditReportingTests.swift */; };
+		1F0000C10000000000000005 /* HistoryCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000C00000000000000005 /* HistoryCard.swift */; };
+		1F0000C10000000000000006 /* HistoryWashLayer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000C00000000000000006 /* HistoryWashLayer.swift */; };
+		1F0000C10000000000000007 /* HistoryModeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000C00000000000000007 /* HistoryModeTests.swift */; };
 		1F0000410000000000000010 /* OpenDocument.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000400000000000000010 /* OpenDocument.swift */; };
 		1F0000410000000000000012 /* OpenDocumentTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000400000000000000012 /* OpenDocumentTests.swift */; };
 		1F0000410000000000000013 /* AutosaveTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000400000000000000013 /* AutosaveTests.swift */; };
@@ -476,6 +479,9 @@
 		1F0000C00000000000000002 /* LineformiOSTextView+History.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "LineformiOSTextView+History.swift"; sourceTree = "<group>"; };
 		1F0000C00000000000000003 /* HistoryControllerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryControllerTests.swift; sourceTree = "<group>"; };
 		1F0000C00000000000000004 /* HistoryEditReportingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryEditReportingTests.swift; sourceTree = "<group>"; };
+		1F0000C00000000000000005 /* HistoryCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryCard.swift; sourceTree = "<group>"; };
+		1F0000C00000000000000006 /* HistoryWashLayer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryWashLayer.swift; sourceTree = "<group>"; };
+		1F0000C00000000000000007 /* HistoryModeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryModeTests.swift; sourceTree = "<group>"; };
 		1F0000400000000000000010 /* OpenDocument.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenDocument.swift; sourceTree = "<group>"; };
 		1F0000400000000000000012 /* OpenDocumentTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenDocumentTests.swift; sourceTree = "<group>"; };
 		1F0000400000000000000013 /* AutosaveTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AutosaveTests.swift; sourceTree = "<group>"; };
@@ -856,6 +862,7 @@
 				1F0000400000000000000012 /* OpenDocumentTests.swift */,
 				1F0000C00000000000000003 /* HistoryControllerTests.swift */,
 				1F0000C00000000000000004 /* HistoryEditReportingTests.swift */,
+				1F0000C00000000000000007 /* HistoryModeTests.swift */,
 				1F0000400000000000000013 /* AutosaveTests.swift */,
 				1F0000B10000000000000005 /* FirstRunTests.swift */,
 				1F0000400000000000000096 /* PhoneExportWriterTests.swift */,
@@ -873,6 +880,8 @@
 		1F0000C20000000000000001 /* History */ = {
 			isa = PBXGroup;
 			children = (
+				1F0000C00000000000000005 /* HistoryCard.swift */,
+				1F0000C00000000000000006 /* HistoryWashLayer.swift */,
 				1F0000C00000000000000001 /* PhoneHistoryController.swift */,
 			);
 			path = History;
@@ -1392,6 +1401,8 @@
 				1F0000410000000000000010 /* OpenDocument.swift in Sources */,
 				1F0000C10000000000000001 /* PhoneHistoryController.swift in Sources */,
 				1F0000C10000000000000002 /* LineformiOSTextView+History.swift in Sources */,
+				1F0000C10000000000000005 /* HistoryCard.swift in Sources */,
+				1F0000C10000000000000006 /* HistoryWashLayer.swift in Sources */,
 				1F0000B20000000000000002 /* FirstRunGate.swift in Sources */,
 				1F0000B20000000000000003 /* FirstRunOverlay.swift in Sources */,
 				1F0000B20000000000000004 /* FirstRunLineView.swift in Sources */,
@@ -1448,6 +1459,7 @@
 				1F0000410000000000000012 /* OpenDocumentTests.swift in Sources */,
 				1F0000C10000000000000003 /* HistoryControllerTests.swift in Sources */,
 				1F0000C10000000000000004 /* HistoryEditReportingTests.swift in Sources */,
+				1F0000C10000000000000007 /* HistoryModeTests.swift in Sources */,
 				1F0000410000000000000013 /* AutosaveTests.swift in Sources */,
 				1F0000B20000000000000005 /* FirstRunTests.swift in Sources */,
 			);

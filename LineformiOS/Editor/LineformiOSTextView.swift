@@ -83,6 +83,13 @@ final class LineformTextView: UITextView {
         var isReplacingWholeText = false
         /// History mode's empty undo manager: steps are not undoable one by one. Made on first use.
         var historyStandInUndoManager: UndoManager?
+        /// History mode as the view last showed it (read-only, washes, History keys).
+        var isShowingHistoryMode = false
+        /// The washes History mode draws behind the text. Made on first use.
+        var historyWashView: HistoryWashView?
+        var needsHistoryWashRedraw = false
+        /// The tap that selects a passage in History mode. Made on first use.
+        var historyTapRecognizer: UITapGestureRecognizer?
         #if DEBUG
         var pasteboardForTesting: UIPasteboard?
         #endif
@@ -189,6 +196,7 @@ final class LineformTextView: UITextView {
         textView.configureImagePasteAndDrop()
         textView.registerForTraitChanges([UITraitUserInterfaceStyle.self]) { (textView: LineformTextView, _) in
             textView.redrawSpellingUnderlines()
+            textView.setNeedsHistoryWashRedraw()
         }
         textView.profile = profile
         if !textView.hasAppliedProfile { textView.applyProfile() }
@@ -228,6 +236,7 @@ final class LineformTextView: UITextView {
         refreshHighlighting()
         refreshReadingAssists()
         setNeedsSpellingUnderlineRedraw()
+        setNeedsHistoryWashRedraw()
     }
 
     private func updateTextContainerInset() {
@@ -248,6 +257,7 @@ final class LineformTextView: UITextView {
             visibleRangeDidChange()
             refreshReadingAssists()
             needsSpellingUnderlineRedraw = true
+            state.needsHistoryWashRedraw = true
             if state.keepsCaretVisibleOnResize, isFirstResponder {
                 // Deferred: never scroll from inside layout.
                 DispatchQueue.main.async { [weak self] in
@@ -258,6 +268,7 @@ final class LineformTextView: UITextView {
         }
         // After super: the underlines follow this layout pass (an edit, a re-style, a new size).
         redrawSpellingUnderlinesIfNeeded()
+        redrawHistoryWashIfNeeded()
     }
 
     override func tintColorDidChange() {
@@ -270,7 +281,8 @@ final class LineformTextView: UITextView {
     private static let markdownKeyCommands = makeMarkdownKeyCommands()
 
     override var keyCommands: [UIKeyCommand]? {
-        (super.keyCommands ?? []) + Self.markdownKeyCommands
+        // History mode's ← / → / Esc first, so they win over the text view's own arrow handling.
+        (state.isShowingHistoryMode ? Self.historyKeyCommands : []) + (super.keyCommands ?? []) + Self.markdownKeyCommands
     }
 
     /// In History mode the steps are not undoable one by one (the Mac's stand-in manager): ⌘Z,
