@@ -12,6 +12,8 @@ sheet), step 8 (the selection row, the comment field, AI actions with their revi
 whole-document AI), step 9 (History and History sync), step 10 (export, print, share and read
 aloud), step 11 (first run) and, from step 12 (polish and release), the performance budgets. The
 rest arrive in later steps.
+aloud), step 11 (first run) and, from step 12, Check for Updates, announcements, the review
+prompt and App Intents. The rest arrive in later steps.
 
 ## Each app stands alone
 
@@ -28,7 +30,8 @@ a fully working state, never an error or a prompt.
   `LineformReadView`, `ReadViewRepresentable`, `ReadOverlayButtons`, `PreviewSplit` and
   `LinkedScroll`; `Chrome/`: `ModeSwitch`, `ModePositionKeeper`, `MotionPolicy` and
   `StylingButton`; `Styling/`: `StylingSheet`, `StylingPresetCard`, `StylingRows` and
-  `StylingDrag`. Every name
+  `StylingDrag`; `Integration/`: `PhoneUpdateCheck`, `PhoneAnnouncementStore`,
+  `PhoneAnnouncementCard`, `PhoneReviewPrompt` and `PhoneAppIntents`. Every name
   differs from the Mac sources' file names), with its own `Info.plist`, `Localizable.xcstrings`
   (six languages) and entitlements.
 - Tests: `LineformiOSTests/`, hosted in the app, run by the shared `LineformiOS` scheme through
@@ -860,8 +863,8 @@ are worded for iPhone: no iPhone string names a Mac or a sidebar
 - **Check spelling while typing** (`checksSpellingWhileTyping`): `MarkdownEditor` hands it to
   `LineformTextView.checksSpellingWhileTyping`. Off, no typing pass is scheduled or run and the
   underlines clear; on, a pass is scheduled.
-- **In-app notifications** (`checksForAnnouncements`): it gates the announcement request itself.
-  Announcements reach the iPhone in roadmap step 12; until then the switch only keeps the choice.
+- **In-app notifications** (`checksForAnnouncements`): it gates the announcement request itself,
+  and turning it off takes a card on screen away (see "Announcements").
 
 - **Connect Your AI…** (`ConnectAISheet`) connects Claude, ChatGPT, Google or Other, one provider
   at a time, with the Mac's `ConnectAIPresentation` and `AIConnectionStore`. The key is kept in the
@@ -876,7 +879,9 @@ are worded for iPhone: no iPhone string names a Mac or a sidebar
   `SettingsSection.clearHistory(store:)` → `PhoneHistoryController.clearAllHistory(in:)`, the same
   path as the Mac (see "History").
 
-Check for Updates arrives with step 12.
+- **Check for Updates…** (the Mac's title, last row, note "Asks the App Store whether a newer
+  version of Lineform is out. Nothing about you or your documents is sent."): see "Check for
+  Updates".
 
 ### Markdown Basics on iPhone
 
@@ -1107,6 +1112,97 @@ says "Whole document" (`SelectionToolbarPresentation.wholeDocumentSubtitle`, as 
 Cancel puts the caret back. Send runs `AIActionController.runWholeDocument`, which checks the
 policy again before `resolvedConnection()`. The review is the same overlay and cards. Tests:
 `WholeDocumentAITests`. Details for both apps: `editor-behavior.md`, "Whole-document AI".
+
+## Check for Updates
+
+Menu ▸ Settings ▸ **Check for Updates…** is the Mac's Lineform ▸ Check for Updates… on iPhone
+(`PhoneUpdateCommand`, `LineformiOS/Integration/PhoneUpdateCheck.swift`). An App Store app cannot
+update itself, so it only says whether a newer version is on the App Store and offers its page.
+
+- **Only on a tap.** Nothing calls it at launch or on a timer. A tap while a check runs, or while its
+  alert is up, is ignored (`isChecking`, reset on every path); the row shows a spinner meanwhile.
+- **The iPhone's listing.** The package's `AppStoreUpdateChecker` asks the catalog of the platform it
+  runs on (`AppStorePlatform.current`): the Mac `entity=macSoftware` (unchanged), the iPhone
+  `entity=software`. The one listing serves both, but the lookup answers per platform, and the
+  iPhone reads only an entry whose `kind` is "software". Checked by hand on 2026-11-23, before any
+  iPhone build was on the store: every lookup form, `entity=software` included, answered with the
+  Mac's `mac-software` entry. Read as the iPhone's, that would offer a Mac-only version and open the
+  Mac page, so it is "couldn't check" instead. Every other rule is the Mac's (`app-integration.md`
+  ▸ Check for Updates): the fixed bundle id, the privacy shape, hostile-input validation, only a
+  strictly newer version offered, a failure never "up to date". Tests run over `StubURLProtocol`.
+- **The alert** (`UIAlertController`, presented over the top controller, the Menu sheet): the
+  package's `AppUpdatePresentation`, so the Mac's text and translations. For an update, Open App
+  Store (the preferred action) and Not Now in Cancel's role; otherwise one OK. The App Store page
+  opens (`UIApplication.open`) only on Open App Store. No iPhone wording names a Mac.
+
+## Announcements
+
+The Mac's in-app announcements (`app-integration.md` ▸ In-app announcements) on iPhone:
+`PhoneAnnouncementStore` is the Mac's `AnnouncementStore` without AppKit, on the package's
+`AnnouncementFeed` and `AnnouncementFetcher`, under the Mac's keys (per device).
+
+- **The rules are the Mac's.** The In-app notifications switch gates the REQUEST
+  (`checkIfNeeded(isEnabled:)` returns before the fetcher is touched); one check a day, stamped
+  before fetching; the last good feed cached and restored in `init` (not while the switch is off);
+  nil (learned nothing) leaves the card and the cache, [] retracts both; dismissed ids kept forever;
+  a link opens and dismisses. Turning the switch off takes the card away at once
+  (`follow(_:)`, a subscription to `AppSettings`, made when the screen appears; it applies the
+  switch's current value too).
+- **When it checks.** `LineformiOSApp` starts a check when the scene becomes active (launch
+  included), throttled to once a day by the store. Never in the test host:
+  `PhoneAnnouncementStore.checksOnSceneChange(to:isRunningUnderTests:)` is consulted at that call
+  site, never inside `checkIfNeeded`, whose tests drive it with a spy fetcher.
+- **The card** (`PhoneAnnouncementCard`): the Mac's card (sparkle glyph, title, body, an optional
+  link, a ✕ with a 44 pt target) in the iPhone's floating-card chrome on the page colour, at most
+  360 pt wide, at the bottom right above the Menu and Aa buttons. Never a full-width bar. Title,
+  body and link label are remote input and render as verbatim `Text`, never Markdown. It shows only
+  while those buttons do and nothing else holds the bottom (History's card, the selection row or
+  comment field, an AI card, a notice, first run, a download). Its entrance is a fade-and-move that
+  Reduce Motion turns into a fade. VoiceOver: "Announcement: %@" for the card, "Dismiss
+  announcement" for the ✕, and the escape gesture dismisses (the Mac's Esc).
+
+## Review prompt
+
+The Mac's App Store review policy (`app-integration.md` ▸ App Store review prompt) on iPhone:
+`PhoneReviewPromptStore` (`LineformiOS/Integration/PhoneReviewPrompt.swift`), under the Mac's keys.
+
+- **Use is a write that reached disk.** `OpenDocument.onConfirmedWrite` fires after each coordinated
+  write that succeeded (a new file, a save, a first-line rename's write); a save with nothing to
+  write or a failed one does not count. Launches, reading and browsing never count.
+- **Eligible** after four sessions with such a write, spanning at least seven days, plus a write in
+  this session; asked at most once per marketing version, claimed just before
+  `AppStore.requestReview(in:)` (the foreground `UIWindowScene`). StoreKit decides whether the
+  sheet shows. No custom pre-prompt.
+- **When.** Each write restarts a 4 s quiet period (`.task(id: activityRevision)`); returning to
+  the foreground schedules again for an eligible store (never counted as use). The request goes
+  only while the scene is active, nothing is presented over the page, and nothing of Lineform's is
+  in the way: the Menu or Styling sheet, a picker, first run, History, the selection row or comment
+  field, an AI card, an announcement, a notice or the open-failure alert, a download, an update
+  check.
+- **The test host.** The app's store is inert under XCTest (`recordsEngagement` false), so test runs
+  that write documents never add up to a request. `LINEFORM_FORCE_REVIEW_PROMPT=1` is the Mac's
+  Debug-only seam.
+
+## App Intents
+
+Shortcuts, Spotlight and Siri: the Mac's **New Lineform Note** (a `text` parameter) and **Open in
+Lineform** (an `IntentFile`), with the same type names, titles, parameters and phrases
+(`LineformiOS/Integration/PhoneAppIntents.swift`). The phrases come from the Mac's
+`Lineform/AppShortcuts.xcstrings`, in the iPhone's Resources by reference; the intent strings are
+in the iPhone catalog with the Mac's translations.
+
+- **Through `OpenDocument`.** `PhoneIntentRouter` hands each intent to the screen's document. New
+  Note is New Document (the current document is saved first; a failed save keeps it and shows its
+  notice), then the text goes in with `edit`, so it autosaves like typing, named from its first
+  line. Nothing is staged, unlike the Mac. Open is `openReportingFailure`: an unreadable file shows
+  the screen's "That file couldn't be opened in Lineform." A file the intent hands over without a
+  URL throws that message.
+- **Cold launch.** The screen attaches its document after `prepare` (and the launch restore); an
+  intent that arrives earlier waits and runs then, so a restore never lands over it.
+- **Registration.** `AppIntents.framework` is LINKED in the iPhone target's Frameworks phase, the
+  Mac's rule: without it no `Metadata.appintents` is emitted and the actions silently never
+  register. `PhoneAppIntentsTests.testAppIntentsMetadataIsEmittedIntoTheApp` asserts the file is
+  in the built app.
 
 ## Strings
 

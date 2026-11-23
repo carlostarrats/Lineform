@@ -62,6 +62,11 @@ Mac-conventional place and flagged that — moving it is one line in `AppCommand
   `Bundle.main.bundleIdentifier`: Debug builds are `com.lineform.app.debug`, which has no store listing.
   The request adds no locale or country parameter of its own (URLSession still sends its standard
   User-Agent and Accept-Language headers, as for the announcement check).
+- **Per platform (2026-11-23).** The lookup is `AppStoreUpdateChecker.lookupURL(for: AppStorePlatform)`:
+  the Mac's form above (unchanged, and it still reads the first entry, with or without a `kind`); the
+  iPhone's is `entity=software` and reads only an entry whose `kind` is "software". Before an iPhone
+  build is listed, the store answers every form with the Mac entry, which the iPhone reports as
+  "couldn't check". See `iphone-app.md` ▸ Check for Updates.
 - **Privacy shape, same as `AnnouncementFetcher`:** ephemeral session, no cookies, no credentials, no
   identifiers, 10 s request and resource timeouts. App Privacy stays **Data Not Collected**.
 - **The response is hostile input** (`AppStoreLookup`): 200-only; `Content-Type` must contain `json` or
