@@ -1,19 +1,5 @@
 import Foundation
 
-/// This device's name in shared History: `"<platform>-<UUID>"` (`mac-…`, `iphone-…`), made once
-/// and kept in `defaults`. It is also the file name of this device's records, so a Mac's and an
-/// iPhone's names never match.
-public struct HistoryDeviceIdentity {
-    static let defaultsKey = "LineformHistoryDeviceID.v1"
-
-    public static func current(platform: String, defaults: UserDefaults) -> String {
-        if let stored = defaults.string(forKey: defaultsKey), stored.hasPrefix(platform + "-") { return stored }
-        let made = "\(platform)-\(UUID().uuidString)"
-        defaults.set(made, forKey: defaultsKey)
-        return made
-    }
-}
-
 /// Where a document's History lives (plan decision D9).
 public enum HistoryLocation: Equatable, Sendable {
     /// This device only: `FilePassageHistoryStore`, unchanged.
@@ -44,22 +30,33 @@ public enum HistoryLocation: Equatable, Sendable {
 /// D9). Existing local History of a shared document moves into iCloud the first time it is loaded,
 /// or at the session's prune. Moves across the boundary carry History with the document.
 ///
-/// Only `prune` and `clearAll` (which have no document to classify) look the container up, through
-/// `containerProvider`, and only on a background queue: `load` and `save` never do.
+/// Shared writes run on the shared store's queue (`SharedPassageHistoryStore`); the bookmark
+/// sidecar is written from there too, never on the save path. Only `prune` and `clearAll` (which
+/// have no document to classify) look the container up, through `containerProvider`, and only on
+/// a background queue — and `prune` only when this device has shared History (a shared store was
+/// used this session, or the sidecar exists). `load` and `save` never look it up.
 ///
 /// `@unchecked Sendable`: its own state is guarded by `lock`; both stores are thread-safe.
 public final class RoutingPassageHistoryStore: PassageHistoryPersisting, @unchecked Sendable {
     let local: FilePassageHistoryStore
-    private let device: String
     private let classify: @Sendable (URL) -> HistoryLocation
     private let containerProvider: @Sendable () -> URL?
     private let bookmarkDirectory: URL
     private let makeShared: @Sendable (URL) -> SharedPassageHistoryStore
     private let now: @Sendable () -> Date
     private let lock = NSLock()
+    /// Keyed by `FileIdentity.key(for: container)`, so two spellings of one container
+    /// (`/var/mobile` and `/private/var/mobile`, a symlink) share one store and one lock.
     private var sharedStores: [String: SharedPassageHistoryStore] = [:]
     /// Set by `clearAll`: every shared store this router vends drops what was touched before it.
     private var clearedFloor: Date?
+    /// The sidecar's paths, read once; a path already there is not bookmarked again.
+    private var bookmarkedPaths: Set<String>?
+    /// Shared documents whose local History (D5a) was already looked for this session.
+    private var migrationChecked: Set<String> = []
+    /// Whether the sidecar's unwritten Clear History was read yet, and its date.
+    private var pendingClearRead = false
+    private var pendingClearDate: Date?
     private let queue = DispatchQueue(label: "com.lineform.history.shared", qos: .utility)
 
     private struct BookmarkEntry: Codable, Equatable {
@@ -67,13 +64,16 @@ public final class RoutingPassageHistoryStore: PassageHistoryPersisting, @unchec
         var bookmark: Data
     }
 
-    public init(local: FilePassageHistoryStore, device: String,
+    private struct PendingClear: Codable {
+        var clearedAt: Date
+    }
+
+    public init(local: FilePassageHistoryStore,
                 classify: @escaping @Sendable (URL) -> HistoryLocation = { u in HistoryLocation.classify(u) },
                 containerProvider: @escaping @Sendable () -> URL?, bookmarkDirectory: URL,
                 makeShared: @escaping @Sendable (URL) -> SharedPassageHistoryStore,
                 now: @escaping @Sendable () -> Date = Date.init) {
         self.local = local
-        self.device = device
         self.classify = classify
         self.containerProvider = containerProvider
         self.bookmarkDirectory = bookmarkDirectory
@@ -84,16 +84,19 @@ public final class RoutingPassageHistoryStore: PassageHistoryPersisting, @unchec
     }
 
     /// The app's store. Local History stays where 1.8/1.9 keep it; the bookmark sidecar is in its
-    /// own folder beside it, so the local format and `clearAll` are unchanged.
-    public static func live(platform: String, home: URL, defaults: UserDefaults = .standard) -> RoutingPassageHistoryStore {
+    /// own folder beside it, so the local format and `clearAll` are unchanged. The device name is
+    /// read from `deviceIDStorage` (the Keychain) only when a shared document is first used.
+    public static func live(platform: String, home: URL, defaults: UserDefaults = .standard,
+                            deviceIDStorage: HistoryDeviceIDStoring = SystemHistoryDeviceIDKeychain()) -> RoutingPassageHistoryStore {
         let directory = FilePassageHistoryStore.defaultDirectory(home: home)
-        let device = HistoryDeviceIdentity.current(platform: platform, defaults: defaults)
+        let device = LazyDeviceName {
+            HistoryDeviceIdentity.current(platform: platform, storage: deviceIDStorage, defaults: defaults)
+        }
         return RoutingPassageHistoryStore(
             local: FilePassageHistoryStore(directory: directory),
-            device: device,
             containerProvider: { FileManager.default.url(forUbiquityContainerIdentifier: "iCloud.com.lineform.app") },
             bookmarkDirectory: directory.deletingLastPathComponent().appendingPathComponent("HistoryShared", isDirectory: true),
-            makeShared: { container in SharedPassageHistoryStore(containerURL: container, device: device) })
+            makeShared: { container in SharedPassageHistoryStore(containerURL: container, device: device.value) })
     }
 
     // MARK: - PassageHistoryPersisting
@@ -102,13 +105,17 @@ public final class RoutingPassageHistoryStore: PassageHistoryPersisting, @unchec
         guard case let .shared(container, path) = classify(url) else { return local.load(for: url) }
         let store = shared(container)
         // D5a: History this Mac kept locally before the document was shared.
-        migrate(localURL: url, into: store, path: path)
+        if let migrated = migrate(localURL: url, into: store, path: path, bookmarking: url) { return migrated }
         return store.load(relativePath: path)
     }
 
     public func save(_ history: DocumentHistory, for url: URL) {
         guard case let .shared(container, path) = classify(url) else { return local.save(history, for: url) }
-        if shared(container).save(history, relativePath: path), !history.isEmpty { rememberBookmark(for: url) }
+        let store = shared(container)
+        guard !history.isEmpty else { return store.save(history, relativePath: path) }
+        store.save(history, relativePath: path) { [weak self] written in
+            if written { self?.rememberBookmark(for: url) }
+        }
     }
 
     public func noteVersionDeleted(passage: UUID, at index: Int, in history: DocumentHistory, for url: URL) {
@@ -116,32 +123,36 @@ public final class RoutingPassageHistoryStore: PassageHistoryPersisting, @unchec
         shared(container).noteVersionDeleted(passage: passage, at: index, in: history, relativePath: path)
     }
 
-    /// D6: inside → inside merges at the new key; local → inside carries the local History in;
-    /// inside → local saves the merged History locally and deletes the shared folder.
+    /// D6: inside → inside moves every record to the new key; local → inside carries the local
+    /// History in; inside → local saves the merged History locally and deletes the shared folder
+    /// only once that local copy is written.
     public func retarget(from old: URL, to new: URL) {
         switch (classify(old), classify(new)) {
         case (.local, .local):
             local.retarget(from: old, to: new)
         case let (.local, .shared(container, path)):
-            migrate(localURL: old, into: shared(container), path: path)
-            rememberBookmark(for: new)
+            _ = migrate(localURL: old, into: shared(container), path: path, bookmarking: new)
         case let (.shared(container, path), .local):
+            // Rare and chosen by the writer: every record is read, downloaded if need be, because
+            // the folder is deleted next.
             let store = shared(container)
-            let history = store.load(relativePath: path)
-            if !history.isEmpty { local.save(history, for: new) }
+            let history = store.load(relativePath: path, downloading: true)
+            guard local.saveReportingSuccess(history, for: new) else { return }
             store.remove(relativePath: path)
-            forgetBookmark(for: old)
+            queue.async { [self] in forgetBookmark(for: old) }
         case let (.shared(oldContainer, oldPath), .shared(newContainer, newPath)):
-            if oldContainer.standardizedFileURL == newContainer.standardizedFileURL {
+            if sameContainer(oldContainer, newContainer) {
                 shared(oldContainer).move(from: oldPath, to: newPath)
             } else {
                 let from = shared(oldContainer)
-                if shared(newContainer).merge(from.load(relativePath: oldPath), into: newPath) {
-                    from.remove(relativePath: oldPath)
+                shared(newContainer).merge(from.load(relativePath: oldPath, downloading: true), into: newPath) { written in
+                    if written { from.remove(relativePath: oldPath) }
                 }
             }
-            forgetBookmark(for: old)
-            rememberBookmark(for: new)
+            queue.async { [self] in
+                forgetBookmark(for: old)
+                rememberBookmark(for: new)
+            }
         }
     }
 
@@ -150,14 +161,14 @@ public final class RoutingPassageHistoryStore: PassageHistoryPersisting, @unchec
         case (.local, .local):
             local.retargetDirectory(from: oldDir, to: newDir)
         case let (.shared(oldContainer, oldPath), .shared(newContainer, newPath))
-            where oldContainer.standardizedFileURL == newContainer.standardizedFileURL:
-            let store = shared(oldContainer)
-            let moving = store.storedRelativePaths().filter { SharedPassageHistoryStore.remainder(of: $0, under: oldPath) != nil }
-            store.moveDirectory(from: oldPath, to: newPath)
-            for path in moving {
-                guard let rest = SharedPassageHistoryStore.remainder(of: path, under: oldPath) else { continue }
-                forgetBookmark(for: oldDir.appendingPathComponents(rest))
-                rememberBookmark(for: newDir.appendingPathComponents(rest))
+            where sameContainer(oldContainer, newContainer):
+            shared(oldContainer).moveDirectory(from: oldPath, to: newPath) { [weak self] moves in
+                guard let self else { return }
+                for move in moves {
+                    guard let rest = SharedPassageHistoryStore.remainder(of: move.old, under: oldPath) else { continue }
+                    forgetBookmark(for: oldDir.appendingPathComponents(rest))
+                    rememberBookmark(for: newDir.appendingPathComponents(rest))
+                }
             }
         case let (.shared(container, oldPath), _):
             // Out of (or across) the container: each document follows on its own.
@@ -179,69 +190,139 @@ public final class RoutingPassageHistoryStore: PassageHistoryPersisting, @unchec
     /// Runs on the controller's background queue, once per session. The local prune (whose bookmark
     /// moves into the container migrate), then every local entry already inside a container (D5b),
     /// then the shared documents' bookmarks (moves made while the app was closed, D6), then the
-    /// shared prune (D8).
+    /// shared prune (D8) and the sidecar's own prune. The container is looked up only when this
+    /// device has shared History and no shared store was used yet this session.
     public func prune(now date: Date) {
         local.prune(now: date)
         for url in local.storedDocumentURLs() { migrateLocalEntry(at: url) }
         followBookmarks()
-        if let container = containerProvider() { shared(container).prune(now: date) }
+        var stores = lock.withLock { Array(sharedStores.values) }
+        if stores.isEmpty, hasSidecar, let container = containerProvider() {
+            stores = [shared(container)]
+        }
+        for store in stores { store.prune(now: date) }
+        pruneBookmarks()
     }
 
     /// D7. Local History is removed at once and every shared load from now on drops what was
-    /// touched before this moment; the marker and the shared folders are written and deleted on a
-    /// background queue, where the container is looked up.
+    /// touched before this moment. On a background queue: the clear date is kept in the sidecar
+    /// (so a relaunch before the container is reachable still drops it), then every shared store
+    /// used this session and the container's store write their marker and delete their folders.
+    /// The kept date is removed once a marker is written; until then every store this device
+    /// makes later writes the marker.
     public func clearAll() {
         local.clearAll()
         let date = now()
-        lock.lock()
-        clearedFloor = max(clearedFloor ?? date, date)
-        let stores = Array(sharedStores.values)
-        lock.unlock()
+        let stores = lock.withLock {
+            clearedFloor = max(clearedFloor ?? date, date)
+            bookmarkedPaths = []
+            pendingClearRead = true
+            pendingClearDate = max(pendingClearDate ?? date, date)
+            return Array(sharedStores.values)
+        }
         for store in stores { store.excludeHistory(touchedAtOrBefore: date) }
-        CoordinatedFileAccess.remove(bookmarksURL)
         queue.async { [self] in
-            guard let container = containerProvider() else { return }
-            shared(container).clearAll(at: date)
+            writePendingClear(date)
+            CoordinatedFileAccess.remove(bookmarksURL)
+            var targets = stores
+            if let container = containerProvider() {
+                let store = shared(container)
+                if !targets.contains(where: { $0 === store }) { targets.append(store) }
+            }
+            for store in targets {
+                store.clearAll(at: date) { [weak self] written in
+                    if written { self?.removePendingClear(upTo: date) }
+                }
+            }
         }
     }
 
-    /// Waits for `clearAll`'s background work (tests).
-    func waitForBackgroundWork() { queue.sync {} }
+    /// Waits for the router's background work and every shared store's queued writes (tests).
+    func waitForBackgroundWork() {
+        for _ in 0..<2 {
+            queue.sync {}
+            for store in lock.withLock({ Array(sharedStores.values) }) { store.waitForBackgroundWork() }
+        }
+        queue.sync {}
+    }
+
+    /// How many shared stores this router made (tests: one per container, however it is spelled).
+    var sharedStoreCount: Int { lock.withLock { sharedStores.count } }
 
     // MARK: - Routing
 
+    private func sameContainer(_ a: URL, _ b: URL) -> Bool {
+        FileIdentity.key(for: a) == FileIdentity.key(for: b)
+    }
+
     private func shared(_ container: URL) -> SharedPassageHistoryStore {
-        let key = container.standardizedFileURL.path
+        let key = FileIdentity.key(for: container)
         lock.lock()
         if let store = sharedStores[key] { lock.unlock(); return store }
         let store = makeShared(container)
         sharedStores[key] = store
         let floor = clearedFloor
+        let readPending = !pendingClearRead
+        pendingClearRead = true
         lock.unlock()
         if let floor { store.excludeHistory(touchedAtOrBefore: floor) }
+        if readPending, let date = readPendingClear() {
+            lock.withLock {
+                clearedFloor = max(clearedFloor ?? date, date)
+                pendingClearDate = max(pendingClearDate ?? date, date)
+            }
+        }
+        // A Clear History whose marker was never written (the container was unreachable): this
+        // store writes it — the marker alone, so History written since then elsewhere stays.
+        if let date = lock.withLock({ pendingClearDate }) {
+            store.excludeHistory(touchedAtOrBefore: date)
+            store.clearAll(at: date, deleteFolders: false) { [weak self] written in
+                if written { self?.removePendingClear(upTo: date) }
+            }
+        }
         return store
     }
 
-    /// Moves the local History stored for `localURL` (if any) into the shared document `path`; the
-    /// local entry is removed only after the shared write succeeded.
-    private func migrate(localURL: URL, into store: SharedPassageHistoryStore, path: String) {
+    /// Moves the local History stored for `localURL` (if any) into the shared document `path`;
+    /// the local entry is removed only after the shared write succeeded. Returns the merged
+    /// history when there was local History to move.
+    private func migrate(localURL: URL, into store: SharedPassageHistoryStore, path: String, bookmarking: URL) -> DocumentHistory? {
         let key = FileIdentity.key(for: localURL)
-        guard local.storedDocumentURLs().contains(where: { $0.path == key }) else { return }
+        if lock.withLock({ migrationChecked.contains(key) }) { return nil }
+        guard local.storedDocumentURLs().contains(where: { $0.path == key }) else {
+            lock.withLock { _ = migrationChecked.insert(key) }
+            return nil
+        }
         let history = local.load(for: localURL)
-        if history.isEmpty || store.merge(history, into: path) {
+        guard !history.isEmpty else {
             local.remove(for: localURL)
-            if !history.isEmpty { rememberBookmark(for: localURL) }
+            lock.withLock { _ = migrationChecked.insert(key) }
+            return nil
+        }
+        let localStore = local
+        return store.merge(history, into: path) { [weak self] written in
+            guard written else { return }
+            localStore.remove(for: localURL)
+            guard let self else { return }
+            lock.withLock { _ = migrationChecked.insert(key) }
+            rememberBookmark(for: bookmarking)
         }
     }
 
     private func migrateLocalEntry(at url: URL) {
         guard case let .shared(container, path) = classify(url) else { return }
-        migrate(localURL: url, into: shared(container), path: path)
+        _ = migrate(localURL: url, into: shared(container), path: path, bookmarking: url)
     }
 
     // MARK: - Bookmark sidecar (D6)
 
     private var bookmarksURL: URL { bookmarkDirectory.appendingPathComponent("bookmarks.json") }
+    private var pendingClearURL: URL { bookmarkDirectory.appendingPathComponent("pending-clear.json") }
+
+    /// This device has (or had) shared History: the sidecar holds a bookmark or an unwritten clear.
+    private var hasSidecar: Bool {
+        FileManager.default.fileExists(atPath: bookmarksURL.path) || FileManager.default.fileExists(atPath: pendingClearURL.path)
+    }
 
     private func readBookmarks() -> [BookmarkEntry] {
         guard let data = CoordinatedFileAccess.read(bookmarksURL),
@@ -249,23 +330,25 @@ public final class RoutingPassageHistoryStore: PassageHistoryPersisting, @unchec
         return entries
     }
 
+    /// Under `lock`.
     private func writeBookmarks(_ entries: [BookmarkEntry]) {
+        bookmarkedPaths = Set(entries.map(\.path))
         if entries.isEmpty { CoordinatedFileAccess.remove(bookmarksURL); return }
         guard let data = try? JSONEncoder().encode(entries) else { return }
         CoordinatedFileAccess.write(data, to: bookmarksURL)
     }
 
+    /// Off the save path (a store's queue or the router's). Skipped when the sidecar already has
+    /// an entry for this path: a bookmark follows the file by its identity, so it needs no refresh.
     private func rememberBookmark(for url: URL) {
-        guard let bookmark = try? url.bookmarkData(options: [], includingResourceValuesForKeys: nil, relativeTo: nil) else { return }
         let path = url.standardizedFileURL.path
         lock.lock(); defer { lock.unlock() }
+        if bookmarkedPaths == nil { bookmarkedPaths = Set(readBookmarks().map(\.path)) }
+        if bookmarkedPaths?.contains(path) == true { return }
+        guard let bookmark = try? url.bookmarkData(options: [], includingResourceValuesForKeys: nil, relativeTo: nil) else { return }
         var entries = readBookmarks()
-        if let i = entries.firstIndex(where: { $0.path == path }) {
-            guard entries[i].bookmark != bookmark else { return }
-            entries[i].bookmark = bookmark
-        } else {
-            entries.append(BookmarkEntry(path: path, bookmark: bookmark))
-        }
+        entries.removeAll { $0.path == path }
+        entries.append(BookmarkEntry(path: path, bookmark: bookmark))
         writeBookmarks(entries)
     }
 
@@ -279,11 +362,9 @@ public final class RoutingPassageHistoryStore: PassageHistoryPersisting, @unchec
 
     /// A shared document moved while the app was closed: its History follows to wherever the
     /// bookmark now resolves (inside the container, or out of it). A trashed or unresolvable
-    /// document is left to the shared prune's positive-evidence rule.
+    /// document is left to the shared prune.
     private func followBookmarks() {
-        lock.lock()
-        let entries = readBookmarks()
-        lock.unlock()
+        let entries = lock.withLock { readBookmarks() }
         for entry in entries {
             var stale = false
             guard let resolved = try? URL(resolvingBookmarkData: entry.bookmark, options: [.withoutUI, .withoutMounting],
@@ -293,6 +374,49 @@ public final class RoutingPassageHistoryStore: PassageHistoryPersisting, @unchec
             if FileIdentity.key(for: resolved) == FileIdentity.key(for: old) { continue }
             retarget(from: old, to: resolved)
         }
+        queue.sync {}
+    }
+
+    /// Drops sidecar entries with nothing left to carry: the document is no longer shared, or its
+    /// History folder is gone (Minor 6: it never shrank before).
+    private func pruneBookmarks() {
+        let entries = lock.withLock { readBookmarks() }
+        guard !entries.isEmpty else { return }
+        var dead = Set<String>()
+        for entry in entries {
+            guard case let .shared(container, path) = classify(URL(fileURLWithPath: entry.path)),
+                  shared(container).hasFolder(relativePath: path) else { dead.insert(entry.path); continue }
+        }
+        guard !dead.isEmpty else { return }
+        lock.withLock {
+            let current = readBookmarks()
+            let kept = current.filter { !dead.contains($0.path) }
+            if kept != current { writeBookmarks(kept) }
+        }
+    }
+
+    // MARK: - Unwritten Clear History
+
+    private func readPendingClear() -> Date? {
+        guard let data = CoordinatedFileAccess.read(pendingClearURL),
+              let pending = try? HistoryMerge.decoder.decode(PendingClear.self, from: data) else { return nil }
+        return pending.clearedAt
+    }
+
+    private func writePendingClear(_ date: Date) {
+        lock.lock(); defer { lock.unlock() }
+        let kept = readPendingClear().map { max($0, date) } ?? date
+        guard let data = try? HistoryMerge.encoder.encode(PendingClear(clearedAt: kept)) else { return }
+        CoordinatedFileAccess.write(data, to: pendingClearURL)
+    }
+
+    /// A marker at `date` is written: the kept clear is done unless a later one was made since.
+    private func removePendingClear(upTo date: Date) {
+        lock.lock(); defer { lock.unlock() }
+        if let stored = readPendingClear(), stored > date { return }
+        if let kept = pendingClearDate, kept > date { return }
+        pendingClearDate = nil
+        CoordinatedFileAccess.remove(pendingClearURL)
     }
 }
 

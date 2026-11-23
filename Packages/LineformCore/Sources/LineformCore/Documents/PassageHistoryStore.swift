@@ -91,16 +91,22 @@ public final class FilePassageHistoryStore: PassageHistoryPersisting, @unchecked
     }
 
     public func save(_ history: DocumentHistory, for url: URL) {
+        saveReportingSuccess(history, for: url)
+    }
+
+    /// `save`, reporting whether the history is now on disk (the router deletes a shared copy
+    /// only once its local copy was written).
+    @discardableResult
+    func saveReportingSuccess(_ history: DocumentHistory, for url: URL) -> Bool {
         lock.lock(); defer { lock.unlock() }
         let key = FileIdentity.key(for: url)
         var index = readIndex()
         let existing = index.firstIndex(where: { $0.pathKey == key })
         if history.isEmpty {
-            guard let existing else { return }
+            guard let existing else { return true }
             removeHistoryFile(index[existing].id)
             index.remove(at: existing)
-            writeIndex(index)
-            return
+            return writeIndex(index)
         }
         let id: UUID
         if let existing {
@@ -111,9 +117,9 @@ public final class FilePassageHistoryStore: PassageHistoryPersisting, @unchecked
             id = UUID()
             index.append(IndexEntry(id: id, pathKey: key, bookmark: Self.bookmark(for: url)))
         }
-        guard let data = try? Self.encoder.encode(history) else { return }
-        guard CoordinatedFileAccess.write(data, to: historyURL(id)) else { return }
-        writeIndex(index)
+        guard let data = try? Self.encoder.encode(history) else { return false }
+        guard CoordinatedFileAccess.write(data, to: historyURL(id)) else { return false }
+        return writeIndex(index)
     }
 
     /// Every document this store holds history for, as file URLs of the stored paths.
@@ -314,9 +320,10 @@ public final class FilePassageHistoryStore: PassageHistoryPersisting, @unchecked
         return index
     }
 
-    private func writeIndex(_ index: [IndexEntry]) {
-        guard let data = try? Self.encoder.encode(index) else { return }
-        CoordinatedFileAccess.write(data, to: indexURL)
+    @discardableResult
+    private func writeIndex(_ index: [IndexEntry]) -> Bool {
+        guard let data = try? Self.encoder.encode(index) else { return false }
+        return CoordinatedFileAccess.write(data, to: indexURL)
     }
 
     private func readHistory(_ id: UUID) -> DocumentHistory {

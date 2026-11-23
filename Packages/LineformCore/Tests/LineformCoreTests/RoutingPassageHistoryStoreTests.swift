@@ -41,12 +41,11 @@ final class RoutingPassageHistoryStoreTests: XCTestCase {
     private func home(_ device: String) -> URL { root.appendingPathComponent("home-\(device)", isDirectory: true) }
     private func localDirectory(_ device: String) -> URL { FilePassageHistoryStore.defaultDirectory(home: home(device)) }
 
-    private func router(_ device: String = "mac-A", provider: Flag? = nil) -> RoutingPassageHistoryStore {
+    private func router(_ device: String = "mac-A", provider: Flag? = nil, reachable: Bool = true) -> RoutingPassageHistoryStore {
         let clock = clock, container = container!
         return RoutingPassageHistoryStore(
             local: FilePassageHistoryStore(directory: localDirectory(device), isConfirmedMissing: { _ in false }),
-            device: device,
-            containerProvider: { provider?.hit(); return container },
+            containerProvider: { provider?.hit(); return reachable ? container : nil },
             bookmarkDirectory: localDirectory(device).deletingLastPathComponent().appendingPathComponent("HistoryShared"),
             makeShared: { c in SharedPassageHistoryStore(containerURL: c, device: device, now: { clock.now },
                                                          isConfirmedMissing: { _ in false }) },
@@ -66,6 +65,10 @@ final class RoutingPassageHistoryStoreTests: XCTestCase {
         return DocumentHistory(passages: [HistoryPassage(
             id: id, level: .sentence, versions: versions, currentIndex: versions.count - 1, parentID: nil,
             parentVersionIndex: nil, contextBefore: "", contextAfter: "", lastTouched: date)])
+    }
+
+    private func bookmarksURL(_ device: String = "mac-A") -> URL {
+        localDirectory(device).deletingLastPathComponent().appendingPathComponent("HistoryShared/bookmarks.json")
     }
 
     private func sharedFolders() -> [String] {
@@ -100,7 +103,7 @@ final class RoutingPassageHistoryStoreTests: XCTestCase {
         let url = try file(outside.appendingPathComponent("a.md"))
         let store = router()
         let saved = history()
-        store.save(saved, for: url)
+        store.saveAndWait(saved, for: url)
         XCTAssertEqual(store.load(for: url), saved)
         let names = try FileManager.default.contentsOfDirectory(atPath: localDirectory("mac-A").path).sorted()
         XCTAssertEqual(names.count, 2)
@@ -126,6 +129,7 @@ final class RoutingPassageHistoryStoreTests: XCTestCase {
 
         let store = router()
         XCTAssertEqual(store.load(for: url), expected)
+        store.waitForBackgroundWork()
         XCTAssertEqual(localIndexPaths(), [])
         XCTAssertFalse(FileManager.default.fileExists(atPath: localDirectory("mac-A").appendingPathComponent("\(id).json").path))
         let record = container.appendingPathComponent(
@@ -146,6 +150,7 @@ final class RoutingPassageHistoryStoreTests: XCTestCase {
 
         let store = router()
         store.prune(now: clock.now)
+        store.waitForBackgroundWork()
         XCTAssertEqual(localIndexPaths(), [FileIdentity.key(for: out)])
         XCTAssertEqual(sharedFolders().count, 2)
         let phone = router("iphone-B")
@@ -161,9 +166,10 @@ final class RoutingPassageHistoryStoreTests: XCTestCase {
         let new = documents.appendingPathComponent("a.md")
         let store = router()
         let saved = history()
-        store.save(saved, for: old)
+        store.saveAndWait(saved, for: old)
         try FileManager.default.moveItem(at: old, to: new)
         store.retarget(from: old, to: new)
+        store.waitForBackgroundWork()
         XCTAssertEqual(localIndexPaths(), [])
         XCTAssertEqual(store.load(for: new), saved)
         XCTAssertEqual(router("iphone-B").load(for: new), saved)
@@ -174,10 +180,11 @@ final class RoutingPassageHistoryStoreTests: XCTestCase {
         let new = outside.appendingPathComponent("a.md")
         let store = router()
         let saved = history()
-        store.save(saved, for: old)
+        store.saveAndWait(saved, for: old)
         XCTAssertEqual(sharedFolders().count, 1)
         try FileManager.default.moveItem(at: old, to: new)
         store.retarget(from: old, to: new)
+        store.waitForBackgroundWork()
         XCTAssertEqual(sharedFolders(), [])
         XCTAssertEqual(localIndexPaths(), [FileIdentity.key(for: new)])
         XCTAssertEqual(store.load(for: new), saved)
@@ -189,10 +196,11 @@ final class RoutingPassageHistoryStoreTests: XCTestCase {
         let other = try file(documents.appendingPathComponent("Older/z.md"))
         let store = router()
         let hx = history(["X1", "X2"]), hy = history(["Y1", "Y2"]), hz = history(["Z1", "Z2"])
-        store.save(hx, for: x); store.save(hy, for: y); store.save(hz, for: other)
+        store.saveAndWait(hx, for: x); store.saveAndWait(hy, for: y); store.saveAndWait(hz, for: other)
         let newDir = documents.appendingPathComponent("New")
         try FileManager.default.moveItem(at: documents.appendingPathComponent("Old"), to: newDir)
         store.retargetDirectory(from: documents.appendingPathComponent("Old"), to: newDir)
+        store.waitForBackgroundWork()
         XCTAssertEqual(sharedFolders().count, 3)
         let phone = router("iphone-B")
         XCTAssertEqual(phone.load(for: newDir.appendingPathComponent("x.md")), hx)
@@ -206,10 +214,11 @@ final class RoutingPassageHistoryStoreTests: XCTestCase {
         let y = try file(documents.appendingPathComponent("Old/Deep/y.md"))
         let store = router()
         let hx = history(["X1", "X2"]), hy = history(["Y1", "Y2"])
-        store.save(hx, for: x); store.save(hy, for: y)
+        store.saveAndWait(hx, for: x); store.saveAndWait(hy, for: y)
         let newDir = outside.appendingPathComponent("Old")
         try FileManager.default.moveItem(at: documents.appendingPathComponent("Old"), to: newDir)
         store.retargetDirectory(from: documents.appendingPathComponent("Old"), to: newDir)
+        store.waitForBackgroundWork()
         XCTAssertEqual(sharedFolders(), [])
         XCTAssertEqual(store.load(for: newDir.appendingPathComponent("x.md")), hx)
         XCTAssertEqual(store.load(for: newDir.appendingPathComponent("Deep/y.md")), hy)
@@ -220,10 +229,11 @@ final class RoutingPassageHistoryStoreTests: XCTestCase {
         let x = try file(outside.appendingPathComponent("Old/x.md"))
         let store = router()
         let hx = history(["X1", "X2"])
-        store.save(hx, for: x)
+        store.saveAndWait(hx, for: x)
         let newDir = documents.appendingPathComponent("Old")
         try FileManager.default.moveItem(at: outside.appendingPathComponent("Old"), to: newDir)
         store.retargetDirectory(from: outside.appendingPathComponent("Old"), to: newDir)
+        store.waitForBackgroundWork()
         XCTAssertEqual(localIndexPaths(), [])
         XCTAssertEqual(router("iphone-B").load(for: newDir.appendingPathComponent("x.md")), hx)
     }
@@ -233,12 +243,13 @@ final class RoutingPassageHistoryStoreTests: XCTestCase {
     func testClosedDocumentMovedInFinderIntoICloudFollowsAtPrune() throws {
         let old = try file(outside.appendingPathComponent("a.md"))
         let saved = history()
-        router().save(saved, for: old)
+        router().saveAndWait(saved, for: old)
         let new = documents.appendingPathComponent("Moved.md")
         try FileManager.default.moveItem(at: old, to: new)
 
         let relaunched = router()
         relaunched.prune(now: clock.now)
+        relaunched.waitForBackgroundWork()
         XCTAssertEqual(localIndexPaths(), [])
         XCTAssertEqual(router("iphone-B").load(for: new), saved)
     }
@@ -246,12 +257,13 @@ final class RoutingPassageHistoryStoreTests: XCTestCase {
     func testClosedSharedDocumentMovedOutOfICloudFollowsAtPrune() throws {
         let old = try file(documents.appendingPathComponent("a.md"))
         let saved = history()
-        router().save(saved, for: old)
+        router().saveAndWait(saved, for: old)
         let new = outside.appendingPathComponent("a.md")
         try FileManager.default.moveItem(at: old, to: new)
 
         let relaunched = router()
         relaunched.prune(now: clock.now)
+        relaunched.waitForBackgroundWork()
         XCTAssertEqual(sharedFolders(), [])
         XCTAssertEqual(relaunched.load(for: new), saved)
     }
@@ -264,7 +276,7 @@ final class RoutingPassageHistoryStoreTests: XCTestCase {
         let url = try file(documents.appendingPathComponent("d.md"))
         let a = router("mac-A"), b = router("iphone-B")
         let old = history(["Old 1", "Old 2"])
-        a.save(old, for: url)
+        a.saveAndWait(old, for: url)
         var offline = b.load(for: url)
         XCTAssertEqual(offline, old)
 
@@ -276,7 +288,7 @@ final class RoutingPassageHistoryStoreTests: XCTestCase {
         clock.advance(10)
         let fresh = history(["New 1", "New 2"])
         offline.passages += fresh.passages
-        b.save(offline, for: url)       // B comes back online: its record still holds the old passage
+        b.saveAndWait(offline, for: url)       // B comes back online: its record still holds the old passage
 
         for reader in [a, b, router("mac-C")] {
             XCTAssertEqual(reader.load(for: url), fresh)
@@ -287,8 +299,8 @@ final class RoutingPassageHistoryStoreTests: XCTestCase {
         let shared = try file(documents.appendingPathComponent("s.md"))
         let local = try file(outside.appendingPathComponent("l.md"))
         let store = router()
-        store.save(history(), for: shared)
-        store.save(history(), for: local)
+        store.saveAndWait(history(), for: shared)
+        store.saveAndWait(history(), for: local)
         clock.advance(1)
         store.clearAll()
         // At once, before the background work: nothing local, and no shared History comes back.
@@ -307,44 +319,111 @@ final class RoutingPassageHistoryStoreTests: XCTestCase {
         let url = try file(documents.appendingPathComponent("d.md"))
         let a = router("mac-A"), b = router("iphone-B")
         let id = UUID()
-        a.save(history(["One", "Two"], id: id), for: url)
+        a.saveAndWait(history(["One", "Two"], id: id), for: url)
         let stale = b.load(for: url)
 
         let before = a.load(for: url)
         a.noteVersionDeleted(passage: id, at: 0, in: before, for: url)
         clock.advance(1)
-        a.save(DocumentHistory(passages: []), for: url)   // the engine removed the two-version passage
+        a.saveAndWait(DocumentHistory(passages: []), for: url)   // the engine removed the two-version passage
         clock.advance(1)
-        b.save(stale, for: url)
+        b.saveAndWait(stale, for: url)
         XCTAssertEqual(a.load(for: url), DocumentHistory(passages: []))
         XCTAssertEqual(b.load(for: url), DocumentHistory(passages: []))
 
         // A local document: nothing to forward, nothing changes.
         let localURL = try file(outside.appendingPathComponent("l.md"))
         let saved = history(id: id)
-        a.save(saved, for: localURL)
+        a.saveAndWait(saved, for: localURL)
         a.noteVersionDeleted(passage: id, at: 0, in: saved, for: localURL)
-        a.save(saved, for: localURL)
+        a.saveAndWait(saved, for: localURL)
         XCTAssertEqual(a.load(for: localURL), saved)
     }
 
-    func testDeviceIdentityIsStableAndPlatformPrefixed() throws {
+    // MARK: - I3: the device name
+
+    final class MemoryDeviceIDs: HistoryDeviceIDStoring {
+        var stored: String?
+        var available = true
+        var writes = 0
+        func readDeviceID() -> HistoryDeviceIDRead {
+            guard available else { return .unavailable }
+            return stored.map { .found($0) } ?? .notFound
+        }
+        func writeDeviceID(_ id: String) -> Bool {
+            writes += 1
+            guard available else { return false }
+            stored = id
+            return true
+        }
+    }
+
+    private func defaultsSuite() throws -> UserDefaults {
         let suite = "RoutingHistoryTests-\(UUID().uuidString)"
-        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
-        defer { defaults.removePersistentDomain(forName: suite) }
-        let first = HistoryDeviceIdentity.current(platform: "mac", defaults: defaults)
+        addTeardownBlock { UserDefaults().removePersistentDomain(forName: suite) }
+        return try XCTUnwrap(UserDefaults(suiteName: suite))
+    }
+
+    /// Kept in the device-only store, never in user defaults (which a backup restore copies).
+    func testDeviceIdentityIsStablePlatformPrefixedAndNotInDefaults() throws {
+        let defaults = try defaultsSuite()
+        let ids = MemoryDeviceIDs()
+        let first = HistoryDeviceIdentity.current(platform: "mac", storage: ids, defaults: defaults)
         XCTAssertTrue(first.hasPrefix("mac-"))
         XCTAssertNotNil(UUID(uuidString: String(first.dropFirst(4))))
-        XCTAssertEqual(HistoryDeviceIdentity.current(platform: "mac", defaults: defaults), first)
-        XCTAssertEqual(defaults.string(forKey: "LineformHistoryDeviceID.v1"), first)
+        XCTAssertEqual(HistoryDeviceIdentity.current(platform: "mac", storage: ids, defaults: defaults), first)
+        XCTAssertEqual(ids.stored, first)
+        XCTAssertNil(defaults.object(forKey: "LineformHistoryDeviceID.v1"))
 
-        let phoneSuite = suite + "-phone"
-        let phoneDefaults = try XCTUnwrap(UserDefaults(suiteName: phoneSuite))
-        defer { phoneDefaults.removePersistentDomain(forName: phoneSuite) }
-        let phone = HistoryDeviceIdentity.current(platform: "iphone", defaults: phoneDefaults)
+        let phone = HistoryDeviceIdentity.current(platform: "iphone", storage: MemoryDeviceIDs(), defaults: try defaultsSuite())
         XCTAssertTrue(phone.hasPrefix("iphone-"))
         XCTAssertNotEqual(phone, first)
     }
+
+    /// A name an earlier build kept in user defaults moves to the device-only store once, and is
+    /// then removed from defaults: the same name, so this device keeps writing its own records.
+    func testDefaultsDeviceNameMigratesOnceToTheKeychain() throws {
+        let defaults = try defaultsSuite()
+        defaults.set("iphone-OLD", forKey: "LineformHistoryDeviceID.v1")
+        let ids = MemoryDeviceIDs()
+        XCTAssertEqual(HistoryDeviceIdentity.current(platform: "iphone", storage: ids, defaults: defaults), "iphone-OLD")
+        XCTAssertEqual(ids.stored, "iphone-OLD")
+        XCTAssertNil(defaults.object(forKey: "LineformHistoryDeviceID.v1"))
+        XCTAssertEqual(HistoryDeviceIdentity.current(platform: "iphone", storage: ids, defaults: defaults), "iphone-OLD")
+        XCTAssertEqual(ids.writes, 1)
+    }
+
+    /// No Keychain: the name lives in defaults, and is the same at every launch.
+    func testDeviceNameFallsBackToDefaultsWhenTheKeychainIsUnavailable() throws {
+        let defaults = try defaultsSuite()
+        let ids = MemoryDeviceIDs()
+        ids.available = false
+        let first = HistoryDeviceIdentity.current(platform: "mac", storage: ids, defaults: defaults)
+        XCTAssertEqual(HistoryDeviceIdentity.current(platform: "mac", storage: ids, defaults: defaults), first)
+        XCTAssertEqual(defaults.string(forKey: "LineformHistoryDeviceID.v1"), first)
+
+        // An existing defaults name is kept when the Keychain refuses the migration.
+        let legacy = try defaultsSuite()
+        legacy.set("mac-OLD", forKey: "LineformHistoryDeviceID.v1")
+        let refusing = MemoryDeviceIDs()
+        refusing.available = false
+        XCTAssertEqual(HistoryDeviceIdentity.current(platform: "mac", storage: refusing, defaults: legacy), "mac-OLD")
+        XCTAssertEqual(legacy.string(forKey: "LineformHistoryDeviceID.v1"), "mac-OLD")
+    }
+
+    /// The live router reads the device name only when a shared document first uses History.
+    func testLiveRouterReadsTheDeviceNameOnlyForSharedHistory() throws {
+        let ids = MemoryDeviceIDs()
+        let store = RoutingPassageHistoryStore.live(platform: "mac", home: home("live"), defaults: try defaultsSuite(),
+                                                    deviceIDStorage: ids)
+        let url = try file(outside.appendingPathComponent("l.md"))
+        store.save(history(), for: url)
+        _ = store.load(for: url)
+        XCTAssertNil(ids.stored)
+        XCTAssertEqual(ids.writes, 0)
+    }
+
+    // MARK: - Container lookups (Minor 2)
 
     func testNoContainerLookupOnLoadOrSave() throws {
         let provider = Flag()
@@ -352,13 +431,157 @@ final class RoutingPassageHistoryStoreTests: XCTestCase {
         let shared = try file(documents.appendingPathComponent("s.md"))
         let local = try file(outside.appendingPathComponent("l.md"))
         for url in [shared, local] {
-            store.save(history(), for: url)
+            store.saveAndWait(history(), for: url)
             _ = store.load(for: url)
-            store.save(DocumentHistory(passages: []), for: url)
+            store.saveAndWait(DocumentHistory(passages: []), for: url)
         }
         store.retarget(from: shared, to: documents.appendingPathComponent("t.md"))
+        store.waitForBackgroundWork()
         XCTAssertEqual(provider.calls, 0)
+        // A shared store was used this session: its prune needs no lookup.
         store.prune(now: clock.now)
-        XCTAssertEqual(provider.calls, 1)
+        XCTAssertEqual(provider.calls, 0)
+    }
+
+    /// A Mac that never used the Lineform iCloud folder never sets the container up; one whose
+    /// sidecar shows shared History looks it up once, at prune.
+    func testPruneLooksTheContainerUpOnlyWhenThisDeviceHasSharedHistory() throws {
+        let never = Flag()
+        let local = try file(outside.appendingPathComponent("l.md"))
+        let localOnly = router(provider: never)
+        localOnly.saveAndWait(history(), for: local)
+        localOnly.prune(now: clock.now)
+        XCTAssertEqual(never.calls, 0)
+
+        let shared = try file(documents.appendingPathComponent("s.md"))
+        router().saveAndWait(history(), for: shared)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: bookmarksURL().path))
+        let once = Flag()
+        router(provider: once).prune(now: clock.now)
+        XCTAssertEqual(once.calls, 1)
+    }
+
+    // MARK: - Minor 3: Clear History reaches every store and survives a relaunch
+
+    /// The container is not reachable at Clear History: the clear date is kept, and a relaunched
+    /// router drops the cleared History and writes the marker at its first shared use.
+    func testClearWithoutTheContainerSurvivesARelaunch() throws {
+        let url = try file(documents.appendingPathComponent("d.md"))
+        router("mac-A").saveAndWait(history(["Old 1", "Old 2"]), for: url)
+        clock.advance(10)
+        let offline = router("mac-A", reachable: false)
+        offline.clearAll()
+        offline.waitForBackgroundWork()
+        XCTAssertFalse(FileManager.default.fileExists(atPath: container.appendingPathComponent("History/v1/Cleared/mac-A.json").path))
+
+        let relaunched = router("mac-A")
+        XCTAssertEqual(relaunched.load(for: url), DocumentHistory(passages: []))
+        relaunched.waitForBackgroundWork()
+        XCTAssertTrue(FileManager.default.fileExists(atPath: container.appendingPathComponent("History/v1/Cleared/mac-A.json").path))
+        XCTAssertEqual(router("iphone-B").load(for: url), DocumentHistory(passages: []))
+        // Written once: a later relaunch does not clear again (History made since stays).
+        clock.advance(10)
+        let fresh = history(["New 1", "New 2"])
+        relaunched.saveAndWait(fresh, for: url)
+        XCTAssertEqual(router("mac-A").load(for: url), fresh)
+    }
+
+    /// Every shared store used this session is cleared, even when the container lookup fails.
+    func testClearReachesEveryStoreUsedThisSession() throws {
+        let url = try file(documents.appendingPathComponent("d.md"))
+        let store = router("mac-A", reachable: false)
+        store.saveAndWait(history(), for: url)
+        clock.advance(1)
+        store.clearAll()
+        store.waitForBackgroundWork()
+        XCTAssertEqual(sharedFolders(), [])
+        XCTAssertTrue(FileManager.default.fileExists(atPath: container.appendingPathComponent("History/v1/Cleared/mac-A.json").path))
+    }
+
+    // MARK: - Minor 4: one store per container
+
+    func testOneStorePerContainerHoweverItIsSpelled() throws {
+        let link = root.appendingPathComponent("Link", isDirectory: true)
+        try FileManager.default.createSymbolicLink(at: link, withDestinationURL: container)
+        let viaLink = link.appendingPathComponent("Documents/d.md")
+        let store = RoutingPassageHistoryStore(
+            local: FilePassageHistoryStore(directory: localDirectory("mac-A")),
+            classify: { [container = container!, link] url in
+                let path = url.path
+                if path.hasPrefix(link.path + "/Documents/") {
+                    return .shared(container: link, relativePath: String(path.dropFirst(link.path.count + "/Documents/".count)))
+                }
+                return HistoryLocation.classify(url)
+            },
+            containerProvider: { [container = container!] in container },
+            bookmarkDirectory: localDirectory("mac-A").deletingLastPathComponent().appendingPathComponent("HistoryShared"),
+            makeShared: { [clock] c in SharedPassageHistoryStore(containerURL: c, device: "mac-A", now: { clock.now }) },
+            now: { [clock] in clock.now })
+        _ = try file(documents.appendingPathComponent("d.md"))
+        store.save(history(), for: viaLink)
+        _ = store.load(for: documents.appendingPathComponent("d.md"))
+        XCTAssertEqual(store.sharedStoreCount, 1)
+    }
+
+    // MARK: - D5 and Minor 7: nothing is deleted before its new copy is written
+
+    /// The shared write fails: the local History stays, and migrates at a later load.
+    func testLocalHistoryStaysWhenTheSharedWriteFails() throws {
+        let url = try file(documents.appendingPathComponent("d.md"))
+        let saved = history()
+        FilePassageHistoryStore(directory: localDirectory("mac-A")).save(saved, for: url)
+        let sharedRoot = container.appendingPathComponent("History/v1/Documents", isDirectory: true)
+        try FileManager.default.createDirectory(at: sharedRoot, withIntermediateDirectories: true)
+        try FileManager.default.setAttributes([.posixPermissions: 0o555], ofItemAtPath: sharedRoot.path)
+        addTeardownBlock { try? FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: sharedRoot.path) }
+
+        let store = router()
+        XCTAssertEqual(store.load(for: url), saved)
+        store.waitForBackgroundWork()
+        XCTAssertEqual(localIndexPaths(), [FileIdentity.key(for: url)], "kept: the shared copy was not written")
+        XCTAssertEqual(sharedFolders(), [])
+
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: sharedRoot.path)
+        XCTAssertEqual(store.load(for: url), saved)
+        store.waitForBackgroundWork()
+        XCTAssertEqual(localIndexPaths(), [])
+        XCTAssertEqual(router("iphone-B").load(for: url), saved)
+    }
+
+    /// Out of the container with a local write that fails: the shared folder stays.
+    func testMoveOutOfICloudKeepsSharedHistoryWhenTheLocalSaveFails() throws {
+        let old = try file(documents.appendingPathComponent("a.md"))
+        let new = outside.appendingPathComponent("a.md")
+        let store = router()
+        store.saveAndWait(history(), for: old)
+        let localRoot = localDirectory("mac-A")
+        try FileManager.default.createDirectory(at: localRoot, withIntermediateDirectories: true)
+        try FileManager.default.setAttributes([.posixPermissions: 0o555], ofItemAtPath: localRoot.path)
+        addTeardownBlock { try? FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: localRoot.path) }
+        try FileManager.default.moveItem(at: old, to: new)
+        store.retarget(from: old, to: new)
+        store.waitForBackgroundWork()
+        XCTAssertEqual(sharedFolders().count, 1)
+    }
+
+    // MARK: - Minor 6: the bookmark sidecar shrinks
+
+    func testSidecarDropsEntriesWhoseHistoryIsGone() throws {
+        let url = try file(documents.appendingPathComponent("d.md"))
+        let store = router()
+        store.saveAndWait(history(), for: url)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: bookmarksURL().path))
+        // Another device cleared it (or it was pruned there): nothing left to carry.
+        try FileManager.default.removeItem(at: container.appendingPathComponent("History"))
+        store.prune(now: clock.now)
+        store.waitForBackgroundWork()
+        XCTAssertFalse(FileManager.default.fileExists(atPath: bookmarksURL().path))
+    }
+}
+
+private extension RoutingPassageHistoryStore {
+    func saveAndWait(_ history: DocumentHistory, for url: URL) {
+        save(history, for: url)
+        waitForBackgroundWork()
     }
 }

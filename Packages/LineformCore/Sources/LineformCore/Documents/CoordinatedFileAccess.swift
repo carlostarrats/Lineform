@@ -76,4 +76,29 @@ enum CoordinatedFileAccess {
         }
         return result
     }
+
+    /// The bytes of every unresolved iCloud conflict version of the file (`NSFileVersion`), each
+    /// read coordinated. Empty when there are none, or outside iCloud.
+    static func conflictVersionData(of url: URL) -> [Data] {
+        var result: [Data] = []
+        var error: NSError?
+        NSFileCoordinator(filePresenter: nil).coordinate(readingItemAt: url, options: [], error: &error) { url in
+            for version in NSFileVersion.unresolvedConflictVersionsOfItem(at: url) ?? [] {
+                if let data = try? Data(contentsOf: version.url) { result.append(data) }
+            }
+        }
+        return result
+    }
+
+    /// Marks the file's conflict versions resolved and removes them: call it only after their
+    /// contents were merged into the file.
+    static func resolveConflictVersions(of url: URL) {
+        var error: NSError?
+        NSFileCoordinator(filePresenter: nil).coordinate(writingItemAt: url, options: [], error: &error) { url in
+            let versions = NSFileVersion.unresolvedConflictVersionsOfItem(at: url) ?? []
+            guard !versions.isEmpty else { return }
+            for version in versions { version.isResolved = true }
+            try? NSFileVersion.removeOtherVersionsOfItem(at: url)
+        }
+    }
 }
