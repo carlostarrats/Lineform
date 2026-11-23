@@ -259,8 +259,11 @@ lives in a lazily made `State` object (`testFactoryPathHasEveryDefault`).
   the reading column, otherwise 4 pt under the run, never past the column's right edge. They move after a render, refit, width or profile change. Pills and the
   table grid are placed only for the characters from a page above the visible one to a page below
   it (`overlayWindow`): measuring a run lays the text out down to it, so placing every pill laid
-  out a whole 1 MB document (about 330 ms). A scroll that shows characters outside that window
-  places them again; Copy pills keep their number counted from the document's start. Copy slices the rendered
+  out a whole 1 MB document (about 330 ms). When that stretch starts inside the laid-out prefix,
+  the prefix is extended through it; past it, positions are TextKit 1 estimates (far off on a long
+  document), so the whole text is laid out first, as before. A scroll or a height change (SwiftUI's
+  first short pass, Preview's pane growing as the keyboard goes down) that shows characters outside
+  that window places them again; Copy pills keep their number counted from the document's start. Copy slices the rendered
   source into `UIPasteboard.general`, shows a checkmark for 1.0 s, and never edits the document.
   Reconnect presents `.fileImporter` with the Mac's image types.
 - **Images are local only.** Remote and `data:` URLs stay placeholders. Files load only from the
@@ -401,11 +404,12 @@ puts the caret, the page or the review at the worst position for what it guards.
 | `testModeSwitchBackToWriteIsScoped` | Read → Write, page at the top, ≥ 4× cheaper than a whole-document restyle | the restore lays out through its target and a page, never the rest |
 | `testAIDecisionIsScopedRatio` | one accept ≥ 4× cheaper than a whole-composition present | a decision restyles only what changed |
 | `testReadingAssistsLayOutThePrefixOncePerRestyle` | after a restyle, a caret move with the ruler on ≥ 10× cheaper than the restyle | the prefix layout is paid once per restyle (ruling below) |
-| `testReadOverlaysDoNotForceWholeLayout` | placing the pills and grid from a fresh layout ≥ 4× cheaper than a full layout; no pill or table far below the page is measured | the pills are placed for the page and its neighbours only |
+| `testReadOverlaysDoNotForceWholeLayout` | page at the top: placing the pills and grid from a fresh layout ≥ 4× cheaper than a full layout; no pill or table far below the page is measured | the pills are placed for the page and its neighbours only (at the end of a fresh layout the whole text is still laid out, by ruling) |
 
 `testScopedRestoreLandsWhereTheWholeLayoutRestoreDid`, `testIncrementalPresentDrawsWhatAWholePresentDraws`
-and `testWindowedOverlaysMatchTheWholeSet` assert that the three scoped versions show exactly what
-the whole versions did.
+(with `testIncrementalPresentMatchesForWholeLineRewritesAndCRLF`), `testWindowedOverlaysMatchTheWholeSet`,
+`testOverlaysFollowAHeightOnlyResize` and `testPillsFollowAReRenderNearTheEnd` assert that the three
+scoped versions show exactly what the whole versions did.
 
 Two costs stay, by ruling. TextKit 1's position for a line past an unlaid stretch is an estimate,
 far off on a long document (the last line of 1 MB: 335,817 pt estimated, 1,786,482 pt exact), so

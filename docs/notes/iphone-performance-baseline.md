@@ -59,7 +59,7 @@ document, including everything after the target, whatever the target is.
 | Fix | Before | After |
 |---|---|---|
 | AI review overlay: a decision replaces only the differing span and restyles only the lines it and the re-tinted changes touch (`AIReviewOverlayTextView.presentIncrementally`) | accept 682 ms vs whole present 99 ms (0.15×) | accept 2.2 ms (best) / 3.0 ms (median) vs 99 ms (**45×**) |
-| Read pills and table grid placed for a page above to a page below the visible one (`overlayWindow`), re-placed when a scroll leaves it | pills from a fresh layout 325–358 ms vs full layout 577–609 ms (≈ 1.7×) | 7.3 ms (best) / 9 ms (median) vs 500 ms (**68×**) |
+| Read pills and table grid placed for a page above to a page below the visible one (`overlayWindow`), re-placed when a scroll or a height change leaves it | pills from a fresh layout, page at top: 325–358 ms vs full layout 577–609 ms (≈ 1.7×) | page at top: 7–10 ms vs 500 ms (**50–68×**); page at the end after a fresh layout: unchanged, 560–660 ms (Ruling 6) |
 | Editor restore (`scrollCharacterRangeToTop`) lays out the prefix through the target and one page, not the whole text | Read → Write, page at the top: 535 ms vs whole restyle 98 ms (0.18×) | 2.8 ms vs 97 ms (**35×**) |
 
 Each fix keeps what the writer sees, asserted by
@@ -75,14 +75,27 @@ the offset matches the old formula to 0.5 pt). `AIReviewTests`, `ReadingAssistsT
 
 | Gate | Scoped | Whole | Ratio | Asserted |
 |---|---|---|---|---|
-| `testKeystrokeIsScopedRatio` | 4.16 ms | 95.2 ms token pass | 22.9× | > 4× |
+| `testKeystrokeIsScopedRatio` (edit via `textStorage.replaceCharacters`, see note) | 4.16 ms | 95.2 ms token pass | 22.9× | > 4× |
 | `testOpenDoesNotLayOutWholeDocument` | 12.6 ms | 519 ms full layout | 41× | > 2×, plus unlaid < half |
 | `testLaunchToTypableEditor` | 9.6 ms | 12.5 ms open / 96.5 ms token pass | 1.3× / 10× | > 0.4× / > 4× |
 | `testReadRepeatApplyIsCheap` | 0.002 ms | 454 ms first render | > 10⁵× | > 10× |
 | `testModeSwitchBackToWriteIsScoped` | 2.8 ms | 97.3 ms whole restyle | 35× | > 4× |
-| `testAIDecisionIsScopedRatio` | 2.2 ms | 98.8 ms whole present | 45× | > 4× |
+| `testAIDecisionIsScopedRatio` (rig's text fixed, see note) | 2.2 ms | 98.8 ms whole present | 45× | > 4× |
 | `testReadingAssistsLayOutThePrefixOncePerRestyle` | 0.006 ms caret move | 615 ms restyle | > 10⁴× | > 10× |
-| `testReadOverlaysDoNotForceWholeLayout` | 7.3 ms | 500 ms full layout | 68× | > 4×, plus < 20 pills, no far table |
+| `testReadOverlaysDoNotForceWholeLayout` (page at top, Ruling 6) | 7.3 ms | 500 ms full layout | 68× | > 4×, plus < 20 pills, no far table |
+
+Notes on what two gates leave out:
+
+- **Keystroke.** The edit goes straight through `textStorage.replaceCharacters`, so it skips
+  `insertText` → `shouldChangeText` (History's minimal-edit trim against its shadow text) and the
+  edited line's layout. Both are bounded by the edit, not the document, but they are not in the
+  timed number.
+- **AI accept.** During a review the document never changes (decisions are applied when the review
+  ends), so no editor edit belongs in a decision. But the rig hands the composition cache the SAME
+  `String` every time, while production passes the editor's `textStorage.string`, a new bridged
+  string per body evaluation: `AIReviewCompositionCache` then compares the 1 MB text to its key, and
+  `AIReviewOverlay`'s coordinator compares the 1 MB compositions. Those comparisons (and a rebuild
+  when the cache misses) are not in the timed number.
 
 ### Rulings
 
@@ -116,6 +129,14 @@ the offset matches the old formula to 0.5 pt). `AIReviewTests`, `ReadingAssistsT
    `firstUnlaidGlyphIndex()` stayed near 3,400. That check would pass before the fix, so it is not
    used. The gate is a ratio against a full layout plus structure: fewer than 20 pills placed on a
    page whose document has over 100 code blocks, and no grid for a table at the end.
+6. **Read overlays gate at the top of the page.** The gate places the page at the top. With the
+   page at the end and the layout fresh (a re-render that keeps a deep offset), positions past the
+   laid-out prefix are TextKit 1 estimates, hundreds of thousands of points off (a pill measured at
+   224,589 pt for a line drawn at 1,529,401 pt), so `overlayWindow` lays the whole text out first,
+   exactly as placing every pill did before the fix: 561–663 ms (`testMeasureBudgets`, "page at the
+   end"). The fix removes that cost only where the stretch starts inside the laid-out prefix (the
+   top of a fresh render, ordinary scrolling). `testPillsFollowAReRenderNearTheEnd` asserts the end
+   case places the right pills.
 5. **Write → Read** (first render 460 ms + the position restore's full Read layout, about 1,030 ms
    in all) is reported, not gated, as the brief says.
 
