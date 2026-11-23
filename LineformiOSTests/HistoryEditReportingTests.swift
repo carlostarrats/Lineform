@@ -35,6 +35,24 @@ final class HistoryEditReportingTests: XCTestCase {
                        "the passage grew with the typing (a literal search could not have found it)")
     }
 
+    /// Minor 5: an edit reported over a wide range (an undo, a grouped rule edit) whose text only
+    /// changed outside the passage is trimmed to the minimal span first, so it no longer straddles
+    /// the passage and the passage survives (the Mac's `HistoryUndoCollapse.minimalEdit` rule).
+    func testAWideEditIsTrimmedToWhatChanged() throws {
+        let (controller, textView) = makeEditorWithPassage(prefix: "")
+        let text = textView.text as NSString
+        let wholeTextReports = controller.wholeTextReplacementCountForTesting
+        XCTAssertTrue(controller.hasHistory)
+        textView.applyRuleEdit(replacing: NSRange(location: 0, length: text.length),
+                               with: text.replacingOccurrences(of: "Epsilon", with: "Epsilons"))
+        XCTAssertEqual(textView.text, "Alpha BETA gamma delta. Epsilons.")
+        XCTAssertEqual(controller.wholeTextReplacementCountForTesting, wholeTextReports, "trimmed, not a whole-text report")
+        XCTAssertTrue(controller.hasHistory, "the trimmed edit does not straddle the only passage")
+        XCTAssertTrue(controller.enterHistoryMode(text: textView.text))
+        let passage = try XCTUnwrap(controller.located.first)
+        XCTAssertEqual((textView.text as NSString).substring(with: passage.range), accepted)
+    }
+
     func testReturnContinuationMovesPassagesAfterIt() throws {
         let (controller, textView) = makeEditorWithPassage(prefix: "- item\n")
         let before = controller.reportedEditCountForTesting

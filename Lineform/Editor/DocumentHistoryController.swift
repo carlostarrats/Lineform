@@ -92,10 +92,13 @@ final class DocumentHistoryController: ObservableObject {
 
     /// The app's one store: the unchanged local store under the (sandboxed) home's Application
     /// Support, and for documents in the Lineform iCloud folder the shared store in the container's
-    /// `History/` folder (`RoutingPassageHistoryStore`). Creating it touches no History file (it
-    /// reads, or makes once, this Mac's device name in user defaults).
-    static let sharedStore: PassageHistoryPersisting = RoutingPassageHistoryStore.live(
-        platform: "mac", home: URL(fileURLWithPath: NSHomeDirectory(), isDirectory: true))
+    /// `History/` folder (`RoutingPassageHistoryStore`). LAZY (`LazyHistoryStore`): the first
+    /// window's controller holds it at launch, and nothing History-related runs then — the router
+    /// is made at the store's first use, and this Mac's device name (Keychain, this device only) is
+    /// read only when a document in the Lineform iCloud folder first uses History.
+    static let sharedStore: LazyHistoryStore = LazyHistoryStore {
+        RoutingPassageHistoryStore.live(platform: "mac", home: URL(fileURLWithPath: NSHomeDirectory(), isDirectory: true))
+    }
 
     /// Posted (object: the store) after `clearAllHistory(in:)` emptied a store. Every controller
     /// on that store re-reads it, so no open editor keeps — or later writes back — cleared history.

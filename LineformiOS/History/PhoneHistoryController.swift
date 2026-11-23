@@ -87,24 +87,31 @@ final class PhoneHistoryController {
 
     /// The app's one store: the local store under the app container's Application Support, and
     /// for documents in the Lineform iCloud folder the shared store in the container's `History/`
-    /// folder (`RoutingPassageHistoryStore`). LAZY: the app's `OpenDocument.live()` is built at
-    /// launch, and nothing History-related runs then — the router (which reads, or makes once,
-    /// this iPhone's device name in user defaults) is made at the store's first use: the first
-    /// document opened with a file, or Settings ▸ Clear History.
+    /// folder (`RoutingPassageHistoryStore`). LAZY (`LazyHistoryStore`): the app's
+    /// `OpenDocument.live()` is built at launch, and nothing History-related runs then — the router
+    /// is made at the store's first use (the first document opened with a file, or Settings ▸
+    /// Clear History), and this iPhone's device name (Keychain, this device only) is read only when
+    /// a document in the Lineform iCloud folder first uses History.
     static let sharedStore: LazyHistoryStore = makeLiveStore()
 
-    /// The live store, made on first use. `home` and `defaults` are injected by tests.
+    /// The live store, made on first use. `home`, `defaults` and `deviceIDStorage` are injected by
+    /// tests.
     static func makeLiveStore(
         home: URL = URL(fileURLWithPath: NSHomeDirectory(), isDirectory: true),
-        defaults: UserDefaults = .standard
+        defaults: UserDefaults = .standard,
+        deviceIDStorage: HistoryDeviceIDStoring = SystemHistoryDeviceIDKeychain()
     ) -> LazyHistoryStore {
-        let box = UncheckedDefaults(defaults: defaults)
+        let box = UncheckedLiveInputs(defaults: defaults, storage: deviceIDStorage)
         return LazyHistoryStore {
-            RoutingPassageHistoryStore.live(platform: "iphone", home: home, defaults: box.defaults)
+            RoutingPassageHistoryStore.live(platform: "iphone", home: home, defaults: box.defaults,
+                                            deviceIDStorage: box.storage)
         }
     }
 
-    private struct UncheckedDefaults: @unchecked Sendable { let defaults: UserDefaults }
+    private struct UncheckedLiveInputs: @unchecked Sendable {
+        let defaults: UserDefaults
+        let storage: HistoryDeviceIDStoring
+    }
 
     /// Stores already pruned this app session (one in production). Held weakly: a freed store's
     /// `ObjectIdentifier` can be reused by a new one, which would then never be pruned.
@@ -716,41 +723,5 @@ final class PhoneHistoryController {
         case let (l?, r?): return FileIdentity.key(for: l) == FileIdentity.key(for: r)
         default: return false
         }
-    }
-}
-
-/// A store made on first use (`PhoneHistoryController.sharedStore`): holding one costs nothing,
-/// so the app can build its document at launch without anything History-related running. Every
-/// call forwards to the store `make` returns, made once, under a lock (prune calls in from its
-/// background queue).
-final class LazyHistoryStore: PassageHistoryPersisting, @unchecked Sendable {
-    private let lock = NSLock()
-    private let make: () -> PassageHistoryPersisting
-    private var made: PassageHistoryPersisting?
-
-    init(_ make: @escaping () -> PassageHistoryPersisting) {
-        self.make = make
-    }
-
-    /// Whether the real store exists yet (tests).
-    var isMade: Bool { lock.withLock { made != nil } }
-
-    private var store: PassageHistoryPersisting {
-        lock.withLock {
-            if let made { return made }
-            let store = make()
-            made = store
-            return store
-        }
-    }
-
-    func load(for url: URL) -> DocumentHistory { store.load(for: url) }
-    func save(_ history: DocumentHistory, for url: URL) { store.save(history, for: url) }
-    func retarget(from old: URL, to new: URL) { store.retarget(from: old, to: new) }
-    func retargetDirectory(from oldDir: URL, to newDir: URL) { store.retargetDirectory(from: oldDir, to: newDir) }
-    func prune(now: Date) { store.prune(now: now) }
-    func clearAll() { store.clearAll() }
-    func noteVersionDeleted(passage: UUID, at index: Int, in history: DocumentHistory, for url: URL) {
-        store.noteVersionDeleted(passage: passage, at: index, in: history, for: url)
     }
 }

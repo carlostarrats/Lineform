@@ -343,26 +343,36 @@ final class HistoryModeTests: XCTestCase {
 
     // MARK: - Launch
 
-    /// Building the app's document at launch makes no History store: the device name in user
-    /// defaults is not read (or made) until the store's first use.
+    /// Building the app's document at launch makes no History store, and the device name is not
+    /// read (or made) until a document in the Lineform iCloud folder first uses History.
     func testTheLiveDocumentMakesNoHistoryStoreAtLaunch() throws {
+        final class CountingDeviceIDs: HistoryDeviceIDStoring {
+            var reads = 0
+            var stored: String?
+            func readDeviceID() -> HistoryDeviceIDRead {
+                reads += 1
+                return stored.map { .found($0) } ?? .notFound
+            }
+            func writeDeviceID(_ id: String) -> Bool { stored = id; return true }
+        }
         let suite = "HistoryModeTests-\(UUID().uuidString)"
         suites.append(suite)
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
-        let store = PhoneHistoryController.makeLiveStore(home: directory, defaults: defaults)
+        let ids = CountingDeviceIDs()
+        let store = PhoneHistoryController.makeLiveStore(home: directory, defaults: defaults, deviceIDStorage: ids)
 
         let document = OpenDocument.live(historyStore: store)
         XCTAssertNotNil(document.history)
         XCTAssertFalse(store.isMade, "nothing History-related runs at launch")
-        XCTAssertNil(defaults.object(forKey: "LineformHistoryDeviceID.v1"), "the device name is not touched")
+        XCTAssertEqual(ids.reads, 0, "the device name is not touched")
 
-        // First use makes it, once.
+        // First use makes it, once; a document outside the iCloud folder never needs the name.
         let url = directory.appendingPathComponent("first.md")
         XCTAssertTrue(store.load(for: url).isEmpty)
         XCTAssertTrue(store.isMade)
-        let device = try XCTUnwrap(defaults.string(forKey: "LineformHistoryDeviceID.v1"))
         XCTAssertTrue(store.load(for: url).isEmpty)
-        XCTAssertEqual(defaults.string(forKey: "LineformHistoryDeviceID.v1"), device)
+        XCTAssertEqual(ids.reads, 0)
+        XCTAssertNil(defaults.object(forKey: "LineformHistoryDeviceID.v1"), "never kept in user defaults")
         XCTAssertTrue(PhoneHistoryController.sharedStore is LazyHistoryStore)
     }
 

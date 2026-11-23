@@ -69,6 +69,7 @@ final class EditorConstructionTests: XCTestCase {
         XCTAssertNil(textView.historyController, "historyController, \(path)", file: file, line: line)
         XCTAssertFalse(textView.isApplyingHistoryEdit, "isApplyingHistoryEdit, \(path)", file: file, line: line)
         XCTAssertFalse(textView.state.isReplacingWholeText, "isReplacingWholeText, \(path)", file: file, line: line)
+        XCTAssertNil(textView.state.historyShadowText, "historyShadowText, \(path)", file: file, line: line)
         XCTAssertNil(textView.state.historyStandInUndoManager, "historyStandInUndoManager, \(path)", file: file, line: line)
         XCTAssertFalse(textView.isShowingHistoryMode, "isShowingHistoryMode, \(path)", file: file, line: line)
         XCTAssertNil(textView.historyWashView, "historyWashView, \(path)", file: file, line: line)

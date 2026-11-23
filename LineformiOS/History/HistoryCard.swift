@@ -144,7 +144,7 @@ struct HistoryCard: View {
         .padding(16)
         .background { HistoryCardBackground(theme: theme) }
         .environment(\.colorScheme, theme.usesDarkChrome ? .dark : .light)
-        .onAppear(perform: openFieldIfRequested)
+        .onAppear { openFieldIfRequested() }
         .onChange(of: model.opensReplacementField) { _, _ in openFieldIfRequested() }
         .onChange(of: model.selectedPassageID) { _, id in
             guard id != draftPassageID else { return }
@@ -248,11 +248,11 @@ struct HistoryCard: View {
             )
             .focused($fieldFocused)
             .submitLabel(.done)
-            .onSubmit(commit)
+            .onSubmit { commit() }
             .autocorrectionDisabled()
             // The replacement goes into the middle of a sentence: never capitalize it.
             .textInputAutocapitalization(.never)
-            Button(action: commit) {
+            Button { commit() } label: {
                 Image(systemName: "arrow.turn.down.left")
                     .font(.system(size: 13, weight: .bold))
                     .foregroundStyle(ink.opacity(canCommit ? 0.85 : 0.35))

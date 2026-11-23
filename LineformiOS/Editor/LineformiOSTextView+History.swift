@@ -10,6 +10,12 @@ import UIKit
 ///   changeInLength)`, the replacement the storage's text at `editedRange`. `setDocumentText`
 ///   and any edit spanning more than `historyWholeTextThreshold` UTF-16 units are reported as a
 ///   whole-text replacement instead (the next locate re-finds passages literally).
+/// - **Trimmed to the minimal span** (the Mac invariant): an undo, redo or grouped edit reports
+///   its whole range even where the text did not change, and the engine drops every passage an
+///   edit straddles. The storage has already changed when it reports, so the hook keeps a copy of
+///   the text (`State.historyShadowText`, made when History attaches, kept in step by every
+///   report) and trims old against new with `HistoryUndoCollapse.minimalEdit`. A copy out of step
+///   is remade and the edit reported as a whole-text replacement.
 /// - **History's own edits are never reported**: they run inside `performHistoryEdit`, and the
 ///   engine already moved its live ranges for them.
 /// - **Typing leaves History mode** first, with the session's collapse, then goes through (the
@@ -22,7 +28,11 @@ extension LineformTextView {
     /// The open document's History, attached by `PhoneHistoryController.attach`.
     var historyController: PhoneHistoryController? {
         get { state.historyController }
-        set { state.historyController = newValue }
+        set {
+            state.historyController = newValue
+            // The text before each edit, for trimming (nil while nothing listens).
+            state.historyShadowText = newValue == nil ? nil : NSMutableString(string: textStorage.string)
+        }
     }
 
     /// True while History applies its own edit.
@@ -39,25 +49,46 @@ extension LineformTextView {
 
     @objc private func textStorageDidProcessEditingForHistory(_ notification: Notification) {
         let storage = textStorage
-        guard storage.editedMask.contains(.editedCharacters),
-              !state.isApplyingHistoryEdit,
-              let controller = state.historyController else { return }
-        if state.isReplacingWholeText {
-            controller.noteWholeTextReplacement()
+        guard storage.editedMask.contains(.editedCharacters) else { return }
+        guard let controller = state.historyController else {
+            state.historyShadowText = nil
             return
         }
         let edited = storage.editedRange
         let before = NSRange(location: edited.location, length: edited.length - storage.changeInLength)
-        let length = (storage.string as NSString).length
-        guard edited.location != NSNotFound, before.length >= 0, NSMaxRange(edited) <= length,
+        let current = storage.string as NSString
+        let valid = edited.location != NSNotFound && before.length >= 0 && NSMaxRange(edited) <= current.length
+
+        // Keep the copy in step: replace the old span with the new one. A copy out of step (or
+        // none) is remade, and this edit cannot be trimmed.
+        var old: String?
+        if valid, let shadow = state.historyShadowText, NSMaxRange(before) <= shadow.length,
+           shadow.length + storage.changeInLength == current.length {
+            let small = before.length <= Self.historyWholeTextThreshold && edited.length <= Self.historyWholeTextThreshold
+            if small { old = shadow.substring(with: before) }
+            shadow.replaceCharacters(in: before, with: current.substring(with: edited))
+        } else {
+            state.historyShadowText = NSMutableString(string: current as String)
+        }
+
+        guard !state.isApplyingHistoryEdit else { return }
+        if state.isReplacingWholeText {
+            controller.noteWholeTextReplacement()
+            return
+        }
+        guard valid, let old,
               before.length <= Self.historyWholeTextThreshold,
               edited.length <= Self.historyWholeTextThreshold
         else {
             controller.noteWholeTextReplacement()
             return
         }
-        let replacement = edited.length == 0 ? "" : (storage.string as NSString).substring(with: edited)
-        controller.noteUserEdit(before, replacement: replacement)
+        let replacement = edited.length == 0 ? "" : current.substring(with: edited)
+        // Nothing changed in the characters (an attribute-only rewrite of the same text).
+        guard let trimmed = HistoryUndoCollapse.minimalEdit(from: old, to: replacement) else { return }
+        controller.noteUserEdit(
+            NSRange(location: before.location + trimmed.range.location, length: trimmed.range.length),
+            replacement: trimmed.replacement)
     }
 
     /// A user edit is about to land while History mode is up: leave it first, with the

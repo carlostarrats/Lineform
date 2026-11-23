@@ -81,6 +81,9 @@ final class LineformTextView: UITextView {
         /// True while `setDocumentText` replaces the whole text: reported as one whole-text
         /// replacement, never as an edit.
         var isReplacingWholeText = false
+        /// The text before the next edit, while History listens: each report trims its edit to
+        /// the minimal span against it (`textStorageDidProcessEditingForHistory`).
+        var historyShadowText: NSMutableString?
         /// History mode's empty undo manager: steps are not undoable one by one. Made on first use.
         var historyStandInUndoManager: UndoManager?
         /// History mode as the view last showed it (read-only, washes, History keys).
