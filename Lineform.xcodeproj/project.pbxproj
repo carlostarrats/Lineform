@@ -35,6 +35,7 @@
 		1F0000410000000000000076 /* StylingDrag.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000400000000000000076 /* StylingDrag.swift */; };
 		1F0000410000000000000072 /* StylingSheetTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000400000000000000072 /* StylingSheetTests.swift */; };
 		1F0000410000000000000075 /* StylingPerformanceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000400000000000000075 /* StylingPerformanceTests.swift */; };
+		1F00004100000000000000C1 /* PhonePerformanceBudgetTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00004000000000000000C1 /* PhonePerformanceBudgetTests.swift */; };
 		1F0000410000000000000029 /* ModePositionKeeper.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000400000000000000029 /* ModePositionKeeper.swift */; };
 		1F000041000000000000002A /* ModeSwitchTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F000040000000000000002A /* ModeSwitchTests.swift */; };
 		1F000041000000000000002B /* LinkedScroll.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F000040000000000000002B /* LinkedScroll.swift */; };
@@ -309,6 +310,7 @@
 		1F0000400000000000000076 /* StylingDrag.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StylingDrag.swift; sourceTree = "<group>"; };
 		1F0000400000000000000072 /* StylingSheetTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StylingSheetTests.swift; sourceTree = "<group>"; };
 		1F0000400000000000000075 /* StylingPerformanceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StylingPerformanceTests.swift; sourceTree = "<group>"; };
+		1F00004000000000000000C1 /* PhonePerformanceBudgetTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhonePerformanceBudgetTests.swift; sourceTree = "<group>"; };
 		1F0000400000000000000029 /* ModePositionKeeper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModePositionKeeper.swift; sourceTree = "<group>"; };
 		1F000040000000000000002A /* ModeSwitchTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModeSwitchTests.swift; sourceTree = "<group>"; };
 		1F000040000000000000002B /* LinkedScroll.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LinkedScroll.swift; sourceTree = "<group>"; };
@@ -864,6 +866,7 @@
 				1F000040000000000000002D /* LinkedScrollTests.swift */,
 				1F0000400000000000000072 /* StylingSheetTests.swift */,
 				1F0000400000000000000075 /* StylingPerformanceTests.swift */,
+				1F00004000000000000000C1 /* PhonePerformanceBudgetTests.swift */,
 				1F0000400000000000000032 /* MenuSheetTests.swift */,
 				1F0000400000000000000037 /* FilesSectionTests.swift */,
 				1F0000400000000000000036 /* FilesStoreTests.swift */,
@@ -1490,6 +1493,7 @@
 				1F000041000000000000002D /* LinkedScrollTests.swift in Sources */,
 				1F0000410000000000000072 /* StylingSheetTests.swift in Sources */,
 				1F0000410000000000000075 /* StylingPerformanceTests.swift in Sources */,
+				1F00004100000000000000C1 /* PhonePerformanceBudgetTests.swift in Sources */,
 				1F0000410000000000000032 /* MenuSheetTests.swift in Sources */,
 				1F0000410000000000000037 /* FilesSectionTests.swift in Sources */,
 				1F0000410000000000000036 /* FilesStoreTests.swift in Sources */,
