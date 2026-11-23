@@ -58,6 +58,11 @@ a fully working state, never an error or a prompt.
 - The on-device folder appears in the Files app under On My iPhone › Lineform
   (`UIFileSharingEnabled` and `LSSupportsOpeningDocumentsInPlace`).
 - No test touches the real container: tests inject a temporary folder.
+- **Release resources.** `LineformiOS/PrivacyInfo.xcprivacy` (no tracking, no collected data;
+  required reasons for UserDefaults and file timestamps) ships in the app's Resources; the Mac
+  ships none. `PhoneReleaseResourceTests` pins it with the Info.plist submission keys, the ATS
+  rule, the absence of usage descriptions, the icon, and one version and build across the Mac,
+  Quick Look and iPhone targets. Release steps: `docs/release/app-store-release.md` ▸ iPhone.
 
 ## Editor: TextKit 1
 
