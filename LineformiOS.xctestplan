@@ -27,6 +27,13 @@
         "identifier" : "1F0000430000000000000002",
         "name" : "LineformiOSTests"
       }
+    },
+    {
+      "target" : {
+        "containerPath" : "container:Lineform.xcodeproj",
+        "identifier" : "1F0000E20000000000000008",
+        "name" : "LineformiOSUITests"
+      }
     }
   ],
   "version" : 1

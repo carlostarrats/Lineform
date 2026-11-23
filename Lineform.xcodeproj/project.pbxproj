@@ -277,6 +277,7 @@
 		1F0000E1000000000000000C /* PhoneMenuAccessibilityTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000E1000000000000000B /* PhoneMenuAccessibilityTests.swift */; };
 		1F0000E1000000000000000E /* PhoneStylingSelectionAccessibilityTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000E1000000000000000D /* PhoneStylingSelectionAccessibilityTests.swift */; };
 		1F0000E10000000000000010 /* PhoneAIHistoryAccessibilityTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000E1000000000000000F /* PhoneAIHistoryAccessibilityTests.swift */; };
+		1F0000E20000000000000004 /* PhoneAccessibilityAuditUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000E20000000000000001 /* PhoneAccessibilityAuditUITests.swift */; };
 /* End PBXBuildFile section */
 
  /* Begin PBXContainerItemProxy section */
@@ -295,6 +296,13 @@
  			remoteInfo = LineformQuickLook;
  		};
 		1F0000470000000000000001 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 1F0000040000000000000001 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 1F0000430000000000000001;
+			remoteInfo = LineformiOS;
+		};
+		1F0000E2000000000000000C /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = 1F0000040000000000000001 /* Project object */;
 			proxyType = 1;
@@ -575,6 +583,8 @@
 		1F0000400000000000000096 /* PhoneExportWriterTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhoneExportWriterTests.swift; sourceTree = "<group>"; };
 		1F0000400000000000000094 /* PhoneExportFormat.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhoneExportFormat.swift; sourceTree = "<group>"; };
 		1F0000400000000000000095 /* PhoneExportWriter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhoneExportWriter.swift; sourceTree = "<group>"; };
+		1F0000E20000000000000001 /* PhoneAccessibilityAuditUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhoneAccessibilityAuditUITests.swift; sourceTree = "<group>"; };
+		1F0000E20000000000000002 /* LineformiOSUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = LineformiOSUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
  /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -617,6 +627,13 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		1F0000E20000000000000006 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
  /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
@@ -641,6 +658,7 @@
 				1F00000200000000000005C4 /* LineformCore */,
 				1F0000420000000000000001 /* LineformiOS */,
 				1F0000420000000000000002 /* LineformiOSTests */,
+				1F0000E20000000000000003 /* LineformiOSUITests */,
  				1F0000070000000000000004 /* Products */,
  			);
  			sourceTree = "<group>";
@@ -876,6 +894,7 @@
  				1F00000200000000000004A3 /* LineformQuickLook.appex */,
 				1F0000400000000000000009 /* LineformiOS.app */,
 				1F000040000000000000000A /* LineformiOSTests.xctest */,
+				1F0000E20000000000000002 /* LineformiOSUITests.xctest */,
  			);
  			name = Products;
  			sourceTree = "<group>";
@@ -966,6 +985,14 @@
 				1F0000E1000000000000000F /* PhoneAIHistoryAccessibilityTests.swift */,
 			);
 			path = LineformiOSTests;
+			sourceTree = "<group>";
+		};
+		1F0000E20000000000000003 /* LineformiOSUITests */ = {
+			isa = PBXGroup;
+			children = (
+				1F0000E20000000000000001 /* PhoneAccessibilityAuditUITests.swift */,
+			);
+			path = LineformiOSUITests;
 			sourceTree = "<group>";
 		};
 		1F0000C20000000000000001 /* History */ = {
@@ -1193,6 +1220,24 @@
 			productReference = 1F000040000000000000000A /* LineformiOSTests.xctest */;
 			productType = "com.apple.product-type.bundle.unit-test";
 		};
+		1F0000E20000000000000008 /* LineformiOSUITests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 1F0000E20000000000000009 /* Build configuration list for PBXNativeTarget "LineformiOSUITests" */;
+			buildPhases = (
+				1F0000E20000000000000005 /* Sources */,
+				1F0000E20000000000000006 /* Frameworks */,
+				1F0000E20000000000000007 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				1F0000E2000000000000000D /* PBXTargetDependency */,
+			);
+			name = LineformiOSUITests;
+			productName = LineformiOSUITests;
+			productReference = 1F0000E20000000000000002 /* LineformiOSUITests.xctest */;
+			productType = "com.apple.product-type.bundle.ui-testing";
+		};
  /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -1227,6 +1272,10 @@
 						CreatedOnToolsVersion = 26.5;
 						TestTargetID = 1F0000430000000000000001;
 					};
+					1F0000E20000000000000008 = {
+						CreatedOnToolsVersion = 26.5;
+						TestTargetID = 1F0000430000000000000001;
+					};
 				};
 			};
 			buildConfigurationList = 1F0000080000000000000003 /* Build configuration list for PBXProject "Lineform" */;
@@ -1255,6 +1304,7 @@
  				1F0000050000000000000003 /* LineformQuickLook */,
 				1F0000430000000000000001 /* LineformiOS */,
 				1F0000430000000000000002 /* LineformiOSTests */,
+				1F0000E20000000000000008 /* LineformiOSUITests */,
  			);
 		};
 /* End PBXProject section */
@@ -1313,6 +1363,13 @@
 			buildActionMask = 2147483647;
 			files = (
 				1F00004100000000000000A0 /* export-parity in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		1F0000E20000000000000007 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -1609,6 +1666,14 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		1F0000E20000000000000005 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				1F0000E20000000000000004 /* PhoneAccessibilityAuditUITests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
  /* End PBXSourcesBuildPhase section */
 
  /* Begin PBXTargetDependency section */
@@ -1626,6 +1691,11 @@
 			isa = PBXTargetDependency;
 			target = 1F0000430000000000000001 /* LineformiOS */;
 			targetProxy = 1F0000470000000000000001 /* PBXContainerItemProxy */;
+		};
+		1F0000E2000000000000000D /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 1F0000430000000000000001 /* LineformiOS */;
+			targetProxy = 1F0000E2000000000000000C /* PBXContainerItemProxy */;
 		};
  /* End PBXTargetDependency section */
 
@@ -1971,6 +2041,46 @@
 			};
 			name = Release;
 		};
+		1F0000E2000000000000000A /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = "";
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "com.lineform.app.ios-uitests";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTS_MACCATALYST = NO;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SWIFT_VERSION = 6.0;
+				TARGETED_DEVICE_FAMILY = 1;
+				TEST_TARGET_NAME = LineformiOS;
+			};
+			name = Debug;
+		};
+		1F0000E2000000000000000B /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = TV4QZT7A7X;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "com.lineform.app.ios-uitests";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTS_MACCATALYST = NO;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SWIFT_VERSION = 6.0;
+				TARGETED_DEVICE_FAMILY = 1;
+				TEST_TARGET_NAME = LineformiOS;
+			};
+			name = Release;
+		};
  /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -2024,6 +2134,15 @@
 			buildConfigurations = (
 				1F0000460000000000000003 /* Debug */,
 				1F0000460000000000000004 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		1F0000E20000000000000009 /* Build configuration list for PBXNativeTarget "LineformiOSUITests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				1F0000E2000000000000000A /* Debug */,
+				1F0000E2000000000000000B /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
