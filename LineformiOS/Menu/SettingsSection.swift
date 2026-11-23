@@ -35,7 +35,7 @@ struct SettingsSection: View {
 
     static var connectAITitle: String { String(localized: "Connect Your AI…") }
     static var connectAINote: String {
-        String(localized: "Rewrite and proofread with an AI account of your own. Only the passage you select is sent, or the whole document when you choose Ask AI for it, and only when you choose an action.")
+        String(localized: "Rewrite and proofread with an AI account of your own. Only the passage you select is sent, or the whole document when you choose Ask AI for it, with any comment you type. For Find, that is each whole sentence your selection touches, or every sentence of the document. Nothing is sent until you choose an action.")
     }
 
     // MARK: Clear History (the Mac's strings)

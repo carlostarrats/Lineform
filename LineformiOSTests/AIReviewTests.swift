@@ -356,6 +356,46 @@ final class AIReviewTests: XCTestCase {
         try await spin { editor.isFirstResponder }
     }
 
+    /// After a whole-document review, the overlay hands its scroll position back by character and
+    /// the editor takes the focus again. The caret goes to the change's end (far down), and the
+    /// focus must not scroll there: the restored position stays (fix after the step 8 review).
+    func testReviewEndKeepsRestoredScrollWhenEditorRegainsFocus() async throws {
+        let paragraph = "This sentence is here to fill the page with text."
+        let text = Array(repeating: paragraph, count: 80).joined(separator: "\n\n") + "\n"
+        let (editor, selection, ai, _) = try await hostScreen(text: text,
+            client: FakeAIClient(FakeAIClient.revising { _, segment in
+                segment.replacingOccurrences(of: "here", with: "there")
+            }))
+        let window = try XCTUnwrap(self.window)
+        editor.selectedRange = NSRange(location: 0, length: 0)
+        editor.setContentOffset(CGPoint(x: 0, y: -editor.adjustedContentInset.top), animated: false)
+        let top = editor.contentOffset.y
+
+        selection.askAIForWholeDocument()
+        XCTAssertEqual(selection.phase, .comment)
+        selection.model.action = .rephrase
+        XCTAssertTrue(selection.send())
+        try await spin { if case .reviewing = ai.state { return true }; return false }
+        try await spin { Self.find(AIReviewOverlayTextView.self, in: window) != nil }
+        let overlay = try XCTUnwrap(Self.find(AIReviewOverlayTextView.self, in: window))
+        try await spin { overlay.isFirstResponder }
+        // The writer reads from the top of the overlay.
+        overlay.setContentOffset(CGPoint(x: 0, y: -overlay.adjustedContentInset.top), animated: false)
+
+        ai.handle(.acceptCurrent)
+        XCTAssertEqual(ai.state, .idle)
+        try await spin { Self.find(AIReviewOverlayTextView.self, in: window) == nil }
+        try await spin { editor.isFirstResponder }
+        for _ in 0..<15 {
+            try await Task.sleep(for: .milliseconds(20))
+            window.layoutIfNeeded()
+        }
+        XCTAssertGreaterThan(editor.selectedRange.location, (editor.textStorage.string as NSString).length / 2,
+                             "the caret is at the change's end, far down")
+        XCTAssertEqual(editor.contentOffset.y, top, accuracy: 2,
+                       "regaining the focus does not scroll to the caret: the handed-back position stays")
+    }
+
     func testRowIgnoresProgrammaticSelection() async throws {
         let rig = try makeRig("Hello world, a short line.\n", client: FakeAIClient(.suspend))
         let commands = LiveEditorCommands(positionKeeper: rig.keeper, document: rig.document, mode: .write)

@@ -248,6 +248,160 @@ final class SelectionRowTests: XCTestCase {
         XCTAssertEqual(SelectionRowPlacement.bottomPadding(keyboardOverlap: 336, safeAreaBottom: 34), 302 + SelectionRowPlacement.gap)
     }
 
+    // MARK: - The comment field closes on any change (fix after the step 8 review)
+
+    /// What UIKit does when the writer types: the storage changes, then the delegate hears it.
+    private func type(_ text: String, at location: Int, in editor: LineformTextView) {
+        editor.textStorage.replaceCharacters(in: NSRange(location: location, length: 0), with: text)
+        editor.delegate?.textViewDidChange?(editor)
+    }
+
+    /// Opens the comment field on the hosted screen for `range`, with a note, and checks it stays
+    /// open while the note takes the focus (the editor resigning moves no selection).
+    private func openHostedComment(_ range: NSRange, editor: LineformTextView, controller: SelectionController) async throws {
+        select(range, in: editor)
+        try await spin { controller.phase == .row }
+        controller.perform(.askAI)
+        controller.model.note = "warmer"
+        XCTAssertEqual(controller.phase, .comment)
+        for _ in 0..<10 {
+            try await Task.sleep(for: .milliseconds(20))
+            window?.layoutIfNeeded()
+        }
+        XCTAssertEqual(controller.phase, .comment, "opening the field (the note taking the focus) does not close it")
+    }
+
+    func testTypingElsewhereClosesCommentAndSendsNothing() async throws {
+        let client = FakeAIClient(.suspend)
+        let (_, editor, controller, _) = try await hostScreen(text: "Hello there world, and more.\n", connected: true, client: client)
+        try await openHostedComment(NSRange(location: 0, length: 5), editor: editor, controller: controller)
+
+        // Typing elsewhere: the range the field holds no longer names the same text.
+        type("big ", at: 12, in: editor)
+        XCTAssertEqual(controller.phase, .hidden, "any edit closes the field, as the Mac's card closes on any click")
+        XCTAssertFalse(controller.send(), "nothing is left to send")
+        try await Task.sleep(for: .milliseconds(100))
+        XCTAssertTrue(client.prompts.isEmpty, "nothing is sent")
+        XCTAssertEqual(controller.aiController.state, .idle)
+        XCTAssertEqual(editor.textStorage.string, "Hello there big world, and more.\n")
+    }
+
+    func testSelectingOtherTextClosesComment() async throws {
+        let client = FakeAIClient(.suspend)
+        let (_, editor, controller, _) = try await hostScreen(text: "Hello there world, and more.\n", connected: true, client: client)
+        try await openHostedComment(NSRange(location: 0, length: 5), editor: editor, controller: controller)
+
+        select(NSRange(location: 6, length: 5), in: editor)
+        XCTAssertNotEqual(controller.phase, .comment, "a new selection closes the field")
+        XCTAssertFalse(controller.send())
+        // The new selection is the writer's: its own row rises once it settles.
+        try await spin { controller.phase == .row }
+        XCTAssertEqual(controller.anchorRange, NSRange(location: 6, length: 5))
+        XCTAssertTrue(client.prompts.isEmpty)
+    }
+
+    func testLiveReloadClosesComment() async throws {
+        let client = FakeAIClient(.suspend)
+        let (_, editor, controller, document) = try await hostScreen(text: "Hello there world, and more.\n",
+                                                                    connected: true, client: client)
+        try await openHostedComment(NSRange(location: 0, length: 5), editor: editor, controller: controller)
+
+        // The text replaced from outside (a live reload, Open, Save As, Convert) through the binding.
+        document.edit("Replaced from outside.\n")
+        try await spin { editor.textStorage.string == "Replaced from outside.\n" }
+        XCTAssertEqual(controller.phase, .hidden, "an outside replacement closes the field")
+        XCTAssertFalse(controller.send())
+
+        // Also without an AI controller made yet: the field still closes.
+        let (bare, bareController, _) = try makeEditor("Hello there world\n", connected: true)
+        bare.selectedRange = NSRange(location: 0, length: 5)
+        bareController.showRowNow()
+        bareController.perform(.askAI)
+        XCTAssertEqual(bareController.phase, .comment)
+        bareController.editorTextWillBeReplaced()
+        XCTAssertEqual(bareController.phase, .hidden)
+        XCTAssertTrue(client.prompts.isEmpty)
+    }
+
+    /// The backstop: a change that reached no hook still never sends a stale range.
+    func testSnapshotMismatchRefusesSend() async throws {
+        let client = FakeAIClient(.suspend)
+        let (editor, controller, _) = try makeEditor("Hello there world\n", connected: true, client: client)
+        editor.selectedRange = NSRange(location: 6, length: 5)
+        controller.showRowNow()
+        controller.perform(.askAI)
+        controller.model.note = "warmer"
+        XCTAssertTrue(controller.canSendNow)
+
+        // The storage changes with no delegate call: the hooks never hear it.
+        editor.textStorage.replaceCharacters(in: NSRange(location: 0, length: 0), with: "Oh, ")
+        XCTAssertFalse(controller.send(), "the text differs from the one the field opened on")
+        XCTAssertEqual(controller.phase, .hidden, "the field closes")
+        try await Task.sleep(for: .milliseconds(100))
+        XCTAssertTrue(client.prompts.isEmpty)
+        XCTAssertEqual(controller.aiController.state, .idle)
+    }
+
+    // MARK: - The writer's gesture on the app's selection (fix after the step 8 review)
+
+    /// A Search jump selects a match: the row stays down. The writer's own next touch on that
+    /// selection, or a key, makes it theirs, and the row can rise for it.
+    func testWriterGestureOnAppSelectionRaisesRow() async throws {
+        let (_, editor, controller) = try await hostScreen(text: "Hello world, this is a test.\n")
+        let match = NSRange(location: 6, length: 5)
+        editor.selectProgrammatically(match)
+        editor.delegate?.textViewDidChangeSelection?(editor)
+        try await Task.sleep(for: .seconds(SelectionController.settleDelay + 0.2))
+        XCTAssertEqual(controller.phase, .hidden, "the app's own selection raises no row")
+
+        // A touch away from the selection changes nothing. (`hitTest` calls `writerTouched(at:)`
+        // for every real touch; a test cannot make a touch event, so it calls it directly.)
+        let far = CGPoint(x: editor.bounds.midX, y: editor.bounds.maxY - 10)
+        editor.writerTouched(at: far)
+        try await Task.sleep(for: .seconds(SelectionController.settleDelay + 0.2))
+        XCTAssertEqual(controller.phase, .hidden)
+        XCTAssertTrue(editor.isSelectionProgrammatic)
+
+        // A touch on the selection: the writer's now.
+        let rect = try XCTUnwrap(editor.selectedTextRange.flatMap { editor.selectionRects(for: $0).first?.rect })
+        editor.writerTouched(at: CGPoint(x: rect.midX, y: rect.midY))
+        XCTAssertFalse(editor.isSelectionProgrammatic)
+        try await spin { controller.phase == .row }
+        XCTAssertEqual(controller.anchorRange, match)
+
+        // A key does the same.
+        controller.hide()
+        editor.selectProgrammatically(match)
+        editor.delegate?.textViewDidChangeSelection?(editor)
+        XCTAssertEqual(controller.phase, .hidden)
+        editor.pressesBegan([], with: nil)
+        XCTAssertFalse(editor.isSelectionProgrammatic)
+        try await spin { controller.phase == .row }
+    }
+
+    // MARK: - Menu and Aa beside a message card (fix after the step 8 review)
+
+    func testMenuButtonsReachableWhileMessageCardShows() async throws {
+        let (_, _, controller, _) = try await hostScreen(text: "Hello world.\n", connected: true, client: FakeAIClient(.suspend))
+        let window = try XCTUnwrap(self.window)
+        controller.aiController.refuseWholeDocument()
+        XCTAssertEqual(controller.aiState, .message(WholeDocumentAIPolicy.refusalMessage))
+        try await spin { Self.element(WholeDocumentAIPolicy.refusalMessage, in: window) != nil }
+        try await spin { Self.element(MenuButton.accessibilityTitle, in: window) != nil }
+        let menu = try XCTUnwrap(Self.element(MenuButton.accessibilityTitle, in: window)).accessibilityFrame
+        let message = try XCTUnwrap(Self.element(WholeDocumentAIPolicy.refusalMessage, in: window)).accessibilityFrame
+        XCTAssertGreaterThan(menu.minY, message.maxY, "the card sits above the buttons; neither covers the other")
+        XCTAssertTrue(SelectionController.showsBottomButtons(phase: .hidden, aiState: .message("x")))
+        XCTAssertTrue(SelectionController.showsBottomButtons(phase: .hidden, aiState: .marking([])))
+        XCTAssertTrue(SelectionController.showsBottomButtons(phase: .hidden, aiState: .idle))
+        XCTAssertFalse(SelectionController.showsBottomButtons(phase: .hidden, aiState: .running(.rephrase, .claude)))
+        let session = AIReviewSession(action: .rephrase, changes: [], selectionRange: NSRange(location: 0, length: 1),
+                                      originalSelection: "a")
+        XCTAssertFalse(SelectionController.showsBottomButtons(phase: .hidden, aiState: .reviewing(session)))
+        XCTAssertFalse(SelectionController.showsBottomButtons(phase: .row, aiState: .idle))
+        XCTAssertFalse(SelectionController.showsBottomButtons(phase: .comment, aiState: .idle))
+    }
+
     // MARK: - Helpers
 
     /// What UIKit does for a writer's selection: set it, then tell the delegate.
@@ -286,6 +440,12 @@ final class SelectionRowTests: XCTestCase {
     }
 
     private func hostScreen(text: String) async throws -> (DocumentScreen, LineformTextView, SelectionController) {
+        let (screen, editor, controller, _) = try await hostScreen(text: text, connected: false, client: FakeAIClient(.suspend))
+        return (screen, editor, controller)
+    }
+
+    private func hostScreen(text: String, connected: Bool, client: FakeAIClient) async throws
+        -> (DocumentScreen, LineformTextView, SelectionController, OpenDocument) {
         let folder = self.folder!
         let document = OpenDocument(folderProvider: { folder }, ubiquitousItems: SelectionRowTestUbiquitousItems())
         await document.prepare()
@@ -296,10 +456,10 @@ final class SelectionRowTests: XCTestCase {
         let settingsSuite = "SelectionRowTests-settings-\(UUID().uuidString)"
         suites.append(settingsSuite)
         let settings = AppSettings(defaults: try XCTUnwrap(UserDefaults(suiteName: settingsSuite)))
-        let store = try makeStore(connected: false)
+        let store = try makeStore(connected: connected)
         let controller = SelectionController(
             connectionStore: { store },
-            aiController: AIActionController(connectionStore: store, clientFactory: { _ in FakeAIClient(.suspend) })
+            aiController: AIActionController(connectionStore: store, clientFactory: { _ in client })
         )
         let screen = DocumentScreen(document: document, profileStore: profiles, settings: settings, selection: controller)
         let scene = try XCTUnwrap(UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first)
@@ -313,7 +473,7 @@ final class SelectionRowTests: XCTestCase {
         }
         let editor = try XCTUnwrap(Self.find(LineformTextView.self, in: window))
         XCTAssertTrue(editor.becomeFirstResponder())
-        return (screen, editor, controller)
+        return (screen, editor, controller, document)
     }
 
     private func spin(timeout: TimeInterval = 3, until condition: () -> Bool,

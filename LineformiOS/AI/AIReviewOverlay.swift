@@ -395,9 +395,35 @@ struct AIReviewOverlay: UIViewRepresentable {
                                            offset: anchor.offset)
         }
         if view.reviewState.editorHadFocus, editor.window != nil {
+            // Taking the focus scrolls a text view to its caret, which is now at the change's end,
+            // maybe far below: the position just handed back is held instead (the caret is placed
+            // without scrolling).
+            let restored = editor.contentOffset
             editor.becomeFirstResponder()
+            holdOffset(restored, of: editor)
         } else if view.isFirstResponder {
             view.resignFirstResponder()
+        }
+    }
+
+    /// When the hand-over's position is re-asserted after the editor takes the focus: at once, and
+    /// across the keyboard's arrival, unless the writer starts scrolling.
+    static let offsetHoldDelays: [TimeInterval] = [0, 0.05, 0.15, 0.3, 0.5]
+
+    private static func holdOffset(_ offset: CGPoint, of editor: UIScrollView) {
+        func reassert() {
+            guard !editor.isTracking, !editor.isDecelerating,
+                  abs(editor.contentOffset.y - offset.y) > 0.5 else { return }
+            let top = -editor.adjustedContentInset.top
+            let maximum = max(top, editor.contentSize.height + editor.adjustedContentInset.bottom - editor.bounds.height)
+            editor.setContentOffset(CGPoint(x: editor.contentOffset.x, y: min(max(top, offset.y), maximum)), animated: false)
+        }
+        reassert()
+        for delay in offsetHoldDelays {
+            DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak editor] in
+                guard editor != nil else { return }
+                reassert()
+            }
         }
     }
 }

@@ -125,6 +125,15 @@ private struct SelectionCommentCard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
+            // What Send sends, quietly, when the card is for the whole document (Edit ▸ Ask AI…
+            // with nothing selected).
+            if model.isWholeDocument {
+                Text(SelectionToolbarPresentation.wholeDocumentSubtitle)
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+                    .padding(.bottom, -6)
+                    .background(CursorRectView(cursor: .arrow))
+            }
             ZStack(alignment: .topLeading) {
                 SelectionNoteTextView(
                     text: $model.note,

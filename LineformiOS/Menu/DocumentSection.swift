@@ -75,10 +75,15 @@ struct DocumentSection: View {
     static let privacyPolicyURL = URL(string: LineformLinks.privacyPolicyURL)!
     static let termsOfUseURL = URL(string: LineformLinks.termsOfUseURL)!
 
-    /// Ask AI… shows while an AI is connected and an editor is on screen: Read has no editor to
-    /// hold the comment field, and allows no AI.
-    static func showsAskAI(isConnected: Bool, mode: EditorDisplayMode) -> Bool {
-        isConnected && mode != .read
+    /// Ask AI… shows while an AI is connected, an editor is on screen (Read has no editor to hold
+    /// the comment field, and allows no AI), and the document has text to send.
+    static func showsAskAI(isConnected: Bool, mode: EditorDisplayMode, hasText: Bool) -> Bool {
+        isConnected && mode != .read && hasText
+    }
+
+    /// The document has something to send: not empty, and not only white space.
+    static func hasText(_ text: String) -> Bool {
+        text.contains { !$0.isWhitespace }
     }
 
     /// Every row's title, in order, for `textFormat`.
@@ -146,7 +151,7 @@ struct DocumentSection: View {
                     Label(Self.checkDocumentTitle, systemImage: "textformat.abc.dottedunderline")
                 }
                 if let onAskAI, let aiStore {
-                    DocumentAskAIRow(store: aiStore, mode: mode) {
+                    DocumentAskAIRow(store: aiStore, mode: mode, hasText: Self.hasText(document.text)) {
                         onAskAI()
                         onDismiss()
                     }
@@ -219,10 +224,11 @@ struct DocumentSection: View {
 private struct DocumentAskAIRow: View {
     @ObservedObject var store: AIConnectionStore
     var mode: EditorDisplayMode
+    var hasText: Bool
     var action: () -> Void
 
     var body: some View {
-        if DocumentSection.showsAskAI(isConnected: store.isConnected, mode: mode) {
+        if DocumentSection.showsAskAI(isConnected: store.isConnected, mode: mode, hasText: hasText) {
             Button(action: action) {
                 Label(DocumentSection.askAITitle, systemImage: "text.bubble")
             }

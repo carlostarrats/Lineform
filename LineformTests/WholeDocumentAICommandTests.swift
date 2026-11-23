@@ -1,5 +1,6 @@
 import XCTest
 import AppKit
+import SwiftUI
 @testable import Lineform
 @testable import LineformCore
 
@@ -85,13 +86,20 @@ final class WholeDocumentAICommandTests: XCTestCase {
         XCTAssertTrue(refusingFake.prompts.isEmpty)
     }
 
-    /// Enabled only while connected, outside History mode, not mid-request or mid-review, and with
-    /// an editor on screen (Write or Split).
+    /// Enabled only while connected, outside History mode, not mid-request or mid-review, with
+    /// an editor on screen (Write or Split), and an editable document with text in it: with
+    /// nothing to send, the command is not offered (fix after the step 8 review).
     func testMenuEnablement() {
         func enabled(connected: Bool = true, history: Bool = false, state: AIActionController.State = .idle,
-                     mode: EditorDisplayMode = .write) -> Bool {
-            AskAICommand.isEnabled(isConnected: connected, isHistoryModeActive: history, state: state, displayMode: mode)
+                     mode: EditorDisplayMode = .write, editable: Bool = true, hasText: Bool = true) -> Bool {
+            AskAICommand.isEnabled(isConnected: connected, isHistoryModeActive: history, state: state, displayMode: mode,
+                                   isEditable: editable, hasText: hasText)
         }
+        XCTAssertFalse(enabled(editable: false), "a document that cannot be edited cannot take a suggestion")
+        XCTAssertFalse(enabled(hasText: false), "an empty document has nothing to send")
+        XCTAssertFalse(AskAICommand.hasText(""))
+        XCTAssertFalse(AskAICommand.hasText("  \n\n"))
+        XCTAssertTrue(AskAICommand.hasText("A"))
         XCTAssertTrue(enabled())
         XCTAssertTrue(enabled(mode: .split))
         XCTAssertTrue(enabled(state: .message("x")))
@@ -125,6 +133,61 @@ final class WholeDocumentAICommandTests: XCTestCase {
         }
     }
 
+    // MARK: - Menu state at launch (fix after the step 8 review)
+
+    /// Edit ▸ Ask AI… is enabled at launch when an AI is already connected: the window's state is
+    /// published when the editor appears, not only when it changes or the window becomes key.
+    func testAskAIMenuEnabledOnAppearWhenConnected() async throws {
+        suiteName = "WholeDocumentAICommandTests.\(UUID().uuidString)"
+        let store = AIConnectionStore(defaults: UserDefaults(suiteName: suiteName)!, keychain: InMemoryAIKeychain())
+        XCTAssertNil(store.connect(.claude, key: "test-key-not-real"))
+        let controller = AIActionController(connectionStore: store) { _ in FakeAIClient(.suspend) }
+        let textView = LineformTextView()
+        textView.string = "The big dog ran."
+        controller.editor = textView
+        let history = DocumentHistoryController(store: NullPassageHistoryStore())
+        LineformAIMenuState.shared.setCanAskAI(false)
+        defer { LineformAIMenuState.shared.setCanAskAI(false) }
+
+        let view = Color.clear.frame(width: 100, height: 100).modifier(AskAIMenuHandlers(
+            windowNumber: nil, aiController: controller, historyController: history, connectionStore: store,
+            displayMode: .write, documentHasText: true, isKeyWindow: { true }
+        ))
+        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 100, height: 100), styleMask: [.titled],
+                              backing: .buffered, defer: false)
+        window.isReleasedWhenClosed = false
+        window.contentView = NSHostingView(rootView: view)
+        defer { window.close() }
+        let deadline = Date().addingTimeInterval(2)
+        while !LineformAIMenuState.shared.canAskAI, Date() < deadline {
+            try await Task.sleep(for: .milliseconds(20))
+        }
+        XCTAssertTrue(LineformAIMenuState.shared.canAskAI, "enabled once the editor appears, already connected")
+    }
+
+    // MARK: - The whole-document card (fix after the step 8 review)
+
+    /// The whole-document comment card carries a quiet "Whole document" subtitle, so the writer
+    /// knows what Send sends; a selection's card does not.
+    func testWholeDocumentCardSaysWholeDocument() {
+        XCTAssertEqual(SelectionToolbarPresentation.wholeDocumentSubtitle, "Whole document")
+        func height(wholeDocument: Bool) -> CGFloat {
+            let model = SelectionToolbarModel()
+            model.mode = .comment
+            model.aiName = "Claude"
+            model.isWholeDocument = wholeDocument
+            return NSHostingView(rootView: SelectionToolbarRoot(model: model)).fittingSize.height
+        }
+        XCTAssertGreaterThan(height(wholeDocument: true), height(wholeDocument: false), "the subtitle takes a line")
+
+        let textView = LineformTextView()
+        textView.string = "Some text."
+        textView.selectionToolbar.model.isWholeDocument = true
+        textView.selectionToolbar.isWholeDocument = true
+        textView.hideSelectionToolbar()
+        XCTAssertFalse(textView.selectionToolbar.model.isWholeDocument, "closing the card clears it")
+    }
+
     // MARK: - Wording
 
     private var repoRoot: URL {
@@ -138,7 +201,14 @@ final class WholeDocumentAICommandTests: XCTestCase {
         let privacy = try String(contentsOf: bundled, encoding: .utf8)
         XCTAssertTrue(privacy.contains("the passage you select, or the whole document when you choose Ask AI for the whole document"))
         XCTAssertTrue(privacy.contains("Its file name is never sent."))
-        XCTAssertTrue(privacy.contains("from your Mac"))
+        // Both apps (fix after the step 8 review): no platform named where both apply.
+        XCTAssertTrue(privacy.contains("directly from your device to that provider"))
+        XCTAssertTrue(privacy.contains("your device's Keychain"))
+        XCTAssertTrue(privacy.contains("Connect Your AI (Lineform ▸ Connect Your AI… on Mac, Menu ▸ Settings on iPhone)"))
+        XCTAssertFalse(privacy.contains("from your Mac to that provider"))
+        XCTAssertFalse(privacy.contains("your Mac's Keychain"))
+        // Find on the whole document sends every sentence of its prose.
+        XCTAssertTrue(privacy.contains("for Find on the whole document, every sentence of its prose"))
         XCTAssertFalse(privacy.contains("The rest of your document and its file name are never sent."))
 
         let web = try String(contentsOf: repoRoot.appendingPathComponent("web/privacy.html"), encoding: .utf8)
@@ -146,9 +216,15 @@ final class WholeDocumentAICommandTests: XCTestCase {
         XCTAssertTrue(web.contains("the passage you select, or the whole document when you choose Ask AI for the whole"))
         XCTAssertFalse(web.contains("only the prose of that selection goes"))
         XCTAssertTrue(web.contains("Its file name is never sent."))
+        XCTAssertTrue(web.contains("straight from your device to the provider"))
+        XCTAssertTrue(web.contains("Your key stays in your device's Keychain."))
+        XCTAssertTrue(web.contains("Connect Your AI (Lineform ▸ Connect Your AI… on Mac, Menu ▸ Settings on iPhone)"))
+        XCTAssertTrue(web.contains("or every sentence of the document"))
+        XCTAssertFalse(web.contains("your Mac's Keychain"))
 
         let help = try String(contentsOf: try XCTUnwrap(Bundle.main.url(forResource: "Help", withExtension: "md")), encoding: .utf8)
         XCTAssertTrue(help.contains("or of the whole document when you choose Ask AI for the whole document"))
+        XCTAssertTrue(help.contains("(for Find, each whole sentence your selection touches, or every sentence of the document)"))
 
         let claude = try String(contentsOf: repoRoot.appendingPathComponent("Claude.md"), encoding: .utf8)
         XCTAssertTrue(claude.contains("the passage they select, or the whole document when they choose Ask AI for it"))

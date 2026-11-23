@@ -75,6 +75,12 @@ enum SelectionRowPlacement {
 ///   once, above that after "Send the whole document (N words) to …?" (Send / Cancel, Cancel the
 ///   default), and past `AILimits` it is refused on the AI's message card. Nothing is sent and the
 ///   Keychain is not read until Send.
+/// - **Any change closes the comment.** An edit in the editor, a new selection, or an outside
+///   replacement (a live reload, Open, Save As, Convert) closes the field, as the Mac's card closes
+///   on any click: the range it holds would no longer name the text the writer commented on. As a
+///   backstop, Send refuses a selection's comment when the text differs from the one the field
+///   opened on, and a whole-document Send runs `WholeDocumentAIPolicy` again (asking again above
+///   the confirmed count, refusing past the limit).
 /// - **Keyboard.** The keyboard's overlap with the window is tracked from its frame notifications
 ///   (`keyboardOverlap`), so the row and the field sit just above it.
 ///
@@ -129,8 +135,17 @@ final class SelectionController: NSObject, ObservableObject {
     @Published private(set) var isWholeDocument = false
     /// Where the caret was when the whole-document field opened: Cancel puts it back.
     private var wholeDocumentCaret: NSRange?
-    /// The word count the confirmation asks about while it is up (nil otherwise).
+    /// The word count the confirmation asks about while it is up (nil otherwise). Cleared when the
+    /// alert goes away by ANY path (Send, Cancel, or dismissed under it).
     private(set) var pendingWholeDocumentWords: Int?
+    /// Which confirmation `pendingWholeDocumentWords` belongs to: an older alert going away never
+    /// clears a newer one's count.
+    private var pendingConfirmationID: UUID?
+    /// The word count the writer confirmed for this whole-document field (nil when it opened
+    /// without asking). Send asks again for more.
+    private var confirmedWholeDocumentWords: Int?
+    /// The document's text when the comment field opened: a selection's Send refuses when it differs.
+    private var commentSnapshot: String?
     /// Shows the confirmation. By default, from the top of the editor's window; tests capture it.
     var presentAlert: (UIAlertController) -> Void = { _ in }
     private(set) weak var editor: LineformTextView?
@@ -179,6 +194,7 @@ final class SelectionController: NSObject, ObservableObject {
         hide()
         editor.aiRefusalHandler = { [weak self] in self?.editRefusedDuringReview() }
         editor.aiDismissMarksHandler = { [weak self] in self?.aiControllerStorage?.dismissMarks() }
+        editor.writerInteractionHandler = { [weak self] in self?.writerTookAppSelection() }
         if let controller = aiControllerStorage {
             wireAI(controller)
             editor.isAIReviewActive = { if case .reviewing = controller.state { return true }; return false }()
@@ -211,8 +227,9 @@ final class SelectionController: NSObject, ObservableObject {
     /// row at once; a non-empty one shows it once it has stayed the same for `settleDelay`.
     func editorSelectionDidChange() {
         guard !isAdjustingSelection, let editor else { return }
-        // The comment holds its own range; the note field has focus.
-        guard phase != .comment else { return }
+        // A new selection closes the comment (the Mac's card closes on any click); the new
+        // selection is then the writer's like any other.
+        if phase == .comment { closeCommentForChange() }
         settleTask?.cancel()
         // The app's own selection (a Search or Outline jump, a position restore, a review's end)
         // never raises the row.
@@ -226,6 +243,38 @@ final class SelectionController: NSObject, ObservableObject {
             guard !Task.isCancelled, let self, let editor = self.editor, editor.selectedRange == range,
                   !editor.isSelectionProgrammatic else { return }
             self.showRowNow()
+        }
+    }
+
+    /// The writer touched the app's own selection, or pressed a key (the editor has already
+    /// forgotten that the app set it): the selection is theirs now, and the row may rise for it.
+    private func writerTookAppSelection() {
+        guard phase != .comment else { return }
+        editorSelectionDidChange()
+    }
+
+    /// The editor's text changed (`textViewDidChange`: typing, a formatting command, Read's
+    /// checkbox, Search's Replace). An open comment closes: its range no longer names the same text.
+    func editorTextDidChange() {
+        guard phase == .comment else { return }
+        closeCommentForChange()
+    }
+
+    /// Something changed under the open comment field: it closes, sending nothing and putting no
+    /// selection back (the text or the selection is no longer the one it was opened for).
+    private func closeCommentForChange() {
+        guard phase == .comment else { return }
+        hide()
+    }
+
+    /// The Menu, Aa (and Preview's link) buttons show unless the row or the comment field has the
+    /// bottom, or a request or review is running. A message or Find's marks leave them reachable:
+    /// their card sits above the buttons.
+    static func showsBottomButtons(phase: Phase, aiState: AIActionController.State) -> Bool {
+        guard phase == .hidden else { return false }
+        switch aiState {
+        case .running, .reviewing: return false
+        case .idle, .message, .marking: return true
         }
     }
 
@@ -264,8 +313,11 @@ final class SelectionController: NSObject, ObservableObject {
         settleTask = nil
         anchorRange = nil
         wholeDocumentCaret = nil
+        confirmedWholeDocumentWords = nil
+        commentSnapshot = nil
         if isNoteComposing { isNoteComposing = false }
         if isWholeDocument { isWholeDocument = false }
+        if model.isWholeDocument { model.isWholeDocument = false }
         if phase != .hidden { phase = .hidden }
     }
 
@@ -327,9 +379,11 @@ final class SelectionController: NSObject, ObservableObject {
     // MARK: - Comment
 
     func openComment() {
-        guard phase == .row, anchorRange != nil, model.aiName != nil, !isReadMode else { return }
+        guard phase == .row, anchorRange != nil, model.aiName != nil, !isReadMode, let editor else { return }
         model.note = ""
         model.action = .custom
+        if model.isWholeDocument { model.isWholeDocument = false }
+        commentSnapshot = editor.textStorage.string
         isNoteComposing = false
         phase = .comment
         model.focusToken += 1
@@ -346,6 +400,12 @@ final class SelectionController: NSObject, ObservableObject {
 
     /// Sends the comment: the shared controller runs the action on the selection the row was shown
     /// for. Refused while composing (Return then only confirms the candidate). True when it ran.
+    ///
+    /// The backstops behind "any change closes the field": a selection's comment is refused (and
+    /// the field closed) when the text is no longer the one it opened on. A whole-document comment
+    /// runs the length policy again: past the limit it is refused on the message card; above the
+    /// count the writer confirmed (or above 1,500 words when nothing was asked) the writer is asked
+    /// again, and the field stays with its note until they answer.
     @discardableResult
     func send() -> Bool {
         guard canSendNow, let range = anchorRange, let editor else { return false }
@@ -353,6 +413,24 @@ final class SelectionController: NSObject, ObservableObject {
         let note = model.note
         let text = editor.textStorage.string
         let wholeDocument = isWholeDocument
+        if wholeDocument {
+            guard pendingWholeDocumentWords == nil else { return false }
+            switch WholeDocumentAIPolicy.decision(for: text) {
+            case .run:
+                break
+            case .confirm(let words):
+                if let confirmed = confirmedWholeDocumentWords, words <= confirmed { break }
+                presentWholeDocumentConfirmation(words: words)
+                return false
+            case .refuse:
+                hide()
+                aiController.refuseWholeDocument()
+                return false
+            }
+        } else if text != commentSnapshot {
+            hide()
+            return false
+        }
         hide()
         editor.becomeFirstResponder()
         if wholeDocument {
@@ -391,10 +469,11 @@ final class SelectionController: NSObject, ObservableObject {
     /// The connection store, for the Menu's Ask AI… row (reached only when the sheet shows it).
     var aiConnectionStore: AIConnectionStore { connectionStore() }
 
-    /// The Menu's Ask AI… row: connected, and an editor on screen (Read allows no AI).
+    /// The Menu's Ask AI… row: connected, an editor on screen (Read allows no AI), and text to
+    /// send (`DocumentSection.hasText`).
     var allowsWholeDocumentAI: Bool {
         guard connectionStore().isConnected, !isReadMode, let editor, editor.isEditable,
-              editor.textStorage.length > 0 else { return false }
+              DocumentSection.hasText(editor.textStorage.string) else { return false }
         switch aiControllerStorage?.state {
         case .running, .reviewing: return false
         default: return true
@@ -405,32 +484,51 @@ final class SelectionController: NSObject, ObservableObject {
     /// anything is read or sent. Up to 1,500 words the comment field opens for the whole document;
     /// above that the writer confirms first; past `AILimits` the refusal shows on the message card.
     func askAIForWholeDocument() {
-        guard allowsWholeDocumentAI, let editor, pendingWholeDocumentWords == nil else { return }
-        let store = connectionStore()
-        guard let provider = store.connectedProvider else { return }
+        guard allowsWholeDocumentAI, let editor, pendingWholeDocumentWords == nil,
+              connectionStore().connectedProvider != nil else { return }
         switch WholeDocumentAIPolicy.decision(for: editor.textStorage.string) {
         case .run:
-            openWholeDocumentComment()
+            openWholeDocumentComment(confirmedWords: nil)
         case .refuse:
             hide()
             aiController.refuseWholeDocument()
         case .confirm(let words):
             hide()
-            pendingWholeDocumentWords = words
-            let recipient = WholeDocumentAIPolicy.recipient(for: provider, otherEndpoint: store.otherEndpoint)
-            presentAlert(Self.wholeDocumentConfirmation(
-                words: words, recipient: recipient,
-                onSend: { [weak self] in self?.confirmWholeDocument() },
-                onCancel: { [weak self] in self?.cancelWholeDocumentConfirmation() }
-            ))
+            presentWholeDocumentConfirmation(words: words)
         }
+    }
+
+    /// "Send the whole document (N words) to …?", for the Menu's Ask AI… or again at Send. The
+    /// pending count is cleared however the alert goes away.
+    private func presentWholeDocumentConfirmation(words: Int) {
+        let store = connectionStore()
+        guard let provider = store.connectedProvider else { return }
+        let id = UUID()
+        pendingWholeDocumentWords = words
+        pendingConfirmationID = id
+        let recipient = WholeDocumentAIPolicy.recipient(for: provider, otherEndpoint: store.otherEndpoint)
+        let alert = Self.wholeDocumentConfirmation(
+            words: words, recipient: recipient,
+            onSend: { [weak self] in self?.confirmWholeDocument(words: words) },
+            onCancel: { [weak self] in self?.cancelWholeDocumentConfirmation() }
+        )
+        alert.onGone = { [weak self] in self?.confirmationWentAway(id) }
+        presentAlert(alert)
+    }
+
+    /// The alert left the screen (after Send or Cancel, or dismissed under them): its count no
+    /// longer stands, unless a newer alert has replaced it.
+    private func confirmationWentAway(_ id: UUID) {
+        guard pendingConfirmationID == id else { return }
+        pendingConfirmationID = nil
+        pendingWholeDocumentWords = nil
     }
 
     /// "Send the whole document (N words) to …?": Send, then Cancel, which is the default (Return
     /// on a hardware keyboard never sends a whole document by accident), as on the Mac.
     static func wholeDocumentConfirmation(words: Int, recipient: String, onSend: @escaping () -> Void,
-                                          onCancel: @escaping () -> Void) -> UIAlertController {
-        let alert = UIAlertController(
+                                          onCancel: @escaping () -> Void) -> WholeDocumentConfirmationAlert {
+        let alert = WholeDocumentConfirmationAlert(
             title: WholeDocumentAIPolicy.confirmationTitle(words: words, recipient: recipient),
             message: nil, preferredStyle: .alert
         )
@@ -441,21 +539,30 @@ final class SelectionController: NSObject, ObservableObject {
         return alert
     }
 
-    /// The confirmation's Send: the comment field opens for the whole document. Nothing is sent yet.
-    func confirmWholeDocument() {
-        guard pendingWholeDocumentWords != nil else { return }
+    /// The confirmation's Send. From the Menu's Ask AI…, the comment field opens for the whole
+    /// document (nothing is sent yet). Asked again at Send, the comment goes. `words` is the count
+    /// the alert asked about (the pending count when nil, as tests answer it).
+    func confirmWholeDocument(words: Int? = nil) {
+        guard let words = words ?? pendingWholeDocumentWords else { return }
         pendingWholeDocumentWords = nil
-        openWholeDocumentComment()
+        pendingConfirmationID = nil
+        if phase == .comment, isWholeDocument {
+            confirmedWholeDocumentWords = words
+            send()
+        } else {
+            openWholeDocumentComment(confirmedWords: words)
+        }
     }
 
-    /// The confirmation's Cancel: nothing opens, nothing is sent.
+    /// The confirmation's Cancel: nothing opens, nothing is sent (a field already open stays).
     func cancelWholeDocumentConfirmation() {
         pendingWholeDocumentWords = nil
+        pendingConfirmationID = nil
     }
 
     /// The comment field, for the whole document: its range is the whole text, nothing is
     /// highlighted, and the caret is remembered for Cancel.
-    private func openWholeDocumentComment() {
+    private func openWholeDocumentComment(confirmedWords: Int?) {
         guard allowsWholeDocumentAI, let editor, let provider = connectionStore().connectedProvider else { return }
         let caret = editor.selectedRange
         hide()
@@ -466,8 +573,11 @@ final class SelectionController: NSObject, ObservableObject {
         model.note = ""
         model.action = .custom
         wholeDocumentCaret = caret
+        confirmedWholeDocumentWords = confirmedWords
+        commentSnapshot = editor.textStorage.string
         anchorRange = NSRange(location: 0, length: editor.textStorage.length)
         isWholeDocument = true
+        model.isWholeDocument = true
         isNoteComposing = false
         phase = .comment
         model.focusToken += 1
@@ -478,6 +588,7 @@ final class SelectionController: NSObject, ObservableObject {
         while let presented = top?.presentedViewController, !presented.isBeingDismissed { top = presented }
         guard let top else {
             pendingWholeDocumentWords = nil
+            pendingConfirmationID = nil
             return
         }
         top.present(alert, animated: true)
@@ -536,6 +647,8 @@ final class SelectionController: NSObject, ObservableObject {
     /// reload wins. A request, review or marks for the old text are abandoned, applying and
     /// recording nothing.
     func editorTextWillBeReplaced() {
+        // The comment field (and the row) were for the old text.
+        if phase != .hidden { hide() }
         guard let controller = aiControllerStorage else { return }
         switch controller.state {
         case .running, .reviewing, .marking: controller.abandon()
@@ -586,6 +699,29 @@ final class SelectionController: NSObject, ObservableObject {
         withAnimation(duration > 0 ? animation : nil) {
             keyboard.overlap = overlap
         }
+    }
+}
+
+/// The whole-document confirmation. It says when it leaves the screen by ANY path (Send, Cancel,
+/// or dismissed under them), so the pending count never outlives it. No stored properties: UIKit
+/// builds alert controllers through a class factory, where Swift's property initializers may not
+/// run (see `LineformTextView.State`); the handler lives in an associated object.
+final class WholeDocumentConfirmationAlert: UIAlertController {
+    private final class Handler {
+        let action: () -> Void
+        init(_ action: @escaping () -> Void) { self.action = action }
+    }
+
+    nonisolated(unsafe) private static var handlerKey: UInt8 = 0
+
+    var onGone: (() -> Void)? {
+        get { (objc_getAssociatedObject(self, &Self.handlerKey) as? Handler)?.action }
+        set { objc_setAssociatedObject(self, &Self.handlerKey, newValue.map(Handler.init), .OBJC_ASSOCIATION_RETAIN_NONATOMIC) }
+    }
+
+    override func viewDidDisappear(_ animated: Bool) {
+        super.viewDidDisappear(animated)
+        onGone?()
     }
 }
 

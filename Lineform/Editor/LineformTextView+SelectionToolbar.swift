@@ -146,6 +146,7 @@ extension LineformTextView {
         releaseCommentHighlight()
         controller.anchorRange = nil
         controller.isWholeDocument = false
+        controller.model.isWholeDocument = false
         controller.wholeDocumentCaret = nil
         controller.model.mode = .toolbar
         if hadFocus { window?.makeFirstResponder(self) }
@@ -396,10 +397,12 @@ extension LineformTextView {
         model.usesDarkChrome = Theme.theme(for: appliedReadingProfile).usesDarkChrome
         model.note = ""
         model.action = .custom
+        model.isWholeDocument = true
         let probeModel = SelectionToolbarModel()
         probeModel.mode = .comment
         probeModel.aiName = model.aiName
         probeModel.usesDarkChrome = model.usesDarkChrome
+        probeModel.isWholeDocument = true
         let size = NSHostingView(rootView: SelectionToolbarRoot(model: probeModel)).fittingSize
         let hosting = controller.hostingView
         addSubview(hosting)

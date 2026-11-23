@@ -1417,21 +1417,31 @@ toolbar's Ask button does, with no length policy. The iPhone row is always for t
   `resolvedConnection()`, so a stale Send cannot read the key or send. Find counts sentences, so
   it can still pass the policy and go over the limit; in whole-document mode it then shows the
   same refusal, and Try Again keeps the mode.
-- **Enablement.** Connected, an editor on screen (not Read), and no request or review in
-  progress; on the Mac, not in History mode. Absent on iPhone when nothing is connected; disabled
-  on the Mac, where the menu item always exists. No keyboard shortcut.
+- **Enablement.** Connected, an editor on screen (not Read), an editable document with text in it
+  (not empty or only white space: `AskAICommand.hasText`, `DocumentSection.hasText`), and no
+  request or review in progress; on the Mac, not in History mode. Absent on iPhone when it cannot
+  act; disabled on the Mac, where the menu item always exists. The Mac publishes the item's state
+  when the editor appears too (`AskAIMenuHandlers`), so it is enabled at launch when already
+  connected. No keyboard shortcut.
 - **Where the comment goes.** The Mac shows the comment card at the top centre of the visible
   editor, with no highlight; Esc puts the caret back. On iPhone the row closes the Menu sheet, and
   the screen runs `SelectionController.askAIForWholeDocument` from the sheet's `onDismiss`
   (a confirmation cannot be presented over a closing sheet). The confirmation is a
   `UIAlertController` whose `preferredAction` is Cancel. The comment field's range is the whole
-  text (`anchorRange`, `isWholeDocument`), and Cancel puts the caret back where it was.
+  text (`anchorRange`, `isWholeDocument`), and Cancel puts the caret back where it was. On both
+  apps the card carries a quiet "Whole document" subtitle (`SelectionToolbarModel.isWholeDocument`,
+  `SelectionToolbarPresentation.wholeDocumentSubtitle`). On iPhone any change closes the field (an
+  edit, a selection, an outside replacement), and Send runs the policy again: above the count the
+  writer confirmed it asks again, past the limit it refuses.
 - **The review.** The same overlay and cards as a selection's review, over the whole document.
   Every accept is re-verified with `MarkdownStructureGuard` and is one undo group. Leaving the
   review collapses the selection to `caretEnd`.
 - **Privacy wording.** Every place that said only the selection is sent now names both cases: the
   passage you select, or the whole document when you choose Ask AI for it (`Privacy.md`,
-  `Help.md`, `web/privacy.html`, the iPhone's Settings note). The public marketing privacy page
+  `Help.md`, `web/privacy.html`, the iPhone's Settings note). They also say what Find sends (each
+  whole sentence the selection touches, or every sentence of the document), and the AI wording in
+  `Privacy.md` and `web/privacy.html` covers both apps ("your device's Keychain"; "Connect Your AI
+  (Lineform ▸ Connect Your AI… on Mac, Menu ▸ Settings on iPhone)"). The public marketing privacy page
   lives in its own repository; the owner updates it before this ships.
 - Tests: package `WholeDocumentAIPolicyTests`; Mac `WholeDocumentAICommandTests`; iPhone
   `WholeDocumentAITests`.

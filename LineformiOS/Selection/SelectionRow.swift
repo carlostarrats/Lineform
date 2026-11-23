@@ -133,6 +133,10 @@ struct SelectionBottomChrome: View {
                 if controller.aiState != .idle {
                     AIReviewCardsView(controller: controller, profile: profile)
                         .padding(.horizontal, 8)
+                        // A message or Find's marks leave the Menu and Aa buttons up: the card
+                        // sits above them, so neither covers the other.
+                        .padding(.bottom, SelectionController.showsBottomButtons(phase: controller.phase, aiState: controller.aiState)
+                            ? DocumentScreen.bottomChromeClearance : 0)
                         .transition(transition)
                 }
                 switch controller.phase {

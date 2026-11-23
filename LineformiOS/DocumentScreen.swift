@@ -206,9 +206,11 @@ struct DocumentScreen: View {
             }
         }
         .overlay(alignment: .bottomTrailing) {
-            // The selection row, the comment field and the AI's cards take the bottom in turn, and
-            // History's card replaces them all.
-            if !isHistoryModeActive, selection.phase == .hidden, selection.aiState == .idle {
+            // The selection row, the comment field and a running request or review take the
+            // bottom in turn. A message or Find's marks leave these reachable: that card sits
+            // above them (`SelectionBottomChrome`). History's card replaces them all.
+            if !isHistoryModeActive,
+               SelectionController.showsBottomButtons(phase: selection.phase, aiState: selection.aiState) {
                 HStack(spacing: Self.bottomChromeSpacing) {
                     if displayMode == .split {
                         PreviewLinkButton(isLinked: arePanesLinked, profile: profile) {
@@ -229,7 +231,7 @@ struct DocumentScreen: View {
         )
         .animation(
             EditorMotionPolicy.animation(.easeOut(duration: LineformDesign.Motion.standard), reduceMotion: reduceMotion),
-            value: selection.aiState == .idle
+            value: SelectionController.showsBottomButtons(phase: selection.phase, aiState: selection.aiState)
         )
         .overlay {
             SelectionBottomChrome(controller: selection, profile: profile)

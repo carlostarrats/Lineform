@@ -104,6 +104,8 @@ final class LineformTextView: UITextView {
         /// A selection the app set itself (`selectProgrammatically`), and whether it is being set now.
         var programmaticSelection: NSRange?
         var isSettingSelectionProgrammatically = false
+        /// The writer touched the app's selection or pressed a key (`SelectionController`).
+        var writerInteractionHandler: (() -> Void)?
         #if DEBUG
         var pasteboardForTesting: UIPasteboard?
         #endif

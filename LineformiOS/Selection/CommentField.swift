@@ -30,8 +30,16 @@ struct CommentField: View {
         let ink = Color(uiColor: theme.textColor)
         VStack(alignment: .leading, spacing: 10) {
             HStack(alignment: .firstTextBaseline) {
-                Text(SelectionToolbarPresentation.commentTitle(aiName: model.aiName ?? SelectionToolbarPresentation.aiName(for: .other)))
-                    .font(.subheadline.weight(.semibold))
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(SelectionToolbarPresentation.commentTitle(aiName: model.aiName ?? SelectionToolbarPresentation.aiName(for: .other)))
+                        .font(.subheadline.weight(.semibold))
+                    // What Send sends, quietly, when it is the whole document.
+                    if model.isWholeDocument {
+                        Text(SelectionToolbarPresentation.wholeDocumentSubtitle)
+                            .font(.footnote)
+                            .opacity(0.6)
+                    }
+                }
                 Spacer(minLength: 8)
                 Button(String(localized: "Cancel")) { controller.cancelComment() }
                     .font(.subheadline)

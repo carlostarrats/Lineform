@@ -272,4 +272,42 @@ extension LineformTextView {
     func forgetProgrammaticSelection() {
         state.programmaticSelection = nil
     }
+
+    /// Told when the writer takes the app's selection as their own (`SelectionController`).
+    var writerInteractionHandler: (() -> Void)? {
+        get { state.writerInteractionHandler }
+        set { state.writerInteractionHandler = newValue }
+    }
+
+    /// A touch that lands on the app's selection (a Search match, say) makes it the writer's: their
+    /// gesture there may raise the row, which tapping inside a selection would otherwise never do
+    /// (it moves no selection). A touch elsewhere moves the selection itself.
+    override func hitTest(_ point: CGPoint, with event: UIEvent?) -> UIView? {
+        let hit = super.hitTest(point, with: event)
+        if hit != nil, event?.type == .touches { writerTouched(at: point) }
+        return hit
+    }
+
+    /// A touch at `point` (this view's coordinates): on the app's selection, it is the writer's now.
+    func writerTouched(at point: CGPoint) {
+        guard state.programmaticSelection != nil, selectedRange.length > 0, touchesSelection(at: point) else { return }
+        writerTookSelection()
+    }
+
+    /// A key in the editor (an arrow, a modifier, a shortcut) is the writer's too.
+    override func pressesBegan(_ presses: Set<UIPress>, with event: UIPressesEvent?) {
+        if state.programmaticSelection != nil { writerTookSelection() }
+        super.pressesBegan(presses, with: event)
+    }
+
+    private func writerTookSelection() {
+        forgetProgrammaticSelection()
+        writerInteractionHandler?()
+    }
+
+    /// The point (in this view's coordinates) is on the selection, or on a handle beside it.
+    private func touchesSelection(at point: CGPoint) -> Bool {
+        guard let range = selectedTextRange else { return false }
+        return selectionRects(for: range).contains { $0.rect.insetBy(dx: -22, dy: -22).contains(point) }
+    }
 }

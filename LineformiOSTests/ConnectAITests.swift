@@ -164,6 +164,20 @@ final class ConnectAITests: XCTestCase {
         }
     }
 
+    /// The Settings note says everything that can be sent: the passage or the whole document, the
+    /// comment typed, and for Find the sentences involved (fix after the step 8 review), in every
+    /// language.
+    func testSettingsNoteNamesCommentAndFindSentences() throws {
+        let note = SettingsSection.connectAINote
+        XCTAssertEqual(note, "Rewrite and proofread with an AI account of your own. Only the passage you select is sent, or the whole document when you choose Ask AI for it, with any comment you type. For Find, that is each whole sentence your selection touches, or every sentence of the document. Nothing is sent until you choose an action.")
+        for language in ["es", "fr", "de", "ja", "zh-Hans"] {
+            let bundle = try XCTUnwrap(Bundle.main.path(forResource: language, ofType: "lproj").flatMap(Bundle.init(path:)))
+            let localized = bundle.localizedString(forKey: note, value: nil, table: nil)
+            XCTAssertNotEqual(localized, note, "\(language) has the new note")
+            XCTAssertFalse(localized.contains("Mac"), language)
+        }
+    }
+
     /// Menu ▸ Settings ▸ Connect Your AI… opens the sheet.
     func testSettingsRowOpensConnectYourAI() async throws {
         let (_, store, _) = makeForm()

@@ -25,10 +25,10 @@ final class WholeDocumentAITests: XCTestCase {
 
     func testAskAIRowOnlyWhenConnected() throws {
         // The row: connected, and an editor on screen (Write or Preview; Read has none).
-        XCTAssertTrue(DocumentSection.showsAskAI(isConnected: true, mode: .write))
-        XCTAssertTrue(DocumentSection.showsAskAI(isConnected: true, mode: .split))
-        XCTAssertFalse(DocumentSection.showsAskAI(isConnected: false, mode: .write))
-        XCTAssertFalse(DocumentSection.showsAskAI(isConnected: true, mode: .read))
+        XCTAssertTrue(DocumentSection.showsAskAI(isConnected: true, mode: .write, hasText: true))
+        XCTAssertTrue(DocumentSection.showsAskAI(isConnected: true, mode: .split, hasText: true))
+        XCTAssertFalse(DocumentSection.showsAskAI(isConnected: false, mode: .write, hasText: true))
+        XCTAssertFalse(DocumentSection.showsAskAI(isConnected: true, mode: .read, hasText: true))
         XCTAssertEqual(DocumentSection.askAITitle, "Ask AI…")
 
         // It sits with the document's commands, after Check Document Now.
@@ -176,6 +176,156 @@ final class WholeDocumentAITests: XCTestCase {
         XCTAssertEqual(undo.undoActionName, AIActionController.acceptOneActionName)
         undo.undo()
         XCTAssertEqual(editor.textStorage.string, text, "one undo takes back the whole decision")
+    }
+
+    // MARK: - Fixes after the step 8 review
+
+    /// Send checks the policy again. A document that grew past the count the writer confirmed is
+    /// asked about again; one that grew past the limit is refused. (A paste normally closes the
+    /// field; this is the backstop for a change no hook heard.)
+    func testPastingPast1500AfterConfirmingReasks() async throws {
+        let client = FakeAIClient(.suspend)
+        let text = String(repeating: "word ", count: 1_600) + "\n"
+        let (editor, selection, ai, keychain) = try makeEditor(text, connected: true, client: client)
+        var shown: [UIAlertController] = []
+        selection.presentAlert = { shown.append($0) }
+        selection.askAIForWholeDocument()
+        XCTAssertEqual(shown.count, 1)
+        selection.confirmWholeDocument()
+        XCTAssertEqual(selection.phase, .comment)
+        selection.model.action = .rephrase
+
+        // 200 more words arrive with no hook hearing them.
+        editor.textStorage.replaceCharacters(in: NSRange(location: editor.textStorage.length, length: 0),
+                                             with: String(repeating: "more ", count: 200))
+        XCTAssertFalse(selection.send(), "1,800 words were never confirmed")
+        let again = try XCTUnwrap(shown.last)
+        XCTAssertEqual(shown.count, 2, "asked again")
+        XCTAssertEqual(again.title, WholeDocumentAIPolicy.confirmationTitle(words: 1_800, recipient: "Claude"))
+        XCTAssertEqual(selection.pendingWholeDocumentWords, 1_800)
+        XCTAssertEqual(selection.phase, .comment, "the field stays, note and action kept")
+        XCTAssertEqual(keychain.readCount, 0)
+        XCTAssertTrue(client.prompts.isEmpty)
+
+        // Cancel on the second question: nothing sent, the field still open.
+        selection.cancelWholeDocumentConfirmation()
+        XCTAssertNil(selection.pendingWholeDocumentWords)
+        XCTAssertEqual(selection.phase, .comment)
+
+        // Send on it: the comment goes, for 1,800 words.
+        XCTAssertFalse(selection.send())
+        selection.confirmWholeDocument()
+        XCTAssertEqual(selection.phase, .hidden)
+        XCTAssertEqual(ai.state, .running(.rephrase, .claude))
+        try await spin { client.prompts.count == 1 }
+        ai.cancel()
+
+        // Fewer words than confirmed: no question.
+        let (smaller, smallerSelection, smallerAI, _) = try makeEditor(text, connected: true, client: FakeAIClient(.suspend))
+        var smallerShown: [UIAlertController] = []
+        smallerSelection.presentAlert = { smallerShown.append($0) }
+        smallerSelection.askAIForWholeDocument()
+        smallerSelection.confirmWholeDocument()
+        smallerSelection.model.action = .rephrase
+        smaller.textStorage.replaceCharacters(in: NSRange(location: 0, length: 50), with: "")
+        XCTAssertTrue(smallerSelection.send())
+        XCTAssertEqual(smallerShown.count, 1)
+        XCTAssertEqual(smallerAI.state, .running(.rephrase, .claude))
+        smallerAI.cancel()
+
+        // Past the limit: refused, nothing sent, the Keychain not read.
+        let (grown, grownSelection, grownAI, grownKeychain) = try makeEditor(text, connected: true, client: client)
+        grownSelection.presentAlert = { _ in }
+        grownSelection.askAIForWholeDocument()
+        grownSelection.confirmWholeDocument()
+        grownSelection.model.action = .rephrase
+        grown.textStorage.replaceCharacters(in: NSRange(location: grown.textStorage.length, length: 0),
+                                            with: String(repeating: "more ", count: 4_000))
+        XCTAssertFalse(grownSelection.send())
+        XCTAssertEqual(grownSelection.phase, .hidden, "the field closes")
+        XCTAssertEqual(grownAI.state, .message(WholeDocumentAIPolicy.refusalMessage))
+        XCTAssertEqual(grownKeychain.readCount, 0)
+        XCTAssertEqual(client.prompts.count, 1, "only the confirmed send above")
+    }
+
+    /// The confirmation going away by ANY path (here, its presenter dismissing it, as when the
+    /// screen changes under it) clears the pending count, so Ask AI… works again.
+    func testConfirmationGoneByAnyPathClearsPending() async throws {
+        let text = String(repeating: "word ", count: 1_600) + "\n"
+        let (_, selection, _, _) = try makeEditor(text, connected: true)
+        let host = try XCTUnwrap(window?.rootViewController)
+        selection.askAIForWholeDocument()
+        try await spin { host.presentedViewController is UIAlertController }
+        XCTAssertEqual(selection.pendingWholeDocumentWords, 1_600)
+
+        host.dismiss(animated: false)
+        try await spin { host.presentedViewController == nil }
+        try await spin { selection.pendingWholeDocumentWords == nil }
+
+        // Ask AI… asks again.
+        selection.askAIForWholeDocument()
+        try await spin { host.presentedViewController is UIAlertController }
+        XCTAssertEqual(selection.pendingWholeDocumentWords, 1_600)
+        host.dismiss(animated: false)
+        try await spin { selection.pendingWholeDocumentWords == nil }
+    }
+
+    /// No Ask AI… for an empty document: there is nothing to send.
+    func testAskAIRowHiddenForEmptyDocument() throws {
+        XCTAssertFalse(DocumentSection.showsAskAI(isConnected: true, mode: .write, hasText: false))
+        XCTAssertTrue(DocumentSection.showsAskAI(isConnected: true, mode: .write, hasText: true))
+        XCTAssertFalse(DocumentSection.hasText(""))
+        XCTAssertFalse(DocumentSection.hasText(" \n\n\t"))
+        XCTAssertTrue(DocumentSection.hasText("\nA"))
+        let (_, selection, _, _) = try makeEditor("  \n\n", connected: true)
+        XCTAssertFalse(selection.allowsWholeDocumentAI)
+        selection.askAIForWholeDocument()
+        XCTAssertEqual(selection.phase, .hidden)
+    }
+
+    /// The whole-document comment says so, quietly: "Whole document", in six languages.
+    func testWholeDocumentCommentSaysWholeDocument() async throws {
+        XCTAssertEqual(SelectionToolbarPresentation.wholeDocumentSubtitle, "Whole document")
+        for language in ["es", "fr", "de", "ja", "zh-Hans"] {
+            let bundle = try XCTUnwrap(Bundle.lineformCore.path(forResource: language, ofType: "lproj").flatMap(Bundle.init(path:)))
+            let value = String(localized: "Whole document", bundle: bundle)
+            XCTAssertNotEqual(value, "Whole document", language)
+        }
+
+        let (editor, selection, _, _) = try makeEditor("A short document here.\n", connected: true)
+        selection.askAIForWholeDocument()
+        XCTAssertTrue(selection.model.isWholeDocument)
+        let host = UIHostingController(rootView: CommentField(controller: selection, profile: .original))
+        host.view.frame = CGRect(x: 0, y: 400, width: 393, height: 240)
+        window?.rootViewController?.view.addSubview(host.view)
+        host.view.layoutIfNeeded()
+        try await spin { Self.hasLabel("Whole document", in: host.view) }
+
+        // A selection's comment has no subtitle.
+        selection.cancelComment()
+        XCTAssertFalse(selection.model.isWholeDocument)
+        editor.selectedRange = NSRange(location: 2, length: 5)
+        selection.showRowNow()
+        selection.perform(.askAI)
+        XCTAssertFalse(selection.model.isWholeDocument)
+        for _ in 0..<5 {
+            try await Task.sleep(for: .milliseconds(20))
+            host.view.layoutIfNeeded()
+        }
+        XCTAssertFalse(Self.hasLabel("Whole document", in: host.view))
+    }
+
+    private static func hasLabel(_ label: String, in root: NSObject, depth: Int = 0) -> Bool {
+        guard depth < 60 else { return false }
+        if root.accessibilityLabel == label { return true }
+        var children: [NSObject] = []
+        if let view = root as? UIView { children += view.subviews }
+        children += (root.accessibilityElements as? [NSObject]) ?? []
+        let count = root.accessibilityElementCount()
+        if count != NSNotFound, count > 0 {
+            for index in 0..<count { if let child = root.accessibilityElement(at: index) as? NSObject { children.append(child) } }
+        }
+        return children.contains { hasLabel(label, in: $0, depth: depth + 1) }
     }
 
     // MARK: - Rig

@@ -33,15 +33,21 @@ enum AskAICommand {
         }
     }
 
-    /// Connected, not in History mode, no request or review in progress, and an editor on screen
-    /// (Write or Split: Read has no editor to hold the card).
+    /// Connected, not in History mode, no request or review in progress, an editor on screen
+    /// (Write or Split: Read has no editor to hold the card), and an editable document with text
+    /// in it: with nothing to send, or nowhere to accept a suggestion, it is not offered.
     static func isEnabled(isConnected: Bool, isHistoryModeActive: Bool, state: AIActionController.State,
-                          displayMode: EditorDisplayMode) -> Bool {
-        guard isConnected, !isHistoryModeActive, displayMode != .read else { return false }
+                          displayMode: EditorDisplayMode, isEditable: Bool, hasText: Bool) -> Bool {
+        guard isConnected, !isHistoryModeActive, displayMode != .read, isEditable, hasText else { return false }
         switch state {
         case .running, .reviewing: return false
         case .idle, .marking, .message: return true
         }
+    }
+
+    /// The document has something to send: not empty, and not only white space.
+    static func hasText(_ text: String) -> Bool {
+        text.contains { !$0.isWhitespace }
     }
 
     static func confirmationAlert(words: Int, recipient: String) -> NSAlert {

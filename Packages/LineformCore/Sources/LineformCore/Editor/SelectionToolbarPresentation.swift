@@ -69,6 +69,11 @@ public enum SelectionToolbarPresentation {
     public static var headingTitle: String { String(localized: "Heading", bundle: .module) }
     public static var listTitle: String { String(localized: "List", bundle: .module) }
     public static var dragHint: String { String(localized: "Drag to move", bundle: .module) }
+    /// The quiet subtitle on the comment card when it is for the whole document (Edit ▸ Ask AI…
+    /// with nothing selected on Mac, Menu ▸ Document ▸ Ask AI… on iPhone): what Send sends.
+    public static var wholeDocumentSubtitle: String {
+        String(localized: "Whole document", bundle: .module, comment: "Subtitle on the AI comment card when it sends the whole document.")
+    }
 
     /// The comment card's action menu: Custom, then the same actions — with the same rules — as
     /// the context menu's AI group (one word: Another Word; Find only for two or more sentences).
@@ -137,6 +142,8 @@ public final class SelectionToolbarModel: ObservableObject {
     @Published public var usesDarkChrome = false
     @Published public var note = ""
     @Published public var action: AIAction = .custom
+    /// The comment card is for the whole document: it shows `wholeDocumentSubtitle`.
+    @Published public var isWholeDocument = false
     /// Bumped to move keyboard focus into the note field.
     @Published public var focusToken = 0
 

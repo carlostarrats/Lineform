@@ -817,9 +817,10 @@ are worded for iPhone: no iPhone string names a Mac or a sidebar
   at a time, with the Mac's `ConnectAIPresentation` and `AIConnectionStore`. The key is kept in the
   Keychain (service `<bundle id>.ai`, not synchronizable); connecting deletes the other providers'
   keys. Its note says what is sent: "Only the passage you select is sent, or the whole document
-  when you choose Ask AI for it, and only when you choose an action." Package text that named a
-  Mac has iPhone variants (`billingNote(.other)`, `reconnectMessage`,
-  `AIConnectError.insecureAddress`).
+  when you choose Ask AI for it, with any comment you type. For Find, that is each whole sentence
+  your selection touches, or every sentence of the document. Nothing is sent until you choose an
+  action." Package text that named a Mac has iPhone variants (`billingNote(.other)`,
+  `reconnectMessage`, `AIConnectError.insecureAddress`).
 - **Clear History** (the Mac's row, note "Removes saved versions for every document. Your files
   are not changed.", button "Clear…" and destructive confirmation "Clear all history?"):
   `SettingsSection.clearHistory(store:)` → `PhoneHistoryController.clearAllHistory(in:)`, the same
@@ -952,6 +953,13 @@ History is local to this iPhone. History never writes into the document file.
   input method is composing, so Return during Japanese input only confirms the candidate. Cancel
   with the button or a swipe down of 60 pt or more; the selection comes back. Send runs the shared
   `AIActionController` on the range the row was shown for (`anchorRange`).
+- **Any change closes the field** (the Mac's card closes on any click): an editor text change
+  (`editorTextDidChange`, from `textViewDidChange`), a selection change, or an outside replacement
+  (`editorTextWillBeReplaced`: a live reload, Open, Save As, Convert). It hides with nothing sent
+  and no selection put back. Backstops: the field snapshots the text when it opens, and a
+  selection's Send is refused (the field closed) if the text differs; a whole-document Send runs
+  `WholeDocumentAIPolicy` again (above the confirmed count it asks again, the field kept; past the
+  limit it refuses on the message card).
 
 ## AI actions and the review
 
@@ -990,8 +998,9 @@ is ONE assignment, `aiHistory` (nil until roadmap step 9's `AIHistoryRecording`)
   VoiceOver: "Suggested changes", value = the composition, custom actions Accept / Reject Change,
   Accept All, Next / Previous Change (2+ pending), End Review.
 - **Cards** (`AIReviewCardsView`), at the bottom above the keyboard or home indicator, placed by
-  `SelectionBottomChrome` from the keyboard tracker; the Menu and Aa buttons step aside while one is
-  up. Running (spinner, progress text, Stop), message (✕, gone after 8 s), Mark (count, Done),
+  `SelectionBottomChrome` from the keyboard tracker; the Menu and Aa buttons step aside only while
+  a request is running or a review is up (`SelectionController.showsBottomButtons`). A message or
+  Mark's card sits above them (`DocumentScreen.bottomChromeClearance`), so both stay reachable. Running (spinner, progress text, Stop), message (✕, gone after 8 s), Mark (count, Done),
   review (`AIReviewCardPresentation.title`, Try Again, Reject, Accept, Next and Accept All for 2+
   pending, Done = end). No Esc / Return hints. The card's top is measured
   (`AIReviewCardTopKey`) so the overlay reveals the current change above it.
@@ -1002,7 +1011,12 @@ is ONE assignment, `aiHistory` (nil until roadmap step 9's `AIHistoryRecording`)
 - **The app's own selections.** `selectProgrammatically` (Search and Check Document Now via
   `LiveEditorCommands.selectRange`, `setDocumentText`'s restore, the AI collapse) marks the
   selection as the app's; `SelectionController.editorSelectionDidChange` never raises the row for
-  it (`isSelectionProgrammatic`), and forgets it at the writer's next selection.
+  it (`isSelectionProgrammatic`), and forgets it at the writer's next selection. The writer's own
+  next touch on that selection (`hitTest` → `writerTouched(at:)`, within 22 pt of its rects) or a
+  key (`pressesBegan`) also makes it theirs, and the row can rise for it.
+- **Focus back after a review.** On dismantle the editor takes the focus again, which would scroll
+  it to the caret (at the change's end); the handed-back position is held instead
+  (`AIReviewOverlay.offsetHoldDelays`), unless the writer scrolls.
 
 ### Ask AI for the whole document
 
@@ -1012,13 +1026,16 @@ confirmation cannot be presented over a closing sheet. The shared `WholeDocument
 first, on the prose that would be sent:
 
 - up to 1,500 words, the comment field opens for the whole document;
-- above that, a `UIAlertController` asks "Send the whole document (N words) to …?", with Send
-  and Cancel; Cancel is the `preferredAction`, as on the Mac;
+- above that, a `UIAlertController` (`WholeDocumentConfirmationAlert`) asks "Send the whole
+  document (N words) to …?", with Send and Cancel; Cancel is the `preferredAction`, as on the Mac.
+  The pending count clears however the alert goes away (its `viewDidDisappear`);
 - past `AILimits`, the refusal ("Select a part of the document — about 4,000 words at most.")
   shows on the message card. Nothing opens or is sent, and the Keychain is not read.
 
-The field's range is the whole text (`anchorRange`, `isWholeDocument`), nothing is highlighted,
-and Cancel puts the caret back. Send runs `AIActionController.runWholeDocument`, which checks the
+The row shows only for a document with text (`DocumentSection.hasText`). The field's range is the
+whole text (`anchorRange`, `isWholeDocument`), nothing is highlighted, the card's quiet subtitle
+says "Whole document" (`SelectionToolbarPresentation.wholeDocumentSubtitle`, as on the Mac), and
+Cancel puts the caret back. Send runs `AIActionController.runWholeDocument`, which checks the
 policy again before `resolvedConnection()`. The review is the same overlay and cards. Tests:
 `WholeDocumentAITests`. Details for both apps: `editor-behavior.md`, "Whole-document AI".
 

@@ -459,6 +459,14 @@ final class AIActionControllerTests: XCTestCase {
         XCTAssertEqual(emptySurface.string, text)
     }
 
+    /// Find's count (2026-11-14; was "N sentences marked"): one plural key, per-language rules.
+    /// Restored after the step 8 review: it was dropped when the controller moved to the package.
+    func testFindCountUsesPluralRules() throws {
+        XCTAssertEqual(AIActionController.markedMessage(1), "1 sentence found")
+        XCTAssertEqual(AIActionController.markedMessage(3), "3 sentences found")
+        XCTAssertEqual(AIActionController.nothingToMarkMessage, "No sentences found.")
+    }
+
     /// Showing History (Add to History, the first-accept intro) ends Mark: History never opens
     /// under Mark's wash. A message (the review-ended intro's) is left up.
     func testYieldingToHistoryDismissesMarksButKeepsAMessage() async {

@@ -108,6 +108,8 @@ struct MarkdownEditor: UIViewRepresentable {
 
         func textViewDidChange(_ textView: UITextView) {
             parent.text = textView.text
+            // An open comment field closes: its range no longer names the same text.
+            parent.selectionController?.editorTextDidChange()
             guard let textView = textView as? LineformTextView else { return }
             textView.textDidChangeForHighlighting()
             textView.refreshReadingAssists()
