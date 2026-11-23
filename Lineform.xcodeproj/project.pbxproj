@@ -227,6 +227,8 @@
 		1F0000410000000000000041 /* DocumentCommandsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000400000000000000041 /* DocumentCommandsTests.swift */; };
 		1F0000410000000000000042 /* SettingsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000400000000000000042 /* SettingsTests.swift */; };
 		1F000041000000000000003E /* DocumentSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F000040000000000000003E /* DocumentSection.swift */; };
+		1F00004100000000000000A2 /* SaveAsPicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00004000000000000000A2 /* SaveAsPicker.swift */; };
+		1F00004100000000000000A3 /* PhoneSaveAsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00004000000000000000A3 /* PhoneSaveAsTests.swift */; };
 		1F000041000000000000003F /* SettingsSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F000040000000000000003F /* SettingsSection.swift */; };
 		1F0000410000000000000040 /* AppSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000400000000000000040 /* AppSettings.swift */; };
 		1F0000410000000000000092 /* PhonePDFExportTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000400000000000000092 /* PhonePDFExportTests.swift */; };
@@ -487,6 +489,8 @@
 		1F0000400000000000000041 /* DocumentCommandsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DocumentCommandsTests.swift; sourceTree = "<group>"; };
 		1F0000400000000000000042 /* SettingsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsTests.swift; sourceTree = "<group>"; };
 		1F000040000000000000003E /* DocumentSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DocumentSection.swift; sourceTree = "<group>"; };
+		1F00004000000000000000A2 /* SaveAsPicker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SaveAsPicker.swift; sourceTree = "<group>"; };
+		1F00004000000000000000A3 /* PhoneSaveAsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhoneSaveAsTests.swift; sourceTree = "<group>"; };
 		1F000040000000000000003F /* SettingsSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsSection.swift; sourceTree = "<group>"; };
 		1F0000400000000000000040 /* AppSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppSettings.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -835,6 +839,7 @@
 				1F000040000000000000003D /* SearchTests.swift */,
 				1F0000400000000000000042 /* SettingsTests.swift */,
 				1F0000400000000000000041 /* DocumentCommandsTests.swift */,
+				1F00004000000000000000A3 /* PhoneSaveAsTests.swift */,
 				1F000040000000000000003A /* OutlineBasicsTests.swift */,
 				1F0000400000000000000020 /* EditorConstructionTests.swift */,
 				1F000040000000000000001B /* ReadingAssistsTests.swift */,
@@ -928,6 +933,7 @@
 				1F0000400000000000000038 /* OutlineSection.swift */,
 				1F000040000000000000003F /* SettingsSection.swift */,
 				1F000040000000000000003E /* DocumentSection.swift */,
+				1F00004000000000000000A2 /* SaveAsPicker.swift */,
 			);
 			path = Menu;
 			sourceTree = "<group>";
@@ -1381,6 +1387,7 @@
 				1F0000410000000000000040 /* AppSettings.swift in Sources */,
 				1F000041000000000000003F /* SettingsSection.swift in Sources */,
 				1F000041000000000000003E /* DocumentSection.swift in Sources */,
+				1F00004100000000000000A2 /* SaveAsPicker.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -1411,6 +1418,7 @@
 				1F000041000000000000003D /* SearchTests.swift in Sources */,
 				1F0000410000000000000042 /* SettingsTests.swift in Sources */,
 				1F0000410000000000000041 /* DocumentCommandsTests.swift in Sources */,
+				1F00004100000000000000A3 /* PhoneSaveAsTests.swift in Sources */,
 				1F000041000000000000003A /* OutlineBasicsTests.swift in Sources */,
 				1F0000410000000000000020 /* EditorConstructionTests.swift in Sources */,
 				1F000041000000000000001B /* ReadingAssistsTests.swift in Sources */,

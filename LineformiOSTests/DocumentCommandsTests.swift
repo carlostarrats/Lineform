@@ -166,13 +166,13 @@ final class DocumentCommandsTests: XCTestCase {
     func testDocumentRowsAndLinks() {
         // pinned-en: the Mac's command titles, in the section's order.
         XCTAssertEqual(DocumentSection.rowTitles(for: .markdown), [
-            "New Document", "Open from Files…", "Insert Table", "Reformat Table",
+            "New Document", "Open from Files…", "Save As…", "Insert Table", "Reformat Table",
             "Convert to Plain Text", "Check Document Now",
             "Export As", "Print…", "Share…", "Start Speaking", "Show Hidden Folders",
             "Lineform Guide", "Privacy Policy", "Terms of Use",
         ])
         XCTAssertEqual(DocumentSection.rowTitles(for: .plainText), [
-            "New Document", "Open from Files…",
+            "New Document", "Open from Files…", "Save As…",
             "Convert to Markdown", "Check Document Now",
             "Export As", "Print…", "Share…", "Start Speaking", "Show Hidden Folders",
             "Lineform Guide", "Privacy Policy", "Terms of Use",

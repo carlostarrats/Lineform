@@ -600,6 +600,75 @@ final class OpenDocument: ImageInsertionHost {
         return false
     }
 
+    // MARK: - Save As
+
+    /// A copy of the document's text, written for Save As's export picker to place where the
+    /// writer chooses.
+    struct SaveAsCopy: Equatable {
+        /// The staged file: the document's file name, in its own fresh folder.
+        var url: URL
+        /// The text the copy holds.
+        var text: String
+        /// `imageInsertionDocumentIdentity` when the copy was made: Save As retargets only the
+        /// document the copy came from.
+        var documentIdentity: Int
+    }
+
+    /// Whether Save As has something to save: the document has a file, or text that the next
+    /// save gives one (an Untitled document with nothing typed, or only spaces and Returns, has
+    /// none: `AutosavePlanner` makes no file until a line names it).
+    var canSaveAs: Bool {
+        url != nil || DocumentNaming.baseName(fromText: text) != nil
+    }
+
+    /// Save As, first half: saves the pending text (an Untitled document gets its file now, by
+    /// the autosave rules), then writes the text's exact bytes (`MarkdownFileCodec`, so a BOM and
+    /// CRLF survive) under the file's name into a fresh folder in `stagingFolder`, for the
+    /// system's export picker to copy. Nil when there is nothing to save, the save failed (the
+    /// screen's save notice shows), or the copy could not be written.
+    func prepareSaveAs(stagingFolder: URL = SaveAsStaging.defaultFolder) async -> SaveAsCopy? {
+        guard canSaveAs, await flush(), let url else { return nil }
+        let textToCopy = text
+        let directory = stagingFolder.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        let copyURL = directory.appendingPathComponent(url.lastPathComponent)
+        do {
+            try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+            try MarkdownFileCodec.encode(textToCopy).write(to: copyURL, options: .atomic)
+        } catch {
+            log.error("Save As could not stage a copy: \(error.localizedDescription, privacy: .public)")
+            return nil
+        }
+        return SaveAsCopy(url: copyURL, text: textToCopy, documentIdentity: documentGeneration)
+    }
+
+    /// Save As, second half: the picker put `copy` at `destination`. The document moves there,
+    /// as the Mac's Save As retargets its document: from now on it is watched and autosaved at
+    /// `destination`, and the old file stays as it was. Its name is the writer's, so it never
+    /// follows the first line. A destination outside the app is held through its security scope,
+    /// as an opened file is. Text that changed while the picker was up (a reload) saves to the
+    /// new file at once. False, and nothing changes, when another document took this one's place
+    /// meanwhile.
+    @discardableResult
+    func adoptSaveAs(_ copy: SaveAsCopy, at destination: URL) -> Bool {
+        guard copy.documentIdentity == documentGeneration else { return false }
+        autosaveTask?.cancel()
+        autosaveTask = nil
+        if url?.standardizedFileURL.resolvingSymlinksInPath() != destination.standardizedFileURL.resolvingSymlinksInPath() {
+            stopWatching()
+            securityScopedURL?.stopAccessingSecurityScopedResource()
+            securityScopedURL = nil
+            if destination.startAccessingSecurityScopedResource() {
+                securityScopedURL = destination
+            }
+            url = destination
+            startWatching(destination)
+        }
+        planner = AutosavePlanner(existingFileName: destination.lastPathComponent, isNamedFromFirstLine: false)
+        setLastSyncedText(copy.text)
+        if text != lastSyncedText { saveNow() }
+        return true
+    }
+
     // MARK: - Images
 
     /// The folder a pasted or dropped image goes in (its `images/` subfolder): the open file's own

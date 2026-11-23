@@ -729,6 +729,8 @@ from search.md carries over; see the iPhone Search paragraph there.
 `DocumentSection`, in order:
 
 - New Document and Open from Files…, as in Files.
+- **Save As…** (the Mac's "Save As..." with the iPhone's ellipsis) moves the document to a file
+  the writer places, as the Mac's Save As retargets its `.md`; it is not an export. See "Save As".
 - Insert Table and Reformat Table, for Markdown only (the Mac shows its formatting commands for
   Markdown only too). Each closes the sheet so the change is seen.
 - **Convert to Plain Text / Convert to Markdown.** The title follows `OpenDocument.textFormat`
@@ -752,8 +754,35 @@ from search.md carries over; see the iPhone Search paragraph there.
 - Lineform Guide, Privacy Policy and Terms of Use open in Safari (`openURL`) at the package's
   `LineformLinks`, which the Mac's Help menu also forwards to.
 - Export As, Print…, Share… and read aloud follow Check Document Now as their own section
-  (`ExportRows`, roadmap step 10; see "Export, print, share and read aloud"). Save As is not on
-  iPhone yet. No placeholder row.
+  (`ExportRows`, roadmap step 10; see "Export, print, share and read aloud").
+
+### Save As
+
+`SaveAsPicker` (`LineformiOS/Menu/SaveAsPicker.swift`) and two `OpenDocument` calls:
+
+- `prepareSaveAs` saves the pending text first (`flush`, so an Untitled document gets its file in
+  the save folder by the ordinary autosave rules), then writes the text's exact bytes
+  (`MarkdownFileCodec`: a BOM and CRLF survive) under the file's name into a fresh
+  `tmp/SaveAs/<UUID>/` folder. The row is off while an Untitled document has nothing to name it
+  (`canSaveAs`, the same rule as Share). A failed save closes the menu so the save notice shows.
+- The system export picker, `UIDocumentPickerViewController(forExporting: [copy], asCopy: true)`,
+  places that copy. It is presented with UIKit over the Menu sheet, like `ActivityShareSheet`. Its
+  "Save as" name is editable, and its own "Replace?" covers a file already there. The picker
+  raises if the staged file does not exist, so the copy is always written before it opens.
+- `adoptSaveAs` moves the document to the picked URL: it stops watching the old file, releases the
+  old file's security scope, holds the new file's scope (a place outside the app), watches the new
+  file, and plans autosave as an opened file (`isNamedFromFirstLine` false: the writer chose the
+  name). From then on every save goes to the new file; the old file is left as it was. Text that
+  changed while the picker was up (a reload) is saved to the new file at once. A copy made for a
+  document that another one has since replaced (`documentIdentity`) is refused. Picking the
+  document's own file (Replace in its own folder) keeps the document where it is. The format
+  (Markdown or plain text) does not change, because the text does not.
+- Cancel changes nothing. `tmp/SaveAs` is deleted when the picker closes, either way, and at
+  launch.
+
+The Mac refuses a Save As onto a file open in another tab; the iPhone has one document, so there is
+nothing else open to refuse. The bytes reach the new file through the picker's copy rather than
+through `coordinatedWrite`; every later write is the ordinary coordinated autosave.
 
 ### Settings
 
