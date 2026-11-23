@@ -29,10 +29,14 @@ final class AppUpdateCheckerTests: XCTestCase {
 
     /// The checker's own configuration, with only the transport swapped for the stub, so
     /// the cookie and cache settings under test are the shipping ones.
-    private func checker(protocolClass: AnyClass = StubURLProtocol.self) -> AppStoreUpdateChecker {
+    /// The Mac's checker unless a test asks for the iPhone's: `good` carries no `kind`, which only
+    /// the Mac reads.
+    private func checker(
+        protocolClass: AnyClass = StubURLProtocol.self, platform: AppStorePlatform = .mac
+    ) -> AppStoreUpdateChecker {
         let configuration = AppStoreUpdateChecker.makeConfiguration()
         configuration.protocolClasses = [protocolClass]
-        return AppStoreUpdateChecker(session: URLSession(configuration: configuration))
+        return AppStoreUpdateChecker(platform: platform, session: URLSession(configuration: configuration))
     }
 
     func testReturnsUpdateAvailableForNewerStoreVersion() async {
@@ -92,7 +96,7 @@ final class AppUpdateCheckerTests: XCTestCase {
         XCTAssertNil(request.httpBodyStream)
         XCTAssertNil(request.value(forHTTPHeaderField: "Cookie"))
         XCTAssertNil(request.value(forHTTPHeaderField: "Authorization"))
-        XCTAssertEqual(request.url, AppStoreUpdateChecker.lookupURL)
+        XCTAssertEqual(request.url, AppStoreUpdateChecker.lookupURL(for: .mac))
 
         let components = try XCTUnwrap(URLComponents(url: try XCTUnwrap(request.url), resolvingAgainstBaseURL: false))
         XCTAssertEqual(components.scheme, "https")
@@ -113,6 +117,49 @@ final class AppUpdateCheckerTests: XCTestCase {
         XCTAssertEqual(configuration.timeoutIntervalForRequest, AppStoreUpdateChecker.timeout)
         XCTAssertEqual(configuration.timeoutIntervalForResource, AppStoreUpdateChecker.timeout)
         XCTAssertEqual(AppStoreUpdateChecker.timeout, 10)
+    }
+
+    /// Each platform asks for its own listing: the Mac `macSoftware`, the iPhone `software`
+    /// (the iTunes lookup's iOS catalog). A plain checker asks for the platform it runs on.
+    func testEachPlatformLooksUpItsOwnListing() throws {
+        func entity(_ url: URL) throws -> String? {
+            try XCTUnwrap(URLComponents(url: url, resolvingAgainstBaseURL: false)).queryItems?
+                .first { $0.name == "entity" }?.value
+        }
+        XCTAssertEqual(try entity(AppStoreUpdateChecker.lookupURL(for: .mac)), "macSoftware")
+        XCTAssertEqual(try entity(AppStoreUpdateChecker.lookupURL(for: .iPhone)), "software")
+        XCTAssertEqual(AppStoreUpdateChecker.lookupURL(for: .mac).absoluteString,
+                       "https://itunes.apple.com/lookup?bundleId=com.lineform.app&entity=macSoftware",
+                       "the Mac's lookup is unchanged")
+        #if os(iOS)
+        XCTAssertEqual(AppStorePlatform.current, .iPhone)
+        #else
+        XCTAssertEqual(AppStorePlatform.current, .mac)
+        #endif
+        XCTAssertEqual(AppStoreUpdateChecker.lookupURL, AppStoreUpdateChecker.lookupURL(for: .current))
+    }
+
+    func testTheIPhoneCheckerRequestsTheIPhoneListingAndReadsItsEntry() async throws {
+        StubURLProtocol.contentType = "text/javascript; charset=utf-8"
+        StubURLProtocol.body = Data(#"{"resultCount":1,"results":[{"kind":"software","version":"1.9.0","trackViewUrl":"https://apps.apple.com/us/app/lineform/id6800480078?uo=4"}]}"#.utf8)
+        let result = await checker(platform: .iPhone).check(currentVersion: "1.8.0")
+        XCTAssertEqual(result, .updateAvailable(current: "1.8.0", latest: "1.9.0",
+                                                storeURL: URL(string: "https://apps.apple.com/us/app/lineform/id6800480078?uo=4")!))
+        XCTAssertEqual(StubURLProtocol.requestedURLs, [AppStoreUpdateChecker.lookupURL(for: .iPhone)])
+    }
+
+    /// Before an iPhone build is listed, the store answers the iPhone's lookup with the Mac
+    /// entry (seen by hand on 2026-11-23). That is "couldn't check", never a Mac version offered.
+    func testTheIPhoneCheckerRefusesTheMacEntry() async {
+        StubURLProtocol.body = Data(#"{"resultCount":1,"results":[{"kind":"mac-software","version":"1.9.0","trackViewUrl":"https://apps.apple.com/us/app/lineform/id6800480078?mt=12&uo=4"}]}"#.utf8)
+        let result = await checker(platform: .iPhone).check(currentVersion: "1.8.0")
+        XCTAssertEqual(result, .failed)
+    }
+
+    func testTheMacCheckerRequestsTheMacListing() async {
+        StubURLProtocol.body = Data(good.utf8)
+        _ = await checker(platform: .mac).check(currentVersion: "1.8.0")
+        XCTAssertEqual(StubURLProtocol.requestedURLs, [AppStoreUpdateChecker.lookupURL(for: .mac)])
     }
 
     func testLookupUsesReleaseBundleIDNotMainBundle() {

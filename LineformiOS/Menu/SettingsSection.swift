@@ -8,12 +8,15 @@ import SwiftUI
 /// Below the switches, Connect Your AI… opens `ConnectAISheet` over the sheet. Then Clear History
 /// (the Mac's row, note and confirmation): it removes every document's saved versions — on this
 /// iPhone and, for documents in the Lineform iCloud folder, everywhere they sync — and leaves the
-/// files alone. Check for Updates arrives with roadmap step 12.
+/// files alone. Last, Check for Updates… (`PhoneUpdateCommand`): one App Store lookup when the writer
+/// taps it, then one alert that can open the App Store page.
 struct SettingsSection: View {
     @ObservedObject var settings: AppSettings
     /// The one AI connection (`AIConnectionStore.shared` in the app). Reading it reads
     /// UserDefaults only; the Keychain is never read here.
     @ObservedObject var aiStore: AIConnectionStore
+    /// Check for Updates… (`PhoneUpdateCommand.shared` in the app).
+    @ObservedObject var updateCommand: PhoneUpdateCommand
     /// The store Clear History empties: the app's one History store.
     var historyStore: PassageHistoryPersisting
     /// Made fresh each time Connect Your AI… is tapped, so a typed key never outlives the sheet.
@@ -25,10 +28,12 @@ struct SettingsSection: View {
         settings: AppSettings,
         aiStore: AIConnectionStore = .shared,
         historyStore: PassageHistoryPersisting = PhoneHistoryController.sharedStore,
+        updateCommand: PhoneUpdateCommand = .shared,
         usesDarkChrome: Bool = false
     ) {
         self.settings = settings
         self.aiStore = aiStore
+        self.updateCommand = updateCommand
         self.historyStore = historyStore
         self.usesDarkChrome = usesDarkChrome
     }
@@ -49,9 +54,16 @@ struct SettingsSection: View {
     }
     static var cancelTitle: String { String(localized: "Cancel") }
 
-    /// Every switch's title, in order, then Clear History. (Connect Your AI… sits between them; it
-    /// is a navigation row with its own `connectAITitle`.)
-    static var rowTitles: [String] { rows.map(\.title) + [clearHistoryTitle] }
+    // MARK: Check for Updates (the Mac's title)
+
+    static var checkForUpdatesTitle: String { String(localized: "Check for Updates…") }
+    static var checkForUpdatesNote: String {
+        String(localized: "Asks the App Store whether a newer version of Lineform is out. Nothing about you or your documents is sent.")
+    }
+
+    /// Every switch's title, in order, then Clear History and Check for Updates…. (Connect Your
+    /// AI… sits between them; it is a navigation row with its own `connectAITitle`.)
+    static var rowTitles: [String] { rows.map(\.title) + [clearHistoryTitle, checkForUpdatesTitle] }
 
     /// The confirmed Clear History: empties the store, and every History controller on it
     /// re-reads it (leaving History mode first), so nothing open writes the cleared history back.
@@ -144,6 +156,9 @@ struct SettingsSection: View {
             clearHistoryRow
                 .padding(.vertical, 4)
                 .listRowBackground(Color.clear)
+            checkForUpdatesRow
+                .padding(.vertical, 4)
+                .listRowBackground(Color.clear)
         }
         .listStyle(.plain)
         .scrollContentBackground(.hidden)
@@ -178,5 +193,31 @@ struct SettingsSection: View {
         } message: {
             Text(Self.clearHistoryConfirmMessage)
         }
+    }
+
+    /// One lookup per tap; a tap while a check runs (or its alert is up) does nothing, and the
+    /// row shows a spinner meanwhile.
+    private var checkForUpdatesRow: some View {
+        Button {
+            Task { await updateCommand.run() }
+        } label: {
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(Self.checkForUpdatesTitle)
+                    Text(Self.checkForUpdatesNote)
+                        .font(.footnote)
+                        .opacity(0.6)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                Spacer(minLength: 0)
+                if updateCommand.isChecking {
+                    ProgressView()
+                }
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .disabled(updateCommand.isChecking)
+        .accessibilityIdentifier("settings.checkForUpdates")
     }
 }

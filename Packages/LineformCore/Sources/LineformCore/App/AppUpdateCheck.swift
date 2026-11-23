@@ -11,6 +11,42 @@ public enum AppUpdateCheckResult: Equatable, Sendable {
     case failed
 }
 
+/// Which App Store catalog a Check for Updates reads. The Mac and the iPhone share ONE listing
+/// (the same bundle id, `com.lineform.app`), but the iTunes lookup answers per platform: the
+/// Mac's entry has `kind` "mac-software", the iPhone's `kind` "software".
+public enum AppStorePlatform: Equatable, Sendable {
+    case mac
+    case iPhone
+
+    /// The platform this build runs on.
+    public static var current: AppStorePlatform {
+        #if os(iOS)
+        .iPhone
+        #else
+        .mac
+        #endif
+    }
+
+    /// The lookup's `entity`: `macSoftware` for the Mac catalog, `software` for the iOS one.
+    var lookupEntity: String {
+        switch self {
+        case .mac: "macSoftware"
+        case .iPhone: "software"
+        }
+    }
+
+    /// Whether an entry with this `kind` is this platform's. The Mac also reads an entry with no
+    /// `kind` (what it always read). The iPhone reads only "software": before an iPhone build is
+    /// listed, the store answers the iOS lookup with the Mac entry (seen by hand on 2026-11-23),
+    /// and reading that would offer a Mac-only version and open the Mac page.
+    func accepts(kind: String?) -> Bool {
+        switch self {
+        case .mac: kind == nil || kind == "mac-software"
+        case .iPhone: kind == "software"
+        }
+    }
+}
+
 /// The store's answer for this app, after validation. `AppStoreLookup.decode` is the
 /// only way to build one from bytes, so `storeURL` is always an `https` link on
 /// `AppStoreLookup.allowedStoreHost` and `version` is always dotted-numeric.
@@ -48,20 +84,23 @@ enum AppStoreLookup {
         let results: [Entry]
 
         struct Entry: Decodable {
+            let kind: String?
             let version: String?
             let trackViewUrl: String?
         }
     }
 
-    /// Decode and validate raw response bytes. Reads only the first result.
+    /// Decode and validate raw response bytes. Reads only the first result that is
+    /// `platform`'s (`AppStorePlatform.accepts(kind:)`); for the Mac's lookup that is the first
+    /// result, as it always was.
     ///
     /// Returns nil when the payload is unusable — too large, not JSON (an HTML sign-in
-    /// page with status 200), no results, or a version or store link that breaks a rule.
-    /// Never throws: the caller reports nil as "couldn't check".
-    static func decode(_ data: Data) -> AppStoreListing? {
+    /// page with status 200), no result for `platform`, or a version or store link that
+    /// breaks a rule. Never throws: the caller reports nil as "couldn't check".
+    static func decode(_ data: Data, platform: AppStorePlatform) -> AppStoreListing? {
         guard data.count <= maximumPayloadBytes else { return nil }
         guard let payload = try? JSONDecoder().decode(Payload.self, from: data),
-              let entry = payload.results.first,
+              let entry = payload.results.first(where: { platform.accepts(kind: $0.kind) }),
               let version = entry.version.flatMap(validatedVersion(_:)),
               let storeURL = entry.trackViewUrl.flatMap(validatedStoreURL(_:))
         else { return nil }
@@ -110,7 +149,7 @@ public protocol AppUpdateChecking: Sendable {
 ///
 /// Privacy shape, the same as `AnnouncementFetcher`: a plain GET with no body, no
 /// cookies, no credentials, and no identifiers. The only query is the app's own public
-/// bundle id (and the Mac catalog). The request adds no locale or country parameter of
+/// bundle id (and the platform's catalog). The request adds no locale or country parameter of
 /// its own (URLSession still sends its standard User-Agent and Accept-Language headers,
 /// as for the announcement check).
 public struct AppStoreUpdateChecker: AppUpdateChecking {
@@ -120,18 +159,23 @@ public struct AppStoreUpdateChecker: AppUpdateChecking {
 
     static let timeout: TimeInterval = 10
 
-    /// Checked by hand on 2026-11-18: this form (with `entity=macSoftware`) returns
-    /// `resultCount` 1, `kind` "mac-software", version 1.8.0, and a `trackViewUrl` on
-    /// apps.apple.com — the Mac listing — so it is the form used.
-    public static var lookupURL: URL {
-        URL(string: "https://itunes.apple.com/lookup?bundleId=\(storeBundleID)&entity=macSoftware")!
+    /// The lookup for `platform`'s catalog. Checked by hand on 2026-11-18: the Mac's form
+    /// (`entity=macSoftware`) returns `resultCount` 1, `kind` "mac-software", version 1.8.0, and
+    /// a `trackViewUrl` on apps.apple.com — the Mac listing. The iPhone's form is
+    /// `entity=software`, the iOS catalog; on 2026-11-23, before any iPhone build was listed, it
+    /// still answered with the Mac entry, which the iPhone refuses (`AppStorePlatform.accepts`).
+    public static func lookupURL(for platform: AppStorePlatform) -> URL {
+        URL(string: "https://itunes.apple.com/lookup?bundleId=\(storeBundleID)&entity=\(platform.lookupEntity)")!
     }
 
-    private let lookupURL: URL
+    /// The lookup for the platform this build runs on.
+    public static var lookupURL: URL { lookupURL(for: .current) }
+
+    private let platform: AppStorePlatform
     private let session: URLSession
 
-    public init(lookupURL: URL = AppStoreUpdateChecker.lookupURL, session: URLSession? = nil) {
-        self.lookupURL = lookupURL
+    public init(platform: AppStorePlatform = .current, session: URLSession? = nil) {
+        self.platform = platform
         self.session = session ?? URLSession(configuration: Self.makeConfiguration())
     }
 
@@ -152,7 +196,7 @@ public struct AppStoreUpdateChecker: AppUpdateChecking {
     }
 
     public func check(currentVersion: String) async -> AppUpdateCheckResult {
-        let listing = await fetchBody().flatMap(AppStoreLookup.decode(_:))
+        let listing = await fetchBody().flatMap { AppStoreLookup.decode($0, platform: platform) }
         return AppStoreLookup.result(listing: listing, currentVersion: currentVersion)
     }
 
@@ -160,7 +204,7 @@ public struct AppStoreUpdateChecker: AppUpdateChecking {
     /// is counted as bytes arrive, never taken from `expectedContentLength`, which is
     /// server-supplied and untrusted.
     private func fetchBody() async -> Data? {
-        var request = URLRequest(url: lookupURL)
+        var request = URLRequest(url: Self.lookupURL(for: platform))
         request.httpMethod = "GET"
         request.cachePolicy = .reloadIgnoringLocalCacheData
         request.setValue("application/json", forHTTPHeaderField: "Accept")

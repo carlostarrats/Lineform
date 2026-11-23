@@ -5610,6 +5610,74 @@
           }
         }
       }
+    },
+    "Check for Updates…" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nach Updates suchen …"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Buscar actualizaciones…"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rechercher les mises à jour…"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "アップデートを確認…"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "检查更新…"
+          }
+        }
+      }
+    },
+    "Asks the App Store whether a newer version of Lineform is out. Nothing about you or your documents is sent." : {
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pregunta al App Store si hay una versión más reciente de Lineform. No se envía nada sobre ti ni sobre tus documentos."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Demande à l’App Store si une version plus récente de Lineform est disponible. Rien sur vous ni sur vos documents n’est envoyé."
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fragt im App Store, ob es eine neuere Version von Lineform gibt. Es wird nichts über dich oder deine Dokumente gesendet."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "App Store に Lineform の新しいバージョンがあるかを確認します。あなたや書類に関する情報は送信されません。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "向 App Store 查询是否有更新版本的 Lineform。不会发送任何关于你或你的文稿的信息。"
+          }
+        }
+      }
     }
   },
   "version" : "1.0"
