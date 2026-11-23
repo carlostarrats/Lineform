@@ -1,13 +1,12 @@
 import Combine
 import Foundation
-import LineformCore
 
 /// The editor as an AI action sees it. The text view implements it: `applyAIEdits` goes through
 /// the normal edit path (`shouldChangeText` → `textStorage.replaceCharacters` → `didChangeText`)
 /// as ONE undo group named `actionName`, so History hears every edit from its single user-edit
 /// source and one decision is one ⌘Z.
 @MainActor
-protocol AIEditorSurface: AnyObject {
+public protocol AIEditorSurface: AnyObject {
     var string: String { get }
     /// Applies `edits` IN ORDER, each in the coordinates of the text the previous one left.
     /// False when any edit was skipped (it would split a character or touch structure): the
@@ -26,7 +25,7 @@ protocol AIEditorSurface: AnyObject {
 /// One action is one change, so a review has one decision: accept it (by id, or the current change
 /// with Return), reject it (by id; the card's Reject, Esc and ✕ send `end`, which rejects what is
 /// pending), or type (end, then type).
-enum AIReviewCommand: Equatable {
+public enum AIReviewCommand: Equatable {
     case accept(Int), reject(Int)
     case acceptCurrent, end
     /// Esc and the card's Reject: the current change is rejected (and the next becomes current;
@@ -60,8 +59,8 @@ enum AIReviewCommand: Equatable {
 ///   paragraph). Live reload abandons
 ///   the review and records nothing.
 @MainActor
-final class AIActionController: ObservableObject {
-    enum State: Equatable {
+public final class AIActionController: ObservableObject {
+    public enum State: Equatable {
         case idle
         case running(AIAction, AIProvider)
         case reviewing(AIReviewSession)
@@ -73,7 +72,7 @@ final class AIActionController: ObservableObject {
     /// a document swap, abandon, disconnect) — collapses the editor's selection to the end of the
     /// reviewed passage. This is the one choke point: the passage stays selected in the editor
     /// under the overlay, and a keystroke after the review would otherwise replace it.
-    @Published private(set) var state: State = .idle {
+    @Published public private(set) var state: State = .idle {
         didSet {
             guard case .reviewing(let ended) = oldValue else { return }
             if case .reviewing = state { return }
@@ -81,15 +80,15 @@ final class AIActionController: ObservableObject {
             editor.collapseSelectionForAI(at: Self.caretEnd(of: ended.selectionRange, in: editor.string))
         }
     }
-    weak var editor: AIEditorSurface?
+    public weak var editor: (any AIEditorSurface)?
     /// Where a review's accepted changes go when the editor is ALREADY gone at the review's end
     /// (2026-11-14: switching to Read tears the Write text view down before `onChange(of:
     /// displayMode)` ends the review, and the accepted Proofread decisions were silently lost).
     /// `text` reads the document; `apply` writes the edits (descending) into it, reporting each to
     /// History as a user edit. Set by the editor around that call only.
-    var documentFallback: (text: () -> String, apply: ([AIReviewEdit]) -> Void)?
-    weak var history: DocumentHistoryController?
-    private(set) var runTask: Task<Void, Never>?
+    public var documentFallback: (text: () -> String, apply: ([AIReviewEdit]) -> Void)?
+    public weak var history: (any AIHistoryRecording)?
+    public private(set) var runTask: Task<Void, Never>?
 
     private let connectionStore: AIConnectionStore
     private let clientFactory: (AIConnection) -> AIClient
@@ -104,7 +103,7 @@ final class AIActionController: ObservableObject {
     private var reviewNote: String?
     private var connectionObservation: AnyCancellable?
 
-    init(connectionStore: AIConnectionStore,
+    public init(connectionStore: AIConnectionStore,
          clientFactory: @escaping (AIConnection) -> AIClient = { AIClientFactory.client(for: $0) }) {
         self.connectionStore = connectionStore
         self.clientFactory = clientFactory
@@ -131,21 +130,21 @@ final class AIActionController: ObservableObject {
 
     // MARK: - Messages
 
-    static var tooMuchTextMessage: String { String(localized: "Select less text — about 4,000 words at most.") }
-    static var reconnectMessage: String { String(localized: "Connect your AI again in Lineform ▸ Connect Your AI….") }
-    static var textChangedMessage: String { String(localized: "The text changed while Lineform was waiting. Nothing was changed.") }
-    static var noChangesMessage: String { String(localized: "No changes suggested.") }
-    static var nothingToMarkMessage: String { String(localized: "No sentences found.") }
-    static var structureRefusedMessage: String { String(localized: "That change would alter the Markdown, so it wasn't applied.") }
-    static var reviewEndedMessage: String { String(localized: "Review ended") }
-    static var editSkippedMessage: String { String(localized: "That change couldn't be applied, so the review ended.") }
-    static var acceptOneActionName: String { String(localized: "Accept Suggestion") }
+    public static var tooMuchTextMessage: String { String(localized: "Select less text — about 4,000 words at most.", bundle: .module) }
+    public static var reconnectMessage: String { String(localized: "Connect your AI again in Lineform ▸ Connect Your AI….", bundle: .module) }
+    public static var textChangedMessage: String { String(localized: "The text changed while Lineform was waiting. Nothing was changed.", bundle: .module) }
+    public static var noChangesMessage: String { String(localized: "No changes suggested.", bundle: .module) }
+    public static var nothingToMarkMessage: String { String(localized: "No sentences found.", bundle: .module) }
+    public static var structureRefusedMessage: String { String(localized: "That change would alter the Markdown, so it wasn't applied.", bundle: .module) }
+    public static var reviewEndedMessage: String { String(localized: "Review ended", bundle: .module) }
+    public static var editSkippedMessage: String { String(localized: "That change couldn't be applied, so the review ended.", bundle: .module) }
+    public static var acceptOneActionName: String { String(localized: "Accept Suggestion", bundle: .module) }
 
     /// Proofread's corrections, each verified ON ITS OWN against the structure guard (any subset
     /// may be accepted). One that fails is first merged with its neighbours in the same segment —
     /// a token MOVE (`$5` → `5$`) diffs into a deletion and an insertion, and only the two
     /// together keep the structure — and dropped only if no merge passes. Ids renumbered from 0.
-    static func structurePreservingCorrections(_ corrections: [AIChange], segments: [ProseSegment],
+    public static func structurePreservingCorrections(_ corrections: [AIChange], segments: [ProseSegment],
                                                in text: String) -> [AIChange] {
         let ns = text as NSString
         func verifies(_ change: AIChange) -> Bool {
@@ -186,18 +185,18 @@ final class AIActionController: ObservableObject {
     }
 
     /// A Rewrite-family action is one change, so its review opens with exactly one.
-    static var changeSuggestedMessage: String { String(localized: "1 change suggested") }
+    public static var changeSuggestedMessage: String { String(localized: "1 change suggested", bundle: .module) }
 
     /// Proofread opens with one suggestion per correction.
-    static func correctionsSuggestedMessage(_ count: Int) -> String {
-        String(localized: "\(count) corrections suggested")
+    public static func correctionsSuggestedMessage(_ count: Int) -> String {
+        String(localized: "\(count) corrections suggested", bundle: .module)
     }
 
     /// What a reply that changes nothing says. Proofread: "No changes suggested." (no errors is a
     /// legitimate answer). An action that must change the text (`mustChangeText`) never says
     /// that: a reply identical to the selection is "<AI> returned the same text. Try again.", and
     /// one whose changes were all refused (structure, length) is an unusable response.
-    static func unchangedMessage(for action: AIAction, provider: AIProvider,
+    public static func unchangedMessage(for action: AIAction, provider: AIProvider,
                                  segments: [ProseSegment], revisions: [String]) -> String {
         guard action.mustChangeText else { return noChangesMessage }
         let identical = zip(segments, revisions).allSatisfy { segment, revision in
@@ -208,8 +207,8 @@ final class AIActionController: ObservableObject {
                          : AIClientError.unusableResponse.message
     }
 
-    static func markedMessage(_ count: Int) -> String {
-        String(localized: "\(count) sentences found")
+    public static func markedMessage(_ count: Int) -> String {
+        String(localized: "\(count) sentences found", bundle: .module)
     }
 
     // MARK: - Availability
@@ -226,7 +225,7 @@ final class AIActionController: ObservableObject {
     }
 
     /// Whole-document structure analysis: call when a menu opens, never per keystroke.
-    func isAvailable(for range: NSRange, text: String) -> Bool {
+    public func isAvailable(for range: NSRange, text: String) -> Bool {
         guard allowsRun(on: range) else { return false }
         return !MarkdownStructureMap.proseSegments(in: text, selection: range).isEmpty
     }
@@ -240,7 +239,7 @@ final class AIActionController: ObservableObject {
 
     /// `avoiding`: the segments of a suggestion just discarded by Try Again; the prompt asks for a
     /// different result (`AIActionPrompt.editPrompt(_:segments:avoiding:)`).
-    func run(_ action: AIAction, range: NSRange, text: String, avoiding: [String]? = nil, note: String? = nil) {
+    public func run(_ action: AIAction, range: NSRange, text: String, avoiding: [String]? = nil, note: String? = nil) {
         guard allowsRun(on: range) else { return }
         let note = AIActionPrompt.trimmedNote(note)
         // Custom IS the note: without one there is nothing to ask.
@@ -306,7 +305,7 @@ final class AIActionController: ObservableObject {
         }
     }
 
-    func cancel() {
+    public func cancel() {
         guard case .running = state else { return }
         stopRequest()
         state = .idle
@@ -315,7 +314,7 @@ final class AIActionController: ObservableObject {
 
     /// The action is over (no review, request or marks remain): History comes back on the passage
     /// it was on when the action started, or remembers an accept's passage
-    /// (`DocumentHistoryController.aiActionDidEnd`).
+    /// (`AIHistoryRecording.aiActionDidEnd`).
     private func settleHistory(recorded: UUID?, changedRange: NSRange? = nil) {
         guard let history else { return }
         // No editor (nor document fallback), no text to locate in (locating in the wrong text
@@ -326,7 +325,7 @@ final class AIActionController: ObservableObject {
 
     /// Live reload (or any wholesale text replacement): reload wins. Cancels a request, drops a
     /// review or marks, and records nothing in History.
-    func abandon() {
+    public func abandon() {
         stopRequest()
         reviewProvider = nil
         reviewRevisions = nil
@@ -338,7 +337,7 @@ final class AIActionController: ObservableObject {
     /// and AI never overlap. A request or review ends (keeping what was accepted); Mark's wash is
     /// dismissed. A message is left up — the first-accept show arrives just after a review
     /// ended, and dropping it then would lose a refusal.
-    func yieldToHistory() {
+    public func yieldToHistory() {
         switch state {
         case .running, .reviewing:
             endReview(settlingHistory: false)
@@ -352,11 +351,11 @@ final class AIActionController: ObservableObject {
         history?.aiActionAbandoned()
     }
 
-    func dismissMarks() {
+    public func dismissMarks() {
         if case .marking = state { state = .idle }
     }
 
-    func dismissMessage() {
+    public func dismissMessage() {
         if case .message = state { state = .idle }
     }
 
@@ -453,7 +452,7 @@ final class AIActionController: ObservableObject {
 
     // MARK: - Review
 
-    func handle(_ command: AIReviewCommand) {
+    public func handle(_ command: AIReviewCommand) {
         guard case .reviewing(var session) = state, let editor else { return }
         switch command {
         case .accept(let id):
@@ -504,7 +503,7 @@ final class AIActionController: ObservableObject {
     /// `settlingHistory` false: the action is not over (Try Again) or must not bring History back
     /// (typing, History opening on its own target).
     @discardableResult
-    func endReview(settlingHistory: Bool = true) -> AIReviewSession? {
+    public func endReview(settlingHistory: Bool = true) -> AIReviewSession? {
         guard case .reviewing(var session) = state else { return nil }
         var firstRecorded: UUID?
         var changedRange: NSRange?
@@ -589,7 +588,7 @@ final class AIActionController: ObservableObject {
     /// original. Each paragraph's text is edge-trimmed on both sides, and `range` is where the
     /// accepted text sits in the document. A selection inside one line is one piece: the selection
     /// itself, trimmed. Line counts that disagree (never expected) also record one piece.
-    static func acceptedPassages(original: String, accepted: String, at location: Int)
+    public static func acceptedPassages(original: String, accepted: String, at location: Int)
         -> [(range: NSRange, original: String, accepted: String)] {
         guard !accepted.utf16.elementsEqual(original.utf16) else { return [] }
         let before = markdownSourceLines(in: original)
@@ -637,7 +636,7 @@ final class AIActionController: ObservableObject {
     /// any line endings the selection ends with. A triple-click selects a line WITH its "\n" (or
     /// "\r\n"); NSMaxRange would put the caret at the start of the NEXT line, and a typed key
     /// would land there.
-    static func caretEnd(of range: NSRange, in text: String) -> Int {
+    public static func caretEnd(of range: NSRange, in text: String) -> Int {
         let ns = text as NSString
         let clamped = NSIntersectionRange(range, NSRange(location: 0, length: ns.length))
         var end = NSMaxRange(clamped)
@@ -654,7 +653,7 @@ final class AIActionController: ObservableObject {
     }
 
     /// Applies `edits` in order, each in the coordinates the previous one left.
-    nonisolated static func applying(_ edits: [AIReviewEdit], to text: String) -> String {
+    nonisolated public static func applying(_ edits: [AIReviewEdit], to text: String) -> String {
         let result = NSMutableString(string: text)
         for edit in edits {
             guard edit.range.location >= 0, NSMaxRange(edit.range) <= result.length else { continue }

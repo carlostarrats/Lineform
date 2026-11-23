@@ -2080,45 +2080,19 @@ enum LineformTextContextMenuPresentation {
     /// History on the selection with the "Type a replacement" field open (2026-11-13;
     /// was "Add to History"). The ellipsis: the item asks for more input.
     static let addToHistoryTitle = String(localized: "Replace With…")
-    /// The AI group's submenus. Conditional (connected, a selection with prose), so not part of
-    /// `commandTitles(for:)` either.
-    static let aiRewriteMenuTitle = String(localized: "Rewrite")
-    /// "Find ▸ Weakest Sentences / Long Sentences" (2026-11-14; was "Mark").
-    static let aiMarkMenuTitle = String(localized: "Find")
+    /// The AI group (its titles, entries and the single-word rule) lives in LineformCore's
+    /// `AIMenuPresentation`, shared with the iPhone; these forward under the old names.
+    /// Conditional (connected, a selection with prose), so not part of `commandTitles(for:)`.
+    static var aiRewriteMenuTitle: String { AIMenuPresentation.aiRewriteMenuTitle }
+    static var aiMarkMenuTitle: String { AIMenuPresentation.aiMarkMenuTitle }
+    typealias AIMenuEntry = AIMenuPresentation.AIMenuEntry
 
-    /// One row of the AI group: an action, or a submenu of actions.
-    enum AIMenuEntry: Equatable {
-        case action(AIAction)
-        /// A submenu of action groups, a separator between groups.
-        case submenu(String, [[AIAction]])
-    }
-
-    /// The AI group for a selection. A single word gets "Another Word" in place of the Rewrite
-    /// submenu (Trim / Cut in half / Rewrite make no sense for one word); Proofread is always
-    /// there; Mark only when the selection touches at least two sentences (marking "the weakest"
-    /// of one sentence is meaningless). `sentenceCount` is a closure so a single word never pays
-    /// for the sentence split. The AI group only exists for a non-empty selection, so there is
-    /// no whole-document case.
     static func aiMenuEntries(selectedText: String, sentenceCount: () -> Int) -> [AIMenuEntry] {
-        guard !isSingleWord(selectedText) else {
-            return [.action(.anotherWord), .action(.proofread)]
-        }
-        var entries: [AIMenuEntry] = [.submenu(aiRewriteMenuTitle, AIAction.rewriteMenuGroups), .action(.proofread)]
-        if sentenceCount() >= 2 {
-            entries.append(.submenu(aiMarkMenuTitle, [[.markWeakest, .markLong]]))
-        }
-        return entries
+        AIMenuPresentation.aiMenuEntries(selectedText: selectedText, sentenceCount: sentenceCount)
     }
 
-    /// One word: once trimmed, no whitespace inside and at least one letter ("don't", "e-mail"
-    /// and "Café," count; "42" and "—" don't).
     static func isSingleWord(_ text: String) -> Bool {
-        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty,
-              !trimmed.unicodeScalars.contains(where: { CharacterSet.whitespacesAndNewlines.contains($0) }) else {
-            return false
-        }
-        return trimmed.unicodeScalars.contains { CharacterSet.letters.contains($0) }
+        AIMenuPresentation.isSingleWord(text)
     }
 
     /// The single suggestion to offer for a misspelling, or none.

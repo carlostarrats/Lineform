@@ -1,22 +1,21 @@
 import Foundation
-import LineformCore
 
 /// One sentence for Mark, in DOCUMENT UTF-16 coordinates. `prose` is what the model sees: the
 /// sentence's prose segments joined with one space, its Markdown structure left out. `range`
 /// runs from the sentence's first prose character to its last, so leading markers (`- `, `> `,
 /// `- [ ] `) and trailing structure are outside it.
-struct AISentence: Equatable {
-    let range: NSRange
-    let prose: String
+public struct AISentence: Equatable {
+    public let range: NSRange
+    public let prose: String
 }
 
-enum AISentenceSplitter {
+public enum AISentenceSplitter {
     /// The sentences the selection TOUCHES: each sentence whose prose range intersects the
     /// selection, sent whole (a partly selected sentence goes whole; a sentence the selection does
     /// not reach is never sent — Privacy.md promises this). Sentences are FOUND over the full
     /// lines of each block the selection touches, so a boundary never cuts a construct; only the
     /// touched ones are kept. Sentences with no prose (a rule, a code fence) are skipped.
-    static func sentences(in text: String, selection: NSRange) -> [AISentence] {
+    public static func sentences(in text: String, selection: NSRange) -> [AISentence] {
         let ns = text as NSString
         guard ns.length > 0 else { return [] }
         let clamped = NSIntersectionRange(selection, NSRange(location: 0, length: ns.length))

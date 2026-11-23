@@ -1,16 +1,15 @@
 import XCTest
-import AppKit
-@testable import Lineform
 @testable import LineformCore
 
-/// The selection toolbar's pure decisions (`SelectionToolbarPresentation`). Showing, hiding and
+/// The selection toolbar's pure decisions (`SelectionToolbarPresentation`, `AIMenuPresentation`),
+/// shared by the Mac's floating toolbar and the iPhone's selection row. Showing, hiding and
 /// placement against a live text view were checked by hand in the running app.
-final class SelectionToolbarTests: XCTestCase {
+final class SelectionToolbarPresentationTests: XCTestCase {
     private static let languages = ["es", "fr", "de", "ja", "zh-Hans"]
 
     private func bundle(_ language: String) throws -> Bundle {
         try XCTUnwrap(
-            Bundle.main.path(forResource: language, ofType: "lproj").flatMap(Bundle.init(path:)),
+            Bundle.lineformCore.path(forResource: language, ofType: "lproj").flatMap(Bundle.init(path:)),
             "\(language).lproj missing from the test host"
         )
     }
@@ -48,7 +47,7 @@ final class SelectionToolbarTests: XCTestCase {
     }
 
     func testCustomIsNeverOnTheContextMenu() {
-        let entries = LineformTextContextMenuPresentation.aiMenuEntries(selectedText: "One. Two.", sentenceCount: { 2 })
+        let entries = AIMenuPresentation.aiMenuEntries(selectedText: "One. Two.", sentenceCount: { 2 })
         for entry in entries {
             switch entry {
             case .action(let action): XCTAssertNotEqual(action, .custom)
@@ -88,34 +87,34 @@ final class SelectionToolbarTests: XCTestCase {
 
     // MARK: - Placement
 
-    private let visible = NSRect(x: 0, y: 100, width: 800, height: 600)
-    private let bar = NSSize(width: 300, height: 38)
+    private let visible = CGRect(x: 0, y: 100, width: 800, height: 600)
+    private let bar = CGSize(width: 300, height: 38)
 
     func testSitsCentredAboveTheFirstLine() {
-        let line = NSRect(x: 200, y: 400, width: 200, height: 20)
+        let line = CGRect(x: 200, y: 400, width: 200, height: 20)
         let origin = SelectionToolbarPresentation.origin(barSize: bar, firstLine: line, lastLine: line, visible: visible)
         XCTAssertEqual(origin.x, 150)
         XCTAssertEqual(origin.y, 400 - 8 - 38)
     }
 
     func testFlipsBelowTheLastLineNearTheTop() {
-        let first = NSRect(x: 200, y: 110, width: 200, height: 20)
-        let last = NSRect(x: 100, y: 170, width: 100, height: 20)
+        let first = CGRect(x: 200, y: 110, width: 200, height: 20)
+        let last = CGRect(x: 100, y: 170, width: 100, height: 20)
         let origin = SelectionToolbarPresentation.origin(barSize: bar, firstLine: first, lastLine: last, visible: visible)
         XCTAssertEqual(origin.y, 190 + 8)
     }
 
     func testStaysInsideTheVisibleRect() {
-        let atLeftEdge = NSRect(x: 0, y: 400, width: 20, height: 20)
+        let atLeftEdge = CGRect(x: 0, y: 400, width: 20, height: 20)
         XCTAssertEqual(SelectionToolbarPresentation.origin(barSize: bar, firstLine: atLeftEdge, lastLine: atLeftEdge,
                                                            visible: visible).x, 8)
-        let atRightEdge = NSRect(x: 780, y: 400, width: 20, height: 20)
+        let atRightEdge = CGRect(x: 780, y: 400, width: 20, height: 20)
         XCTAssertEqual(SelectionToolbarPresentation.origin(barSize: bar, firstLine: atRightEdge, lastLine: atRightEdge,
                                                            visible: visible).x, 800 - 300 - 8)
         // Select All, scrolled to the end: the first line is far above, the last far below.
-        let farAbove = NSRect(x: 100, y: -5000, width: 600, height: 20)
-        let farBelow = NSRect(x: 100, y: 9000, width: 600, height: 20)
+        let farAbove = CGRect(x: 100, y: -5000, width: 600, height: 20)
+        let farBelow = CGRect(x: 100, y: 9000, width: 600, height: 20)
         let pinned = SelectionToolbarPresentation.origin(barSize: bar, firstLine: farAbove, lastLine: farBelow, visible: visible)
-        XCTAssertTrue(visible.contains(NSRect(origin: pinned, size: bar)), "\(pinned)")
+        XCTAssertTrue(visible.contains(CGRect(origin: pinned, size: bar)), "\(pinned)")
     }
 }

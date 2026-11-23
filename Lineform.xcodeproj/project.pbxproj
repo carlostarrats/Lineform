@@ -153,19 +153,13 @@
 		1F00000100000000000004CB /* AppReviewPromptStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000004CB /* AppReviewPromptStore.swift */; };
 		1F00000100000000000004E1 /* AIEditorTestDoubles.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000004E1 /* AIEditorTestDoubles.swift */; };
 		1F00000100000000000004E8 /* ConnectAIView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000004E8 /* ConnectAIView.swift */; };
-		1F00000100000000000004F3 /* AISentenceSplitter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000004F3 /* AISentenceSplitter.swift */; };
 		1F00000100000000000004EB /* ConnectAIPresentationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000004EB /* ConnectAIPresentationTests.swift */; };
-		1F0000010000000000000508 /* SelectionToolbarTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000508 /* SelectionToolbarTests.swift */; };
-		1F00000100000000000004F6 /* AIChangeBuilderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000004F6 /* AIChangeBuilderTests.swift */; };
 		1F00000100000000000004FE /* AIReviewTextView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000004FE /* AIReviewTextView.swift */; };
 		1F0000010000000000000500 /* AIReviewSurfaceRepresentable.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000500 /* AIReviewSurfaceRepresentable.swift */; };
 		1F0000010000000000000501 /* AIReviewCards.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000501 /* AIReviewCards.swift */; };
-		1F00000100000000000004F8 /* AIActionController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000004F8 /* AIActionController.swift */; };
-		1F00000100000000000004F9 /* AIReviewSessionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000004F9 /* AIReviewSessionTests.swift */; };
-		1F0000010000000000000502 /* AIReviewCompositionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000502 /* AIReviewCompositionTests.swift */; };
 		1F0000010000000000000504 /* AIReviewCardPresentationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000504 /* AIReviewCardPresentationTests.swift */; };
 		1F0000010000000000000505 /* AIReviewTextViewTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000020000000000000505 /* AIReviewTextViewTests.swift */; };
-		1F00000100000000000004FA /* AIActionControllerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000004FA /* AIActionControllerTests.swift */; };
+		1F00000100000000000004FA /* AIActionControllerHistoryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000004FA /* AIActionControllerHistoryTests.swift */; };
 		1F00000100000000000000510 /* AdversarialReviewProbeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000000510 /* AdversarialReviewProbeTests.swift */; };
 		1F00000100000000000000511 /* AdversarialHistoryProbeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000000511 /* AdversarialHistoryProbeTests.swift */; };
 		1F00000100000000000004CC /* AppReviewPromptStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000004CC /* AppReviewPromptStoreTests.swift */; };
@@ -418,22 +412,16 @@
 		1F00000200000000000004C7 /* AnnouncementStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnnouncementStore.swift; sourceTree = "<group>"; };
 		1F00000200000000000004C8 /* AnnouncementCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnnouncementCard.swift; sourceTree = "<group>"; };
 		1F00000200000000000004CB /* AppReviewPromptStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppReviewPromptStore.swift; sourceTree = "<group>"; };
-		1F00000200000000000004E1 /* AIEditorTestDoubles.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIEditorTestDoubles.swift; sourceTree = "<group>"; };
+		1F00000200000000000004E1 /* AIEditorTestDoubles.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = AIEditorTestDoubles.swift; path = Packages/LineformCore/Sources/LineformCoreTestSupport/AIEditorTestDoubles.swift; sourceTree = SOURCE_ROOT; };
 		1F00000200000000000008C3 /* AITestDoubles.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = AITestDoubles.swift; path = Packages/LineformCore/Sources/LineformCoreTestSupport/AITestDoubles.swift; sourceTree = SOURCE_ROOT; };
 		1F00000200000000000004E8 /* ConnectAIView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConnectAIView.swift; sourceTree = "<group>"; };
-		1F00000200000000000004F3 /* AISentenceSplitter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AISentenceSplitter.swift; sourceTree = "<group>"; };
 		1F00000200000000000004EB /* ConnectAIPresentationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConnectAIPresentationTests.swift; sourceTree = "<group>"; };
-		1F0000020000000000000508 /* SelectionToolbarTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SelectionToolbarTests.swift; sourceTree = "<group>"; };
-		1F00000200000000000004F6 /* AIChangeBuilderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIChangeBuilderTests.swift; sourceTree = "<group>"; };
 		1F00000200000000000004FE /* AIReviewTextView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIReviewTextView.swift; sourceTree = "<group>"; };
 		1F0000020000000000000500 /* AIReviewSurfaceRepresentable.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIReviewSurfaceRepresentable.swift; sourceTree = "<group>"; };
 		1F0000020000000000000501 /* AIReviewCards.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIReviewCards.swift; sourceTree = "<group>"; };
-		1F00000200000000000004F8 /* AIActionController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIActionController.swift; sourceTree = "<group>"; };
-		1F00000200000000000004F9 /* AIReviewSessionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIReviewSessionTests.swift; sourceTree = "<group>"; };
-		1F0000020000000000000502 /* AIReviewCompositionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIReviewCompositionTests.swift; sourceTree = "<group>"; };
 		1F0000020000000000000504 /* AIReviewCardPresentationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIReviewCardPresentationTests.swift; sourceTree = "<group>"; };
 		1F0000020000000000000505 /* AIReviewTextViewTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIReviewTextViewTests.swift; sourceTree = "<group>"; };
-		1F00000200000000000004FA /* AIActionControllerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIActionControllerTests.swift; sourceTree = "<group>"; };
+		1F00000200000000000004FA /* AIActionControllerHistoryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIActionControllerHistoryTests.swift; sourceTree = "<group>"; };
 		1F00000200000000000000510 /* AdversarialReviewProbeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AdversarialReviewProbeTests.swift; sourceTree = "<group>"; };
 		1F00000200000000000000511 /* AdversarialHistoryProbeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AdversarialHistoryProbeTests.swift; sourceTree = "<group>"; };
 		1F00000200000000000004CC /* AppReviewPromptStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppReviewPromptStoreTests.swift; sourceTree = "<group>"; };
@@ -595,11 +583,9 @@
 			isa = PBXGroup;
 			children = (
 				1F00000200000000000004E8 /* ConnectAIView.swift */,
-				1F00000200000000000004F3 /* AISentenceSplitter.swift */,
 				1F00000200000000000004FE /* AIReviewTextView.swift */,
 				1F0000020000000000000500 /* AIReviewSurfaceRepresentable.swift */,
 				1F0000020000000000000501 /* AIReviewCards.swift */,
-				1F00000200000000000004F8 /* AIActionController.swift */,
 			);
 			path = AI;
 			sourceTree = "<group>";
@@ -739,13 +725,9 @@
 				1F00000200000000000004E1 /* AIEditorTestDoubles.swift */,
 				1F00000200000000000008C3 /* AITestDoubles.swift */,
 				1F00000200000000000004EB /* ConnectAIPresentationTests.swift */,
-				1F0000020000000000000508 /* SelectionToolbarTests.swift */,
-				1F00000200000000000004F6 /* AIChangeBuilderTests.swift */,
-				1F00000200000000000004F9 /* AIReviewSessionTests.swift */,
-				1F0000020000000000000502 /* AIReviewCompositionTests.swift */,
 				1F0000020000000000000504 /* AIReviewCardPresentationTests.swift */,
 				1F0000020000000000000505 /* AIReviewTextViewTests.swift */,
-				1F00000200000000000004FA /* AIActionControllerTests.swift */,
+				1F00000200000000000004FA /* AIActionControllerHistoryTests.swift */,
 				1F00000200000000000000510 /* AdversarialReviewProbeTests.swift */,
 				1F00000200000000000000511 /* AdversarialHistoryProbeTests.swift */,
 				1F00000200000000000004CA /* TestDefaultsSupport.swift */,
@@ -1245,11 +1227,9 @@
 				1F00000100000000000004C7 /* AnnouncementStore.swift in Sources */,
 				1F00000100000000000004CB /* AppReviewPromptStore.swift in Sources */,
 				1F00000100000000000004E8 /* ConnectAIView.swift in Sources */,
-				1F00000100000000000004F3 /* AISentenceSplitter.swift in Sources */,
 				1F00000100000000000004FE /* AIReviewTextView.swift in Sources */,
 				1F0000010000000000000500 /* AIReviewSurfaceRepresentable.swift in Sources */,
 				1F0000010000000000000501 /* AIReviewCards.swift in Sources */,
-				1F00000100000000000004F8 /* AIActionController.swift in Sources */,
 				1F00000100000000000004C8 /* AnnouncementCard.swift in Sources */,
 				1F0000010000000000000130 /* FirstLaunchIntroOverlay.swift in Sources */,
 				1F0000010000000000000052 /* SystemAppearanceMonitor.swift in Sources */,
@@ -1310,13 +1290,9 @@
 				1F00000100000000000004E1 /* AIEditorTestDoubles.swift in Sources */,
 				1F00000100000000000008C3 /* AITestDoubles.swift in Sources */,
 				1F00000100000000000004EB /* ConnectAIPresentationTests.swift in Sources */,
-				1F0000010000000000000508 /* SelectionToolbarTests.swift in Sources */,
-				1F00000100000000000004F6 /* AIChangeBuilderTests.swift in Sources */,
-				1F00000100000000000004F9 /* AIReviewSessionTests.swift in Sources */,
-				1F0000010000000000000502 /* AIReviewCompositionTests.swift in Sources */,
 				1F0000010000000000000504 /* AIReviewCardPresentationTests.swift in Sources */,
 				1F0000010000000000000505 /* AIReviewTextViewTests.swift in Sources */,
-				1F00000100000000000004FA /* AIActionControllerTests.swift in Sources */,
+				1F00000100000000000004FA /* AIActionControllerHistoryTests.swift in Sources */,
 				1F00000100000000000000510 /* AdversarialReviewProbeTests.swift in Sources */,
 				1F00000100000000000000511 /* AdversarialHistoryProbeTests.swift in Sources */,
 				1F00000100000000000004CA /* TestDefaultsSupport.swift in Sources */,
