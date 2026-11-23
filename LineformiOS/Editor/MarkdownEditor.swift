@@ -10,7 +10,8 @@ import UIKit
 /// schedules the visible-window coverage check; `shouldChangeTextIn` routes Return through the
 /// editing rules; a selection change or an edit refreshes the reading assists (ruler, typewriter);
 /// the edit menu leads with spelling guesses on a misspelling; Writing Tools is told which
-/// Markdown regions to leave alone. A pasted or dropped image is saved beside `imageHost`'s
+/// Markdown regions to leave alone. A settled selection raises the selection row
+/// (`SelectionController`). A pasted or dropped image is saved beside `imageHost`'s
 /// document (`LineformiOSTextView+ImagePaste.swift`).
 ///
 /// A text that changes from outside (a live reload, another file) replaces the editor's text and
@@ -38,6 +39,8 @@ struct MarkdownEditor: UIViewRepresentable {
     /// The open document's History: told about every edit, and the only thing that applies
     /// History's own edits (`PhoneHistoryController.attach`).
     var history: PhoneHistoryController?
+    /// The selection row and comment field (`SelectionController`), told of every selection change.
+    var selectionController: SelectionController?
 
     /// Padding for the chrome that floats over the page (the menu button, the save notice).
     static let chromeMargin: CGFloat = 20
@@ -54,6 +57,7 @@ struct MarkdownEditor: UIViewRepresentable {
         linkedScroll?.connect(editor: textView)
         readEditDocument?.readEditor = textView
         history?.attach(textView)
+        selectionController?.attach(textView)
         return textView
     }
 
@@ -73,6 +77,7 @@ struct MarkdownEditor: UIViewRepresentable {
         linkedScroll?.connect(editor: textView)
         readEditDocument?.readEditor = textView
         history?.attach(textView)
+        selectionController?.attach(textView)
         if textView.text != text {
             // An outside replacement: the editor's undo steps describe the old text.
             textView.setDocumentText(text)
@@ -103,9 +108,11 @@ struct MarkdownEditor: UIViewRepresentable {
             textView.refreshReadingAssists()
         }
 
-        /// The Reading Ruler follows the caret, and Typewriter Mode re-centres it.
+        /// The Reading Ruler follows the caret, and Typewriter Mode re-centres it. The selection row
+        /// rises once a non-empty selection settles, and goes when it collapses.
         func textViewDidChangeSelection(_ textView: UITextView) {
             (textView as? LineformTextView)?.refreshReadingAssists()
+            parent.selectionController?.editorSelectionDidChange()
         }
 
         func scrollViewDidScroll(_ scrollView: UIScrollView) {

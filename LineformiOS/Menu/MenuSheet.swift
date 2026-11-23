@@ -23,6 +23,8 @@ struct MenuSheet: View {
     var mode: EditorDisplayMode
     /// Menu ▸ History: the screen closes the sheet, switches to Write and enters History mode.
     var onShowHistory: () -> Void
+    /// Replace With… from the selection row: the sheet opens on Search with this query.
+    var initialSearchQuery: String?
 
     static let sectionStorageKey = "menuSection"
     static let detents: Set<PresentationDetent> = [.medium, .large]
@@ -47,6 +49,7 @@ struct MenuSheet: View {
         selection: @escaping () -> NSRange? = { nil },
         mode: EditorDisplayMode = .write,
         onShowHistory: @escaping () -> Void = {},
+        initialSearchQuery: String? = nil,
         onDismiss: @escaping () -> Void
     ) {
         self.document = document
@@ -59,6 +62,7 @@ struct MenuSheet: View {
         self.selection = selection
         self.mode = mode
         self.onShowHistory = onShowHistory
+        self.initialSearchQuery = initialSearchQuery
     }
 
     // MARK: - Header text
@@ -107,7 +111,13 @@ struct MenuSheet: View {
         .presentationBackground {
             MenuSheetBackground(theme: theme)
         }
-        .onAppear { shownSection = shownSection ?? storedSection }
+        .onAppear {
+            if initialSearchQuery != nil, shownSection == nil {
+                select(.search)
+            } else {
+                shownSection = shownSection ?? storedSection
+            }
+        }
     }
 
     private func select(_ picked: MenuSection) {
@@ -151,7 +161,7 @@ struct MenuSheet: View {
         case .basics:
             BasicsSection()
         case .search:
-            SearchSection(document: document, editor: editor, files: files, onDismiss: onDismiss)
+            SearchSection(document: document, editor: editor, files: files, initialQuery: initialSearchQuery, onDismiss: onDismiss)
         case .document:
             DocumentSection(
                 document: document, editor: editor, files: files, onDismiss: onDismiss,

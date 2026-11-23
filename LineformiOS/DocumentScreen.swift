@@ -66,6 +66,11 @@ struct DocumentScreen: View {
     @State private var firstRun: FirstRunPresentation
     /// Whether `onAppear` has checked the restored scene against first run yet.
     @State private var hasCheckedFirstRunRestore = false
+    /// The selection row and comment field over the bottom of the page (spec §5.5). While either
+    /// shows, it replaces the bottom-right buttons.
+    @StateObject private var selection: SelectionController
+    /// Replace With… opens the Menu sheet's Search with the selected text as the query.
+    @State private var menuSearchQuery: String?
 
     /// The quiet notice over the bottom of the page, if any: a failed save, else an image that
     /// could not be written beside the document.
@@ -84,7 +89,8 @@ struct DocumentScreen: View {
         files: FilesStore = .shared,
         settings: AppSettings = .shared,
         initialMode: EditorDisplayMode = .write,
-        showsFirstRun: Bool = false
+        showsFirstRun: Bool = false,
+        selection: SelectionController? = nil
     ) {
         self.document = document
         self.profileStore = profileStore
@@ -92,6 +98,7 @@ struct DocumentScreen: View {
         self.settings = settings
         _storedDisplayMode = SceneStorage(wrappedValue: initialMode, "displayMode")
         _firstRun = State(initialValue: FirstRunPresentation(launchWantsFirstRun: showsFirstRun))
+        _selection = StateObject(wrappedValue: selection ?? SelectionController())
     }
 
     private var presentsFirstRun: Bool {
@@ -196,7 +203,7 @@ struct DocumentScreen: View {
             }
         }
         .overlay(alignment: .bottomTrailing) {
-            if !isHistoryModeActive {
+            if !isHistoryModeActive && selection.phase == .hidden {
                 HStack(spacing: Self.bottomChromeSpacing) {
                     if displayMode == .split {
                         PreviewLinkButton(isLinked: arePanesLinked, profile: profile) {
@@ -208,7 +215,15 @@ struct DocumentScreen: View {
                     StylingButton(profile: profile) { isShowingStyling = true }
                 }
                 .padding(MarkdownEditor.chromeMargin)
+                .transition(.opacity)
             }
+        }
+        .animation(
+            EditorMotionPolicy.animation(.easeOut(duration: LineformDesign.Motion.standard), reduceMotion: reduceMotion),
+            value: selection.phase
+        )
+        .overlay {
+            SelectionBottomChrome(controller: selection, profile: profile)
         }
         .overlay {
             // Above all the other chrome, so nothing of the document shows through or takes taps.
@@ -226,7 +241,7 @@ struct DocumentScreen: View {
             .disabled(presentsFirstRun)
             .hidden()
         }
-        .sheet(isPresented: $isShowingMenu) {
+        .sheet(isPresented: $isShowingMenu, onDismiss: { menuSearchQuery = nil }) {
             MenuSheet(
                 document: document,
                 editor: LiveEditorCommands(positionKeeper: positionKeeper, document: document, mode: displayMode),
@@ -237,6 +252,7 @@ struct DocumentScreen: View {
                 selection: { [positionKeeper] in positionKeeper.editor?.selectedRange },
                 mode: displayMode,
                 onShowHistory: { showHistoryFromMenu() },
+                initialSearchQuery: menuSearchQuery,
                 onDismiss: { isShowingMenu = false }
             )
         }
@@ -276,6 +292,10 @@ struct DocumentScreen: View {
                 hasCheckedFirstRunRestore = true
             }
             makeExportCommandsIfNeeded()
+            selection.onReplaceWith = { query in
+                menuSearchQuery = query
+                isShowingMenu = true
+            }
             shownDisplayMode = shownDisplayMode ?? storedDisplayMode
             positionKeeper.adopt(displayMode)
             let linkedScroll = linkedScroll
@@ -296,6 +316,10 @@ struct DocumentScreen: View {
                     endFirstRun(firstRun.documentOpened())
                 }
             }
+        }
+        .onChange(of: displayMode) {
+            // Read has no editor on screen to hold a selection row.
+            if displayMode == .read { selection.hide() }
         }
         .onChange(of: scenePhase) { _, phase in
             if OpenDocument.savesImmediately(on: phase) { document.flushForBackground() }
@@ -393,7 +417,8 @@ extension DocumentScreen {
             topChromeInset: ModeSwitch.pageTopClearance,
             readEditDocument: document,
             checksSpelling: settings.checksSpellingWhileTyping,
-            history: document.history
+            history: document.history,
+            selectionController: selection
         )
     }
 

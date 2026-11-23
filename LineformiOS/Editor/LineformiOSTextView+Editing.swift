@@ -110,6 +110,7 @@ extension LineformTextView: ReadEditApplying {
     @objc func toggleUnorderedListMarkdown(_ sender: Any?) { apply(.unorderedList) }
     @objc func toggleOrderedListMarkdown(_ sender: Any?) { apply(.orderedList) }
     @objc func toggleLinkMarkdown(_ sender: Any?) { apply(.link) }
+    @objc func toggleBlockquoteMarkdown(_ sender: Any?) { apply(.blockquote) }
     @objc func toggleTitleMarkdown(_ sender: Any?) { setHeadingLevel(1) }
     @objc func toggleSectionMarkdown(_ sender: Any?) { setHeadingLevel(2) }
     @objc func toggleHeading3Markdown(_ sender: Any?) { setHeadingLevel(3) }
@@ -163,7 +164,7 @@ extension LineformTextView: ReadEditApplying {
         #selector(toggleBoldMarkdown(_:)), #selector(toggleItalicMarkdown(_:)),
         #selector(toggleInlineCodeMarkdown(_:)), #selector(toggleStrikethroughMarkdown(_:)),
         #selector(toggleUnorderedListMarkdown(_:)), #selector(toggleOrderedListMarkdown(_:)),
-        #selector(toggleLinkMarkdown(_:)), #selector(toggleTitleMarkdown(_:)),
+        #selector(toggleLinkMarkdown(_:)), #selector(toggleBlockquoteMarkdown(_:)), #selector(toggleTitleMarkdown(_:)),
         #selector(toggleSectionMarkdown(_:)), #selector(toggleHeading3Markdown(_:)),
         #selector(toggleHeading4Markdown(_:)), #selector(toggleHeading5Markdown(_:)),
         #selector(toggleHeading6Markdown(_:)), #selector(toggleBodyMarkdown(_:)),
