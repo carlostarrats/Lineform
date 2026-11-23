@@ -72,6 +72,7 @@ final class OutlineBasicsTests: XCTestCase {
     }
 
     func testOutlineEmptyState() throws {
+        try skipUnlessEnglishInterface()
         // pinned-en: the Mac's empty-state wording.
         XCTAssertEqual(OutlineSection.emptyText, "Add # Title or ## Section to build an outline.")
         XCTAssertFalse(OutlineSection.emptyText.contains("Mac"))
@@ -93,6 +94,7 @@ final class OutlineBasicsTests: XCTestCase {
     // MARK: - Markdown Basics
 
     func testBasicsRowCopies() async throws {
+        try skipUnlessEnglishInterface()
         let board = try XCTUnwrap(UIPasteboard(name: UIPasteboard.Name("lineform-basics-\(UUID().uuidString)"), create: true))
         pasteboard = board
         XCTAssertEqual(BasicsSection.sections, MarkdownReference.sections, "the package's sections, in order")

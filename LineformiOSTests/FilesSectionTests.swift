@@ -56,7 +56,8 @@ final class FilesSectionTests: XCTestCase {
         XCTAssertEqual(FilesRowAction.menuActions(for: fileItem), [.rename, .delete])
     }
 
-    func testSortMenuUsesThePackageTitles() {
+    func testSortMenuUsesThePackageTitles() throws {
+        try skipUnlessEnglishInterface()
         // pinned-en
         XCTAssertEqual(FilesSection.sortOptions.map(\.title), ["Name", "Date Created", "Date Modified"])
         XCTAssertEqual(FilesSection.sortMenuTitle, "Sort folders by")
@@ -83,7 +84,8 @@ final class FilesSectionTests: XCTestCase {
         XCTAssertEqual(FilesRow.systemImage(for: directory), "folder")
     }
 
-    func testStatesUseTheMacWording() {
+    func testStatesUseTheMacWording() throws {
+        try skipUnlessEnglishInterface()
         // pinned-en
         let path = "/var/mobile/Notes"
         XCTAssertEqual(FilesSection.scannedFolderText(path), "Scanned folder: /var/mobile/Notes")
@@ -111,6 +113,7 @@ final class FilesSectionTests: XCTestCase {
     }
 
     func testHostedSectionShowsRootsAndRows() async throws {
+        try skipUnlessEnglishInterface()
         try Data("hello".utf8).write(to: folder.appendingPathComponent("Hello.md"))
         let store = makeStore()
         let document = OpenDocument(folderProvider: { [folder] in folder! }, ubiquitousItems: FakeUbiquitousItems(arrivingText: nil))

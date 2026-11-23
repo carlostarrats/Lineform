@@ -131,6 +131,7 @@ final class ReadViewTests: XCTestCase {
     // MARK: - Copy
 
     func testCopyPillCopiesSourceAndDoesNotEdit() async throws {
+        try skipUnlessEnglishInterface()
         let text = "Intro\n\n```swift\nlet a = 1\nlet b = 2\n```\n\nOutro\n"
         let document = await preparedDocument(text: text)
         let view = readView(for: document)
@@ -156,6 +157,7 @@ final class ReadViewTests: XCTestCase {
     // MARK: - Images
 
     func testReconnectRewritesLinkRelativeToDocumentFolder() async throws {
+        try skipUnlessEnglishInterface()
         let document = await preparedDocument(text: "Notes\n![pic](old/pic.png)\n")
         XCTAssertEqual(document.documentDirectory?.standardizedFileURL, folder.standardizedFileURL)
         let picked = folder.appendingPathComponent("images/pic.png")
@@ -331,6 +333,7 @@ final class ReadViewTests: XCTestCase {
     // MARK: - Accessibility
 
     func testAccessibilityActionsMirrorPills() async throws {
+        try skipUnlessEnglishInterface()
         let text = """
         ```
         first

@@ -25,7 +25,7 @@ struct StylingPresetCard: View {
         let shape = RoundedRectangle(cornerRadius: Self.cornerRadius, style: .continuous)
         Button(action: apply) {
             VStack(spacing: 2) {
-                Text("Aa")
+                Text(verbatim: "Aa")
                     .font(Self.previewFont(for: preset.profile.fontID, size: Self.specimenFontSize))
                     .foregroundStyle(ink)
                     .lineLimit(1)

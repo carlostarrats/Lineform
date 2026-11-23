@@ -2771,7 +2771,7 @@
         },
         "en" : {
           "stringUnit" : {
-            "state" : "new",
+            "state" : "translated",
             "value" : "%1$@ value %2$@"
           }
         },
@@ -5190,7 +5190,7 @@
       "localizations" : {
         "en" : {
           "stringUnit" : {
-            "state" : "new",
+            "state" : "translated",
             "value" : "%@, original, version %lld of %lld"
           }
         },
@@ -5230,7 +5230,7 @@
       "localizations" : {
         "en" : {
           "stringUnit" : {
-            "state" : "new",
+            "state" : "translated",
             "value" : "%1$@, version %2$lld of %3$lld"
           }
         },

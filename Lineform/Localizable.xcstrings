@@ -9627,7 +9627,7 @@
       "localizations": {
         "en": {
           "stringUnit": {
-            "state": "new",
+            "state": "translated",
             "value": "Suggested changes"
           }
         },
@@ -10065,7 +10065,7 @@
       "localizations": {
         "en": {
           "stringUnit": {
-            "state": "new",
+            "state": "translated",
             "value": "Accept All"
           }
         },

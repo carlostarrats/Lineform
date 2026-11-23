@@ -137,6 +137,7 @@ final class LinkedScrollTests: XCTestCase {
     // MARK: - The screen
 
     func testPreviewSplitsPageWithHairline() async throws {
+        try skipUnlessEnglishInterface()
         let document = await preparedDocument(text: Self.longDocument)
         let window = try hostScreen(document: document, mode: .split)
         let editor = try await waitAsync { Self.find(LineformTextView.self, in: window) }

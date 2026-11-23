@@ -31,6 +31,7 @@ final class ModeSwitchTests: XCTestCase {
     // MARK: - The pill
 
     func testModeSwitchUsesMacMetrics() throws {
+        try skipUnlessEnglishInterface()
         XCTAssertEqual(ModeSwitch.segmentWidth, 78)
         XCTAssertEqual(ModeSwitch.segmentHeight, 30)
         XCTAssertEqual(ModeSwitch.controlPadding, 3)

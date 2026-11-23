@@ -6,6 +6,14 @@
       "options" : {
 
       }
+    },
+    {
+      "id" : "5A1E4B2C-0000-4000-8000-000000000102",
+      "name" : "de",
+      "options" : {
+        "language" : "de",
+        "region" : "DE"
+      }
     }
   ],
   "defaultOptions" : {

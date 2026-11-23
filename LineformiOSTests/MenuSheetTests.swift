@@ -26,7 +26,8 @@ final class MenuSheetTests: XCTestCase {
         try? FileManager.default.removeItem(at: folder)
     }
 
-    func testSectionsInSpecOrder() {
+    func testSectionsInSpecOrder() throws {
+        try skipUnlessEnglishInterface()
         XCTAssertEqual(MenuSection.allCases, [.files, .outline, .basics, .search, .history, .document, .settings])
         // Raw values are scene-storage identity, never localized.
         XCTAssertEqual(MenuSection.allCases.map(\.rawValue), ["files", "outline", "basics", "search", "history", "document", "settings"])
@@ -37,7 +38,8 @@ final class MenuSheetTests: XCTestCase {
         XCTAssertEqual(Set(MenuSection.allCases.map(\.systemImage)).count, MenuSection.allCases.count)
     }
 
-    func testHeaderShowsSavedAndCounts() async {
+    func testHeaderShowsSavedAndCounts() async throws {
+        try skipUnlessEnglishInterface()
         let folder = self.folder!
         let document = OpenDocument(folderProvider: { folder }, ubiquitousItems: MenuSheetTestUbiquitousItems())
         await document.prepare()
@@ -62,6 +64,7 @@ final class MenuSheetTests: XCTestCase {
     /// header never says Saved. The next change saves it again, while typing or on the way to the
     /// background.
     func testHeaderAfterADetachSaysNotSavedYetAndTheNextChangeSaves() async throws {
+        try skipUnlessEnglishInterface()
         let folder = self.folder!
         let document = OpenDocument(folderProvider: { folder }, ubiquitousItems: MenuSheetTestUbiquitousItems())
         await document.prepare()
@@ -99,6 +102,7 @@ final class MenuSheetTests: XCTestCase {
     }
 
     func testMenuButtonLabelIsMenu() throws {
+        try skipUnlessEnglishInterface()
         XCTAssertEqual(MenuButton.accessibilityTitle, "Menu")
         let window = try hostScreen(document: OpenDocument(folderProvider: { [folder] in folder! }, ubiquitousItems: MenuSheetTestUbiquitousItems()))
         settle(ticks: 5)

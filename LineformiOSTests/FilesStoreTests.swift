@@ -186,6 +186,7 @@ final class FilesStoreTests: XCTestCase {
     }
 
     func testTrashUsesTrashNotRemove() async throws {
+        try skipUnlessEnglishInterface()
         let device = try makeFolder("Device")
         let fileURL = device.appendingPathComponent("Old.md")
         try write("Old", to: fileURL)

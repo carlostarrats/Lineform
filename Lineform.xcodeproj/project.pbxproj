@@ -269,6 +269,14 @@
 		1F0000D10000000000000007 /* PhoneAIHistoryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000D00000000000000007 /* PhoneAIHistoryTests.swift */; };
 		1F00C1000000000000000002 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 1F00C1000000000000000001 /* PrivacyInfo.xcprivacy */; };
 		1F00C1000000000000000004 /* PhoneReleaseResourceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00C1000000000000000003 /* PhoneReleaseResourceTests.swift */; };
+		1F0000E10000000000000002 /* PhoneInk.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000E10000000000000001 /* PhoneInk.swift */; };
+		1F0000E10000000000000004 /* PhoneInkContrastTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000E10000000000000003 /* PhoneInkContrastTests.swift */; };
+		1F0000E10000000000000006 /* PhoneCatalogCompletenessTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000E10000000000000005 /* PhoneCatalogCompletenessTests.swift */; };
+		1F0000E10000000000000008 /* PhoneAccessibilityHosting.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000E10000000000000007 /* PhoneAccessibilityHosting.swift */; };
+		1F0000E1000000000000000A /* PhoneChromeAccessibilityTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000E10000000000000009 /* PhoneChromeAccessibilityTests.swift */; };
+		1F0000E1000000000000000C /* PhoneMenuAccessibilityTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000E1000000000000000B /* PhoneMenuAccessibilityTests.swift */; };
+		1F0000E1000000000000000E /* PhoneStylingSelectionAccessibilityTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000E1000000000000000D /* PhoneStylingSelectionAccessibilityTests.swift */; };
+		1F0000E10000000000000010 /* PhoneAIHistoryAccessibilityTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000E1000000000000000F /* PhoneAIHistoryAccessibilityTests.swift */; };
 /* End PBXBuildFile section */
 
  /* Begin PBXContainerItemProxy section */
@@ -551,6 +559,14 @@
 		1F0000D00000000000000004 /* AIReviewTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIReviewTests.swift; sourceTree = "<group>"; };
 		1F0000D00000000000000006 /* WholeDocumentAITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WholeDocumentAITests.swift; sourceTree = "<group>"; };
 		1F0000D00000000000000007 /* PhoneAIHistoryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhoneAIHistoryTests.swift; sourceTree = "<group>"; };
+		1F0000E10000000000000001 /* PhoneInk.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhoneInk.swift; sourceTree = "<group>"; };
+		1F0000E10000000000000003 /* PhoneInkContrastTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhoneInkContrastTests.swift; sourceTree = "<group>"; };
+		1F0000E10000000000000005 /* PhoneCatalogCompletenessTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhoneCatalogCompletenessTests.swift; sourceTree = "<group>"; };
+		1F0000E10000000000000007 /* PhoneAccessibilityHosting.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhoneAccessibilityHosting.swift; sourceTree = "<group>"; };
+		1F0000E10000000000000009 /* PhoneChromeAccessibilityTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhoneChromeAccessibilityTests.swift; sourceTree = "<group>"; };
+		1F0000E1000000000000000B /* PhoneMenuAccessibilityTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhoneMenuAccessibilityTests.swift; sourceTree = "<group>"; };
+		1F0000E1000000000000000D /* PhoneStylingSelectionAccessibilityTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhoneStylingSelectionAccessibilityTests.swift; sourceTree = "<group>"; };
+		1F0000E1000000000000000F /* PhoneAIHistoryAccessibilityTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhoneAIHistoryAccessibilityTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 		1F0000400000000000000092 /* PhonePDFExportTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhonePDFExportTests.swift; sourceTree = "<group>"; };
 		1F0000400000000000000093 /* PhoneRasterInk.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhoneRasterInk.swift; sourceTree = "<group>"; };
@@ -941,6 +957,13 @@
 				1F0001C00000000000000102 /* PhoneAnnouncementTests.swift */,
 				1F0001C00000000000000103 /* PhoneReviewPromptTests.swift */,
 				1F0001C00000000000000104 /* PhoneAppIntentsTests.swift */,
+				1F0000E10000000000000003 /* PhoneInkContrastTests.swift */,
+				1F0000E10000000000000005 /* PhoneCatalogCompletenessTests.swift */,
+				1F0000E10000000000000007 /* PhoneAccessibilityHosting.swift */,
+				1F0000E10000000000000009 /* PhoneChromeAccessibilityTests.swift */,
+				1F0000E1000000000000000B /* PhoneMenuAccessibilityTests.swift */,
+				1F0000E1000000000000000D /* PhoneStylingSelectionAccessibilityTests.swift */,
+				1F0000E1000000000000000F /* PhoneAIHistoryAccessibilityTests.swift */,
 			);
 			path = LineformiOSTests;
 			sourceTree = "<group>";
@@ -1000,6 +1023,7 @@
 				1F0000400000000000000028 /* ModeSwitch.swift */,
 				1F0000400000000000000029 /* ModePositionKeeper.swift */,
 				1F0000400000000000000070 /* StylingButton.swift */,
+				1F0000E10000000000000001 /* PhoneInk.swift */,
 			);
 			path = Chrome;
 			sourceTree = "<group>";
@@ -1479,6 +1503,7 @@
 				1F0000410000000000000028 /* ModeSwitch.swift in Sources */,
 				1F0000410000000000000029 /* ModePositionKeeper.swift in Sources */,
 				1F0000410000000000000070 /* StylingButton.swift in Sources */,
+				1F0000E10000000000000002 /* PhoneInk.swift in Sources */,
 				1F0000410000000000000071 /* StylingSheet.swift in Sources */,
 				1F0000410000000000000073 /* StylingPresetCard.swift in Sources */,
 				1F0000410000000000000074 /* StylingRows.swift in Sources */,
@@ -1535,6 +1560,13 @@
 				1F0000410000000000000026 /* ReadViewTests.swift in Sources */,
 				1F0000410000000000000096 /* PhoneExportWriterTests.swift in Sources */,
 				1F0000410000000000000093 /* PhoneRasterInk.swift in Sources */,
+				1F0000E10000000000000004 /* PhoneInkContrastTests.swift in Sources */,
+				1F0000E10000000000000006 /* PhoneCatalogCompletenessTests.swift in Sources */,
+				1F0000E10000000000000008 /* PhoneAccessibilityHosting.swift in Sources */,
+				1F0000E1000000000000000A /* PhoneChromeAccessibilityTests.swift in Sources */,
+				1F0000E1000000000000000C /* PhoneMenuAccessibilityTests.swift in Sources */,
+				1F0000E1000000000000000E /* PhoneStylingSelectionAccessibilityTests.swift in Sources */,
+				1F0000E10000000000000010 /* PhoneAIHistoryAccessibilityTests.swift in Sources */,
 				1F0000410000000000000092 /* PhonePDFExportTests.swift in Sources */,
 				1F000041000000000000009A /* ExportCommandsTests.swift in Sources */,
 				1F000041000000000000009B /* ExportRowsTests.swift in Sources */,

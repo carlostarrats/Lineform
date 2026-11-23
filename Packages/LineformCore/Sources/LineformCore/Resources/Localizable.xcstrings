@@ -1814,7 +1814,7 @@
       "localizations" : {
         "en" : {
           "stringUnit" : {
-            "state" : "new",
+            "state" : "translated",
             "value" : "Search for %1$@. %2$@. Result %3$lld of %4$lld."
           }
         },
@@ -2362,7 +2362,7 @@
       "localizations" : {
         "en" : {
           "stringUnit" : {
-            "state" : "new",
+            "state" : "translated",
             "value" : "Choose Restricted, set Model capabilities to Request, and leave everything else off."
           }
         },
@@ -2402,7 +2402,7 @@
       "localizations" : {
         "en" : {
           "stringUnit" : {
-            "state" : "new",
+            "state" : "translated",
             "value" : "Higher quality"
           }
         },
@@ -2442,7 +2442,7 @@
       "localizations" : {
         "en" : {
           "stringUnit" : {
-            "state" : "new",
+            "state" : "translated",
             "value" : "Make a key just for Lineform, and set a monthly spend limit."
           }
         },
@@ -2482,7 +2482,7 @@
       "localizations" : {
         "en" : {
           "stringUnit" : {
-            "state" : "new",
+            "state" : "translated",
             "value" : "Model"
           }
         },
@@ -2522,7 +2522,7 @@
       "localizations" : {
         "en" : {
           "stringUnit" : {
-            "state" : "new",
+            "state" : "translated",
             "value" : "Standard"
           }
         },
@@ -2562,7 +2562,7 @@
       "localizations" : {
         "en" : {
           "stringUnit" : {
-            "state" : "new",
+            "state" : "translated",
             "value" : "Enter an address that starts with http:// or https://."
           }
         },
@@ -2602,7 +2602,7 @@
       "localizations" : {
         "en" : {
           "stringUnit" : {
-            "state" : "new",
+            "state" : "translated",
             "value" : "Lineform couldn't save the key in your Keychain."
           }
         },
@@ -2642,7 +2642,7 @@
       "localizations" : {
         "en" : {
           "stringUnit" : {
-            "state" : "new",
+            "state" : "translated",
             "value" : "Other"
           }
         },
@@ -2682,7 +2682,7 @@
       "localizations" : {
         "en" : {
           "stringUnit" : {
-            "state" : "new",
+            "state" : "translated",
             "value" : "Paste your API key first."
           }
         },
@@ -2722,7 +2722,7 @@
       "localizations" : {
         "en" : {
           "stringUnit" : {
-            "state" : "new",
+            "state" : "translated",
             "value" : "Plain http:// is only allowed for a server on this Mac. Use https:// for other addresses."
           }
         },
@@ -2762,7 +2762,7 @@
       "localizations" : {
         "en" : {
           "stringUnit" : {
-            "state" : "new",
+            "state" : "translated",
             "value" : "The key wasn't accepted. It may have expired. Check it in Connect Your AI."
           }
         },
@@ -2802,7 +2802,7 @@
       "localizations" : {
         "en" : {
           "stringUnit" : {
-            "state" : "new",
+            "state" : "translated",
             "value" : "The server didn't recognise the model. Enter a model name in Connect Your AI."
           }
         },
@@ -2842,7 +2842,7 @@
       "localizations" : {
         "en" : {
           "stringUnit" : {
-            "state" : "new",
+            "state" : "translated",
             "value" : "The AI declined this request."
           }
         },
@@ -2882,7 +2882,7 @@
       "localizations" : {
         "en" : {
           "stringUnit" : {
-            "state" : "new",
+            "state" : "translated",
             "value" : "The AI's reply couldn't be used. Nothing was changed."
           }
         },
@@ -2922,7 +2922,7 @@
       "localizations" : {
         "en" : {
           "stringUnit" : {
-            "state" : "new",
+            "state" : "translated",
             "value" : "Couldn't reach the AI. Check your connection."
           }
         },
@@ -2962,7 +2962,7 @@
       "localizations" : {
         "en" : {
           "stringUnit" : {
-            "state" : "new",
+            "state" : "translated",
             "value" : "The AI took too long to answer."
           }
         },
@@ -3002,7 +3002,7 @@
       "localizations" : {
         "en" : {
           "stringUnit" : {
-            "state" : "new",
+            "state" : "translated",
             "value" : "The AI is busy or your usage limit was reached. Try again later."
           }
         },
@@ -3042,7 +3042,7 @@
       "localizations" : {
         "en" : {
           "stringUnit" : {
-            "state" : "new",
+            "state" : "translated",
             "value" : "The AI service returned an error (%lld)."
           }
         },
@@ -3082,7 +3082,7 @@
       "localizations" : {
         "en" : {
           "stringUnit" : {
-            "state" : "new",
+            "state" : "translated",
             "value" : "The AI's reply was too large to use."
           }
         },
@@ -3122,7 +3122,7 @@
       "localizations" : {
         "en" : {
           "stringUnit" : {
-            "state" : "new",
+            "state" : "translated",
             "value" : "Couldn't make a secure connection to the AI. Check the address in Connect Your AI."
           }
         },
@@ -3162,7 +3162,7 @@
       "localizations" : {
         "en" : {
           "stringUnit" : {
-            "state" : "new",
+            "state" : "translated",
             "value" : "Connect Your AI"
           }
         },
@@ -3202,7 +3202,7 @@
       "localizations" : {
         "en" : {
           "stringUnit" : {
-            "state" : "new",
+            "state" : "translated",
             "value" : "Create an API key"
           }
         },
@@ -3242,7 +3242,7 @@
       "localizations" : {
         "en" : {
           "stringUnit" : {
-            "state" : "new",
+            "state" : "translated",
             "value" : "API key"
           }
         },
@@ -3282,7 +3282,7 @@
       "localizations" : {
         "en" : {
           "stringUnit" : {
-            "state" : "new",
+            "state" : "translated",
             "value" : "Address"
           }
         },
@@ -3322,7 +3322,7 @@
       "localizations" : {
         "en" : {
           "stringUnit" : {
-            "state" : "new",
+            "state" : "translated",
             "value" : "API key (optional)"
           }
         },
@@ -3362,7 +3362,7 @@
       "localizations" : {
         "en" : {
           "stringUnit" : {
-            "state" : "new",
+            "state" : "translated",
             "value" : "Model (optional)"
           }
         },
@@ -3402,7 +3402,7 @@
       "localizations" : {
         "en" : {
           "stringUnit" : {
-            "state" : "new",
+            "state" : "translated",
             "value" : "Connected"
           }
         },
@@ -3442,7 +3442,7 @@
       "localizations" : {
         "en" : {
           "stringUnit" : {
-            "state" : "new",
+            "state" : "translated",
             "value" : "Disconnect"
           }
         },
@@ -3482,7 +3482,7 @@
       "localizations" : {
         "en" : {
           "stringUnit" : {
-            "state" : "new",
+            "state" : "translated",
             "value" : "Lineform can't find this key in your Keychain. Paste it again to reconnect."
           }
         },
@@ -3522,7 +3522,7 @@
       "localizations" : {
         "en" : {
           "stringUnit" : {
-            "state" : "new",
+            "state" : "translated",
             "value" : "Lineform sends only the text you act on, only when you choose an AI action, directly to the provider you connected, under your account and that provider's terms. Lineform's developer receives nothing."
           }
         },
@@ -3562,7 +3562,7 @@
       "localizations" : {
         "en" : {
           "stringUnit" : {
-            "state" : "new",
+            "state" : "translated",
             "value" : "A Claude Pro or Max subscription doesn't cover this. API keys are billed per use by Anthropic."
           }
         },
@@ -3602,7 +3602,7 @@
       "localizations" : {
         "en" : {
           "stringUnit" : {
-            "state" : "new",
+            "state" : "translated",
             "value" : "A ChatGPT Plus or Pro subscription doesn't cover this. API keys are billed per use by OpenAI."
           }
         },
@@ -3642,7 +3642,7 @@
       "localizations" : {
         "en" : {
           "stringUnit" : {
-            "state" : "new",
+            "state" : "translated",
             "value" : "A Gemini subscription doesn't cover this. API keys are billed per use by Google."
           }
         },
@@ -3682,7 +3682,7 @@
       "localizations" : {
         "en" : {
           "stringUnit" : {
-            "state" : "new",
+            "state" : "translated",
             "value" : "Use a model on this Mac — Ollama, LM Studio, llama.cpp — or any OpenAI-compatible server."
           }
         },
@@ -3722,7 +3722,7 @@
       "localizations" : {
         "en" : {
           "stringUnit" : {
-            "state" : "new",
+            "state" : "translated",
             "value" : "Connect — Lineform will send the text you choose to %@"
           }
         },
@@ -3762,7 +3762,7 @@
       "localizations" : {
         "en" : {
           "stringUnit" : {
-            "state" : "new",
+            "state" : "translated",
             "value" : "Connect — Lineform will send the text you choose to that address"
           }
         },
@@ -3802,7 +3802,7 @@
       "localizations" : {
         "en" : {
           "stringUnit" : {
-            "state" : "new",
+            "state" : "translated",
             "value" : "Trim"
           }
         },
@@ -3842,7 +3842,7 @@
       "localizations" : {
         "en" : {
           "stringUnit" : {
-            "state" : "new",
+            "state" : "translated",
             "value" : "Proofread"
           }
         },
@@ -3882,7 +3882,7 @@
       "localizations" : {
         "en" : {
           "stringUnit" : {
-            "state" : "new",
+            "state" : "translated",
             "value" : "Trimming…"
           }
         },
@@ -3922,7 +3922,7 @@
       "localizations" : {
         "en" : {
           "stringUnit" : {
-            "state" : "new",
+            "state" : "translated",
             "value" : "Cutting…"
           }
         },
@@ -3962,7 +3962,7 @@
       "localizations" : {
         "en" : {
           "stringUnit" : {
-            "state" : "new",
+            "state" : "translated",
             "value" : "Proofreading…"
           }
         },
@@ -4002,7 +4002,7 @@
       "localizations" : {
         "en" : {
           "stringUnit" : {
-            "state" : "new",
+            "state" : "translated",
             "value" : "Trim ready"
           }
         },
@@ -4042,7 +4042,7 @@
       "localizations" : {
         "en" : {
           "stringUnit" : {
-            "state" : "new",
+            "state" : "translated",
             "value" : "Cut ready"
           }
         },
@@ -4082,7 +4082,7 @@
       "localizations" : {
         "en" : {
           "stringUnit" : {
-            "state" : "new",
+            "state" : "translated",
             "value" : "Proofread ready"
           }
         },
@@ -4122,7 +4122,7 @@
       "localizations" : {
         "en" : {
           "stringUnit" : {
-            "state" : "new",
+            "state" : "translated",
             "value" : "Reject"
           }
         },
@@ -4162,7 +4162,7 @@
       "localizations" : {
         "en" : {
           "stringUnit" : {
-            "state" : "new",
+            "state" : "translated",
             "value" : "Accept"
           }
         },
@@ -4202,7 +4202,7 @@
       "localizations" : {
         "en" : {
           "stringUnit" : {
-            "state" : "new",
+            "state" : "translated",
             "value" : "Return to accept · Esc to reject"
           }
         },
@@ -4242,7 +4242,7 @@
       "localizations" : {
         "en" : {
           "stringUnit" : {
-            "state" : "new",
+            "state" : "translated",
             "value" : "Trimming with %@…"
           }
         },
@@ -4282,7 +4282,7 @@
       "localizations" : {
         "en" : {
           "stringUnit" : {
-            "state" : "new",
+            "state" : "translated",
             "value" : "Cutting with %@…"
           }
         },
@@ -4322,7 +4322,7 @@
       "localizations" : {
         "en" : {
           "stringUnit" : {
-            "state" : "new",
+            "state" : "translated",
             "value" : "Proofreading with %@…"
           }
         },
@@ -4362,7 +4362,7 @@
       "localizations" : {
         "en" : {
           "stringUnit" : {
-            "state" : "new",
+            "state" : "translated",
             "value" : "Trimming with your AI…"
           }
         },
@@ -4402,7 +4402,7 @@
       "localizations" : {
         "en" : {
           "stringUnit" : {
-            "state" : "new",
+            "state" : "translated",
             "value" : "Cutting with your AI…"
           }
         },
@@ -4442,7 +4442,7 @@
       "localizations" : {
         "en" : {
           "stringUnit" : {
-            "state" : "new",
+            "state" : "translated",
             "value" : "Proofreading with your AI…"
           }
         },
@@ -4482,7 +4482,7 @@
       "localizations" : {
         "en" : {
           "stringUnit" : {
-            "state" : "new",
+            "state" : "translated",
             "value" : "Esc to cancel"
           }
         },
@@ -4658,7 +4658,7 @@
       "localizations" : {
         "en" : {
           "stringUnit" : {
-            "state" : "new",
+            "state" : "translated",
             "value" : "Finding another word with %@…"
           }
         },
@@ -4732,7 +4732,7 @@
       "localizations" : {
         "en" : {
           "stringUnit" : {
-            "state" : "new",
+            "state" : "translated",
             "value" : "%@ returned the same text. Try again."
           }
         },
@@ -4942,7 +4942,7 @@
       "localizations" : {
         "en" : {
           "stringUnit" : {
-            "state" : "new",
+            "state" : "translated",
             "value" : "Finding sentences with %@…"
           }
         },
@@ -5016,7 +5016,7 @@
       "localizations" : {
         "en" : {
           "stringUnit" : {
-            "state" : "new",
+            "state" : "translated",
             "value" : "Cut in Half"
           }
         },
@@ -5056,7 +5056,7 @@
       "localizations" : {
         "en" : {
           "stringUnit" : {
-            "state" : "new",
+            "state" : "translated",
             "value" : "Rephrase"
           }
         },
@@ -5096,7 +5096,7 @@
       "localizations" : {
         "en" : {
           "stringUnit" : {
-            "state" : "new",
+            "state" : "translated",
             "value" : "Simplify"
           }
         },
@@ -5136,7 +5136,7 @@
       "localizations" : {
         "en" : {
           "stringUnit" : {
-            "state" : "new",
+            "state" : "translated",
             "value" : "More Formal"
           }
         },
@@ -5176,7 +5176,7 @@
       "localizations" : {
         "en" : {
           "stringUnit" : {
-            "state" : "new",
+            "state" : "translated",
             "value" : "More Casual"
           }
         },
@@ -5216,7 +5216,7 @@
       "localizations" : {
         "en" : {
           "stringUnit" : {
-            "state" : "new",
+            "state" : "translated",
             "value" : "Rephrasing…"
           }
         },
@@ -5256,7 +5256,7 @@
       "localizations" : {
         "en" : {
           "stringUnit" : {
-            "state" : "new",
+            "state" : "translated",
             "value" : "Simplifying…"
           }
         },
@@ -5296,7 +5296,7 @@
       "localizations" : {
         "en" : {
           "stringUnit" : {
-            "state" : "new",
+            "state" : "translated",
             "value" : "Making it more formal…"
           }
         },
@@ -5336,7 +5336,7 @@
       "localizations" : {
         "en" : {
           "stringUnit" : {
-            "state" : "new",
+            "state" : "translated",
             "value" : "Making it more casual…"
           }
         },
@@ -5376,7 +5376,7 @@
       "localizations" : {
         "en" : {
           "stringUnit" : {
-            "state" : "new",
+            "state" : "translated",
             "value" : "Rephrasing with your AI…"
           }
         },
@@ -5416,7 +5416,7 @@
       "localizations" : {
         "en" : {
           "stringUnit" : {
-            "state" : "new",
+            "state" : "translated",
             "value" : "Simplifying with your AI…"
           }
         },
@@ -5456,7 +5456,7 @@
       "localizations" : {
         "en" : {
           "stringUnit" : {
-            "state" : "new",
+            "state" : "translated",
             "value" : "Making it more formal with your AI…"
           }
         },
@@ -5496,7 +5496,7 @@
       "localizations" : {
         "en" : {
           "stringUnit" : {
-            "state" : "new",
+            "state" : "translated",
             "value" : "Making it more casual with your AI…"
           }
         },
@@ -5536,7 +5536,7 @@
       "localizations" : {
         "en" : {
           "stringUnit" : {
-            "state" : "new",
+            "state" : "translated",
             "value" : "Rephrasing with %@…"
           }
         },
@@ -5576,7 +5576,7 @@
       "localizations" : {
         "en" : {
           "stringUnit" : {
-            "state" : "new",
+            "state" : "translated",
             "value" : "Simplifying with %@…"
           }
         },
@@ -5616,7 +5616,7 @@
       "localizations" : {
         "en" : {
           "stringUnit" : {
-            "state" : "new",
+            "state" : "translated",
             "value" : "Making it more formal with %@…"
           }
         },
@@ -5656,7 +5656,7 @@
       "localizations" : {
         "en" : {
           "stringUnit" : {
-            "state" : "new",
+            "state" : "translated",
             "value" : "Making it more casual with %@…"
           }
         },
@@ -5696,7 +5696,7 @@
       "localizations" : {
         "en" : {
           "stringUnit" : {
-            "state" : "new",
+            "state" : "translated",
             "value" : "Rephrase ready"
           }
         },
@@ -5736,7 +5736,7 @@
       "localizations" : {
         "en" : {
           "stringUnit" : {
-            "state" : "new",
+            "state" : "translated",
             "value" : "Simpler version ready"
           }
         },
@@ -5776,7 +5776,7 @@
       "localizations" : {
         "en" : {
           "stringUnit" : {
-            "state" : "new",
+            "state" : "translated",
             "value" : "More formal version ready"
           }
         },
@@ -5816,7 +5816,7 @@
       "localizations" : {
         "en" : {
           "stringUnit" : {
-            "state" : "new",
+            "state" : "translated",
             "value" : "More casual version ready"
           }
         },
@@ -5856,7 +5856,7 @@
       "localizations" : {
         "en" : {
           "stringUnit" : {
-            "state" : "new",
+            "state" : "translated",
             "value" : "Proofread · %lld of %lld"
           }
         },
@@ -5896,7 +5896,7 @@
       "localizations" : {
         "en" : {
           "stringUnit" : {
-            "state" : "new",
+            "state" : "translated",
             "value" : "Return to accept · Esc to reject · ← → to move"
           }
         },
@@ -5936,7 +5936,7 @@
       "localizations" : {
         "en" : {
           "stringUnit" : {
-            "state" : "new",
+            "state" : "translated",
             "value" : "Working…"
           }
         },
@@ -5976,7 +5976,7 @@
       "localizations" : {
         "en" : {
           "stringUnit" : {
-            "state" : "new",
+            "state" : "translated",
             "value" : "Suggestion ready"
           }
         },
@@ -6016,7 +6016,7 @@
       "localizations" : {
         "en" : {
           "stringUnit" : {
-            "state" : "new",
+            "state" : "translated",
             "value" : "Working with your AI…"
           }
         },
@@ -6056,7 +6056,7 @@
       "localizations" : {
         "en" : {
           "stringUnit" : {
-            "state" : "new",
+            "state" : "translated",
             "value" : "Working with %@…"
           }
         },
@@ -6130,7 +6130,7 @@
       "localizations" : {
         "en" : {
           "stringUnit" : {
-            "state" : "new",
+            "state" : "translated",
             "value" : "Suggested changes"
           }
         },
@@ -6170,7 +6170,7 @@
       "localizations" : {
         "en" : {
           "stringUnit" : {
-            "state" : "new",
+            "state" : "translated",
             "value" : "Accept All"
           }
         },
@@ -6210,7 +6210,7 @@
       "localizations" : {
         "en" : {
           "stringUnit" : {
-            "state" : "new",
+            "state" : "translated",
             "value" : "Custom"
           }
         },
@@ -7852,7 +7852,7 @@
       "localizations" : {
         "en" : {
           "stringUnit" : {
-            "state" : "new",
+            "state" : "translated",
             "value" : "Rewrite"
           }
         },
@@ -7892,7 +7892,7 @@
       "localizations" : {
         "en" : {
           "stringUnit" : {
-            "state" : "new",
+            "state" : "translated",
             "value" : "Select less text — about 4,000 words at most."
           }
         },
@@ -7932,7 +7932,7 @@
       "localizations" : {
         "en" : {
           "stringUnit" : {
-            "state" : "new",
+            "state" : "translated",
             "value" : "Connect your AI again in Lineform ▸ Connect Your AI…."
           }
         },
@@ -7972,7 +7972,7 @@
       "localizations" : {
         "en" : {
           "stringUnit" : {
-            "state" : "new",
+            "state" : "translated",
             "value" : "The text changed while Lineform was waiting. Nothing was changed."
           }
         },
@@ -8012,7 +8012,7 @@
       "localizations" : {
         "en" : {
           "stringUnit" : {
-            "state" : "new",
+            "state" : "translated",
             "value" : "No changes suggested."
           }
         },
@@ -8052,7 +8052,7 @@
       "localizations" : {
         "en" : {
           "stringUnit" : {
-            "state" : "new",
+            "state" : "translated",
             "value" : "That change would alter the Markdown, so it wasn't applied."
           }
         },
@@ -8092,7 +8092,7 @@
       "localizations" : {
         "en" : {
           "stringUnit" : {
-            "state" : "new",
+            "state" : "translated",
             "value" : "That change couldn't be applied, so the review ended."
           }
         },
@@ -8132,7 +8132,7 @@
       "localizations" : {
         "en" : {
           "stringUnit" : {
-            "state" : "new",
+            "state" : "translated",
             "value" : "Review ended"
           }
         },
@@ -8172,7 +8172,7 @@
       "localizations" : {
         "en" : {
           "stringUnit" : {
-            "state" : "new",
+            "state" : "translated",
             "value" : "Accept Suggestion"
           }
         },
@@ -8212,7 +8212,7 @@
       "localizations" : {
         "en" : {
           "stringUnit" : {
-            "state" : "new",
+            "state" : "translated",
             "value" : "1 change suggested"
           }
         },
@@ -8486,7 +8486,7 @@
       "localizations" : {
         "en" : {
           "stringUnit" : {
-            "state" : "new",
+            "state" : "translated",
             "value" : "Your AI"
           }
         },
@@ -8526,7 +8526,7 @@
       "localizations" : {
         "en" : {
           "stringUnit" : {
-            "state" : "new",
+            "state" : "translated",
             "value" : "Ask %@"
           }
         },
@@ -8566,7 +8566,7 @@
       "localizations" : {
         "en" : {
           "stringUnit" : {
-            "state" : "new",
+            "state" : "translated",
             "value" : "What should change?"
           }
         },
@@ -8606,7 +8606,7 @@
       "localizations" : {
         "en" : {
           "stringUnit" : {
-            "state" : "new",
+            "state" : "translated",
             "value" : "Action:"
           }
         },
@@ -8646,7 +8646,7 @@
       "localizations" : {
         "en" : {
           "stringUnit" : {
-            "state" : "new",
+            "state" : "translated",
             "value" : "Send"
           }
         },
@@ -8686,7 +8686,7 @@
       "localizations" : {
         "en" : {
           "stringUnit" : {
-            "state" : "new",
+            "state" : "translated",
             "value" : "Return to send · Esc"
           }
         },
@@ -8726,7 +8726,7 @@
       "localizations" : {
         "en" : {
           "stringUnit" : {
-            "state" : "new",
+            "state" : "translated",
             "value" : "List"
           }
         },
@@ -8766,7 +8766,7 @@
       "localizations" : {
         "en" : {
           "stringUnit" : {
-            "state" : "new",
+            "state" : "translated",
             "value" : "Find Weakest Sentences"
           }
         },
@@ -8806,7 +8806,7 @@
       "localizations" : {
         "en" : {
           "stringUnit" : {
-            "state" : "new",
+            "state" : "translated",
             "value" : "Find Long Sentences"
           }
         },
@@ -8846,7 +8846,7 @@
       "localizations" : {
         "en" : {
           "stringUnit" : {
-            "state" : "new",
+            "state" : "translated",
             "value" : "Drag to move"
           }
         },
@@ -8954,7 +8954,7 @@
       "localizations" : {
         "en" : {
           "stringUnit" : {
-            "state" : "new",
+            "state" : "translated",
             "value" : "Select a part of the document — about 4,000 words at most."
           }
         },
@@ -8994,7 +8994,7 @@
       "localizations" : {
         "en" : {
           "stringUnit" : {
-            "state" : "new",
+            "state" : "translated",
             "value" : "Send the whole document (%lld words) to %@?"
           }
         },

@@ -21,6 +21,7 @@ final class ConnectAITests: XCTestCase {
     }
 
     func testConnectButtonCarriesFullConsentLabel() async throws {
+        try skipUnlessEnglishInterface()
         let (form, _, _) = makeForm()
         form.select(.claude)
         XCTAssertEqual(form.connectTitle, "Connect — Lineform will send the text you choose to Anthropic")
@@ -94,6 +95,7 @@ final class ConnectAITests: XCTestCase {
     }
 
     func testOtherRequiresAddressAndModel() throws {
+        try skipUnlessEnglishInterface()
         let (form, store, keychain) = makeForm()
         form.select(.claude)
         XCTAssertFalse(form.showsAddressAndModelFields)
@@ -127,6 +129,7 @@ final class ConnectAITests: XCTestCase {
     }
 
     func testNoMacWordingInConnectStrings() throws {
+        try skipUnlessEnglishInterface()
         let mac = try NSRegularExpression(pattern: "\\bMac(s|’s|'s)?\\b")
         func check(_ text: String, _ context: String) {
             let range = NSRange(text.startIndex..., in: text)
@@ -168,6 +171,7 @@ final class ConnectAITests: XCTestCase {
     /// comment typed, and for Find the sentences involved (fix after the step 8 review), in every
     /// language.
     func testSettingsNoteNamesCommentAndFindSentences() throws {
+        try skipUnlessEnglishInterface()
         let note = SettingsSection.connectAINote
         XCTAssertEqual(note, "Rewrite and proofread with an AI account of your own. Only the passage you select is sent, or the whole document when you choose Ask AI for it, with any comment you type. For Find, that is each whole sentence your selection touches, or every sentence of the document. Nothing is sent until you choose an action.")
         for language in ["es", "fr", "de", "ja", "zh-Hans"] {

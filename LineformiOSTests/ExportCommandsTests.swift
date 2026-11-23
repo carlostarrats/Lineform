@@ -66,6 +66,7 @@ final class ExportCommandsTests: XCTestCase {
     }
 
     func testExportNamesUntitled() async throws {
+        try skipUnlessEnglishInterface()
         let document = await preparedDocument()
         let commands = commands(document)
 
@@ -89,7 +90,8 @@ final class ExportCommandsTests: XCTestCase {
         XCTAssertEqual(box.size, ExportPaperSize.a5.sizeInPoints)
     }
 
-    func testExportFailureMessageNamesTheDocument() {
+    func testExportFailureMessageNamesTheDocument() throws {
+        try skipUnlessEnglishInterface()
         XCTAssertEqual(ExportCommands.ExportFailure.writeFailed.message(documentName: "Notes"),
                        "Lineform couldn\u{2019}t export \u{201C}Notes\u{201D}.")
         XCTAssertEqual(ExportCommands.ExportFailure.emptyRender.message(documentName: "Notes"),
@@ -136,6 +138,7 @@ final class ExportCommandsTests: XCTestCase {
     }
 
     func testPrintRendererAndJobName() async throws {
+        try skipUnlessEnglishInterface()
         let document = await preparedDocument()
         let commands = commands(document)
         XCTAssertEqual(commands.printJobName, "Untitled")

@@ -192,7 +192,8 @@ final class PhoneSaveAsTests: XCTestCase {
         XCTAssertEqual(document.text, "")
     }
 
-    func testRowTitleIsTheMacString() {
+    func testRowTitleIsTheMacString() throws {
+        try skipUnlessEnglishInterface()
         // pinned-en: the Mac's "Save As..." with the iPhone's ellipsis.
         XCTAssertEqual(DocumentSection.saveAsTitle, "Save As\u{2026}")
     }

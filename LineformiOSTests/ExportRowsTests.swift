@@ -54,6 +54,7 @@ final class ExportRowsTests: XCTestCase {
     ]
 
     func testRowTitlesComeFromCatalogInAllLanguages() throws {
+        try skipUnlessEnglishInterface()
         let missing = "\u{1}missing\u{1}"
         for language in ["es", "fr", "de", "ja", "zh-Hans"] {
             let path = try XCTUnwrap(Bundle.main.path(forResource: language, ofType: "lproj"), "\(language).lproj")
@@ -144,7 +145,8 @@ final class ExportRowsTests: XCTestCase {
 
     // MARK: - Read aloud
 
-    func testSpeechRowTitleFollowsState() {
+    func testSpeechRowTitleFollowsState() throws {
+        try skipUnlessEnglishInterface()
         XCTAssertEqual(ExportRows.speechTitles(for: .idle), ["Start Speaking"])
         XCTAssertEqual(ExportRows.speechTitles(for: .speaking), ["Pause Speaking", "Stop Speaking"])
         XCTAssertEqual(ExportRows.speechTitles(for: .paused), ["Resume Speaking", "Stop Speaking"])

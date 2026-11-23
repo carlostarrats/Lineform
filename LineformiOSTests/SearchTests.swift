@@ -34,6 +34,7 @@ final class SearchTests: XCTestCase {
     // MARK: - In this document
 
     func testInDocumentMatchesAccentInsensitive() throws {
+        try skipUnlessEnglishInterface()
         // pinned-en
         XCTAssertEqual(SearchFilter.allCases.map(\.title), ["All", "In document", "Files"])
         XCTAssertEqual(SearchFilter.allCases.map(\.rawValue), ["all", "document", "files"], "identity, never localized")
@@ -325,6 +326,7 @@ final class SearchTests: XCTestCase {
     /// All straight after the last keystroke, with no view update between them, uses the new
     /// query and replacement. "cats" must never replace the "cat" in "category".
     func testFieldsReachTheControllerBeforeTheNextViewUpdate() async throws {
+        try skipUnlessEnglishInterface()
         for button in ["Replace All", "Replace"] {
             let commands = RecordingEditorCommands(text: "category cats")
             let folder = self.folder!
