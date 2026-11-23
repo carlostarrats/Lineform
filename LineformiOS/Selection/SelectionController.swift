@@ -70,6 +70,11 @@ enum SelectionRowPlacement {
 /// - **Comment.** Ask AI swaps the row for the comment field. Send runs the shared
 ///   `AIActionController` on the selection the row was shown for (`anchorRange`); nothing is sent
 ///   while the note's input method is composing.
+/// - **Whole document.** The Menu's Ask AI… (`askAIForWholeDocument`) opens the same comment
+///   field for the whole document, after the shared `WholeDocumentAIPolicy`: up to 1,500 words at
+///   once, above that after "Send the whole document (N words) to …?" (Send / Cancel, Cancel the
+///   default), and past `AILimits` it is refused on the AI's message card. Nothing is sent and the
+///   Keychain is not read until Send.
 /// - **Keyboard.** The keyboard's overlap with the window is tracked from its frame notifications
 ///   (`keyboardOverlap`), so the row and the field sit just above it.
 ///
@@ -117,8 +122,17 @@ final class SelectionController: NSObject, ObservableObject {
 
     /// The comment's note, action and the connected AI's name: the Mac toolbar's model.
     let model = SelectionToolbarModel()
-    /// The selection the row was shown for; the comment sends against exactly this range.
+    /// The selection the row was shown for; the comment sends against exactly this range (the
+    /// whole document's range for the Menu's Ask AI…).
     private(set) var anchorRange: NSRange?
+    /// The comment field is for the whole document (the Menu's Ask AI…), not a selection.
+    @Published private(set) var isWholeDocument = false
+    /// Where the caret was when the whole-document field opened: Cancel puts it back.
+    private var wholeDocumentCaret: NSRange?
+    /// The word count the confirmation asks about while it is up (nil otherwise).
+    private(set) var pendingWholeDocumentWords: Int?
+    /// Shows the confirmation. By default, from the top of the editor's window; tests capture it.
+    var presentAlert: (UIAlertController) -> Void = { _ in }
     private(set) weak var editor: LineformTextView?
 
     /// Replace With…: opens the Menu sheet's Search with the selected text as the query.
@@ -138,6 +152,7 @@ final class SelectionController: NSObject, ObservableObject {
         self.connectionStore = connectionStore
         aiControllerStorage = aiController
         super.init()
+        presentAlert = { [weak self] alert in self?.presentFromEditorWindow(alert) }
         if let aiController { observe(aiController) }
     }
 
@@ -248,7 +263,9 @@ final class SelectionController: NSObject, ObservableObject {
         settleTask?.cancel()
         settleTask = nil
         anchorRange = nil
+        wholeDocumentCaret = nil
         if isNoteComposing { isNoteComposing = false }
+        if isWholeDocument { isWholeDocument = false }
         if phase != .hidden { phase = .hidden }
     }
 
@@ -335,15 +352,31 @@ final class SelectionController: NSObject, ObservableObject {
         let action = model.action
         let note = model.note
         let text = editor.textStorage.string
+        let wholeDocument = isWholeDocument
         hide()
         editor.becomeFirstResponder()
-        aiController.run(action, range: range, text: text, note: note)
+        if wholeDocument {
+            aiController.runWholeDocument(action, text: text, note: note)
+        } else {
+            aiController.run(action, range: range, text: text, note: note)
+        }
         return true
     }
 
-    /// Cancel (the button, or a swipe down): back to the row, with the selection as it was.
+    /// Cancel (the button, or a swipe down): back to the row, with the selection as it was. For
+    /// the whole document the field closes and the caret goes back where it was.
     func cancelComment() {
         guard phase == .comment else { return }
+        if isWholeDocument {
+            let caret = wholeDocumentCaret
+            hide()
+            guard let editor, let caret, NSMaxRange(caret) <= editor.textStorage.length else { return }
+            isAdjustingSelection = true
+            editor.becomeFirstResponder()
+            editor.selectedRange = caret
+            isAdjustingSelection = false
+            return
+        }
         isNoteComposing = false
         phase = .row
         guard let editor, let anchor = anchorRange, NSMaxRange(anchor) <= editor.textStorage.length else { return }
@@ -351,6 +384,103 @@ final class SelectionController: NSObject, ObservableObject {
         editor.becomeFirstResponder()
         editor.selectedRange = anchor
         isAdjustingSelection = false
+    }
+
+    // MARK: - Whole document
+
+    /// The connection store, for the Menu's Ask AI… row (reached only when the sheet shows it).
+    var aiConnectionStore: AIConnectionStore { connectionStore() }
+
+    /// The Menu's Ask AI… row: connected, and an editor on screen (Read allows no AI).
+    var allowsWholeDocumentAI: Bool {
+        guard connectionStore().isConnected, !isReadMode, let editor, editor.isEditable,
+              editor.textStorage.length > 0 else { return false }
+        switch aiControllerStorage?.state {
+        case .running, .reviewing: return false
+        default: return true
+        }
+    }
+
+    /// The Menu's Ask AI… (after the sheet has closed): the shared length policy decides, before
+    /// anything is read or sent. Up to 1,500 words the comment field opens for the whole document;
+    /// above that the writer confirms first; past `AILimits` the refusal shows on the message card.
+    func askAIForWholeDocument() {
+        guard allowsWholeDocumentAI, let editor, pendingWholeDocumentWords == nil else { return }
+        let store = connectionStore()
+        guard let provider = store.connectedProvider else { return }
+        switch WholeDocumentAIPolicy.decision(for: editor.textStorage.string) {
+        case .run:
+            openWholeDocumentComment()
+        case .refuse:
+            hide()
+            aiController.refuseWholeDocument()
+        case .confirm(let words):
+            hide()
+            pendingWholeDocumentWords = words
+            let recipient = WholeDocumentAIPolicy.recipient(for: provider, otherEndpoint: store.otherEndpoint)
+            presentAlert(Self.wholeDocumentConfirmation(
+                words: words, recipient: recipient,
+                onSend: { [weak self] in self?.confirmWholeDocument() },
+                onCancel: { [weak self] in self?.cancelWholeDocumentConfirmation() }
+            ))
+        }
+    }
+
+    /// "Send the whole document (N words) to …?": Send, then Cancel, which is the default (Return
+    /// on a hardware keyboard never sends a whole document by accident), as on the Mac.
+    static func wholeDocumentConfirmation(words: Int, recipient: String, onSend: @escaping () -> Void,
+                                          onCancel: @escaping () -> Void) -> UIAlertController {
+        let alert = UIAlertController(
+            title: WholeDocumentAIPolicy.confirmationTitle(words: words, recipient: recipient),
+            message: nil, preferredStyle: .alert
+        )
+        alert.addAction(UIAlertAction(title: WholeDocumentAIPolicy.sendTitle, style: .default) { _ in onSend() })
+        let cancel = UIAlertAction(title: WholeDocumentAIPolicy.cancelTitle, style: .cancel) { _ in onCancel() }
+        alert.addAction(cancel)
+        alert.preferredAction = cancel
+        return alert
+    }
+
+    /// The confirmation's Send: the comment field opens for the whole document. Nothing is sent yet.
+    func confirmWholeDocument() {
+        guard pendingWholeDocumentWords != nil else { return }
+        pendingWholeDocumentWords = nil
+        openWholeDocumentComment()
+    }
+
+    /// The confirmation's Cancel: nothing opens, nothing is sent.
+    func cancelWholeDocumentConfirmation() {
+        pendingWholeDocumentWords = nil
+    }
+
+    /// The comment field, for the whole document: its range is the whole text, nothing is
+    /// highlighted, and the caret is remembered for Cancel.
+    private func openWholeDocumentComment() {
+        guard allowsWholeDocumentAI, let editor, let provider = connectionStore().connectedProvider else { return }
+        let caret = editor.selectedRange
+        hide()
+        let aiName = SelectionToolbarPresentation.aiName(for: provider)
+        if model.aiName != aiName { model.aiName = aiName }
+        let dark = Theme.theme(for: editor.profile).usesDarkChrome
+        if model.usesDarkChrome != dark { model.usesDarkChrome = dark }
+        model.note = ""
+        model.action = .custom
+        wholeDocumentCaret = caret
+        anchorRange = NSRange(location: 0, length: editor.textStorage.length)
+        isWholeDocument = true
+        isNoteComposing = false
+        phase = .comment
+        model.focusToken += 1
+    }
+
+    private func presentFromEditorWindow(_ alert: UIAlertController) {
+        var top = editor?.window?.rootViewController
+        while let presented = top?.presentedViewController, !presented.isBeingDismissed { top = presented }
+        guard let top else {
+            pendingWholeDocumentWords = nil
+            return
+        }
+        top.present(alert, animated: true)
     }
 
     // MARK: - AI status

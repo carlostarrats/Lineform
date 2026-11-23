@@ -11,6 +11,10 @@ import SwiftUI
 ///   document's format (`OpenDocument.textFormat`). A `.txt` opened from disk has no conversion to
 ///   restore, so the row is off.
 /// - Check Document Now: one spelling pass over the whole document (`SpellCheckPass`).
+/// - Ask AI…, while an AI is connected and an editor is on screen (not Read): the comment field
+///   for the whole document, after the shared `WholeDocumentAIPolicy` (the Mac's Edit ▸ Ask AI…
+///   with nothing selected). The sheet closes first; the screen then runs
+///   `SelectionController.askAIForWholeDocument`.
 /// - Export As, Print…, Share… and read aloud (`ExportRows`, roadmap step 10), as their own
 ///   section.
 /// - Show Hidden Folders: the Files setting (`FilesStore.setShowsHidden`, the Mac's key).
@@ -30,6 +34,11 @@ struct DocumentSection: View {
     /// The editor's selection, for read aloud.
     var selection: () -> NSRange? = { nil }
     var mode: EditorDisplayMode = .write
+    /// The AI connection, observed by the Ask AI… row (`AIConnectionStore.shared` in the app,
+    /// reached only once the sheet shows this section).
+    var aiStore: AIConnectionStore? = nil
+    /// Ask AI… for the whole document; nil hides the row.
+    var onAskAI: (() -> Void)? = nil
 
     @Environment(\.openURL) private var openURL
     @State private var isImportingDocument = false
@@ -43,6 +52,7 @@ struct DocumentSection: View {
     static var insertTableTitle: String { String(localized: "Insert Table") }
     static var reformatTableTitle: String { String(localized: "Reformat Table") }
     static var checkDocumentTitle: String { String(localized: "Check Document Now") }
+    static var askAITitle: String { String(localized: "Ask AI…") }
     static var guideTitle: String { String(localized: "Lineform Guide") }
     static var privacyPolicyTitle: String { String(localized: "Privacy Policy") }
     static var termsOfUseTitle: String { String(localized: "Terms of Use") }
@@ -65,11 +75,18 @@ struct DocumentSection: View {
     static let privacyPolicyURL = URL(string: LineformLinks.privacyPolicyURL)!
     static let termsOfUseURL = URL(string: LineformLinks.termsOfUseURL)!
 
+    /// Ask AI… shows while an AI is connected and an editor is on screen: Read has no editor to
+    /// hold the comment field, and allows no AI.
+    static func showsAskAI(isConnected: Bool, mode: EditorDisplayMode) -> Bool {
+        isConnected && mode != .read
+    }
+
     /// Every row's title, in order, for `textFormat`.
-    static func rowTitles(for textFormat: LineformTextFormat) -> [String] {
+    static func rowTitles(for textFormat: LineformTextFormat, showsAskAI: Bool = false) -> [String] {
         var titles = [newDocumentTitle, openTitle, saveAsTitle]
         if showsTableCommands(for: textFormat) { titles += [insertTableTitle, reformatTableTitle] }
         titles += [conversionTitle(for: textFormat), checkDocumentTitle]
+        if showsAskAI { titles.append(askAITitle) }
         titles += ExportRows.idleRowTitles
         titles += [FilesSection.hiddenFoldersTitle, guideTitle, privacyPolicyTitle, termsOfUseTitle]
         return titles
@@ -127,6 +144,12 @@ struct DocumentSection: View {
                     editor.checkDocumentNow()
                 } label: {
                     Label(Self.checkDocumentTitle, systemImage: "textformat.abc.dottedunderline")
+                }
+                if let onAskAI, let aiStore {
+                    DocumentAskAIRow(store: aiStore, mode: mode) {
+                        onAskAI()
+                        onDismiss()
+                    }
                 }
             }
             .listRowBackground(Color.clear)
@@ -189,5 +212,20 @@ struct DocumentSection: View {
             Label(title, systemImage: systemImage)
         }
         .accessibilityAddTraits(.isLink)
+    }
+}
+
+/// The Document section's Ask AI… row. It follows the connection, so connecting in Settings shows it.
+private struct DocumentAskAIRow: View {
+    @ObservedObject var store: AIConnectionStore
+    var mode: EditorDisplayMode
+    var action: () -> Void
+
+    var body: some View {
+        if DocumentSection.showsAskAI(isConnected: store.isConnected, mode: mode) {
+            Button(action: action) {
+                Label(DocumentSection.askAITitle, systemImage: "text.bubble")
+            }
+        }
     }
 }

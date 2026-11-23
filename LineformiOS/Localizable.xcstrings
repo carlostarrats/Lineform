@@ -5266,6 +5266,41 @@
         }
       }
     },
+    "Ask AI…" : {
+      "comment" : "Menu ▸ Document row that opens the comment field for the whole document (the Mac's Edit ▸ Ask AI… title and translations).",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KI fragen…"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Preguntar a la IA…"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Demander à l’IA…"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AI に依頼…"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "询问 AI…"
+          }
+        }
+      }
+    },
     "Rewrite and proofread with an AI account of your own. Only the passage you select is sent, or the whole document when you choose Ask AI for it, and only when you choose an action." : {
       "comment" : "Settings note under Connect Your AI….",
       "localizations" : {

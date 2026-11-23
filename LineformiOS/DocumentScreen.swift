@@ -71,6 +71,9 @@ struct DocumentScreen: View {
     @StateObject private var selection: SelectionController
     /// Replace With… opens the Menu sheet's Search with the selected text as the query.
     @State private var menuSearchQuery: String?
+    /// The Menu's Ask AI… was tapped: once the sheet has closed, the whole-document policy runs
+    /// (a confirmation cannot be presented over the closing sheet).
+    @State private var asksAIForWholeDocument = false
 
     /// The quiet notice over the bottom of the page, if any: a failed save, else an image that
     /// could not be written beside the document.
@@ -247,7 +250,13 @@ struct DocumentScreen: View {
             .disabled(presentsFirstRun)
             .hidden()
         }
-        .sheet(isPresented: $isShowingMenu, onDismiss: { menuSearchQuery = nil }) {
+        .sheet(isPresented: $isShowingMenu, onDismiss: {
+            menuSearchQuery = nil
+            if asksAIForWholeDocument {
+                asksAIForWholeDocument = false
+                selection.askAIForWholeDocument()
+            }
+        }) {
             MenuSheet(
                 document: document,
                 editor: LiveEditorCommands(positionKeeper: positionKeeper, document: document, mode: displayMode),
@@ -259,6 +268,8 @@ struct DocumentScreen: View {
                 mode: displayMode,
                 onShowHistory: { showHistoryFromMenu() },
                 initialSearchQuery: menuSearchQuery,
+                aiStore: selection.aiConnectionStore,
+                onAskAI: { asksAIForWholeDocument = true },
                 onDismiss: { isShowingMenu = false }
             )
         }
