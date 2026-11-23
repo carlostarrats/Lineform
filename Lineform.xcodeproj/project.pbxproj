@@ -7,6 +7,8 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		1F0001C10000000000000103 /* PhoneReviewPromptTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0001C00000000000000103 /* PhoneReviewPromptTests.swift */; };
+		1F0001C10000000000000004 /* PhoneReviewPrompt.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0001C00000000000000004 /* PhoneReviewPrompt.swift */; };
 		1F0001C10000000000000102 /* PhoneAnnouncementTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0001C00000000000000102 /* PhoneAnnouncementTests.swift */; };
 		1F0001C10000000000000003 /* PhoneAnnouncementCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0001C00000000000000003 /* PhoneAnnouncementCard.swift */; };
 		1F0001C10000000000000002 /* PhoneAnnouncementStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0001C00000000000000002 /* PhoneAnnouncementStore.swift */; };
@@ -290,6 +292,8 @@
  /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		1F0001C00000000000000103 /* PhoneReviewPromptTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhoneReviewPromptTests.swift; sourceTree = "<group>"; };
+		1F0001C00000000000000004 /* PhoneReviewPrompt.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhoneReviewPrompt.swift; sourceTree = "<group>"; };
 		1F0001C00000000000000102 /* PhoneAnnouncementTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhoneAnnouncementTests.swift; sourceTree = "<group>"; };
 		1F0001C00000000000000003 /* PhoneAnnouncementCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhoneAnnouncementCard.swift; sourceTree = "<group>"; };
 		1F0001C00000000000000002 /* PhoneAnnouncementStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhoneAnnouncementStore.swift; sourceTree = "<group>"; };
@@ -599,6 +603,7 @@
 				1F0001C00000000000000001 /* PhoneUpdateCheck.swift */,
 				1F0001C00000000000000002 /* PhoneAnnouncementStore.swift */,
 				1F0001C00000000000000003 /* PhoneAnnouncementCard.swift */,
+				1F0001C00000000000000004 /* PhoneReviewPrompt.swift */,
 			);
 			path = Integration;
 			sourceTree = "<group>";
@@ -926,6 +931,7 @@
 				1F00C1000000000000000003 /* PhoneReleaseResourceTests.swift */,
 				1F0001C00000000000000101 /* PhoneUpdateCheckTests.swift */,
 				1F0001C00000000000000102 /* PhoneAnnouncementTests.swift */,
+				1F0001C00000000000000103 /* PhoneReviewPromptTests.swift */,
 			);
 			path = LineformiOSTests;
 			sourceTree = "<group>";
@@ -1502,6 +1508,7 @@
 				1F0001C10000000000000001 /* PhoneUpdateCheck.swift in Sources */,
 				1F0001C10000000000000002 /* PhoneAnnouncementStore.swift in Sources */,
 				1F0001C10000000000000003 /* PhoneAnnouncementCard.swift in Sources */,
+				1F0001C10000000000000004 /* PhoneReviewPrompt.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -1554,6 +1561,7 @@
 				1F00C1000000000000000004 /* PhoneReleaseResourceTests.swift in Sources */,
 				1F0001C10000000000000101 /* PhoneUpdateCheckTests.swift in Sources */,
 				1F0001C10000000000000102 /* PhoneAnnouncementTests.swift in Sources */,
+				1F0001C10000000000000103 /* PhoneReviewPromptTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

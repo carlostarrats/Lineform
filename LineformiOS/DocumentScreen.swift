@@ -1,4 +1,5 @@
 import LineformCore
+import StoreKit
 import SwiftUI
 import UIKit
 import UniformTypeIdentifiers
@@ -30,6 +31,9 @@ struct DocumentScreen: View {
     @ObservedObject var settings: AppSettings
     /// The announcement card's store (`PhoneAnnouncementStore.shared` in the app).
     @ObservedObject var announcements: PhoneAnnouncementStore
+    /// When to ask for the App Store review sheet (`PhoneReviewPromptStore.shared` in the app,
+    /// inert in the test host).
+    @ObservedObject var reviewPrompt: PhoneReviewPromptStore
     @Environment(\.colorScheme) private var colorScheme
     private var profile: ReadingProfile {
         settings.displayProfile(profileStore.activeProfile, userInterfaceStyle: UIUserInterfaceStyle(colorScheme))
@@ -92,6 +96,7 @@ struct DocumentScreen: View {
         files: FilesStore = .shared,
         settings: AppSettings = .shared,
         announcements: PhoneAnnouncementStore = .shared,
+        reviewPrompt: PhoneReviewPromptStore = .shared,
         initialMode: EditorDisplayMode = .write,
         showsFirstRun: Bool = false,
         selection: SelectionController? = nil
@@ -101,6 +106,7 @@ struct DocumentScreen: View {
         self.files = files
         self.settings = settings
         self.announcements = announcements
+        self.reviewPrompt = reviewPrompt
         _storedDisplayMode = SceneStorage(wrappedValue: initialMode, "displayMode")
         _firstRun = State(initialValue: FirstRunPresentation(launchWantsFirstRun: showsFirstRun))
         _selection = StateObject(wrappedValue: selection ?? SelectionController())
@@ -332,6 +338,8 @@ struct DocumentScreen: View {
             makeExportCommandsIfNeeded()
             // In-app notifications off takes the card away at once (the request is gated at the check).
             announcements.follow(settings)
+            // A write that reached disk is use, for the review prompt (single subscriber).
+            document.onConfirmedWrite = { [reviewPrompt] in reviewPrompt.recordSuccessfulWrite() }
             // History for AI actions: the document's, the ONE assignment (`SelectionController`).
             selection.aiHistory = document.history
             shownDisplayMode = shownDisplayMode ?? storedDisplayMode
@@ -363,6 +371,15 @@ struct DocumentScreen: View {
         }
         .onChange(of: scenePhase) { _, phase in
             if OpenDocument.savesImmediately(on: phase) { document.flushForBackground() }
+            // Back in the foreground: an eligible prompt schedules again (never counts as use).
+            if phase == .active { reviewPrompt.reconsiderPresentation() }
+        }
+        .task(id: reviewPrompt.activityRevision) {
+            // A new write restarts the quiet period; the sheet comes up only with nothing in the way.
+            await reviewPrompt.requestAfterQuietPeriod(
+                canPresent: { canPresentReviewPrompt },
+                request: { requestReviewSheet() }
+            )
         }
         .onChange(of: isHistoryModeActive) { _, active in
             // History mode is Write's: the row's Replace With… in Preview's editor lands here too.
@@ -371,6 +388,37 @@ struct DocumentScreen: View {
     }
 
     private var isHistoryModeActive: Bool { document.history?.isHistoryModeActive == true }
+
+    /// The review sheet may come up: the scene is in the foreground with nothing presented over
+    /// the page, and nothing of Lineform's holds the screen (the Mac's obstruction list, in iPhone
+    /// terms: a sheet or picker, first run, History, the selection row or comment field, an AI
+    /// card, an announcement, a notice or alert, a download, an update check).
+    private var canPresentReviewPrompt: Bool {
+        let obstructed = isShowingMenu || isShowingStyling || isPickingReconnectImage || reconnectRange != nil
+            || presentsFirstRun || isHistoryModeActive
+            || selection.phase != .hidden || selection.aiState != .idle
+            || announcements.visible != nil || noticeMessage != nil
+            || document.failedOpenURL != nil || document.downloadingName != nil
+            || PhoneUpdateCommand.shared.isChecking
+        let presenter = ActivityShareSheet.topPresenter()
+        return PhoneReviewPromptStore.canPresent(
+            isSceneActive: scenePhase == .active && Self.foregroundScene() != nil,
+            hasPresentedController: presenter == nil || presenter?.presentingViewController != nil,
+            hasInAppObstruction: obstructed
+        )
+    }
+
+    /// StoreKit's system sheet, in the foreground scene. StoreKit decides whether it shows.
+    private func requestReviewSheet() {
+        guard let scene = Self.foregroundScene() else { return }
+        AppStore.requestReview(in: scene)
+    }
+
+    private static func foregroundScene() -> UIWindowScene? {
+        UIApplication.shared.connectedScenes
+            .compactMap { $0 as? UIWindowScene }
+            .first { $0.activationState == .foregroundActive }
+    }
 
     /// The announcement on screen: the store's, while the Menu and Aa buttons show and nothing
     /// else holds the bottom of the page (History's card, the selection row or comment field, an

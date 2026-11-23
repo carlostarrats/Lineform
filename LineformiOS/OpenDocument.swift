@@ -125,6 +125,10 @@ final class OpenDocument: ImageInsertionHost {
     /// Called as the current document is put away for another (New Document, an open from the
     /// list, Files or the launch restore), before its text goes: the screen stops read aloud here.
     @ObservationIgnored var onDocumentSwap: (() -> Void)?
+    /// Called after each write of the document's text that reached disk (a new file, a save, a
+    /// first-line rename's write); never for a save with nothing to write or a failed one. The
+    /// screen counts these as use for the review prompt (`PhoneReviewPromptStore`).
+    @ObservationIgnored var onConfirmedWrite: (() -> Void)?
     @ObservationIgnored private var isPrepared = false
     /// The document's History (`PhoneHistoryController`), told about every open, swap, save,
     /// rename, move, delete and reload. Nil in tests that do not exercise History.
@@ -584,6 +588,7 @@ final class OpenDocument: ImageInsertionHost {
                     startWatching(newURL)
                     setLastSyncedText(textToSave)
                     history?.documentGotFile(newURL, text: textToSave)
+                    onConfirmedWrite?()
                     return true
                 case .fileExists:
                     planner = previousPlanner
@@ -596,6 +601,7 @@ final class OpenDocument: ImageInsertionHost {
             case .write:
                 guard let url, coordinatedWrite(textToSave, to: url, replaceExisting: true) == .written else { return false }
                 setLastSyncedText(textToSave)
+                onConfirmedWrite?()
                 return true
             case .rename(let fileName):
                 guard let oldURL = url else { return false }
@@ -611,6 +617,7 @@ final class OpenDocument: ImageInsertionHost {
                 }
                 guard let url, coordinatedWrite(textToSave, to: url, replaceExisting: true) == .written else { return false }
                 setLastSyncedText(textToSave)
+                onConfirmedWrite?()
                 return true
             }
         }
