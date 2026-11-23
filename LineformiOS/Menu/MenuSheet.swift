@@ -9,7 +9,8 @@ import SwiftUI
 /// The section is kept with the scene (`@SceneStorage("menuSection")`, raw values never
 /// localized) and opens on Files (`FilesSection`). Outline (`OutlineSection`), Markdown Basics
 /// (`BasicsSection`), Search (`SearchSection`), Document (`DocumentSection`) and Settings
-/// (`SettingsSection`) follow.
+/// (`SettingsSection`) follow. History sits after Search while the document has history; it is
+/// not a page: choosing it closes the sheet and opens History mode (`onShowHistory`, D10).
 struct MenuSheet: View {
     var document: OpenDocument
     var editor: any EditorCommands
@@ -20,6 +21,8 @@ struct MenuSheet: View {
     var exportCommands: ExportCommands?
     var selection: () -> NSRange?
     var mode: EditorDisplayMode
+    /// Menu ▸ History: the screen closes the sheet, switches to Write and enters History mode.
+    var onShowHistory: () -> Void
 
     static let sectionStorageKey = "menuSection"
     static let detents: Set<PresentationDetent> = [.medium, .large]
@@ -29,7 +32,10 @@ struct MenuSheet: View {
     /// The section on screen: the stored one, then every pick (written back to the scene). Plain
     /// state as well, because a sheet hosted outside a SwiftUI scene (a test) has no scene storage.
     @State private var shownSection: MenuSection?
-    private var section: MenuSection { shownSection ?? storedSection }
+    private var section: MenuSection {
+        let section = shownSection ?? storedSection
+        return section.isPage ? section : .defaultSection
+    }
 
     init(
         document: OpenDocument,
@@ -40,6 +46,7 @@ struct MenuSheet: View {
         exportCommands: ExportCommands? = nil,
         selection: @escaping () -> NSRange? = { nil },
         mode: EditorDisplayMode = .write,
+        onShowHistory: @escaping () -> Void = {},
         onDismiss: @escaping () -> Void
     ) {
         self.document = document
@@ -51,6 +58,7 @@ struct MenuSheet: View {
         self.exportCommands = exportCommands
         self.selection = selection
         self.mode = mode
+        self.onShowHistory = onShowHistory
     }
 
     // MARK: - Header text
@@ -83,7 +91,11 @@ struct MenuSheet: View {
         let theme = Theme.theme(for: profile)
         VStack(spacing: 0) {
             header(theme: theme)
-            MenuSectionBar(selection: Binding(get: { section }, set: { picked in select(picked) }), theme: theme)
+            MenuSectionBar(
+                selection: Binding(get: { section }, set: { picked in select(picked) }),
+                sections: MenuSection.visible(hasHistory: document.history?.hasHistory == true),
+                theme: theme
+            )
             content
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         }
@@ -99,6 +111,10 @@ struct MenuSheet: View {
     }
 
     private func select(_ picked: MenuSection) {
+        guard picked.isPage else {
+            onShowHistory()
+            return
+        }
         shownSection = picked
         storedSection = picked
     }
@@ -143,6 +159,9 @@ struct MenuSheet: View {
             )
         case .settings:
             SettingsSection(settings: settings)
+        case .history:
+            // Never a page (`section` falls back to the default).
+            EmptyView()
         }
     }
 }
@@ -150,12 +169,13 @@ struct MenuSheet: View {
 /// The sideways bar of section buttons at the top of the sheet.
 struct MenuSectionBar: View {
     @Binding var selection: MenuSection
+    var sections: [MenuSection] = MenuSection.visible(hasHistory: false)
     var theme: Theme
 
     var body: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 6) {
-                ForEach(MenuSection.allCases) { section in
+                ForEach(sections) { section in
                     let isSelected = section == selection
                     Button {
                         selection = section

@@ -658,7 +658,9 @@ shows passages with history and steps their versions. Spec:
 `DocumentHistoryController` (one per editor window; the only thing that applies History's edits),
 `LineformTextView+History.swift` (drawing, keys, applying edits), `HistorySidebar*` (sidebar).
 
-- **Never in the document file.** The store is JSON under
+- **Never in the document file.** The app's store is `RoutingPassageHistoryStore` (see **Sync**
+  below): a document in the Lineform iCloud folder goes to the shared store, every other document to
+  the local store, which is unchanged since 1.8. The local store is JSON under
   `~/Library/Application Support/Lineform/History/` (inside the sandbox container): `index.json`
   maps `FileIdentity.key` plus a bookmark to a `<uuid>.json` per document. Nothing is written until a
   version is actually kept. Cleanup: a deleted (or Trashed) file's entry goes, a passage no longer
@@ -676,6 +678,99 @@ shows passages with history and steps their versions. Spec:
   that store runs `reloadFromStore()`. `reloadFromStore` replaces the engine BEFORE leaving
   History mode, because leaving saves — the other order wrote the cleared history straight back
   (`SettingsClearHistoryTests.testClearHistoryCallsClearAll` catches it).
+- **Sync (2026-11-22).** History for documents inside `<container>/Documents/` lives in
+  `<container>/History/v1/` — a sibling of `Documents/`, so it syncs but never shows in Finder or
+  Files. `HistoryLocation.classify` recognises the container from the URL alone (first ancestor
+  `iCloud~com~lineform~app` with a `Documents` child); `load`/`save` never look the container up,
+  only `prune` and `clearAll` do, on a background queue — and `prune` only when this device has
+  shared History (a shared store was used this session, or the `HistoryShared` sidecar exists), so
+  a Mac that never used the Lineform iCloud folder never sets the container up. Layout:
+  `Documents/<key>/<device>.json`, one record per device per document (`key` = SHA-256 of the
+  relative path, NFC + lowercased), and `Cleared/<device>.json` markers. Shared stores are keyed by
+  `FileIdentity.key(for: container)`, so two spellings of one container share one store and lock.
+  - **Device names** are `mac-<UUID>` / `iphone-<UUID>` (`HistoryDeviceIdentity`), kept in the
+    Keychain (`SystemHistoryDeviceIDKeychain`: generic password, service
+    `<bundle id>.history-device`, `AfterFirstUnlockThisDeviceOnly`, not synchronizable), so a
+    backup restore or Migration Assistant never gives two live devices one record file. A name in
+    user defaults (`LineformHistoryDeviceID.v1`, the first builds of this step) is moved there once
+    and removed; when the Keychain cannot be used the name lives in defaults instead (same name
+    every launch). On the Mac the Keychain is the legacy file keychain, which Migration Assistant
+    and Time Machine DO carry to a new Mac, so the Mac appends a hardware salt (first 8 hex of
+    SHA-256 of `IOPlatformUUID`, read by the app — `DocumentHistoryController.hardwareSalt()` —
+    and passed in): `mac-<UUID>-<salt>`. No salt, the stored name alone. The name is read only when
+    a shared document first uses History — both apps' `sharedStore` is a `LazyHistoryStore`, so
+    nothing History-related runs at launch.
+  - **Merge, never last-writer-wins.** A device writes only its own record; `HistoryMerge.merge`
+    unions every record on read (passages by id, versions by createdAt + author + ordinal, scalars
+    from the newest record). A passage missing from a record never deletes it (the engine drops
+    what it cannot find in a stale `.md`); a version leaves only through a tombstone, a Clear
+    History marker, or the 30-day rule. Unreadable, half-synced, future-format records and
+    `.icloud` placeholders are skipped and never deleted (a placeholder is asked to download).
+    iCloud conflict versions of a record (`NSFileVersion`) merge on read; prune folds them into the
+    file and resolves them.
+  - **Never fold another device's record into your own.** Add-wins holds only because each record
+    stays where its device wrote it: this device's next save writes `engine.history`, which lacks
+    every passage the engine could not locate. A move or a former-path retire therefore MOVES each
+    record file under its own name (two files of one device are merged into the one already at the
+    destination, keeping its name); only this device's own record gets the new `path` and
+    `formerPaths`. Pinned by `testMoveKeepsOtherDevicesVersionsWhenTheEngineDropsAPassage` and
+    `testFormerPathRetireKeepsOtherDevicesVersionsWhenTheEngineDropsAPassage`, which drop the
+    passage before saving as the engine does — a test that saves the merged history back cannot
+    catch this.
+  - **Threads.** `load` stays synchronous (the Mac controller is unchanged) but never reads a record
+    that is not downloaded: it starts the download, and the record merges at a later load. Every
+    shared write — saves, moves, removes, Clear History, the bookmark sidecar — runs on the shared
+    store's serial utility queue. Saves are coalesced per document (the last one wins) and kept in
+    memory until written; `load` prefers that pending record to this device's record on disk. A
+    move redirects a pending save to the new key, and a write that finishes after its key moved
+    away keeps no state there; Clear History keeps pending saves (no write stores a passage
+    touched at or before the clear) and rewrites post-clear History its folder delete removed;
+    prune runs on the same queue. **Drain:** `PassageHistoryPersisting.flushPendingWrites()`
+    writes everything queued on the calling thread and retries a held-back save once. The Mac
+    calls it after persisting on `willTerminateNotification`; the iPhone inside the
+    background-task assertion of `flushForBackground` (scene inactive or background). Without it
+    a quit dropped the last versions' text and a passage was lost at the next open.
+  - **This device's record evicted (iPhone `.<device>.json.icloud`, or not downloaded).** The save
+    is not written over it unread: it stays pending (load shows it), the download is started, and
+    the next save (or drain) retries. The same for an own record that cannot be decoded. A move
+    neither merges nor removes such an old record, and never moves an `.icloud` stub by its
+    literal name: it stays in the old folder, listed as a former path, and joins the new folder at
+    a later save once it is readable.
+  - **Tombstones.** A save tombstones versions gone from a passage still present. Delete Version
+    also calls `noteVersionDeleted` (with the history from before the delete): the engine removes a
+    two-version passage whole, which by itself would write nothing, and the version came back from
+    the other device. A folder holding live tombstones is kept until they expire.
+  - **Moves.** Inside → inside moves the records (above) with `formerPaths += [old]`; a reader also
+    merges records still filed under a former path (a device that wrote there offline), and the next
+    save moves them in. `formerPaths` keeps the 20 most recent; prune drops those whose folder is
+    gone. Local → inside carries the local History in; inside → local reads every record
+    (downloading if need be), saves locally, and deletes the shared folder only once the local copy
+    is written. Moves made while the app was closed are followed by the local store's bookmarks and
+    by a sidecar (`Lineform/HistoryShared/bookmarks.json`) for shared ones; an entry is added once
+    (not per save) and dropped at prune when its History folder is gone.
+  - **Migration** of 1.8/1.9 local History is lazy: on the document's first load, and at the
+    session prune for every local entry inside the container; the local entry is removed only after
+    the shared write succeeded (`testLocalHistoryStaysWhenTheSharedWriteFails`).
+  - **Clear History** clears local at once, hides shared History from every later load, then writes
+    this device's `Cleared` marker and deletes the shared folders of every store used this session
+    and of the container — a device that was offline drops its pre-clear passages at its next
+    merge; passages touched after the clear survive. The clear date is kept in
+    `HistoryShared/pending-clear.json` until a marker is written: when the container is not
+    reachable, the next store this device makes (after a relaunch too) writes the marker, without
+    deleting folders, so History written elsewhere since the clear stays.
+  - **Prune.** Absence is not proof in iCloud (`History/` and `Documents/` sync separately, and a
+    rename made elsewhere may not have arrived): another device's record is deleted ONLY by the
+    30-day `writtenAt` rule. This device's own record is deleted on positive evidence the document
+    is gone (an `.icloud` placeholder counts as present) and only when it was written more than 7
+    days ago and no record anywhere lists its path in `formerPaths`. Deleted documents' History
+    therefore lingers up to 30 days, invisible. Prune rewrites only this device's record (stale
+    passages, expired tombstones, gone former paths), keeping its `writtenAt`.
+  - **Known limits.** (1) The text of a version key comes from the newest record (merge rule 3): if
+    device B saves later with an older text for a NON-current version that A edited in place, A's
+    edit is reverted. It needs a concurrent `.md` conflict, so it is low impact. (2) Tombstones
+    expire 30 days after `deletedAt`: a device offline for longer that kept touching the passage
+    brings a deleted version back (resurrection, never loss). (3) An own record that cannot be
+    decoded blocks that document's shared saves until it is readable again.
 - **Add stores only the original; replacements are the writer's (1.8 QA follow-ups, 2026-11-13).**
   `DocumentHistoryEngine.add` creates ONE version (the live text, `currentIndex 0`); adding a range
   that is already a passage adds nothing and returns that passage. 1.8.0 stored a frozen copy plus

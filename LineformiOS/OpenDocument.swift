@@ -126,6 +126,9 @@ final class OpenDocument: ImageInsertionHost {
     /// list, Files or the launch restore), before its text goes: the screen stops read aloud here.
     @ObservationIgnored var onDocumentSwap: (() -> Void)?
     @ObservationIgnored private var isPrepared = false
+    /// The document's History (`PhoneHistoryController`), told about every open, swap, save,
+    /// rename, move, delete and reload. Nil in tests that do not exercise History.
+    @ObservationIgnored let history: PhoneHistoryController?
     private var planner = AutosavePlanner(existingFileName: nil, isNamedFromFirstLine: true)
     @ObservationIgnored private var autosaveTask: Task<Void, Never>?
     @ObservationIgnored private let log = Logger(subsystem: "com.lineform.app", category: "autosave")
@@ -137,22 +140,31 @@ final class OpenDocument: ImageInsertionHost {
     ///   - writer: writes the bytes inside the coordinated save. Tests inject failures.
     ///   - ubiquitousItems: tells whether iCloud still has to download a file, and starts that
     ///     download. Tests inject a fake; real iCloud is never touched in tests.
+    ///   - history: the document's History. Tests inject one on a temporary store, or none.
     init(
         folderProvider: @escaping @Sendable () -> URL,
         reader: any DocumentDiskReading = FileSystemDiskReader(),
         writer: any DocumentFileWriting = FileSystemDocumentWriter(),
-        ubiquitousItems: any UbiquitousItemAccessing = LiveUbiquitousItems()
+        ubiquitousItems: any UbiquitousItemAccessing = LiveUbiquitousItems(),
+        history: PhoneHistoryController? = nil
     ) {
         self.folderProvider = folderProvider
         self.reader = reader
         self.writer = writer
         self.ubiquitousItems = ubiquitousItems
+        self.history = history
     }
 
     /// The document the app uses: new documents save into iCloud Drive's Lineform folder when it
     /// is available, otherwise into the app's on-device Documents folder.
-    static func live() -> OpenDocument {
-        OpenDocument(folderProvider: { DocumentFolderResolver.live().saveFolder() })
+    /// Its History uses the app's one store (`PhoneHistoryController.sharedStore`), which is not
+    /// even made until a document with a file opens (or Clear History runs): building this at
+    /// launch runs nothing History-related. Tests pass their own lazy store.
+    static func live(historyStore: PassageHistoryPersisting = PhoneHistoryController.sharedStore) -> OpenDocument {
+        OpenDocument(
+            folderProvider: { DocumentFolderResolver.live().saveFolder() },
+            history: PhoneHistoryController(store: historyStore)
+        )
     }
 
     // MARK: - Preparing
@@ -345,6 +357,7 @@ final class OpenDocument: ImageInsertionHost {
         textFormat = Self.textFormat(for: url)
         plainTextConversion = nil
         planner = AutosavePlanner(existingFileName: url.lastPathComponent, isNamedFromFirstLine: false)
+        history?.open(url: url, text: diskText)
         startWatching(url)
         if startsDownloadAfterWatching {
             Task.detached { try? items.startDownloading(url) }
@@ -372,6 +385,8 @@ final class OpenDocument: ImageInsertionHost {
     /// and leaves a blank, untouched new document.
     private func closeCurrentDocument() {
         onDocumentSwap?()
+        // While the editor still shows the outgoing text: History mode's collapse lands on it.
+        history?.close(text: text)
         documentGeneration += 1
         autosaveTask?.cancel()
         autosaveTask = nil
@@ -547,6 +562,7 @@ final class OpenDocument: ImageInsertionHost {
         guard let folder = url?.deletingLastPathComponent() ?? saveFolder else { return false }
         let saved = save(text, in: folder)
         saveFailed = !saved
+        if saved { history?.persist(text: text) }
         return saved
     }
 
@@ -567,6 +583,7 @@ final class OpenDocument: ImageInsertionHost {
                     url = newURL
                     startWatching(newURL)
                     setLastSyncedText(textToSave)
+                    history?.documentGotFile(newURL, text: textToSave)
                     return true
                 case .fileExists:
                     planner = previousPlanner
@@ -587,6 +604,7 @@ final class OpenDocument: ImageInsertionHost {
                     stopWatching()
                     url = newURL
                     startWatching(newURL)
+                    history?.fileMoved(from: oldURL, to: newURL)
                 } else {
                     // Keep the old name; the text still saves.
                     planner = previousPlanner
@@ -660,8 +678,15 @@ final class OpenDocument: ImageInsertionHost {
             if destination.startAccessingSecurityScopedResource() {
                 securityScopedURL = destination
             }
+            let oldURL = url
             url = destination
             startWatching(destination)
+            // Save As retargets the document, as on the Mac: its History follows it.
+            if let oldURL {
+                history?.fileMoved(from: oldURL, to: destination)
+            } else {
+                history?.documentGotFile(destination, text: copy.text)
+            }
         }
         planner = AutosavePlanner(existingFileName: destination.lastPathComponent, isNamedFromFirstLine: false)
         setLastSyncedText(copy.text)
@@ -722,10 +747,14 @@ final class OpenDocument: ImageInsertionHost {
         }
         if text == lastSyncedText || url != nil || saveFolder != nil {
             saveNow()
+            history?.persist(text: text)
+            // Shared History is written on a queue: on disk before the assertion ends.
+            history?.flushPendingWrites()
             assertion.end(using: tasks)
         } else {
             Task {
                 await self.flush()
+                self.history?.flushPendingWrites()
                 assertion.end(using: tasks)
             }
         }
@@ -769,6 +798,7 @@ final class OpenDocument: ImageInsertionHost {
                 // The editor treats the new text as an outside replacement and clears its undo.
                 text = diskText
                 setLastSyncedText(diskText)
+                history?.documentReloaded(text: diskText)
             }
             return outcome
         }
@@ -828,10 +858,12 @@ final class OpenDocument: ImageInsertionHost {
             detachFromDeletedFile()
             return
         }
+        let oldURL = url
         stopWatching()
         url = newURL
         planner.fileWasRenamed(to: newURL.lastPathComponent)
         startWatching(newURL)
+        if let oldURL { history?.fileMoved(from: oldURL, to: newURL) }
     }
 
     /// The writer renamed the open file in Files (or the folder holding it), and `FilesStore`
@@ -845,6 +877,7 @@ final class OpenDocument: ImageInsertionHost {
             self.url = newURL
             planner.fileWasRenamed(to: newURL.lastPathComponent)
             startWatching(newURL)
+            history?.fileMoved(from: url, to: newURL)
         } else {
             planner.markRenamedByUser()
         }
@@ -863,6 +896,8 @@ final class OpenDocument: ImageInsertionHost {
     /// again: the document becomes new, and nothing is saved until the text changes, when it gets
     /// a file named from its first line.
     private func detachFromDeletedFile() {
+        // The text stays, but it is no longer that file: History lets go of it too.
+        history?.close(text: text)
         autosaveTask?.cancel()
         autosaveTask = nil
         stopWatching()

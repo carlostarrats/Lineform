@@ -12,6 +12,8 @@ import UIKit
 ///   `textViewDidChange`, so `OpenDocument` autosaves. An edit that changes nothing registers no
 ///   undo step and posts nothing. No rule forces a synchronous re-highlight; the debounced
 ///   typing-delay pass picks the edit up.
+/// - **History hears every rule edit** through the text storage hook
+///   (`LineformiOSTextView+History.swift`); a rule edit while History mode is up leaves it first.
 /// - **Read edits are rule edits.** A checkbox toggle or a Reconnect made in Read or Preview comes
 ///   here (`applyReadEdit`), so the document has one undo history in every mode.
 extension LineformTextView: ReadEditApplying {
@@ -251,6 +253,11 @@ extension LineformTextView: ReadEditApplying {
         guard markedTextRange == nil else { return false }
         let storage = textStorage
         guard range.location >= 0, NSMaxRange(range) <= storage.length else { return false }
+        // A rule edit while History mode is up leaves it first (with the session's collapse; the
+        // text, and so `range`, is the same afterwards). History's own collapse passes.
+        if undoManager?.isUndoing != true, undoManager?.isRedoing != true {
+            exitHistoryModeBeforeUserEdit()
+        }
         let replacedText = (storage.string as NSString).substring(with: range)
         let replacementLength = (replacement as NSString).length
         let caret = selecting ?? NSRange(location: range.location + replacementLength, length: 0)

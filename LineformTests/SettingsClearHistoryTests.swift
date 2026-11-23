@@ -121,4 +121,32 @@ final class SettingsClearHistoryTests: XCTestCase {
         reopened.open(url: a, text: text)
         XCTAssertFalse(reopened.hasHistory)
     }
+
+    /// The app's store routes by document: local History keeps the 1.8/1.9 directory, and Clear
+    /// History in Settings clears that same store object (its notification's `object`). It is lazy
+    /// (Minor 1): holding it builds nothing, so the first window at launch makes no router.
+    func testSharedStoreRoutesThroughTheUnchangedLocalDirectory() throws {
+        let lazy = DocumentHistoryController.sharedStore
+        let router = try XCTUnwrap(lazy.resolvedStore() as? RoutingPassageHistoryStore)
+        XCTAssertEqual(router.local.directory.standardizedFileURL,
+                       FilePassageHistoryStore.defaultDirectory(
+                           home: URL(fileURLWithPath: NSHomeDirectory(), isDirectory: true)).standardizedFileURL)
+        XCTAssertTrue(lazy.resolvedStore() === router, "one store object for the app")
+        XCTAssertEqual(HistoryLocation.classify(directory.appendingPathComponent("a.md")), .local)
+    }
+
+    /// The Mac's store is made on first use, like the iPhone's: a fresh one holds nothing yet.
+    func testLiveStoreIsMadeOnFirstUse() {
+        var made = 0
+        let store = LazyHistoryStore {
+            made += 1
+            return NullPassageHistoryStore()
+        }
+        XCTAssertFalse(store.isMade)
+        XCTAssertEqual(made, 0)
+        _ = store.load(for: directory.appendingPathComponent("a.md"))
+        _ = store.load(for: directory.appendingPathComponent("a.md"))
+        XCTAssertTrue(store.isMade)
+        XCTAssertEqual(made, 1)
+    }
 }

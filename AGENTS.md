@@ -43,6 +43,7 @@ Core product principles:
 - Save As retargets the Markdown file; File ▸ Export As writes a copy as HTML, PDF, Styled PDF, or Rich Text (.rtf), plus Print (⌘P). Exported HTML is one-to-one with the source — image paths and link URLs are emitted exactly as written.
 - Read-aloud of the rendered text (Edit ▸ Speech), skipping code, math, and diagrams.
 - ⌘E toggles Write ↔ Read; Split stays on the toolbar and View menu.
+- History: per-passage versions (Paragraph · Sentence · Word) in a read-only History mode. Stored in the app container, or for documents in the Lineform iCloud folder in the container's hidden `History/` folder, shared with the user's other devices; never in the file; 30-day cleanup; Settings ▸ Clear History removes everything.
 - Reading profiles for type size, line height, block spacing, margins, column width, caret width, focus, ruler, and themes.
 - Apple Books-style reader themes plus accessibility-oriented font and contrast options.
 - Native Writing Tools protection around Markdown regions such as fenced code and front matter.
@@ -135,6 +136,11 @@ file named after it carries the full story and the reasoning.
 - `MarkdownHeadingEditing.classify` and `MarkdownHeadingParser` must accept the SAME heading shape (≤3 columns of indent; space, tab, or end of line after the hashes). A disagreement is the stacking bug from the other side.
 - Ordered-list continuation must cap the marker at NINE ASCII digits, matching `MarkdownBlockGrouping`'s `[0-9]{1,9}`. Unbounded, `Int.max` overflowed `number + 1` and Return on that line CRASHED the app, and a 10-digit marker drew as a paragraph while Return continued it as a list.
 - Table Reformat must REFUSE on `\|` and on backticks. It rewrites the file through `MarkdownTableParser.cells(in:)`, which splits on every pipe — harmless while rendering, permanent data loss when written back. It must also re-emit delimiter colons read from the ORIGINAL row, not from `table.alignments`, which collapses `:--` into `---`.
+
+**History** (`editor-behavior.md` § History)
+- History in iCloud is one record per device per document, merged on read (`HistoryMerge`); a device writes only its own record, a missing passage never deletes another device's versions, and only an explicit Delete Version writes a tombstone (`noteVersionDeleted`, called by Delete Version with the history from before the delete — the engine removes a two-version passage whole, which alone writes none).
+- Every History file access goes through `CoordinatedFileAccess`.
+- Never fold another device's History record into your own: a move or former-path retire MOVES each record file under its own name, and document absence never deletes another device's record (only its 30-day `writtenAt` does). This device's engine drops passages it cannot locate, so a record it writes may lack them — add-wins holds only while every record stays separate. Shared writes run on the shared store's queue; `load` never reads a record that is not downloaded.
 
 **Rendering** (`rendering.md`)
 - Every INSERTION path (Return, list continuation, Insert Table, Tab's appended row, Reformat, image drop/paste) writes `MarkdownLineEnding.inForce(at:in:)`, never a bare `\n` — the document's endings are preserved, never normalised. It reads the caret's own line, never the whole document (per-keystroke). `ImageInsertionText` was outside this sweep and left a lone LF in Windows-authored files.
@@ -374,8 +380,15 @@ iPhone only. Details: `docs/architecture/iphone-app.md`.
   skips the reading assists and the Read view skips rendering: on 1 MB they cost about 0.64 s and
   1.2 s per change. Both catch up once when the drag ends. Details: `docs/architecture/iphone-app.md`,
   "Styling sheet".
+- **History.** Menu ▸ History (listed only when the document has history) and Replace With… (the
+  system edit menu until step 8's selection row) enter History mode: read-only editor, passages on a
+  wash drawn by `CAShapeLayer`s behind the text (never text attributes; the Mac's receded ink is not
+  drawn — phone exception), tap selects the innermost passage, ← / → / Esc on a hardware keyboard,
+  and `HistoryCard` at the bottom (levels, versions, Delete, "Type a replacement", Done). The store is
+  the Mac's router, made lazily (`LazyHistoryStore`: nothing at launch). Details:
+  `docs/architecture/iphone-app.md`, "History".
 - **Menu sheet.** The floating Menu button opens `MenuSheet` (medium and large detents): Files,
-  Outline, Markdown Basics, Search, Document and Settings. Sections reach the editor only through
+  Outline, Markdown Basics, Search, History (only with history), Document and Settings. Sections reach the editor only through
   `EditorCommands`, each command ONE undo step. Files rename and Trash are coordinated
   (`.forMoving`), unlike the Mac (ruling in `docs/architecture/files-sidebar.md`); Trash is
   `trashItem` only, and nothing is scanned until Files or a file search is on screen. Convert to

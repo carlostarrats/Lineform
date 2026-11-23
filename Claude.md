@@ -42,7 +42,7 @@ Core product principles:
 - Read/Preview rendering of Mermaid diagrams, LaTeX math (`$…$`/`$$…$$` and the AI-tool `\(…\)`/`\[…\]` spellings), GFM tables, task checkboxes, GitHub-style callouts, code-language syntax highlighting with a copy button, and local (never remote) inline images.
 - Save As retargets the Markdown file; File ▸ Export As writes a copy as HTML, PDF, Styled PDF, or Rich Text (.rtf), plus Print (⌘P). Exported HTML is one-to-one with the source — image paths and link URLs are emitted exactly as written.
 - Read-aloud of the rendered text (Edit ▸ Speech), skipping code, math, and diagrams.
-- History: right-click a selection ▸ Add to History keeps per-passage versions (Paragraph · Sentence · Word); the sidebar's History tab (shown only when the document has history) or View ▸ History (⌘Y) enters a read-only History mode that steps them. Stored in the app container, never in the file; 30-day cleanup; Settings ▸ Clear History removes everything.
+- History: right-click a selection ▸ Add to History keeps per-passage versions (Paragraph · Sentence · Word); the sidebar's History tab (shown only when the document has history) or View ▸ History (⌘Y) enters a read-only History mode that steps them. Stored in the app container, or for documents in the Lineform iCloud folder in the container's hidden `History/` folder, shared with the user's other devices; never in the file; 30-day cleanup; Settings ▸ Clear History removes everything.
 - Bring your own AI: Lineform ▸ Connect Your AI… connects Claude, ChatGPT, Google or an OpenAI-compatible server with the user's key (Keychain); a Standard (default) or Higher quality model tier per provider; right-click Rewrite ▸ Trim/Cut in half/Rewrite, Proofread, Mark ▸ Weakest/Long sentences, each result reviewed as ONE change (struck original + highlighted replacement) on a bottom-right card, as a read-only overlay. Write mode only; absent (not disabled) when nothing is connected.
 - Selection toolbar: selecting text in the editor floats one-click formatting (Heading ▾, Bold, Italic, Strikethrough, Code, List ▾, Link) over it; while an AI is connected it also offers a comment card — a free-form note to the AI, optionally with an action (Custom = the note alone), reviewed like any AI result. Right-click and the Format menu are unchanged.
 - ⌘E toggles Write ↔ Read; Split stays on the toolbar and View menu.
@@ -142,10 +142,13 @@ file named after it carries the full story and the reasoning.
 - History never writes into the document file. The store lives under Application Support in the app container; nothing is stored until a version is kept.
 - Normal writing draws NO history markers. History mode is the only place history is drawn, and its receded ink is a layout-manager temporary attribute, never a text-storage change.
 - History-mode steps are undo-DISABLED (the coordinator vends an empty stand-in `UndoManager` while the mode is up) and collapse into ONE undoable edit on exit, plus a version-restore undo action — one ⌘Z after leaving restores text and current versions.
-- User edits reach History only through `LineformTextView.shouldChangeText(in:replacementString:)`, TRIMMED to their minimal changed span (`HistoryUndoCollapse.minimalEdit`) before the engine sees them; History's own edits run in `performHistoryEdit {}`; a write that bypasses the text view (binding) calls `noteWholeTextReplacement()`. NSTextView undoes/redoes formatting and Find & Replace as ONE document-spanning edit — untrimmed, one ⌘Z after a save dropped every passage.
+- User edits reach History only through `LineformTextView.shouldChangeText(in:replacementString:)`, TRIMMED to their minimal changed span (`HistoryUndoCollapse.unambiguousEdit`: a change in repeated text reports the union of its placements, so a passage there is dropped, never left on the wrong copy; the iPhone storage hook uses the same helper) before the engine sees them; History's own edits run in `performHistoryEdit {}`; a write that bypasses the text view (binding) calls `noteWholeTextReplacement()`. NSTextView undoes/redoes formatting and Find & Replace as ONE document-spanning edit — untrimmed, one ⌘Z after a save dropped every passage.
 - `PassageHistoryText.locate` returns nil rather than choose between identical occurrences without a clear margin (`max(4, 25%)`); a tie went to the first and rewrote text the writer never selected. History may disappear; wrong text is never replaced.
 - Prune deletes a file's history only on POSITIVE evidence (bookmark in the Trash, or folder listable and file absent) and runs off the main thread; an unplugged drive or network volume is not evidence.
 - `DocumentHistoryController.reloadFromStore()` (Clear History) replaces the engine BEFORE leaving History mode — leaving saves, and the other order writes the cleared history straight back.
+- History in iCloud is one record per device per document, merged on read (`HistoryMerge`); a device writes only its own record, a missing passage never deletes another device's versions, and only an explicit Delete Version writes a tombstone (`noteVersionDeleted`, called by Delete Version with the history from before the delete — the engine removes a two-version passage whole, which alone writes none).
+- Every History file access goes through `CoordinatedFileAccess`.
+- Never fold another device's History record into your own: a move or former-path retire MOVES each record file under its own name, and document absence never deletes another device's record (only its 30-day `writtenAt` does). This device's engine drops passages it cannot locate, so a record it writes may lack them — add-wins holds only while every record stays separate. Shared writes run on the shared store's queue; `load` never reads a record that is not downloaded.
 
 **AI actions** (`editor-behavior.md` § AI, `app-integration.md` § Bring your own AI)
 - AI NEVER changes Markdown structure. Only `MarkdownStructureMap` prose segments are sent; every revision passes `MarkdownStructureGuard.admissibleRevisions` (no line terminator, no `Cc`, no new `Cf`, same structure punctuation, same block signature); the composed whole-document signature is verified, and so is EVERY accept against the current text (a subset of a verified reply can still change structure: `$5`→`5$` accepted half-way is `$5$`). A new `MarkdownTokenKind` or `MarkdownBlock` case needs a protection rule (`protection(of:)` switches exhaustively, so a new case stops the build; `MarkdownStructureInventoryTests` pins each existing case's classification — classify the new one deliberately, never as plain prose by default).
@@ -395,8 +398,15 @@ iPhone only. Details: `docs/architecture/iphone-app.md`.
   skips the reading assists and the Read view skips rendering: on 1 MB they cost about 0.64 s and
   1.2 s per change. Both catch up once when the drag ends. Details: `docs/architecture/iphone-app.md`,
   "Styling sheet".
+- **History.** Menu ▸ History (listed only when the document has history) and Replace With… (the
+  system edit menu until step 8's selection row) enter History mode: read-only editor, passages on a
+  wash drawn by `CAShapeLayer`s behind the text (never text attributes; the Mac's receded ink is not
+  drawn — phone exception), tap selects the innermost passage, ← / → / Esc on a hardware keyboard,
+  and `HistoryCard` at the bottom (levels, versions, Delete, "Type a replacement", Done). The store is
+  the Mac's router, made lazily (`LazyHistoryStore`: nothing at launch). Details:
+  `docs/architecture/iphone-app.md`, "History".
 - **Menu sheet.** The floating Menu button opens `MenuSheet` (medium and large detents): Files,
-  Outline, Markdown Basics, Search, Document and Settings. Sections reach the editor only through
+  Outline, Markdown Basics, Search, History (only with history), Document and Settings. Sections reach the editor only through
   `EditorCommands`, each command ONE undo step. Files rename and Trash are coordinated
   (`.forMoving`), unlike the Mac (ruling in `docs/architecture/files-sidebar.md`); Trash is
   `trashItem` only, and nothing is scanned until Files or a file search is on screen. Convert to

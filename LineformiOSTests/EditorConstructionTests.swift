@@ -42,6 +42,13 @@ final class EditorConstructionTests: XCTestCase {
         XCTAssertNotNil(textView.lastHighlightedTokenRange, "make runs one full pass")
         XCTAssertTrue(textView.spellCheck.misspelledRanges.isEmpty)
         XCTAssertNil(textView.imageInsertionHost)
+        XCTAssertNil(textView.historyController)
+        XCTAssertFalse(textView.isApplyingHistoryEdit)
+        XCTAssertFalse(textView.isShowingHistoryMode)
+        XCTAssertNil(textView.historyWashView, "the wash view is made on first use")
+        XCTAssertNil(textView.state.historyTapRecognizer, "the History tap is made on first use")
+        XCTAssertTrue(textView.isEditable)
+        XCTAssertNotNil(textView.undoManager, "outside History mode, the real undo manager")
     }
 
     private func assertFreshState(_ textView: LineformTextView, path: String, file: StaticString = #filePath, line: UInt = #line) {
@@ -59,6 +66,15 @@ final class EditorConstructionTests: XCTestCase {
         XCTAssertTrue(textView.spellCheck.misspelledRanges.isEmpty, "spellCheck, \(path)", file: file, line: line)
         XCTAssertNil(textView.imageInsertionHost, "imageInsertionHost, \(path)", file: file, line: line)
         XCTAssertNil(textView.imagePasteTask, "imagePasteTask, \(path)", file: file, line: line)
+        XCTAssertNil(textView.historyController, "historyController, \(path)", file: file, line: line)
+        XCTAssertFalse(textView.isApplyingHistoryEdit, "isApplyingHistoryEdit, \(path)", file: file, line: line)
+        XCTAssertFalse(textView.state.isReplacingWholeText, "isReplacingWholeText, \(path)", file: file, line: line)
+        XCTAssertNil(textView.state.historyShadowText, "historyShadowText, \(path)", file: file, line: line)
+        XCTAssertNil(textView.state.historyStandInUndoManager, "historyStandInUndoManager, \(path)", file: file, line: line)
+        XCTAssertFalse(textView.isShowingHistoryMode, "isShowingHistoryMode, \(path)", file: file, line: line)
+        XCTAssertNil(textView.historyWashView, "historyWashView, \(path)", file: file, line: line)
+        XCTAssertFalse(textView.state.needsHistoryWashRedraw, "needsHistoryWashRedraw, \(path)", file: file, line: line)
+        XCTAssertNil(textView.state.historyTapRecognizer, "historyTapRecognizer, \(path)", file: file, line: line)
 
         // And the state is writable and reads back.
         textView.profile = .original

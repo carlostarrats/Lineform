@@ -73,6 +73,26 @@ final class LineformTextView: UITextView {
         /// Preview's editor pane: after a size change (the keyboard, the split) the caret is
         /// scrolled back into view.
         var keepsCaretVisibleOnResize = false
+        /// The open document's History (`PhoneHistoryController.attach`). Weak: the document owns it.
+        weak var historyController: PhoneHistoryController?
+        /// True while History applies its own edit (`performHistoryEdit`): the storage hook does
+        /// not report it, and it never counts as typing.
+        var isApplyingHistoryEdit = false
+        /// True while `setDocumentText` replaces the whole text: reported as one whole-text
+        /// replacement, never as an edit.
+        var isReplacingWholeText = false
+        /// The text before the next edit, while History listens: each report trims its edit to
+        /// the minimal span against it (`textStorageDidProcessEditingForHistory`).
+        var historyShadowText: NSMutableString?
+        /// History mode's empty undo manager: steps are not undoable one by one. Made on first use.
+        var historyStandInUndoManager: UndoManager?
+        /// History mode as the view last showed it (read-only, washes, History keys).
+        var isShowingHistoryMode = false
+        /// The washes History mode draws behind the text. Made on first use.
+        var historyWashView: HistoryWashView?
+        var needsHistoryWashRedraw = false
+        /// The tap that selects a passage in History mode. Made on first use.
+        var historyTapRecognizer: UITapGestureRecognizer?
         #if DEBUG
         var pasteboardForTesting: UIPasteboard?
         #endif
@@ -175,9 +195,11 @@ final class LineformTextView: UITextView {
         textView.configureForMarkdownEditing()
         textView.observeKeyboardForTypewriterMode()
         textView.observeTextStorageForSpellCheck()
+        textView.observeTextStorageForHistory()
         textView.configureImagePasteAndDrop()
         textView.registerForTraitChanges([UITraitUserInterfaceStyle.self]) { (textView: LineformTextView, _) in
             textView.redrawSpellingUnderlines()
+            textView.setNeedsHistoryWashRedraw()
         }
         textView.profile = profile
         if !textView.hasAppliedProfile { textView.applyProfile() }
@@ -217,6 +239,7 @@ final class LineformTextView: UITextView {
         refreshHighlighting()
         refreshReadingAssists()
         setNeedsSpellingUnderlineRedraw()
+        setNeedsHistoryWashRedraw()
     }
 
     private func updateTextContainerInset() {
@@ -237,6 +260,7 @@ final class LineformTextView: UITextView {
             visibleRangeDidChange()
             refreshReadingAssists()
             needsSpellingUnderlineRedraw = true
+            state.needsHistoryWashRedraw = true
             if state.keepsCaretVisibleOnResize, isFirstResponder {
                 // Deferred: never scroll from inside layout.
                 DispatchQueue.main.async { [weak self] in
@@ -247,6 +271,7 @@ final class LineformTextView: UITextView {
         }
         // After super: the underlines follow this layout pass (an edit, a re-style, a new size).
         redrawSpellingUnderlinesIfNeeded()
+        redrawHistoryWashIfNeeded()
     }
 
     override func tintColorDidChange() {
@@ -259,7 +284,21 @@ final class LineformTextView: UITextView {
     private static let markdownKeyCommands = makeMarkdownKeyCommands()
 
     override var keyCommands: [UIKeyCommand]? {
-        (super.keyCommands ?? []) + Self.markdownKeyCommands
+        // History mode's ← / → / Esc first, so they win over the text view's own arrow handling.
+        (state.isShowingHistoryMode ? Self.historyKeyCommands : []) + (super.keyCommands ?? []) + Self.markdownKeyCommands
+    }
+
+    /// In History mode the steps are not undoable one by one (the Mac's stand-in manager): ⌘Z,
+    /// shake and the undo key find an empty manager. History's own edits and its exit use the real
+    /// one, so the session collapses into ONE undoable edit on the document's own stack.
+    override var undoManager: UndoManager? {
+        if state.historyController?.isHistoryModeActive == true, !state.isApplyingHistoryEdit {
+            if let standIn = state.historyStandInUndoManager { return standIn }
+            let standIn = UndoManager()
+            state.historyStandInUndoManager = standIn
+            return standIn
+        }
+        return super.undoManager
     }
 
     override func canPerformAction(_ action: Selector, withSender sender: Any?) -> Bool {
@@ -276,7 +315,9 @@ final class LineformTextView: UITextView {
     func setDocumentText(_ text: String) {
         let selection = selectedRange
         let attributes = MarkdownTextStyle.baseAttributes(for: profile)
+        state.isReplacingWholeText = true
         attributedText = NSAttributedString(string: text, attributes: attributes)
+        state.isReplacingWholeText = false
         typingAttributes = attributes
         let length = (text as NSString).length
         let location = min(selection.location, length)
