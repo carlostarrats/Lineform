@@ -3,12 +3,6 @@
   "strings" : {
     "Add" : {
       "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Hinzufügen"
-          }
-        },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
@@ -19,6 +13,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Ajouter"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hinzufügen"
           }
         },
         "ja" : {
@@ -479,12 +479,6 @@
     },
     "Done" : {
       "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Fertig"
-          }
-        },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
@@ -495,6 +489,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "OK"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fertig"
           }
         },
         "ja" : {
@@ -1263,12 +1263,6 @@
     },
     "New Document" : {
       "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Neues Dokument"
-          }
-        },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1279,6 +1273,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Nouveau document"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Neues Dokument"
           }
         },
         "ja" : {
@@ -1433,12 +1433,6 @@
     },
     "Open from Files…" : {
       "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Aus „Dateien“ öffnen…"
-          }
-        },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1449,6 +1443,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Ouvrir depuis Fichiers…"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aus „Dateien“ öffnen…"
           }
         },
         "ja" : {
@@ -1671,12 +1671,6 @@
     },
     "Reconnect" : {
       "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Erneut verbinden"
-          }
-        },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1687,6 +1681,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Reconnecter"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Erneut verbinden"
           }
         },
         "ja" : {
@@ -2489,12 +2489,6 @@
     },
     "Type a replacement" : {
       "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Ersatz eingeben"
-          }
-        },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
@@ -2505,6 +2499,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Saisissez un remplacement"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ersatz eingeben"
           }
         },
         "ja" : {
@@ -3725,12 +3725,6 @@
     },
     "Delete “%@”?" : {
       "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "„%@“ löschen?"
-          }
-        },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
@@ -3741,6 +3735,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Supprimer « %@ » ?"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "„%@“ löschen?"
           }
         },
         "ja" : {
@@ -3759,12 +3759,6 @@
     },
     "It will be moved to the Trash." : {
       "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Sie wird in den Papierkorb bewegt."
-          }
-        },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
@@ -3775,6 +3769,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Il sera placé dans la corbeille."
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sie wird in den Papierkorb bewegt."
           }
         },
         "ja" : {
@@ -3895,12 +3895,6 @@
     },
     "Rename File" : {
       "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Datei umbenennen"
-          }
-        },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
@@ -3911,6 +3905,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Renommer le fichier"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Datei umbenennen"
           }
         },
         "ja" : {
@@ -3929,12 +3929,6 @@
     },
     "Rename Folder" : {
       "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Ordner umbenennen"
-          }
-        },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
@@ -3945,6 +3939,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Renommer le dossier"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ordner umbenennen"
           }
         },
         "ja" : {
@@ -3963,12 +3963,6 @@
     },
     "Renames the file. Its contents are kept." : {
       "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Benennt die Datei um. Ihr Inhalt bleibt erhalten."
-          }
-        },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
@@ -3979,6 +3973,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Renomme le fichier. Son contenu est conservé."
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Benennt die Datei um. Ihr Inhalt bleibt erhalten."
           }
         },
         "ja" : {
@@ -3997,12 +3997,6 @@
     },
     "Renames the folder. Its files are kept." : {
       "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Benennt den Ordner um. Seine Dateien bleiben erhalten."
-          }
-        },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
@@ -4013,6 +4007,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Renomme le dossier. Ses fichiers sont conservés."
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Benennt den Ordner um. Seine Dateien bleiben erhalten."
           }
         },
         "ja" : {
@@ -4371,12 +4371,6 @@
     },
     "No matches" : {
       "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Keine Treffer"
-          }
-        },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
@@ -4387,6 +4381,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Aucune correspondance"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Keine Treffer"
           }
         },
         "ja" : {
@@ -4405,12 +4405,6 @@
     },
     "Searching…" : {
       "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Suchen …"
-          }
-        },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
@@ -4421,6 +4415,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Recherche en cours…"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Suchen …"
           }
         },
         "ja" : {
@@ -5188,12 +5188,6 @@
     },
     "%@, original, version %lld of %lld" : {
       "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%@, Original, Version %lld von %lld"
-          }
-        },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
@@ -5212,6 +5206,12 @@
             "value" : "%@, original, version %lld sur %lld"
           }
         },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@, Original, Version %lld von %lld"
+          }
+        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
@@ -5228,12 +5228,6 @@
     },
     "%@, version %lld of %lld" : {
       "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%@, Version %lld von %lld"
-          }
-        },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
@@ -5250,6 +5244,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%@, version %lld sur %lld"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@, Version %lld von %lld"
           }
         },
         "ja" : {
@@ -5408,12 +5408,6 @@
     },
     "Accept Change" : {
       "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Änderung annehmen"
-          }
-        },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
@@ -5424,6 +5418,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Accepter la modification"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Änderung annehmen"
           }
         },
         "ja" : {
@@ -5442,12 +5442,6 @@
     },
     "Reject Change" : {
       "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Änderung ablehnen"
-          }
-        },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
@@ -5458,6 +5452,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Refuser la modification"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Änderung ablehnen"
           }
         },
         "ja" : {
@@ -5476,12 +5476,6 @@
     },
     "End Review" : {
       "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Überprüfung beenden"
-          }
-        },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
@@ -5492,6 +5486,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Terminer la révision"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Überprüfung beenden"
           }
         },
         "ja" : {
@@ -5510,12 +5510,6 @@
     },
     "Next Change" : {
       "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Nächste Änderung"
-          }
-        },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
@@ -5526,6 +5520,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Modification suivante"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nächste Änderung"
           }
         },
         "ja" : {
@@ -5544,12 +5544,6 @@
     },
     "Previous Change" : {
       "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Vorherige Änderung"
-          }
-        },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
@@ -5560,6 +5554,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Modification précédente"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vorherige Änderung"
           }
         },
         "ja" : {
