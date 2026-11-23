@@ -731,3 +731,8 @@ final class PhoneHistoryController {
         }
     }
 }
+
+/// The AI controller's History on iPhone, as `DocumentHistoryController` is on the Mac: the
+/// nine methods in the "AI" section above, unchanged. `DocumentScreen` assigns it to
+/// `SelectionController.aiHistory`, the one assignment.
+extension PhoneHistoryController: AIHistoryRecording {}

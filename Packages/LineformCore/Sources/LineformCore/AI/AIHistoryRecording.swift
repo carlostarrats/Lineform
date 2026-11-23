@@ -1,8 +1,7 @@
 import Foundation
 
 /// History as an AI action sees it: everything `AIActionController` asks of it, and nothing more.
-/// The Mac's `DocumentHistoryController` conforms; the iPhone has no History yet (roadmap step 9),
-/// so its controller runs with none.
+/// The Mac's `DocumentHistoryController` and the iPhone's `PhoneHistoryController` conform.
 ///
 /// The order the controller calls these in is part of the contract (`AIHistoryRecordingTests`):
 /// `aiActionRange` then `aiActionWillStart` when a request starts; on an accept,

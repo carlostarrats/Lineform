@@ -10,8 +10,6 @@ struct SearchSection: View {
     var document: OpenDocument
     var editor: any EditorCommands
     var files: FilesStore
-    /// Replace With… from the selection row: searched for at once, with the Replace field focused.
-    var initialQuery: String? = nil
     var onDismiss: () -> Void
 
     /// Made once, when the section first appears: never in `init`, which SwiftUI runs on every
@@ -26,10 +24,7 @@ struct SearchSection: View {
     var body: some View {
         Group {
             if let controller {
-                SearchSectionContent(
-                    controller: controller, document: document, files: files,
-                    focusesReplacement: initialQuery != nil, onDismiss: onDismiss
-                )
+                SearchSectionContent(controller: controller, document: document, files: files, onDismiss: onDismiss)
             } else {
                 Color.clear
             }
@@ -42,7 +37,6 @@ struct SearchSection: View {
                 currentURL: { [weak document] in document?.url },
                 open: SearchController.opener(for: document)
             )
-            if let initialQuery { controller?.setQuery(initialQuery) }
         }
     }
 }
@@ -54,7 +48,6 @@ private struct SearchSectionContent: View {
     @Bindable var controller: SearchController
     var document: OpenDocument
     var files: FilesStore
-    var focusesReplacement = false
     var onDismiss: () -> Void
 
     @FocusState private var focusedField: Field?
@@ -102,9 +95,6 @@ private struct SearchSectionContent: View {
         .onChange(of: document.text) { controller.textChanged() }
         .onChange(of: files.roots) { controller.rootsChanged() }
         .onDisappear { controller.stop() }
-        .onAppear {
-            if focusesReplacement, SearchSection.showsReplaceRow(for: controller.filter) { focusedField = .replacement }
-        }
     }
 
     private var searchField: some View {

@@ -400,7 +400,7 @@ iPhone only. Details: `docs/architecture/iphone-app.md`.
   1.2 s per change. Both catch up once when the drag ends. Details: `docs/architecture/iphone-app.md`,
   "Styling sheet".
 - **History.** Menu ▸ History (listed only when the document has history) and Replace With… (the
-  system edit menu until step 8's selection row) enter History mode: read-only editor, passages on a
+  selection row, its one entry point) enter History mode: read-only editor, passages on a
   wash drawn by `CAShapeLayer`s behind the text (never text attributes; the Mac's receded ink is not
   drawn — phone exception), tap selects the innermost passage, ← / → / Esc on a hardware keyboard,
   and `HistoryCard` at the bottom (levels, versions, Delete, "Type a replacement", Done). The store is
@@ -423,15 +423,18 @@ iPhone only. Details: `docs/architecture/iphone-app.md`.
   main beforehand. `OpenDocument.onDocumentSwap` is the only place read aloud stops on a swap.
 - **Selection row, comment field and AI.** A settled selection raises `SelectionRow` above the
   keyboard or home indicator (`SelectionController`, 0.35 s): Ask AI (connected only), Heading,
-  Bold, Italic, Strikethrough, Code, List, Link, Blockquote, Replace With… and Another Word. It
+  Bold, Italic, Strikethrough, Code, List, Link, Blockquote, Replace With… (History's, where it
+  can keep the selection) and Another Word. It
   never changes the system edit menu, and the app's own selections never raise it. Ask AI opens
   the comment field (note, Action menu, Send; nothing is sent while marked text is composing).
   The review is `AIReviewOverlayTextView`, a read-only overlay with an EMPTY undo manager, and the
   editor refuses every edit path while `isAIReviewActive`; cards sit above the keyboard. Each
   accept is ONE undo group through `applyRuleEdit`. Menu ▸ Document ▸ Ask AI… sends the whole
   document through the shared `WholeDocumentAIPolicy` (confirm above 1,500 words, refuse past
-  `AILimits` before the Keychain is read). History is the one `SelectionController.aiHistory`
-  assignment, nil until roadmap step 9. Details: `docs/architecture/iphone-app.md`, "The
+  `AILimits` before the Keychain is read). History is the document's `PhoneHistoryController`
+  (`AIHistoryRecording`), the one `SelectionController.aiHistory` assignment in `DocumentScreen`:
+  AI is off in History mode, entering History ends a review, and History records once when a review
+  ends (abandoning records nothing), as on the Mac. Details: `docs/architecture/iphone-app.md`, "The
   selection row and comment field" and "AI actions and the review".
 - **Strings.** iPhone strings live in `LineformiOS/Localizable.xcstrings` (six languages), reusing
   the Mac's translation for the same English text. `LocalizationSourceSweepTests` scans

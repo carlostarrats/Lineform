@@ -106,8 +106,9 @@ final class SelectionController: NSObject, ObservableObject {
     /// The AI controller's state, mirrored so the cards and the review overlay follow it without
     /// making the controller (nothing is made at launch).
     @Published private(set) var aiState: AIActionController.State = .idle
-    /// History for AI actions. Roadmap step 9 assigns the document's `AIHistoryRecording` here;
-    /// until then it is nil, as the iPhone has no History yet. This is the ONE assignment.
+    /// History for AI actions: the document's `PhoneHistoryController`, assigned by
+    /// `DocumentScreen` (the ONE assignment; nil only in tests without History). Weak: the
+    /// document owns it.
     weak var aiHistory: (any AIHistoryRecording)? {
         didSet { aiControllerStorage?.history = aiHistory }
     }
@@ -150,8 +151,6 @@ final class SelectionController: NSObject, ObservableObject {
     var presentAlert: (UIAlertController) -> Void = { _ in }
     private(set) weak var editor: LineformTextView?
 
-    /// Replace With…: opens the Menu sheet's Search with the selected text as the query.
-    var onReplaceWith: (String) -> Void = { _ in }
     /// Reads the note's live marked-text state (the comment field sets it).
     var noteMarkedText: () -> Bool = { false }
 
@@ -179,6 +178,15 @@ final class SelectionController: NSObject, ObservableObject {
         observe(controller)
         wireAI(controller)
         return controller
+    }
+
+    /// History is about to open from Menu ▸ History (the Mac's History tab): History mode and AI
+    /// never overlap. A review ends (keeping what was accepted, which History records), then a
+    /// request is cancelled and marks or a message are dropped. Makes no controller when none ran.
+    func endAIForHistory() {
+        guard let controller = aiControllerStorage else { return }
+        controller.endReview()
+        controller.abandon()
     }
 
     /// The editor and History the controller works on. History is `aiHistory`'s single assignment.
@@ -211,12 +219,14 @@ final class SelectionController: NSObject, ObservableObject {
     // MARK: - Which buttons
 
     /// The row's buttons, in order: Ask AI (only while connected), Heading, Bold, Italic,
-    /// Strikethrough, Code, List, Link, Blockquote, Replace With…, and Another Word (one word only,
-    /// and only while connected: it is an AI action).
-    static func rowItems(aiConnected: Bool, selectedText: String) -> [SelectionRowItem] {
+    /// Strikethrough, Code, List, Link, Blockquote, Replace With… (only where History can keep the
+    /// selection: `offersReplaceWith`), and Another Word (one word only, and only while connected:
+    /// it is an AI action).
+    static func rowItems(aiConnected: Bool, selectedText: String, offersReplaceWith: Bool) -> [SelectionRowItem] {
         var items: [SelectionRowItem] = aiConnected ? [.askAI] : []
         // (Read mode passes `aiConnected: false`: Read allows no AI.)
-        items += [.heading, .bold, .italic, .strikethrough, .code, .list, .link, .blockquote, .replaceWith]
+        items += [.heading, .bold, .italic, .strikethrough, .code, .list, .link, .blockquote]
+        if offersReplaceWith { items.append(.replaceWith) }
         if aiConnected, AIMenuPresentation.isSingleWord(selectedText) { items.append(.anotherWord) }
         return items
     }
@@ -290,7 +300,8 @@ final class SelectionController: NSObject, ObservableObject {
         if model.aiName != aiName { model.aiName = aiName }
         let dark = Theme.theme(for: editor.profile).usesDarkChrome
         if model.usesDarkChrome != dark { model.usesDarkChrome = dark }
-        let newItems = Self.rowItems(aiConnected: provider != nil && !isReadMode, selectedText: selectedText(in: range))
+        let newItems = Self.rowItems(aiConnected: provider != nil && !isReadMode, selectedText: selectedText(in: range),
+                                     offersReplaceWith: editor.offersReplaceWith(for: range))
         if items != newItems { items = newItems }
         anchorRange = range
         if phase != .row { phase = .row }
@@ -341,10 +352,14 @@ final class SelectionController: NSObject, ObservableObject {
         case .link: runCommand { $0.apply(.link) }
         case .blockquote: runCommand { $0.apply(.blockquote) }
         case .replaceWith:
-            guard let range = anchorRange else { return }
-            let text = selectedText(in: range)
+            // History's Replace With… (the Mac's meaning): the selection becomes a passage and
+            // History mode opens on it with "Type a replacement". History and AI never overlap:
+            // a request or review ends first, and Find's wash goes (`yieldToHistory`, as the
+            // Mac's show-History path).
+            guard let range = anchorRange, let editor else { return }
             hide()
-            onReplaceWith(text)
+            aiControllerStorage?.yieldToHistory()
+            editor.performReplaceWith(range)
         case .anotherWord:
             guard let range = anchorRange, let editor else { return }
             let text = editor.textStorage.string
@@ -372,7 +387,8 @@ final class SelectionController: NSObject, ObservableObject {
         let range = editor.selectedRange
         guard range.length > 0 else { return hide() }
         anchorRange = range
-        let newItems = Self.rowItems(aiConnected: model.aiName != nil, selectedText: selectedText(in: range))
+        let newItems = Self.rowItems(aiConnected: model.aiName != nil, selectedText: selectedText(in: range),
+                                     offersReplaceWith: editor.offersReplaceWith(for: range))
         if items != newItems { items = newItems }
     }
 

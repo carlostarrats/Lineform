@@ -69,8 +69,6 @@ struct DocumentScreen: View {
     /// The selection row and comment field over the bottom of the page (spec §5.5). While either
     /// shows, it replaces the bottom-right buttons.
     @StateObject private var selection: SelectionController
-    /// Replace With… opens the Menu sheet's Search with the selected text as the query.
-    @State private var menuSearchQuery: String?
     /// The Menu's Ask AI… was tapped: once the sheet has closed, the whole-document policy runs
     /// (a confirmation cannot be presented over the closing sheet).
     @State private var asksAIForWholeDocument = false
@@ -253,7 +251,6 @@ struct DocumentScreen: View {
             .hidden()
         }
         .sheet(isPresented: $isShowingMenu, onDismiss: {
-            menuSearchQuery = nil
             if asksAIForWholeDocument {
                 asksAIForWholeDocument = false
                 selection.askAIForWholeDocument()
@@ -269,7 +266,6 @@ struct DocumentScreen: View {
                 selection: { [positionKeeper] in positionKeeper.editor?.selectedRange },
                 mode: displayMode,
                 onShowHistory: { showHistoryFromMenu() },
-                initialSearchQuery: menuSearchQuery,
                 aiStore: selection.aiConnectionStore,
                 onAskAI: { asksAIForWholeDocument = true },
                 onDismiss: { isShowingMenu = false }
@@ -311,10 +307,8 @@ struct DocumentScreen: View {
                 hasCheckedFirstRunRestore = true
             }
             makeExportCommandsIfNeeded()
-            selection.onReplaceWith = { query in
-                menuSearchQuery = query
-                isShowingMenu = true
-            }
+            // History for AI actions: the document's, the ONE assignment (`SelectionController`).
+            selection.aiHistory = document.history
             shownDisplayMode = shownDisplayMode ?? storedDisplayMode
             selection.displayModeDidChange(to: displayMode)
             positionKeeper.adopt(displayMode)
@@ -346,7 +340,7 @@ struct DocumentScreen: View {
             if OpenDocument.savesImmediately(on: phase) { document.flushForBackground() }
         }
         .onChange(of: isHistoryModeActive) { _, active in
-            // History mode is Write's: Replace With… from Preview's editor lands here too.
+            // History mode is Write's: the row's Replace With… in Preview's editor lands here too.
             if active, displayMode != .write { switchMode(to: .write) }
         }
     }
@@ -361,8 +355,9 @@ struct DocumentScreen: View {
         guard let history = document.history else { return }
         HistoryEntry.enterFromMenu(
             history: history,
-            text: editorText,
+            text: { editorText },
             dismissMenu: { isShowingMenu = false },
+            endAI: { selection.endAIForHistory() },
             switchToWrite: { switchMode(to: .write) }
         )
         // Hardware ← / → and Esc reach the read-only editor once it is first responder.
@@ -394,13 +389,15 @@ enum HistoryEntry {
     @discardableResult
     static func enterFromMenu(
         history: PhoneHistoryController,
-        text: String,
+        text: () -> String,
         dismissMenu: () -> Void,
+        endAI: () -> Void,
         switchToWrite: () -> Void
     ) -> Bool {
         dismissMenu()
+        endAI()
         switchToWrite()
-        return history.enterHistoryModeFromMenu(text: text)
+        return history.enterHistoryModeFromMenu(text: text())
     }
 }
 

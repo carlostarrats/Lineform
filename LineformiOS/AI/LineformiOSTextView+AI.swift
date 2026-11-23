@@ -294,10 +294,10 @@ extension LineformTextView {
         writerTookSelection()
     }
 
-    /// A key in the editor (an arrow, a modifier, a shortcut) is the writer's too.
-    override func pressesBegan(_ presses: Set<UIPress>, with event: UIPressesEvent?) {
+    /// A key in the editor (an arrow, a modifier, a shortcut) is the writer's too. Called first
+    /// from the one `pressesBegan` override (`LineformiOSTextView+History.swift`).
+    func writerPressedKey() {
         if state.programmaticSelection != nil { writerTookSelection() }
-        super.pressesBegan(presses, with: event)
     }
 
     private func writerTookSelection() {

@@ -241,19 +241,20 @@
 		1F0000410000000000000096 /* PhoneExportWriterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000400000000000000096 /* PhoneExportWriterTests.swift */; };
 		1F0000410000000000000094 /* PhoneExportFormat.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000400000000000000094 /* PhoneExportFormat.swift */; };
 		1F0000410000000000000095 /* PhoneExportWriter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000400000000000000095 /* PhoneExportWriter.swift */; };
-		1F0000C10000000000000001 /* ConnectAITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000C00000000000000001 /* ConnectAITests.swift */; };
-		1F0000C10000000000000002 /* AITestDoubles.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000008C3 /* AITestDoubles.swift */; };
-		1F0000C10000000000000003 /* ConnectAISheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000C00000000000000002 /* ConnectAISheet.swift */; };
-		1F0000C10000000000000004 /* SelectionRowTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000C00000000000000003 /* SelectionRowTests.swift */; };
-		1F0000C10000000000000005 /* SelectionController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000C00000000000000004 /* SelectionController.swift */; };
-		1F0000C10000000000000006 /* SelectionRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000C00000000000000005 /* SelectionRow.swift */; };
-		1F0000C10000000000000007 /* CommentField.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000C00000000000000006 /* CommentField.swift */; };
+		1F0000F10000000000000001 /* ConnectAITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000F00000000000000001 /* ConnectAITests.swift */; };
+		1F0000F10000000000000002 /* AITestDoubles.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000008C3 /* AITestDoubles.swift */; };
+		1F0000F10000000000000003 /* ConnectAISheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000F00000000000000002 /* ConnectAISheet.swift */; };
+		1F0000F10000000000000004 /* SelectionRowTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000F00000000000000003 /* SelectionRowTests.swift */; };
+		1F0000F10000000000000005 /* SelectionController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000F00000000000000004 /* SelectionController.swift */; };
+		1F0000F10000000000000006 /* SelectionRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000F00000000000000005 /* SelectionRow.swift */; };
+		1F0000F10000000000000007 /* CommentField.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000F00000000000000006 /* CommentField.swift */; };
 		1F0000D10000000000000001 /* LineformiOSTextView+AI.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000D00000000000000001 /* LineformiOSTextView+AI.swift */; };
 		1F0000D10000000000000002 /* AIReviewOverlay.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000D00000000000000002 /* AIReviewOverlay.swift */; };
 		1F0000D10000000000000003 /* AIReviewCardsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000D00000000000000003 /* AIReviewCardsView.swift */; };
 		1F0000D10000000000000004 /* AIReviewTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000D00000000000000004 /* AIReviewTests.swift */; };
 		1F0000D10000000000000005 /* AIEditorTestDoubles.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000004E1 /* AIEditorTestDoubles.swift */; };
 		1F0000D10000000000000006 /* WholeDocumentAITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000D00000000000000006 /* WholeDocumentAITests.swift */; };
+		1F0000D10000000000000007 /* PhoneAIHistoryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000D00000000000000007 /* PhoneAIHistoryTests.swift */; };
 /* End PBXBuildFile section */
 
  /* Begin PBXContainerItemProxy section */
@@ -512,17 +513,18 @@
 		1F00004000000000000000A3 /* PhoneSaveAsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhoneSaveAsTests.swift; sourceTree = "<group>"; };
 		1F000040000000000000003F /* SettingsSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsSection.swift; sourceTree = "<group>"; };
 		1F0000400000000000000040 /* AppSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppSettings.swift; sourceTree = "<group>"; };
-		1F0000C00000000000000001 /* ConnectAITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConnectAITests.swift; sourceTree = "<group>"; };
-		1F0000C00000000000000002 /* ConnectAISheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConnectAISheet.swift; sourceTree = "<group>"; };
-		1F0000C00000000000000003 /* SelectionRowTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SelectionRowTests.swift; sourceTree = "<group>"; };
-		1F0000C00000000000000004 /* SelectionController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SelectionController.swift; sourceTree = "<group>"; };
-		1F0000C00000000000000005 /* SelectionRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SelectionRow.swift; sourceTree = "<group>"; };
-		1F0000C00000000000000006 /* CommentField.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommentField.swift; sourceTree = "<group>"; };
+		1F0000F00000000000000001 /* ConnectAITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConnectAITests.swift; sourceTree = "<group>"; };
+		1F0000F00000000000000002 /* ConnectAISheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConnectAISheet.swift; sourceTree = "<group>"; };
+		1F0000F00000000000000003 /* SelectionRowTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SelectionRowTests.swift; sourceTree = "<group>"; };
+		1F0000F00000000000000004 /* SelectionController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SelectionController.swift; sourceTree = "<group>"; };
+		1F0000F00000000000000005 /* SelectionRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SelectionRow.swift; sourceTree = "<group>"; };
+		1F0000F00000000000000006 /* CommentField.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommentField.swift; sourceTree = "<group>"; };
 		1F0000D00000000000000001 /* LineformiOSTextView+AI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "LineformiOSTextView+AI.swift"; sourceTree = "<group>"; };
 		1F0000D00000000000000002 /* AIReviewOverlay.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIReviewOverlay.swift; sourceTree = "<group>"; };
 		1F0000D00000000000000003 /* AIReviewCardsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIReviewCardsView.swift; sourceTree = "<group>"; };
 		1F0000D00000000000000004 /* AIReviewTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIReviewTests.swift; sourceTree = "<group>"; };
 		1F0000D00000000000000006 /* WholeDocumentAITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WholeDocumentAITests.swift; sourceTree = "<group>"; };
+		1F0000D00000000000000007 /* PhoneAIHistoryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhoneAIHistoryTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 		1F0000400000000000000092 /* PhonePDFExportTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhonePDFExportTests.swift; sourceTree = "<group>"; };
 		1F0000400000000000000093 /* PhoneRasterInk.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhoneRasterInk.swift; sourceTree = "<group>"; };
@@ -843,7 +845,7 @@
 				1F0000400000000000000006 /* LineformiOSDebug.entitlements */,
 				1F0000400000000000000010 /* OpenDocument.swift */,
 				1F0000400000000000000040 /* AppSettings.swift */,
-				1F0000C20000000000000001 /* AI */,
+				1F0000F20000000000000001 /* AI */,
 				1F0000C20000000000000002 /* Selection */,
 			);
 			path = LineformiOS;
@@ -887,10 +889,11 @@
 				1F000040000000000000009F /* ExportParityTests.swift */,
 				1F00004000000000000000A0 /* export-parity */,
 				1F0000400000000000000098 /* PhonePrintRendererTests.swift */,
-				1F0000C00000000000000001 /* ConnectAITests.swift */,
-				1F0000C00000000000000003 /* SelectionRowTests.swift */,
+				1F0000F00000000000000001 /* ConnectAITests.swift */,
+				1F0000F00000000000000003 /* SelectionRowTests.swift */,
 				1F0000D00000000000000004 /* AIReviewTests.swift */,
 				1F0000D00000000000000006 /* WholeDocumentAITests.swift */,
+				1F0000D00000000000000007 /* PhoneAIHistoryTests.swift */,
 			);
 			path = LineformiOSTests;
 			sourceTree = "<group>";
@@ -1000,10 +1003,10 @@
 			path = Export;
 			sourceTree = "<group>";
 		};
-		1F0000C20000000000000001 /* AI */ = {
+		1F0000F20000000000000001 /* AI */ = {
 			isa = PBXGroup;
 			children = (
-				1F0000C00000000000000002 /* ConnectAISheet.swift */,
+				1F0000F00000000000000002 /* ConnectAISheet.swift */,
 				1F0000D00000000000000001 /* LineformiOSTextView+AI.swift */,
 				1F0000D00000000000000002 /* AIReviewOverlay.swift */,
 				1F0000D00000000000000003 /* AIReviewCardsView.swift */,
@@ -1014,9 +1017,9 @@
 		1F0000C20000000000000002 /* Selection */ = {
 			isa = PBXGroup;
 			children = (
-				1F0000C00000000000000004 /* SelectionController.swift */,
-				1F0000C00000000000000005 /* SelectionRow.swift */,
-				1F0000C00000000000000006 /* CommentField.swift */,
+				1F0000F00000000000000004 /* SelectionController.swift */,
+				1F0000F00000000000000005 /* SelectionRow.swift */,
+				1F0000F00000000000000006 /* CommentField.swift */,
 			);
 			path = Selection;
 			sourceTree = "<group>";
@@ -1456,10 +1459,10 @@
 				1F000041000000000000003F /* SettingsSection.swift in Sources */,
 				1F000041000000000000003E /* DocumentSection.swift in Sources */,
 				1F00004100000000000000A2 /* SaveAsPicker.swift in Sources */,
-				1F0000C10000000000000003 /* ConnectAISheet.swift in Sources */,
-				1F0000C10000000000000005 /* SelectionController.swift in Sources */,
-				1F0000C10000000000000006 /* SelectionRow.swift in Sources */,
-				1F0000C10000000000000007 /* CommentField.swift in Sources */,
+				1F0000F10000000000000003 /* ConnectAISheet.swift in Sources */,
+				1F0000F10000000000000005 /* SelectionController.swift in Sources */,
+				1F0000F10000000000000006 /* SelectionRow.swift in Sources */,
+				1F0000F10000000000000007 /* CommentField.swift in Sources */,
 				1F0000D10000000000000001 /* LineformiOSTextView+AI.swift in Sources */,
 				1F0000D10000000000000002 /* AIReviewOverlay.swift in Sources */,
 				1F0000D10000000000000003 /* AIReviewCardsView.swift in Sources */,
@@ -1504,12 +1507,13 @@
 				1F0000C10000000000000007 /* HistoryModeTests.swift in Sources */,
 				1F0000410000000000000013 /* AutosaveTests.swift in Sources */,
 				1F0000B20000000000000005 /* FirstRunTests.swift in Sources */,
-				1F0000C10000000000000001 /* ConnectAITests.swift in Sources */,
-				1F0000C10000000000000002 /* AITestDoubles.swift in Sources */,
-				1F0000C10000000000000004 /* SelectionRowTests.swift in Sources */,
+				1F0000F10000000000000001 /* ConnectAITests.swift in Sources */,
+				1F0000F10000000000000002 /* AITestDoubles.swift in Sources */,
+				1F0000F10000000000000004 /* SelectionRowTests.swift in Sources */,
 				1F0000D10000000000000004 /* AIReviewTests.swift in Sources */,
 				1F0000D10000000000000005 /* AIEditorTestDoubles.swift in Sources */,
 				1F0000D10000000000000006 /* WholeDocumentAITests.swift in Sources */,
+				1F0000D10000000000000007 /* PhoneAIHistoryTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

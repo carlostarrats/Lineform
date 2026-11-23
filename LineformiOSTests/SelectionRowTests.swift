@@ -63,11 +63,15 @@ final class SelectionRowTests: XCTestCase {
     }
 
     func testOrderMatchesSpec() throws {
-        XCTAssertEqual(SelectionController.rowItems(aiConnected: true, selectedText: "word"), [
+        XCTAssertEqual(SelectionController.rowItems(aiConnected: true, selectedText: "word", offersReplaceWith: true), [
             .askAI, .heading, .bold, .italic, .strikethrough, .code, .list, .link, .blockquote, .replaceWith, .anotherWord,
         ])
-        XCTAssertEqual(SelectionController.rowItems(aiConnected: true, selectedText: "two words"), [
+        XCTAssertEqual(SelectionController.rowItems(aiConnected: true, selectedText: "two words", offersReplaceWith: true), [
             .askAI, .heading, .bold, .italic, .strikethrough, .code, .list, .link, .blockquote, .replaceWith,
+        ])
+        // Replace With… only where History can keep the selection (`offersReplaceWith`).
+        XCTAssertEqual(SelectionController.rowItems(aiConnected: false, selectedText: "two words", offersReplaceWith: false), [
+            .heading, .bold, .italic, .strikethrough, .code, .list, .link, .blockquote,
         ])
         // pinned-en: the titles each button carries.
         XCTAssertEqual(
@@ -76,20 +80,17 @@ final class SelectionRowTests: XCTestCase {
             ["Heading", "Bold", "Italic", "Strikethrough", "Code", "List", "Link", "Blockquote", "Replace With…", "Another Word"]
         )
 
-        // Replace With… opens Search with the selection as the query.
+        // An editor without History offers no Replace With… (it opens History: `PhoneAIHistoryTests`).
         let (editor, controller, _) = try makeEditor("Find this phrase here\n", connected: false)
-        var query: String?
-        controller.onReplaceWith = { query = $0 }
         editor.selectedRange = NSRange(location: 5, length: 11)
         controller.showRowNow()
-        controller.perform(.replaceWith)
-        XCTAssertEqual(query, "this phrase")
-        XCTAssertEqual(controller.phase, .hidden, "the Menu sheet takes over")
+        XCTAssertEqual(controller.phase, .row)
+        XCTAssertFalse(controller.items.contains(.replaceWith))
     }
 
     func testAskAIOnlyWhenConnected() throws {
-        XCTAssertFalse(SelectionController.rowItems(aiConnected: false, selectedText: "two words").contains(.askAI))
-        XCTAssertEqual(SelectionController.rowItems(aiConnected: true, selectedText: "two words").first, .askAI)
+        XCTAssertFalse(SelectionController.rowItems(aiConnected: false, selectedText: "two words", offersReplaceWith: true).contains(.askAI))
+        XCTAssertEqual(SelectionController.rowItems(aiConnected: true, selectedText: "two words", offersReplaceWith: true).first, .askAI)
 
         let (editor, controller, store) = try makeEditor("Hello there world\n", connected: false)
         editor.selectedRange = NSRange(location: 0, length: 11)
@@ -112,11 +113,11 @@ final class SelectionRowTests: XCTestCase {
     }
 
     func testAnotherWordOnlyForSingleWord() throws {
-        XCTAssertEqual(SelectionController.rowItems(aiConnected: true, selectedText: "word").last, .anotherWord)
-        XCTAssertEqual(SelectionController.rowItems(aiConnected: true, selectedText: "don't").last, .anotherWord)
-        XCTAssertFalse(SelectionController.rowItems(aiConnected: true, selectedText: "two words").contains(.anotherWord))
-        XCTAssertFalse(SelectionController.rowItems(aiConnected: true, selectedText: "42").contains(.anotherWord))
-        XCTAssertFalse(SelectionController.rowItems(aiConnected: false, selectedText: "word").contains(.anotherWord),
+        XCTAssertEqual(SelectionController.rowItems(aiConnected: true, selectedText: "word", offersReplaceWith: true).last, .anotherWord)
+        XCTAssertEqual(SelectionController.rowItems(aiConnected: true, selectedText: "don't", offersReplaceWith: true).last, .anotherWord)
+        XCTAssertFalse(SelectionController.rowItems(aiConnected: true, selectedText: "two words", offersReplaceWith: true).contains(.anotherWord))
+        XCTAssertFalse(SelectionController.rowItems(aiConnected: true, selectedText: "42", offersReplaceWith: true).contains(.anotherWord))
+        XCTAssertFalse(SelectionController.rowItems(aiConnected: false, selectedText: "word", offersReplaceWith: true).contains(.anotherWord),
                        "an AI action: only while connected")
     }
 

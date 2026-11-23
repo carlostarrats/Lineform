@@ -9,8 +9,8 @@ all off, so the iPhone build of `com.lineform.app` can never run on a Mac.
 This page covers roadmap step 3 (shell and files), step 4 (Write mode), step 5 (Read and
 Preview, with the Write/Read/Preview switch), step 6 (the Menu sheet), step 7 (the Styling
 sheet), step 8 (the selection row, the comment field, AI actions with their review, and
-whole-document AI), step 10 (export, print, share and read aloud) and step 11 (first run). The
-rest arrive in later steps.
+whole-document AI), step 9 (History and History sync), step 10 (export, print, share and read
+aloud) and step 11 (first run). The rest arrive in later steps.
 
 ## Each app stands alone
 
@@ -884,15 +884,25 @@ History is local to this iPhone. History never writes into the document file.
   `performHistoryEdit` and are not reported; `setDocumentText` and edits over 1 000 UTF-16 units are
   whole-text replacements (`LineformiOSTextView+History.swift`,
   `HistoryEditReportingTests.testAWideEditIsTrimmedToWhatChanged`).
-- **Entry points (D10, D11).** Menu ▸ **History** closes the sheet, switches to Write and enters
-  History mode (`HistoryEntry.enterFromMenu`; a passage an AI accept left is selected). **Replace
-  With…** is on the system edit menu (`editMenuForTextIn`, after the spelling group), offered only
-  outside History mode and where the Mac offers it (`PhoneHistoryController.canAdd`: one line, no
-  front matter, fenced code or math). It keeps the selection as the passage's original, enters
-  History mode on it, and the card opens "Type a replacement" with focus; leaving without a
-  replacement discards the passage (Mac parity). Until step 8 merges, the edit menu is its home;
-  it moves to the selection row then. History mode is Write's: entering it from Preview switches to
-  Write, and switching to Read or Preview leaves it (with the collapse).
+- **Entry points (D10, D11).** Menu ▸ **History** closes the sheet, ends any AI work
+  (`SelectionController.endAIForHistory`: a review ends keeping what was accepted, then a request,
+  marks or a message go — the Mac's History tab), switches to Write and enters History mode
+  (`HistoryEntry.enterFromMenu`; a passage an AI accept left is selected). **Replace With…** is the
+  selection row's button, its ONE entry point (the system edit menu carries only spelling),
+  offered only outside History mode and where the Mac offers it
+  (`LineformTextView.offersReplaceWith` → `PhoneHistoryController.canAdd`: one line, no front
+  matter, fenced code or math). It ends a request or review and dismisses Find's wash first
+  (`AIActionController.yieldToHistory`, the Mac's show-History path), keeps the selection as the
+  passage's original, enters History mode on it, and the card opens "Type a replacement" with
+  focus; leaving without a replacement discards the passage (Mac parity). History mode is Write's:
+  entering it from Preview switches to Write, and switching to Read or Preview leaves it (with the
+  collapse).
+- **AI and History** (the Mac's semantics, `AIHistoryRecording`): `PhoneHistoryController` is the
+  AI controller's History, assigned once by `DocumentScreen` (`selection.aiHistory =
+  document.history`). AI is unavailable in History mode (`allowsAIAction`; the editor is read-only,
+  so neither the row nor Menu ▸ Document ▸ Ask AI… shows). History records ONCE, when a review ends:
+  one passage per changed paragraph, the original and the AI's text. Abandoning (a live reload,
+  another document, the controller's `abandon`) records nothing (`PhoneAIHistoryTests`).
 - **The editor in History mode.** Read-only (`isEditable` false, so the keyboard goes); a tap
   selects the innermost passage under it (shortest range, then the finer level) and a tap on
   ordinary text returns to the overview; the page keeps `historyCardClearance` (300 pt) below its
@@ -935,8 +945,9 @@ History is local to this iPhone. History never writes into the document file.
   never raise it. It hides on a switch to Read.
 - **Order**, scrolling sideways: Ask AI (only while connected, titled with the AI's name: "Ask
   Claude"), Heading ▾, Bold, Italic, Strikethrough, Code, List ▾ (Bulleted, Numbered), Link,
-  Blockquote, Replace With… (opens Menu ▸ Search with the selection as the query), and Another Word
-  (one word only, and only while connected).
+  Blockquote, Replace With… (History's, the Mac's meaning: the selection becomes a passage and
+  History mode opens on it with "Type a replacement"; only where History can keep the selection —
+  see "History", Entry points), and Another Word (one word only, and only while connected).
 - **One button, one undo step.** Each formatting button calls the editor's own command, which goes
   through `applyRuleEdit`. The row then adopts the resulting selection instead of hiding.
 - **Placement.** Above the keyboard, or above the home indicator when it is down: bottom padding
@@ -966,7 +977,7 @@ History is local to this iPhone. History never writes into the document file.
 `LineformiOS/AI/` (`LineformiOSTextView+AI.swift`, `AIReviewOverlay.swift`, `AIReviewCardsView.swift`),
 wired by `SelectionController`. The controller is the shared `AIActionController`, made on first
 use (nothing at launch); `SelectionController.wireAI` gives it the editor and History, and History
-is ONE assignment, `aiHistory` (nil until roadmap step 9's `AIHistoryRecording`).
+is ONE assignment, `aiHistory`: the document's `PhoneHistoryController`, set by `DocumentScreen`.
 
 - **The surface.** `applyAIEdits` is ONE undo group on the editor's undo manager, each edit through
   `applyRuleEdit` (a localized `textStorage.replaceCharacters` with its registration, then the

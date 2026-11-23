@@ -23,8 +23,6 @@ struct MenuSheet: View {
     var mode: EditorDisplayMode
     /// Menu ▸ History: the screen closes the sheet, switches to Write and enters History mode.
     var onShowHistory: () -> Void
-    /// Replace With… from the selection row: the sheet opens on Search with this query.
-    var initialSearchQuery: String?
     /// The AI connection: the Document section shows Ask AI… while it is connected.
     var aiStore: AIConnectionStore?
     /// The Document section's Ask AI…, for the whole document (nil: no row).
@@ -53,7 +51,6 @@ struct MenuSheet: View {
         selection: @escaping () -> NSRange? = { nil },
         mode: EditorDisplayMode = .write,
         onShowHistory: @escaping () -> Void = {},
-        initialSearchQuery: String? = nil,
         aiStore: AIConnectionStore? = nil,
         onAskAI: (() -> Void)? = nil,
         onDismiss: @escaping () -> Void
@@ -68,7 +65,6 @@ struct MenuSheet: View {
         self.selection = selection
         self.mode = mode
         self.onShowHistory = onShowHistory
-        self.initialSearchQuery = initialSearchQuery
         self.aiStore = aiStore
         self.onAskAI = onAskAI
     }
@@ -119,13 +115,7 @@ struct MenuSheet: View {
         .presentationBackground {
             MenuSheetBackground(theme: theme)
         }
-        .onAppear {
-            if initialSearchQuery != nil, shownSection == nil {
-                select(.search)
-            } else {
-                shownSection = shownSection ?? storedSection
-            }
-        }
+        .onAppear { shownSection = shownSection ?? storedSection }
     }
 
     private func select(_ picked: MenuSection) {
@@ -169,7 +159,7 @@ struct MenuSheet: View {
         case .basics:
             BasicsSection()
         case .search:
-            SearchSection(document: document, editor: editor, files: files, initialQuery: initialSearchQuery, onDismiss: onDismiss)
+            SearchSection(document: document, editor: editor, files: files, onDismiss: onDismiss)
         case .document:
             DocumentSection(
                 document: document, editor: editor, files: files, onDismiss: onDismiss,
