@@ -7,6 +7,10 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		1F0001C10000000000000202 /* AppShortcuts.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = 1F0000310000000000000003 /* AppShortcuts.xcstrings */; };
+		1F0001C10000000000000201 /* AppIntents.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000004B0 /* AppIntents.framework */; };
+		1F0001C10000000000000104 /* PhoneAppIntentsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0001C00000000000000104 /* PhoneAppIntentsTests.swift */; };
+		1F0001C10000000000000005 /* PhoneAppIntents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0001C00000000000000005 /* PhoneAppIntents.swift */; };
 		1F0001C10000000000000103 /* PhoneReviewPromptTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0001C00000000000000103 /* PhoneReviewPromptTests.swift */; };
 		1F0001C10000000000000004 /* PhoneReviewPrompt.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0001C00000000000000004 /* PhoneReviewPrompt.swift */; };
 		1F0001C10000000000000102 /* PhoneAnnouncementTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0001C00000000000000102 /* PhoneAnnouncementTests.swift */; };
@@ -292,6 +296,8 @@
  /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		1F0001C00000000000000104 /* PhoneAppIntentsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhoneAppIntentsTests.swift; sourceTree = "<group>"; };
+		1F0001C00000000000000005 /* PhoneAppIntents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhoneAppIntents.swift; sourceTree = "<group>"; };
 		1F0001C00000000000000103 /* PhoneReviewPromptTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhoneReviewPromptTests.swift; sourceTree = "<group>"; };
 		1F0001C00000000000000004 /* PhoneReviewPrompt.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhoneReviewPrompt.swift; sourceTree = "<group>"; };
 		1F0001C00000000000000102 /* PhoneAnnouncementTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhoneAnnouncementTests.swift; sourceTree = "<group>"; };
@@ -584,6 +590,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				1F000041000000000000000F /* LineformCore in Frameworks */,
+				1F0001C10000000000000201 /* AppIntents.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -604,6 +611,7 @@
 				1F0001C00000000000000002 /* PhoneAnnouncementStore.swift */,
 				1F0001C00000000000000003 /* PhoneAnnouncementCard.swift */,
 				1F0001C00000000000000004 /* PhoneReviewPrompt.swift */,
+				1F0001C00000000000000005 /* PhoneAppIntents.swift */,
 			);
 			path = Integration;
 			sourceTree = "<group>";
@@ -932,6 +940,7 @@
 				1F0001C00000000000000101 /* PhoneUpdateCheckTests.swift */,
 				1F0001C00000000000000102 /* PhoneAnnouncementTests.swift */,
 				1F0001C00000000000000103 /* PhoneReviewPromptTests.swift */,
+				1F0001C00000000000000104 /* PhoneAppIntentsTests.swift */,
 			);
 			path = LineformiOSTests;
 			sourceTree = "<group>";
@@ -1271,6 +1280,7 @@
 				1F0000410000000000000017 /* Fonts in Resources */,
 				1F0000B20000000000000006 /* FirstLaunchIntro in Resources */,
 				1F00C1000000000000000002 /* PrivacyInfo.xcprivacy in Resources */,
+				1F0001C10000000000000202 /* AppShortcuts.xcstrings in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -1509,6 +1519,7 @@
 				1F0001C10000000000000002 /* PhoneAnnouncementStore.swift in Sources */,
 				1F0001C10000000000000003 /* PhoneAnnouncementCard.swift in Sources */,
 				1F0001C10000000000000004 /* PhoneReviewPrompt.swift in Sources */,
+				1F0001C10000000000000005 /* PhoneAppIntents.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -1562,6 +1573,7 @@
 				1F0001C10000000000000101 /* PhoneUpdateCheckTests.swift in Sources */,
 				1F0001C10000000000000102 /* PhoneAnnouncementTests.swift in Sources */,
 				1F0001C10000000000000103 /* PhoneReviewPromptTests.swift in Sources */,
+				1F0001C10000000000000104 /* PhoneAppIntentsTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

@@ -355,6 +355,9 @@ struct DocumentScreen: View {
             )
             legacyOpenDocumentPath = ""
             openDocumentBookmark = document.storedBookmark
+            // Shortcuts' New Lineform Note and Open in Lineform reach the document from here on,
+            // after the launch restore (one that arrived earlier runs now).
+            await PhoneIntentRouter.shared.attach(document)
         }
         .onChange(of: document.url) {
             openDocumentBookmark = document.storedBookmark
