@@ -694,8 +694,12 @@ shows passages with history and steps their versions. Spec:
     backup restore or Migration Assistant never gives two live devices one record file. A name in
     user defaults (`LineformHistoryDeviceID.v1`, the first builds of this step) is moved there once
     and removed; when the Keychain cannot be used the name lives in defaults instead (same name
-    every launch). The name is read only when a shared document first uses History — both apps'
-    `sharedStore` is a `LazyHistoryStore`, so nothing History-related runs at launch.
+    every launch). On the Mac the Keychain is the legacy file keychain, which Migration Assistant
+    and Time Machine DO carry to a new Mac, so the Mac appends a hardware salt (first 8 hex of
+    SHA-256 of `IOPlatformUUID`, read by the app — `DocumentHistoryController.hardwareSalt()` —
+    and passed in): `mac-<UUID>-<salt>`. No salt, the stored name alone. The name is read only when
+    a shared document first uses History — both apps' `sharedStore` is a `LazyHistoryStore`, so
+    nothing History-related runs at launch.
   - **Merge, never last-writer-wins.** A device writes only its own record; `HistoryMerge.merge`
     unions every record on read (passages by id, versions by createdAt + author + ordinal, scalars
     from the newest record). A passage missing from a record never deletes it (the engine drops
@@ -718,11 +722,20 @@ shows passages with history and steps their versions. Spec:
     shared write — saves, moves, removes, Clear History, the bookmark sidecar — runs on the shared
     store's serial utility queue. Saves are coalesced per document (the last one wins) and kept in
     memory until written; `load` prefers that pending record to this device's record on disk. A
-    move redirects a pending save to the new key; Clear History drops pending saves and no write
-    stores a passage touched at or before the clear; prune runs on the same queue.
+    move redirects a pending save to the new key, and a write that finishes after its key moved
+    away keeps no state there; Clear History keeps pending saves (no write stores a passage
+    touched at or before the clear) and rewrites post-clear History its folder delete removed;
+    prune runs on the same queue. **Drain:** `PassageHistoryPersisting.flushPendingWrites()`
+    writes everything queued on the calling thread and retries a held-back save once. The Mac
+    calls it after persisting on `willTerminateNotification`; the iPhone inside the
+    background-task assertion of `flushForBackground` (scene inactive or background). Without it
+    a quit dropped the last versions' text and a passage was lost at the next open.
   - **This device's record evicted (iPhone `.<device>.json.icloud`, or not downloaded).** The save
     is not written over it unread: it stays pending (load shows it), the download is started, and
-    the next save retries. The same for an own record that cannot be decoded.
+    the next save (or drain) retries. The same for an own record that cannot be decoded. A move
+    neither merges nor removes such an old record, and never moves an `.icloud` stub by its
+    literal name: it stays in the old folder, listed as a former path, and joins the new folder at
+    a later save once it is readable.
   - **Tombstones.** A save tombstones versions gone from a passage still present. Delete Version
     also calls `noteVersionDeleted` (with the history from before the delete): the engine removes a
     two-version passage whole, which by itself would write nothing, and the version came back from
