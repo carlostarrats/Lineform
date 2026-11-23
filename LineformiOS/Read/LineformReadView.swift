@@ -79,6 +79,9 @@ final class LineformReadView: UITextView {
         var isHandlingWidthChange = false
         var lastLayoutWidth: CGFloat = 0
         var needsOverlayLayout = true
+        /// The characters the pills and the table grid were last placed for (`overlayWindow`); a
+        /// scroll that leaves it places them again.
+        var overlayCoveredRange: NSRange?
         var overlayButtons: [ReadOverlayButton] = []
         var copiedSourceRange: NSRange?
         var copyFeedbackGeneration = 0
@@ -589,6 +592,14 @@ final class LineformReadView: UITextView {
         if state.needsOverlayLayout {
             state.needsOverlayLayout = false
             layoutOverlays()
+        } else {
+            // A taller page with no scroll (SwiftUI's first short pass, Preview's pane growing as
+            // the keyboard goes down) can show characters the pills were not placed for.
+            placeOverlaysIfUncovered()
+            if state.needsOverlayLayout {
+                state.needsOverlayLayout = false
+                layoutOverlays()
+            }
         }
         applyPendingScrollIfPossible()
     }
@@ -628,19 +639,32 @@ final class LineformReadView: UITextView {
         let kind: ReadOverlayButton.Kind
         let rect: CGRect
         let sourceRange: NSRange
+        /// A Copy pill's code block, counted from the document's start (1-based); 0 for Reconnect.
+        var codeBlockNumber = 0
     }
 
     /// Every pill for the current layout, in view (content) coordinates: one Copy pill per
     /// `.codeBlockSourceRange` run, pinned to the column's right edge at the block's top, and one
     /// Reconnect pill per `.imageReconnect` placeholder, after its run (the Mac's geometry).
-    func overlayPills() -> [Pill] {
+    ///
+    /// With a `window`, only the runs that touch it get a rect: measuring a run lays the text out
+    /// down to it, so pills for the whole of a long document laid it all out (about 330 ms on
+    /// 1 MB). Copy pills keep their number counted from the document's start.
+    func overlayPills(in window: NSRange? = nil) -> [Pill] {
         guard textStorage.length > 0 else { return [] }
         var pills: [Pill] = []
         let full = NSRange(location: 0, length: textStorage.length)
         let origin = CGPoint(x: textContainerInset.left, y: textContainerInset.top)
+        func isMeasured(_ range: NSRange) -> Bool {
+            guard let window else { return true }
+            return NSIntersectionRange(range, window).length > 0 || NSLocationInRange(range.location, window)
+        }
 
+        var codeBlockNumber = 0
         textStorage.enumerateAttribute(.codeBlockSourceRange, in: full, options: []) { value, range, _ in
             guard let value = value as? NSValue else { return }
+            codeBlockNumber += 1
+            guard isMeasured(range) else { return }
             let glyphRange = layoutManager.glyphRange(forCharacterRange: range, actualCharacterRange: nil)
             let blockRect = layoutManager.boundingRect(forGlyphRange: glyphRange, in: textContainer)
                 .offsetBy(dx: origin.x, dy: origin.y)
@@ -653,11 +677,11 @@ final class LineformReadView: UITextView {
                 width: size.width,
                 height: size.height
             )
-            pills.append(Pill(kind: .copy, rect: rect, sourceRange: value.rangeValue))
+            pills.append(Pill(kind: .copy, rect: rect, sourceRange: value.rangeValue, codeBlockNumber: codeBlockNumber))
         }
 
         textStorage.enumerateAttribute(.imageReconnect, in: full, options: []) { value, range, _ in
-            guard value != nil,
+            guard value != nil, isMeasured(range),
                   let sourceValue = textStorage.attribute(.imageSourceRange, at: range.location, effectiveRange: nil) as? NSValue
             else { return }
             let glyphRange = layoutManager.glyphRange(forCharacterRange: range, actualCharacterRange: nil)
@@ -688,15 +712,18 @@ final class LineformReadView: UITextView {
         return CGRect(x: x, y: runRect.maxY + 4, width: width, height: height)
     }
 
-    /// Places the pills and redraws the table grid for the current layout. Pills are subviews in
-    /// content coordinates, so a scroll needs no work; this runs after a render, a refit, a width
-    /// change or a profile change.
+    /// Places the pills and redraws the table grid for the current layout, for the characters
+    /// within a page of the visible one (`overlayWindow`). Pills are subviews in content
+    /// coordinates, so a scroll inside that window needs no work; one that leaves it places them
+    /// again (`scrollViewDidScroll`). This also runs after a render, a refit, a width change or a
+    /// profile change.
     func layoutOverlays() {
-        let pills = overlayPills()
+        let window = overlayWindow()
+        state.overlayCoveredRange = window
+        let pills = overlayPills(in: window)
         let theme = Theme.theme(for: state.profile)
         var reusable = state.overlayButtons
         var placed: [ReadOverlayButton] = []
-        var codeBlockNumber = 0
         for pill in pills {
             let button: ReadOverlayButton
             if let index = reusable.firstIndex(where: { $0.kind == pill.kind }) {
@@ -708,8 +735,7 @@ final class LineformReadView: UITextView {
             }
             button.sourceRange = pill.sourceRange
             if pill.kind == .copy {
-                codeBlockNumber += 1
-                button.codeBlockNumber = codeBlockNumber
+                button.codeBlockNumber = pill.codeBlockNumber
                 button.isShowingCopied = state.copiedSourceRange.map { NSEqualRanges($0, pill.sourceRange) } ?? false
             }
             button.apply(theme: theme)
@@ -721,7 +747,41 @@ final class LineformReadView: UITextView {
             leftover.removeFromSuperview()
         }
         state.overlayButtons = placed
-        layoutTableGrid(theme: theme)
+        layoutTableGrid(theme: theme, window: window)
+    }
+
+    /// The characters from a page above the visible one to a page below it; nil (everything)
+    /// before the view has a size. Only that stretch is laid out to find it.
+    func overlayWindow() -> NSRange? {
+        guard textStorage.length > 0, bounds.width > 1, bounds.height > 1 else { return nil }
+        let page = bounds.height
+        let top = contentOffset.y + adjustedContentInset.top - textContainerInset.top
+        let rect = CGRect(x: 0, y: max(0, top - page), width: max(1, textContainer.size.width), height: page * 3)
+        // TextKit 1 layout here is non-contiguous: past the laid-out prefix a position is an
+        // estimate (after a re-render that kept a deep offset, hundreds of thousands of points
+        // off), and a pill placed from it would sit on the wrong line. When the stretch starts
+        // inside the laid-out prefix, the prefix is extended through it (a page or two);
+        // otherwise the whole text is laid out first, as placing every pill always did.
+        var glyphs = layoutManager.glyphRange(forBoundingRect: rect, in: textContainer)
+        if glyphs.length > 0, glyphs.location <= layoutManager.firstUnlaidGlyphIndex() {
+            layoutManager.ensureLayout(forGlyphRange: NSRange(location: 0, length: NSMaxRange(glyphs)))
+        } else {
+            layoutManager.ensureLayout(for: textContainer)
+        }
+        glyphs = layoutManager.glyphRange(forBoundingRect: rect, in: textContainer)
+        return layoutManager.characterRange(forGlyphRange: glyphs, actualGlyphRange: nil)
+    }
+
+    /// A scroll that shows characters the pills were not placed for places them again.
+    private func placeOverlaysIfUncovered() {
+        guard let covered = state.overlayCoveredRange, bounds.height > 1, textStorage.length > 0 else { return }
+        let top = contentOffset.y + adjustedContentInset.top - textContainerInset.top
+        let rect = CGRect(x: 0, y: max(0, top), width: max(1, textContainer.size.width), height: bounds.height)
+        let glyphs = layoutManager.glyphRange(forBoundingRect: rect, in: textContainer)
+        let visible = layoutManager.characterRange(forGlyphRange: glyphs, actualGlyphRange: nil)
+        let coversStart = visible.location >= covered.location || covered.location == 0
+        let coversEnd = NSMaxRange(visible) <= NSMaxRange(covered) || NSMaxRange(covered) >= textStorage.length
+        if !(coversStart && coversEnd) { setNeedsOverlayLayout() }
     }
 
     @objc private func overlayButtonTapped(_ button: ReadOverlayButton) {
@@ -943,7 +1003,7 @@ final class LineformReadView: UITextView {
     /// A hairline grid behind the table rows (`.markdownTableRow`): a line above the header, one
     /// under every row, and a line at each column edge given by the rows' tab stops, in the theme
     /// ink at 0.15 through `readableInk` (ratio 1.5).
-    private func layoutTableGrid(theme: Theme) {
+    private func layoutTableGrid(theme: Theme, window: NSRange?) {
         guard let grid = state.tableGridView else { return }
         sendSubviewToBack(grid)
         let ink = theme.readableInk(theme.textColor.withAlphaComponent(Self.tableGridAlpha), minimumRatio: Self.tableGridMinimumRatio)
@@ -951,7 +1011,7 @@ final class LineformReadView: UITextView {
         grid.shapeLayer.strokeColor = ink.cgColor
         grid.shapeLayer.lineWidth = lineWidth
         grid.shapeLayer.fillColor = nil
-        let path = tableGridPath()
+        let path = tableGridPath(in: window)
         let height = max(contentSize.height, bounds.height, path.bounds.maxY + 1)
         grid.frame = CGRect(x: 0, y: 0, width: max(bounds.width, 1), height: height)
         grid.shapeLayer.path = path.isEmpty ? nil : path.cgPath
@@ -968,8 +1028,8 @@ final class LineformReadView: UITextView {
         return rows
     }
 
-    /// The grid's lines, in view coordinates.
-    func tableGridPath() -> UIBezierPath {
+    /// The grid's lines, in view coordinates. With a `window`, only the tables that touch it.
+    func tableGridPath(in window: NSRange? = nil) -> UIBezierPath {
         let path = UIBezierPath()
         let rows = tableRows()
         guard !rows.isEmpty else { return path }
@@ -990,6 +1050,10 @@ final class LineformReadView: UITextView {
         }
 
         for table in tables {
+            if let window, let first = table.first, let last = table.last {
+                let span = NSUnionRange(first, last)
+                guard NSIntersectionRange(span, window).length > 0 || NSLocationInRange(span.location, window) else { continue }
+            }
             var rowTops: [CGFloat] = []
             var bottom: CGFloat = 0
             for range in table {
@@ -1045,6 +1109,7 @@ extension LineformReadView: UITextViewDelegate {
 
     func scrollViewDidScroll(_ scrollView: UIScrollView) {
         scheduleVisibleTopReport()
+        placeOverlaysIfUncovered()
         if forwardsScrollToLink { state.onScroll?(scrollView) }
     }
 

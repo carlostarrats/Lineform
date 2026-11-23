@@ -1,7 +1,9 @@
-# Mac App Store release runbook
+# App Store release runbook
 
-Lineform is distributed through the **Mac App Store only**. The store handles installation and
-updates. There is no parallel distribution channel, self-update mechanism, or command-line helper.
+Lineform is distributed through the **App Store only**: the Mac app and the iPhone app share one
+listing. The store handles installation and updates. There is no parallel distribution channel,
+self-update mechanism, or command-line helper. Sections 0–7 are the Mac release; the iPhone release
+is [§ iPhone](#iphone), after them.
 
 This is the complete release path for production builds. Read
 `docs/postmortems/2026-07-02-launch-brick-and-file-access.md` before changing signing,
@@ -254,6 +256,189 @@ service changes.
       iCloud, Quick Look, export, and print smoke tests.
 - [ ] Monitor App Store processing, crash reports, reviews, and the GitHub issue tracker for
       release-specific regressions.
+
+## iPhone
+
+The iPhone app (`LineformiOS` scheme) is a second platform on the same App Store record, with the
+same bundle ID (`com.lineform.app`), version and build number as the Mac app. Do the one-time owner
+steps at the top of this page first. Everything in "Persistent cautions" below applies to the
+iPhone too: a TestFlight or store copy uses the production iCloud container.
+
+### i. Preconditions
+
+- [ ] The `LineformiOS` suite passes on a simulator:
+      `xcodebuild test -project Lineform.xcodeproj -scheme LineformiOS -destination 'platform=iOS Simulator,name=iPhone 16 Pro,OS=26.5'`.
+- [ ] `PhoneReleaseResourceTests` passes. It pins the submission keys
+      (`LSApplicationCategoryType`, `ITSAppUsesNonExemptEncryption`), file sharing and the document
+      types, the iCloud container declaration, the ATS rule (at most `NSAllowsLocalNetworking`), the
+      absence of any `NS…UsageDescription`, the privacy manifest, the compiled icon, and that the
+      Mac app, its Quick Look extension and the iPhone app carry one `MARKETING_VERSION` and one
+      `CURRENT_PROJECT_VERSION` in Debug and Release.
+- [ ] The Mac release for the same version is ready, or the version is bumped for both. One
+      listing means one version: never bump only one target.
+
+### ii. Privacy manifest
+
+`LineformiOS/PrivacyInfo.xcprivacy` (iPhone only; the Mac ships none). No tracking, no tracking
+domains, no collected data types, and these required-reason APIs:
+
+| Category | Reasons | Why |
+|---|---|---|
+| `NSPrivacyAccessedAPICategoryUserDefaults` | `CA92.1` | Settings, reading profiles, the Files sort, the first-run flag: the app's own defaults, no App Group. |
+| `NSPrivacyAccessedAPICategoryFileTimestamp` | `C617.1` | Modification dates of files inside the app container, its Documents folder (live reload, image cache keys, the Files list). C617.1 covers the app, app group and CloudKit containers, not the iCloud Drive (ubiquity) container. |
+| | `3B52.1` | The same for documents outside the app container that the writer works with: the iCloud Drive (ubiquity) folder and any document or Workspace folder picked in Files. |
+| | `DDA9.1` | The Files list shows a file's created or modified date when sorted by date. |
+
+How it was settled (2026-11-23): `LineformiOS/`, `Packages/LineformCore/Sources`, and the
+statically linked BeautifulMermaid 1.0.4, elk-swift 1.0.2 and SwiftMath 1.7.3 were searched for
+`UserDefaults`, file timestamps (`modificationDate`, `creationDate`, `contentModificationDate`,
+`attributesOfItem`, `stat`), boot time (`systemUptime`, `mach_absolute_time`,
+`CACurrentMediaTime`), disk space (`volumeAvailableCapacity`, `systemFreeSize`, `statfs`) and active
+keyboards (`activeInputModes`). Only the first two categories occur, and none in the three
+packages (which ship no manifest of their own). Search again when a dependency moves or a feature
+reads one of these APIs, and update the manifest and its test together.
+
+### iii. Archive and validate
+
+```sh
+xcodebuild -project Lineform.xcodeproj -scheme LineformiOS -configuration Release \
+  -destination 'generic/platform=iOS' archive \
+  -archivePath ~/Desktop/LineformiOS-<version>-<build>.xcarchive
+```
+
+- [ ] Open the archive in Organizer and run **Validate App** with the iOS App Store profile. It is
+      the gate for a wrong profile, a missing entitlement, or a bad icon.
+- [ ] Dump the embedded profile's whole `Entitlements` dictionary and read it (never extract one
+      dotted key; see §2):
+
+      ```sh
+      security cms -D -i "<archive>/Products/Applications/LineformiOS.app/embedded.mobileprovision" \
+        | plutil -extract Entitlements xml1 -o - -
+      ```
+
+      It must list `iCloud.com.lineform.app` under the iCloud container and ubiquity container
+      identifiers, `CloudDocuments` under iCloud services, and team `TV4QZT7A7X`.
+- [ ] Confirm `PrivacyInfo.xcprivacy` and `Assets.car` are in the archived app, and that the app's
+      `Info.plist` shows the expected `CFBundleShortVersionString` and `CFBundleVersion`.
+- [ ] Upload from Organizer. As for the Mac, the upload is done only when App Store Connect shows
+      the build under the iOS platform with the expected version and build.
+
+### iv. TestFlight
+
+Assign the build to **Lineform Internal**, install it from TestFlight on a real iPhone, and test it
+by hand. The simulator suite cannot cover these:
+
+- [ ] **Selection row and the system edit menu.** Select text: the edit menu floats at the
+      selection and the selection row rises at the bottom, above the keyboard or the home
+      indicator. Neither covers the other; the edit menu's items are the system's own.
+- [ ] **iCloud files.** With iCloud Drive on: a new document saves into iCloud Drive › Lineform.
+      Rename a file and delete a file from the Files list; confirm the Files app agrees, and that
+      the open document follows a rename and is detached (text kept) after a delete. Turn iCloud
+      Drive off for Lineform: the app keeps working with On My iPhone, with no error.
+- [ ] **Relaunch.** Choose a Workspace folder in Files, force-quit, relaunch, and open a file from
+      it (the security-scoped bookmark path).
+- [ ] **Keyboard in Preview.** Type in Preview's top pane: the keyboard does not cover the caret,
+      and the Read pane follows.
+- [ ] **VoiceOver.** One pass through Write, Read, Preview, the Menu sheet, the Styling sheet, the
+      selection row, an AI review (its custom actions), and the first-run screens.
+- [ ] **Reconnect with a real Files pick.** Open a document whose image is missing, tap Reconnect
+      in Read, pick the image in Files, and confirm the link is rewritten and the image shows.
+- [ ] **Whole-document AI.** With a provider connected: Menu ▸ Document ▸ Ask AI… on a short
+      document (the comment field opens) and on one over 1,500 words (the confirmation shows
+      first); review, accept part, and check one undo restores it.
+- [ ] **Export and share.** Export each format, Save to Files from the share sheet, print to a
+      printer or PDF, and read aloud.
+- [ ] **Clean install.** Delete the TestFlight app only on a test account (see the cautions), then
+      install: first run plays once, and the next launch opens the document.
+
+### v. App Privacy
+
+The answer stays **Data Not Collected**, for the Mac's reasons in §5, which hold on iPhone:
+
+- Documents stay in the writer's own files: On My iPhone › Lineform, their iCloud Drive, or a
+  folder they picked. No account, analytics, telemetry, advertising identifier or document upload.
+- The iPhone build's only network path is the AI the writer connects: the prose of a selection (or
+  the whole document, when they choose Ask AI for it, after a confirmation above 1,500 words) goes
+  from the iPhone directly to the provider they chose, under their own key, kept in the Keychain.
+  The developer receives nothing. The §5 owner check applies unchanged.
+- The iPhone build has no announcements request and no Check for Updates today (Settings keeps the
+  In-app notifications choice only). If either is added, it must be the Mac's request (no body,
+  query identifier or cookie; announcements gated by the switch) and this section updated.
+- The App Privacy answer is per app, not per platform: the one answer covers both.
+
+### vi. App Store metadata draft (iPhone)
+
+Name, subtitle, category, privacy policy URL and age rating are shared by both platforms. The
+description, keywords, promotional text, What's New and screenshots are per platform; these are the
+iPhone's. Same honesty rules as `Lineform/Resources/AppStoreMetadata.md` and §6: say **free** and
+**source-available**, never "open source"; "No AI built in. Connect your own if you want it.";
+App Store only; only Atkinson Hyperlegible and OpenDyslexic are bundled fonts. No iPhone copy
+mentions or assumes a Mac.
+
+**Description**
+
+> Lineform is a free, calm Markdown editor for iPhone that keeps your writing in real files. Write,
+> read, and preview ordinary .md and .txt documents saved in Lineform's iCloud Drive folder or On
+> My iPhone, or open a Markdown file from the Files app and edit it in place.
+>
+> Switch between Write, Read, and Preview. Read renders tables, task checkboxes, callouts, fenced
+> code with syntax highlighting, Mermaid diagrams, LaTeX math, and images stored beside your
+> document — all drawn natively. Images at a web address are never downloaded. Shape the page with
+> reading themes, fonts (including Atkinson Hyperlegible and OpenDyslexic), size, line height, and
+> spacing. Find your way with the outline and search, keep earlier versions of a passage with
+> History, and export to HTML, PDF, Styled PDF, and Rich Text, print, share, or have the document
+> read aloud.
+>
+> Want AI help? Connect your own Claude, ChatGPT, Google, or OpenAI-compatible model with your own
+> API key, then select text to trim it, cut it in half, rewrite it, proofread it, or mark its
+> weakest and longest sentences — or tell it in your own words what to change. Every suggestion is
+> reviewed before it touches your file, and your Markdown structure is never changed. Lineform
+> sends only the text you act on, directly to the provider you choose.
+>
+> No account, no analytics, no document upload. No AI built in. Connect your own if you want it.
+
+**Keywords** (94 of 100 characters; "Lineform" and the subtitle's words are already indexed):
+
+> writer,writing,notes,plain text,text editor,reader,preview,Mermaid,LaTeX,iCloud,files,md,focus
+
+**Promotional text** (85 of 170 characters):
+
+> A calm Markdown editor for writing, reading, and reviewing real files on your iPhone.
+
+**What's New** (App Store Connect may not ask for it on the first iOS version; keep it for the
+next one):
+
+> Lineform is now on iPhone: Write, Read, and Preview for your Markdown files, with History,
+> export, read aloud, and the AI you connect yourself.
+
+**Review note** (adapt §6's): "Lineform has no built-in AI. Optionally, the user can connect their
+own AI provider (Menu ▸ Settings ▸ Connect Your AI…) with their own API key, stored in the
+Keychain. The Connect button states which company will receive the text. Nothing is sent on
+connect. Afterwards, only the prose of a selection the user chooses an AI action for (or the whole
+document, when the user chooses Ask AI for it) is sent, directly from the iPhone to that provider;
+the developer operates no server and receives nothing."
+
+Before submitting, check every claim above against the build being submitted
+(`docs/architecture/iphone-app.md`).
+
+### vii. Screenshots
+
+Required: the 6.9" iPhone size, **1320 × 2868** portrait (iPhone 16 Pro Max / 17 Pro Max class).
+Optional: 6.5", 1284 × 2778 (App Store Connect scales the 6.9" set down when it is missing). Up to
+ten per size; the plan is six:
+
+1. Write — a real document with a heading, a list and the formatting colours.
+2. Read with a Mermaid diagram and a math block.
+3. Preview — Write above, Read below.
+4. The Menu sheet on Files.
+5. The Styling sheet over the page.
+6. An AI review (struck original, highlighted replacement, the review card). Needs a connected
+   provider; capture it on a device or a simulator with a test key, never with the owner's key in
+   view.
+
+Draft captures from a Debug simulator build are in `docs/release/iphone-screenshots/` with a README
+that says what each shows and how it was made. Re-capture from the release candidate before
+submitting.
 
 ## Persistent cautions
 

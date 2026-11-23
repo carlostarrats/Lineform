@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  The iPhone app's privacy manifest. Lineform does not track and collects no data: no account,
+  no analytics, no identifier. The two required-reason API categories below are the only ones
+  found in LineformiOS/, Packages/LineformCore/Sources, and the statically linked
+  BeautifulMermaid 1.0.4, elk-swift 1.0.2 and SwiftMath 1.7.3 (none of which uses one).
+  docs/release/app-store-release.md ▸ iPhone ▸ Privacy manifest says how each reason was chosen.
+-->
+<plist version="1.0">
+<dict>
+	<key>NSPrivacyTracking</key>
+	<false/>
+	<key>NSPrivacyTrackingDomains</key>
+	<array/>
+	<key>NSPrivacyCollectedDataTypes</key>
+	<array/>
+	<key>NSPrivacyAccessedAPITypes</key>
+	<array>
+		<dict>
+			<!-- Settings, reading profiles, the Files sort, the first-run flag: the app's own
+			     defaults, read and written by the app alone (no App Group). -->
+			<key>NSPrivacyAccessedAPIType</key>
+			<string>NSPrivacyAccessedAPICategoryUserDefaults</string>
+			<key>NSPrivacyAccessedAPITypeReasons</key>
+			<array>
+				<string>CA92.1</string>
+			</array>
+		</dict>
+		<dict>
+			<!-- C617.1: modification dates of files inside the app's own container (its Documents
+			     folder: live reload, image cache keys, the Files list). C617.1 covers the app,
+			     app group and CloudKit containers, not iCloud Drive.
+			     3B52.1: the same for documents the writer works with outside the app container:
+			     the iCloud Drive (ubiquity) folder and any file or Workspace folder picked in Files.
+			     DDA9.1: the Files list shows a file's created or modified date when sorted by it. -->
+			<key>NSPrivacyAccessedAPIType</key>
+			<string>NSPrivacyAccessedAPICategoryFileTimestamp</string>
+			<key>NSPrivacyAccessedAPITypeReasons</key>
+			<array>
+				<string>C617.1</string>
+				<string>3B52.1</string>
+				<string>DDA9.1</string>
+			</array>
+		</dict>
+	</array>
+</dict>
+</plist>

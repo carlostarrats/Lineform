@@ -10,7 +10,8 @@ This page covers roadmap step 3 (shell and files), step 4 (Write mode), step 5 (
 Preview, with the Write/Read/Preview switch), step 6 (the Menu sheet), step 7 (the Styling
 sheet), step 8 (the selection row, the comment field, AI actions with their review, and
 whole-document AI), step 9 (History and History sync), step 10 (export, print, share and read
-aloud) and step 11 (first run). The rest arrive in later steps.
+aloud), step 11 (first run) and, from step 12 (polish and release), the performance budgets. The
+rest arrive in later steps.
 
 ## Each app stands alone
 
@@ -57,6 +58,11 @@ a fully working state, never an error or a prompt.
 - The on-device folder appears in the Files app under On My iPhone › Lineform
   (`UIFileSharingEnabled` and `LSSupportsOpeningDocumentsInPlace`).
 - No test touches the real container: tests inject a temporary folder.
+- **Release resources.** `LineformiOS/PrivacyInfo.xcprivacy` (no tracking, no collected data;
+  required reasons for UserDefaults and file timestamps) ships in the app's Resources; the Mac
+  ships none. `PhoneReleaseResourceTests` pins it with the Info.plist submission keys, the ATS
+  rule, the absence of usage descriptions, the icon, and one version and build across the Mac,
+  Quick Look and iPhone targets. Release steps: `docs/release/app-store-release.md` ▸ iPhone.
 
 ## Editor: TextKit 1
 
@@ -201,7 +207,9 @@ Mac.
 `ModePositionKeeper` records the source location at the top of the outgoing surface (the editor
 for Write and Preview, the Read view for Read) and restores it on the incoming one a tick later,
 only if no newer switch happened. Write uses `scrollCharacterRangeToTopPersistently` (8 pt margin,
-re-asserted for 5 ticks, a touch stops it); Read uses `scrollSourceLocationToTop`; Preview moves
+re-asserted for 5 ticks, a touch stops it; it lays out the prefix through the target and one page
+below it, never the rest of the document, and clamps to the end only when the document ends
+inside that page); Read uses `scrollSourceLocationToTop`; Preview moves
 the editor through `SplitScrollJumpPlan` and, while linked, Read follows. Several switches in one
 tick keep the first target and restore only the last mode; if the editor had the focus at the
 first of them and the burst ends in Write, it gets the focus back. A scene restored straight into
@@ -248,7 +256,14 @@ lives in a lazily made `State` object (`testFactoryPathHasEveryDefault`).
 - **Copy and Reconnect pills** are `UIButton` subviews in content coordinates (so a scroll carries
   them), placed with the Mac's values: Copy a 26 pt circle 8 pt inside the column's right edge;
   Reconnect 22 pt high, radius 11, an 11 pt medium label, 8 pt after its run while it fits inside
-  the reading column, otherwise 4 pt under the run, never past the column's right edge. They move after a render, refit, width or profile change. Copy slices the rendered
+  the reading column, otherwise 4 pt under the run, never past the column's right edge. They move after a render, refit, width or profile change. Pills and the
+  table grid are placed only for the characters from a page above the visible one to a page below
+  it (`overlayWindow`): measuring a run lays the text out down to it, so placing every pill laid
+  out a whole 1 MB document (about 330 ms). When that stretch starts inside the laid-out prefix,
+  the prefix is extended through it; past it, positions are TextKit 1 estimates (far off on a long
+  document), so the whole text is laid out first, as before. A scroll or a height change (SwiftUI's
+  first short pass, Preview's pane growing as the keyboard goes down) that shows characters outside
+  that window places them again; Copy pills keep their number counted from the document's start. Copy slices the rendered
   source into `UIPasteboard.general`, shows a checkmark for 1.0 s, and never edits the document.
   Reconnect presents `.fileImporter` with the Mac's image types.
 - **Images are local only.** Remote and `data:` URLs stay placeholders. Files load only from the
@@ -369,6 +384,41 @@ Roadmap step 7 (plan `2026-11-22-iphone-styling-sheet.md` in the Lineform-mobile
   remains is the one catch-up at release and the same cost for a preset tap or a toggle on a
   1 MB document in Read. `StylingPerformanceTests` prints the numbers and asserts the structure
   (one store update per turn, no prefix layout during a drag, one render at its end).
+
+## Performance budgets
+
+`LineformiOSTests/PhonePerformanceBudgetTests` measures the iPhone's budgets on the 1 MB corpus
+and gates each as a RATIO of two costs taken in the same run, never a wall-clock ceiling (other
+builds share the machine, and CI is 2–4× slower). Each gate checks first that its document-scale
+side takes a measurable time (over 1 ms), takes the best per-call time over several batches, and
+puts the caret, the page or the review at the worst position for what it guards.
+`testMeasureBudgets` prints every number; the numbers, the machine and the rulings are in
+`docs/notes/iphone-performance-baseline.md`.
+
+| Gate | Asserts | Why |
+|---|---|---|
+| `testKeystrokeIsScopedRatio` | a keystroke at the end (edit, scoped tokens, visible spell pass) ≥ 4× cheaper than a whole-document token pass | typing never reaches a whole-document pass |
+| `testOpenDoesNotLayOutWholeDocument` | after an open, `firstUnlaidGlyphIndex()` < half the glyphs, and the open ≥ 2× cheaper than a full layout | an open lays out the first screen only |
+| `testLaunchToTypableEditor` | launch ≥ 4× cheaper than a whole-document token pass, and at most 2.5× an open of 1 MB | an empty editor does no document-scale work |
+| `testReadRepeatApplyIsCheap` | a repeat apply of unchanged text ≥ 10× cheaper than the first render | SwiftUI re-applies far more often than the text changes |
+| `testModeSwitchBackToWriteIsScoped` | Read → Write, page at the top, ≥ 4× cheaper than a whole-document restyle | the restore lays out through its target and a page, never the rest |
+| `testAIDecisionIsScopedRatio` | one accept ≥ 4× cheaper than a whole-composition present | a decision restyles only what changed |
+| `testReadingAssistsLayOutThePrefixOncePerRestyle` | after a restyle, a caret move with the ruler on ≥ 10× cheaper than the restyle | the prefix layout is paid once per restyle (ruling below) |
+| `testReadOverlaysDoNotForceWholeLayout` | page at the top: placing the pills and grid from a fresh layout ≥ 4× cheaper than a full layout; no pill or table far below the page is measured | the pills are placed for the page and its neighbours only (at the end of a fresh layout the whole text is still laid out, by ruling) |
+
+`testScopedRestoreLandsWhereTheWholeLayoutRestoreDid`, `testIncrementalPresentDrawsWhatAWholePresentDraws`
+(with `testIncrementalPresentMatchesForWholeLineRewritesAndCRLF`), `testWindowedOverlaysMatchTheWholeSet`,
+`testOverlaysFollowAHeightOnlyResize` and `testPillsFollowAReRenderNearTheEnd` assert that the three
+scoped versions show exactly what the whole versions did.
+
+Two costs stay, by ruling. TextKit 1's position for a line past an unlaid stretch is an estimate,
+far off on a long document (the last line of 1 MB: 335,817 pt estimated, 1,786,482 pt exact), so
+anything that must place the caret's line exactly lays out the prefix through it once: the
+Reading Ruler and Typewriter Mode after a restyle or an open (about 600 ms on 1 MB with the caret
+at the end, never during a Styling drag), and the Read → Write restore when the target is near
+the end of a document whose layout was invalidated in Read (about 550 ms). Write → Read renders
+the whole document (about 460 ms) and lays it out for the position restore; it is reported, not
+gated.
 
 ## Files: reading, writing and live reload
 
@@ -1008,6 +1058,14 @@ is ONE assignment, `aiHistory`: the document's `PhoneHistoryController`, set by 
   rejects, ← / → move. A typed hardware key is refused. A tap on a pending change selects it.
   VoiceOver: "Suggested changes", value = the composition, custom actions Accept / Reject Change,
   Accept All, Next / Previous Change (2+ pending), End Review.
+- **A decision restyles only what changed.** With the same profile, `present` replaces the one
+  span where the new composition's string differs from the one on screen and restyles (base,
+  tokens, strike and tint) only the whole lines touched by that span and by every change whose
+  look changed (accepted, rejected, made current or no longer current). Everything else keeps its
+  attributes, moved with its text, so the layout before the span stays valid. A whole present
+  (first show, a new profile) is unchanged. Restyling the whole composition cost about 680 ms per
+  accept on 1 MB, most of it `revealCurrentChange` laying the restyled overlay out again;
+  incrementally it is about 3 ms, attribute for attribute the same drawing.
 - **Cards** (`AIReviewCardsView`), at the bottom above the keyboard or home indicator, placed by
   `SelectionBottomChrome` from the keyboard tracker; the Menu and Aa buttons step aside only while
   a request is running or a review is up (`SelectionController.showsBottomButtons`). A message or

@@ -35,6 +35,7 @@
 		1F0000410000000000000076 /* StylingDrag.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000400000000000000076 /* StylingDrag.swift */; };
 		1F0000410000000000000072 /* StylingSheetTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000400000000000000072 /* StylingSheetTests.swift */; };
 		1F0000410000000000000075 /* StylingPerformanceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000400000000000000075 /* StylingPerformanceTests.swift */; };
+		1F00004100000000000000C1 /* PhonePerformanceBudgetTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00004000000000000000C1 /* PhonePerformanceBudgetTests.swift */; };
 		1F0000410000000000000029 /* ModePositionKeeper.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000400000000000000029 /* ModePositionKeeper.swift */; };
 		1F000041000000000000002A /* ModeSwitchTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F000040000000000000002A /* ModeSwitchTests.swift */; };
 		1F000041000000000000002B /* LinkedScroll.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F000040000000000000002B /* LinkedScroll.swift */; };
@@ -255,6 +256,8 @@
 		1F0000D10000000000000005 /* AIEditorTestDoubles.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000004E1 /* AIEditorTestDoubles.swift */; };
 		1F0000D10000000000000006 /* WholeDocumentAITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000D00000000000000006 /* WholeDocumentAITests.swift */; };
 		1F0000D10000000000000007 /* PhoneAIHistoryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000D00000000000000007 /* PhoneAIHistoryTests.swift */; };
+		1F00C1000000000000000002 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 1F00C1000000000000000001 /* PrivacyInfo.xcprivacy */; };
+		1F00C1000000000000000004 /* PhoneReleaseResourceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00C1000000000000000003 /* PhoneReleaseResourceTests.swift */; };
 /* End PBXBuildFile section */
 
  /* Begin PBXContainerItemProxy section */
@@ -309,6 +312,7 @@
 		1F0000400000000000000076 /* StylingDrag.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StylingDrag.swift; sourceTree = "<group>"; };
 		1F0000400000000000000072 /* StylingSheetTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StylingSheetTests.swift; sourceTree = "<group>"; };
 		1F0000400000000000000075 /* StylingPerformanceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StylingPerformanceTests.swift; sourceTree = "<group>"; };
+		1F00004000000000000000C1 /* PhonePerformanceBudgetTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhonePerformanceBudgetTests.swift; sourceTree = "<group>"; };
 		1F0000400000000000000029 /* ModePositionKeeper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModePositionKeeper.swift; sourceTree = "<group>"; };
 		1F000040000000000000002A /* ModeSwitchTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModeSwitchTests.swift; sourceTree = "<group>"; };
 		1F000040000000000000002B /* LinkedScroll.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LinkedScroll.swift; sourceTree = "<group>"; };
@@ -473,6 +477,8 @@
 		1F000040000000000000001A /* EditingRulesTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditingRulesTests.swift; sourceTree = "<group>"; };
 		1F0000400000000000000004 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		1F0000400000000000000005 /* LineformiOS.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = LineformiOS.entitlements; sourceTree = "<group>"; };
+		1F00C1000000000000000001 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
+		1F00C1000000000000000003 /* PhoneReleaseResourceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhoneReleaseResourceTests.swift; sourceTree = "<group>"; };
 		1F0000400000000000000006 /* LineformiOSDebug.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = LineformiOSDebug.entitlements; sourceTree = "<group>"; };
 		1F0000400000000000000007 /* Localizable.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = Localizable.xcstrings; sourceTree = "<group>"; };
 		1F0000400000000000000008 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
@@ -841,6 +847,7 @@
 				1F0000400000000000000008 /* Assets.xcassets */,
 				1F0000400000000000000007 /* Localizable.xcstrings */,
 				1F0000400000000000000004 /* Info.plist */,
+				1F00C1000000000000000001 /* PrivacyInfo.xcprivacy */,
 				1F0000400000000000000005 /* LineformiOS.entitlements */,
 				1F0000400000000000000006 /* LineformiOSDebug.entitlements */,
 				1F0000400000000000000010 /* OpenDocument.swift */,
@@ -864,6 +871,7 @@
 				1F000040000000000000002D /* LinkedScrollTests.swift */,
 				1F0000400000000000000072 /* StylingSheetTests.swift */,
 				1F0000400000000000000075 /* StylingPerformanceTests.swift */,
+				1F00004000000000000000C1 /* PhonePerformanceBudgetTests.swift */,
 				1F0000400000000000000032 /* MenuSheetTests.swift */,
 				1F0000400000000000000037 /* FilesSectionTests.swift */,
 				1F0000400000000000000036 /* FilesStoreTests.swift */,
@@ -894,6 +902,7 @@
 				1F0000D00000000000000004 /* AIReviewTests.swift */,
 				1F0000D00000000000000006 /* WholeDocumentAITests.swift */,
 				1F0000D00000000000000007 /* PhoneAIHistoryTests.swift */,
+				1F00C1000000000000000003 /* PhoneReleaseResourceTests.swift */,
 			);
 			path = LineformiOSTests;
 			sourceTree = "<group>";
@@ -1232,6 +1241,7 @@
 				1F0000410000000000000007 /* Localizable.xcstrings in Resources */,
 				1F0000410000000000000017 /* Fonts in Resources */,
 				1F0000B20000000000000006 /* FirstLaunchIntro in Resources */,
+				1F00C1000000000000000002 /* PrivacyInfo.xcprivacy in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -1490,6 +1500,7 @@
 				1F000041000000000000002D /* LinkedScrollTests.swift in Sources */,
 				1F0000410000000000000072 /* StylingSheetTests.swift in Sources */,
 				1F0000410000000000000075 /* StylingPerformanceTests.swift in Sources */,
+				1F00004100000000000000C1 /* PhonePerformanceBudgetTests.swift in Sources */,
 				1F0000410000000000000032 /* MenuSheetTests.swift in Sources */,
 				1F0000410000000000000037 /* FilesSectionTests.swift in Sources */,
 				1F0000410000000000000036 /* FilesStoreTests.swift in Sources */,
@@ -1514,6 +1525,7 @@
 				1F0000D10000000000000005 /* AIEditorTestDoubles.swift in Sources */,
 				1F0000D10000000000000006 /* WholeDocumentAITests.swift in Sources */,
 				1F0000D10000000000000007 /* PhoneAIHistoryTests.swift in Sources */,
+				1F00C1000000000000000004 /* PhoneReleaseResourceTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

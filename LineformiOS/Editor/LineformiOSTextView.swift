@@ -465,20 +465,35 @@ final class LineformTextView: UITextView {
             setContentOffset(CGPoint(x: contentOffset.x, y: top), animated: false)
             return
         }
-        layoutManager.ensureLayout(for: textContainer)
         let location = min(max(0, range.location), length - 1)
         let glyphRange = layoutManager.glyphRange(
             forCharacterRange: NSRange(location: location, length: 1),
             actualCharacterRange: nil
         )
+        // The prefix through the target is laid out, so its line's position is exact (TextKit 1
+        // layout here is non-contiguous), then one page below it, never the rest of the document:
+        // laying out the whole text cost about 600 ms on 1 MB for a target near the top.
+        layoutManager.ensureLayout(forGlyphRange: NSRange(location: 0, length: NSMaxRange(glyphRange)))
         let rect = layoutManager.boundingRect(forGlyphRange: glyphRange, in: textContainer)
         let targetTop = max(0, rect.minY + textContainerInset.top - Self.scrollTopMargin)
+        let y = max(top, targetTop - adjustedContentInset.top)
+        let page = CGRect(x: 0, y: rect.minY, width: max(1, textContainer.size.width), height: bounds.height + Self.scrollTopMargin)
+        layoutManager.ensureLayout(forBoundingRect: page, in: textContainer)
+        let pageGlyphs = layoutManager.glyphRange(forBoundingRect: page, in: textContainer)
+        if NSMaxRange(pageGlyphs) < layoutManager.numberOfGlyphs {
+            // More than a page follows: the offset can never pass the end.
+            if abs(contentOffset.y - y) > 0.5 {
+                setContentOffset(CGPoint(x: contentOffset.x, y: y), animated: false)
+            }
+            return
+        }
+        // The document ends within the page, and all of it is laid out now: clamp to its end.
         let contentHeight = layoutManager.usedRect(for: textContainer).height
             + textContainerInset.top + textContainerInset.bottom
         let maximumY = max(top, contentHeight + adjustedContentInset.bottom - bounds.height)
-        let y = min(max(top, targetTop - adjustedContentInset.top), maximumY)
-        if abs(contentOffset.y - y) > 0.5 {
-            setContentOffset(CGPoint(x: contentOffset.x, y: y), animated: false)
+        let clamped = min(y, maximumY)
+        if abs(contentOffset.y - clamped) > 0.5 {
+            setContentOffset(CGPoint(x: contentOffset.x, y: clamped), animated: false)
         }
     }
 
