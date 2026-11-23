@@ -256,6 +256,8 @@
 		1F0000D10000000000000005 /* AIEditorTestDoubles.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000004E1 /* AIEditorTestDoubles.swift */; };
 		1F0000D10000000000000006 /* WholeDocumentAITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000D00000000000000006 /* WholeDocumentAITests.swift */; };
 		1F0000D10000000000000007 /* PhoneAIHistoryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000D00000000000000007 /* PhoneAIHistoryTests.swift */; };
+		1F00C1000000000000000002 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 1F00C1000000000000000001 /* PrivacyInfo.xcprivacy */; };
+		1F00C1000000000000000004 /* PhoneReleaseResourceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00C1000000000000000003 /* PhoneReleaseResourceTests.swift */; };
 /* End PBXBuildFile section */
 
  /* Begin PBXContainerItemProxy section */
@@ -475,6 +477,8 @@
 		1F000040000000000000001A /* EditingRulesTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditingRulesTests.swift; sourceTree = "<group>"; };
 		1F0000400000000000000004 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		1F0000400000000000000005 /* LineformiOS.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = LineformiOS.entitlements; sourceTree = "<group>"; };
+		1F00C1000000000000000001 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
+		1F00C1000000000000000003 /* PhoneReleaseResourceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhoneReleaseResourceTests.swift; sourceTree = "<group>"; };
 		1F0000400000000000000006 /* LineformiOSDebug.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = LineformiOSDebug.entitlements; sourceTree = "<group>"; };
 		1F0000400000000000000007 /* Localizable.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = Localizable.xcstrings; sourceTree = "<group>"; };
 		1F0000400000000000000008 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
@@ -843,6 +847,7 @@
 				1F0000400000000000000008 /* Assets.xcassets */,
 				1F0000400000000000000007 /* Localizable.xcstrings */,
 				1F0000400000000000000004 /* Info.plist */,
+				1F00C1000000000000000001 /* PrivacyInfo.xcprivacy */,
 				1F0000400000000000000005 /* LineformiOS.entitlements */,
 				1F0000400000000000000006 /* LineformiOSDebug.entitlements */,
 				1F0000400000000000000010 /* OpenDocument.swift */,
@@ -897,6 +902,7 @@
 				1F0000D00000000000000004 /* AIReviewTests.swift */,
 				1F0000D00000000000000006 /* WholeDocumentAITests.swift */,
 				1F0000D00000000000000007 /* PhoneAIHistoryTests.swift */,
+				1F00C1000000000000000003 /* PhoneReleaseResourceTests.swift */,
 			);
 			path = LineformiOSTests;
 			sourceTree = "<group>";
@@ -1235,6 +1241,7 @@
 				1F0000410000000000000007 /* Localizable.xcstrings in Resources */,
 				1F0000410000000000000017 /* Fonts in Resources */,
 				1F0000B20000000000000006 /* FirstLaunchIntro in Resources */,
+				1F00C1000000000000000002 /* PrivacyInfo.xcprivacy in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -1518,6 +1525,7 @@
 				1F0000D10000000000000005 /* AIEditorTestDoubles.swift in Sources */,
 				1F0000D10000000000000006 /* WholeDocumentAITests.swift in Sources */,
 				1F0000D10000000000000007 /* PhoneAIHistoryTests.swift in Sources */,
+				1F00C1000000000000000004 /* PhoneReleaseResourceTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
