@@ -183,6 +183,16 @@ private struct AuditExceptions {
             // scaled by `@ScaledMetric` (`StylingPresetCard`); the audit only recognises text
             // styles. The AX5 run shows them scaled.
             return "preset card scales with @ScaledMetric"
+        case .dynamicType where element.elementType == .staticText && Self.plainListRowsFlaggedByPosition.contains(element.label):
+            // A system false positive. These are plain `List` rows (`Label` in body text style,
+            // no lineLimit, fixedSize, frame or minimumScaleFactor), built exactly like the rows
+            // above and below them that are never flagged ("Neues Dokument", "In reinen Text
+            // umwandeln"). The flag follows the row's place on screen, not its construction:
+            // only rows at y ≈ 684–733 pt in the medium-detent sheet are reported, in two
+            // different sections (Files' toggle and Document's table rows sit at the same y),
+            // in German and, from run to run, in English. The AX5 runs show all three scaled
+            // and wrapping.
+            return "plain List row flagged by position"
         case .textClipped where textGrowsInScrollView:
             // First run's points: each is `.fixedSize(horizontal: false, vertical: true)` in a
             // ScrollView (`FirstRunOverlay.points`), so it grows and scrolls; it cannot clip. The
@@ -224,6 +234,14 @@ private struct AuditExceptions {
             return nil
         }
     }
+
+    /// Plain List rows the default-size audit flags as "partially unsupported" by where
+    /// they sit in the sheet (see `reasonToIgnore`).
+    static let plainListRowsFlaggedByPosition: Set<String> = [
+        "Show Hidden Folders", "Ausgeblendete Ordner einblenden",
+        "Insert Table", "Tabelle einfügen",
+        "Reformat Table", "Tabelle neu formatieren",
+    ]
 
     /// List rows that the AX5 screenshots show wrapping in full, in English and German.
     static let wrapsAtLargestSize: Set<String> = [

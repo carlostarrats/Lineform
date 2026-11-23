@@ -183,7 +183,27 @@ struct FilesSection: View {
             }
             .pickerStyle(.inline)
         } label: {
-            Label(Self.sortMenuLabel(store.sortOrder), systemImage: "arrow.up.arrow.down")
+            Label {
+                // A Menu's label keeps one line unless told otherwise: let it wrap, and at
+                // accessibility sizes put the order under the title (German's title alone
+                // fills the line there).
+                Group {
+                    if dynamicTypeSize.isAccessibilitySize {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(Self.sortMenuTitle)
+                            Text(store.sortOrder.title)
+                                .foregroundStyle(PhoneInk.menu(theme).secondary)
+                        }
+                    } else {
+                        Text(Self.sortMenuLabel(store.sortOrder))
+                    }
+                }
+                .lineLimit(nil)
+                .fixedSize(horizontal: false, vertical: true)
+                .multilineTextAlignment(.leading)
+            } icon: {
+                Image(systemName: "arrow.up.arrow.down")
+            }
         }
         .accessibilityLabel(Self.sortMenuTitle)
         .accessibilityValue(store.sortOrder.title)

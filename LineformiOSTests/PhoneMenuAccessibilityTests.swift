@@ -48,6 +48,14 @@ final class PhoneMenuAccessibilityTests: XCTestCase {
         XCTAssertEqual(japanese.localizedString(forKey: "%@, %@", value: nil, table: nil), "%@、%@", "Japanese joins with its own comma")
     }
 
+    /// Segments keep their own small height at AX sizes; the filter becomes a menu there.
+    func testSearchFilterIsAMenuAtAccessibilitySizes() {
+        XCTAssertFalse(SearchSection.usesFilterMenu(for: .large))
+        XCTAssertFalse(SearchSection.usesFilterMenu(for: .xxxLarge))
+        XCTAssertTrue(SearchSection.usesFilterMenu(for: .accessibility1))
+        XCTAssertTrue(SearchSection.usesFilterMenu(for: .accessibility5))
+    }
+
     func testDetentsOpenFullHeightAtAccessibilitySizes() {
         XCTAssertEqual(MenuSheet.detents(for: .large), [.medium, .large])
         XCTAssertEqual(MenuSheet.detents(for: .xxxLarge), [.medium, .large])

@@ -22,6 +22,11 @@ struct SearchSection: View {
     /// Above and below Replace and Replace All, inside their targets.
     static let buttonTargetPadding: CGFloat = 14
 
+    /// The filter is a menu, not segments, at accessibility sizes.
+    static func usesFilterMenu(for dynamicTypeSize: DynamicTypeSize) -> Bool {
+        dynamicTypeSize.isAccessibilitySize
+    }
+
     static var hintText: String { String(localized: "Search this document and your files.") }
 
     var body: some View {
@@ -75,16 +80,8 @@ private struct SearchSectionContent: View {
     var body: some View {
         VStack(spacing: 10) {
             searchField
-            Picker(String(localized: "Search"), selection: Binding(
-                get: { controller.filter },
-                set: { controller.setFilter($0) }
-            )) {
-                ForEach(SearchFilter.allCases) { filter in
-                    Text(filter.title).tag(filter)
-                }
-            }
-            .pickerStyle(.segmented)
-            .padding(.horizontal, 16)
+            filterPicker
+                .padding(.horizontal, 16)
 
             ZStack(alignment: .top) {
                 if hasQuery {
@@ -107,6 +104,27 @@ private struct SearchSectionContent: View {
         .onChange(of: document.text) { controller.textChanged() }
         .onChange(of: files.roots) { controller.rootsChanged() }
         .onDisappear { controller.stop() }
+    }
+
+    /// All / In document / Files: segmented at the default sizes; a menu at accessibility sizes,
+    /// where segments keep the control's own small height and squeeze their titles.
+    @ViewBuilder
+    private var filterPicker: some View {
+        let picker = Picker(String(localized: "Search"), selection: Binding(
+            get: { controller.filter },
+            set: { controller.setFilter($0) }
+        )) {
+            ForEach(SearchFilter.allCases) { filter in
+                Text(filter.title).tag(filter)
+            }
+        }
+        if SearchSection.usesFilterMenu(for: dynamicTypeSize) {
+            picker
+                .pickerStyle(.menu)
+                .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+        } else {
+            picker.pickerStyle(.segmented)
+        }
     }
 
     private var searchField: some View {
