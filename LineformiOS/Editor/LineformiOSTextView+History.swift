@@ -101,6 +101,8 @@ extension LineformTextView {
     func exitHistoryModeBeforeUserEdit() {
         guard !state.isApplyingHistoryEdit,
               let controller = state.historyController, controller.isHistoryModeActive else { return }
+        state.isLeavingHistoryForTyping = true
+        defer { state.isLeavingHistoryForTyping = false }
         controller.exitHistoryMode(text: textStorage.string)
     }
 
@@ -200,8 +202,10 @@ extension LineformTextView {
             contentInset.bottom = active ? Self.historyCardClearance : 0
             verticalScrollIndicatorInsets.bottom = contentInset.bottom
             // Entering is heard as the card's title, which takes VoiceOver's focus (`HistoryCard`);
-            // leaving is said.
-            if !active, window != nil { UIAccessibility.post(notification: .announcement, argument: Self.historyClosedAnnouncement) }
+            // leaving is said, unless typing left it (the typed text is heard instead).
+            if !active, window != nil, !state.isLeavingHistoryForTyping {
+                ChromeAnnouncer.announce(Self.historyClosedAnnouncement)
+            }
         }
         setNeedsHistoryWashRedraw()
     }

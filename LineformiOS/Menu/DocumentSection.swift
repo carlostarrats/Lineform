@@ -152,7 +152,7 @@ struct DocumentSection: View {
                     case .plainText: document.restoreMarkdown()
                     }
                     if document.textFormat != before {
-                        UIAccessibility.post(notification: .announcement, argument: Self.conversionAnnouncement(for: document.textFormat))
+                        ChromeAnnouncer.announce(Self.conversionAnnouncement(for: document.textFormat))
                     }
                 } label: {
                     Label(Self.conversionTitle(for: document.textFormat), systemImage: "textformat")

@@ -129,14 +129,16 @@ private struct LinkButtonBody: View {
     var profile: ReadingProfile
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
         let theme = Theme.theme(for: profile)
         let isDark = theme.usesDarkChrome
-        let blue = Color(uiColor: .systemBlue)
-        // Unlinked: the page's secondary ink, readable on every theme (`PhoneInk`). Linked: system
-        // blue, a non-text mark at 3.6:1 or more on every theme.
-        let ink = isLinked || isPressed ? blue : PhoneInk(theme: theme).secondary
+        let inks = PhoneInk(theme: theme, colorScheme: colorScheme)
+        let blue = inks.color(.linkGlyph)
+        // Unlinked: the page's secondary ink. Linked: system blue as a non-text mark. Both are
+        // readable on every theme (`PhoneInkContrastTests`).
+        let ink = isLinked || isPressed ? blue : inks.secondary
         let ringOpacity = PreviewLinkButton.ringOpacity(isLinked: isLinked, isPressed: isPressed)
         ZStack {
             Image(systemName: "link")

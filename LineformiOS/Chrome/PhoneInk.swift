@@ -27,28 +27,28 @@ struct PhoneInk {
         case icon
         /// The visible edge of a control (a field's hairline, an unselected ring).
         case controlEdge
-        /// System blue, readable: links, selected text, focus rings.
-        case accent
-        /// System red, readable: errors and destructive text.
-        case destructive
-        /// System green, readable: "Connected" and other success text.
-        case success
-        /// Secondary text on the comment field's wash (theme ink at `commentFieldWashAlpha`).
-        case secondaryOnCommentField
+        /// A menu's chevron beside its title (the selection row, the comment field's Action):
+        /// theme ink at 0.6, a non-text mark.
+        case chevron
+        /// System blue as a non-text mark on the page: the Preview link button while linked.
+        case linkGlyph
+        /// The History card's Add glyph (ink at 0.85) on its circle (ink at
+        /// `historyAddWashAlpha`), while it can be used. Disabled, it is exempt.
+        case historyAddGlyph
+        /// The Read view's Copy and Reconnect pills: the glyph and the "Reconnect" label (text),
+        /// on the pill's resting fill (`ReadOverlayButton.fillAlpha`). The pressed fill is only
+        /// the moment of a tap; on Quiet even the full ink reaches 4.2:1 there.
+        case onReadPill
         /// Placeholder text on the comment field's wash.
         case tertiaryOnCommentField
         /// Secondary text on the search field's wash (ink at `searchFieldWashAlpha`).
         case secondaryOnSearchField
         /// Placeholder text on the search field's wash.
         case tertiaryOnSearchField
-        /// Page-coloured text on an ink-filled capsule (Accept, Send, Start Writing).
-        case onInkCapsule
         /// Secondary text in a Connect Your AI Form cell.
         case formSecondary
         /// Footer text on the Form's grouped background.
         case formFooter
-        /// Link / accent text in a Form cell.
-        case formAccent
         /// Error text in a Form cell.
         case formDestructive
         /// "Connected" text in a Form cell.
@@ -57,7 +57,7 @@ struct PhoneInk {
         /// 4.5:1 for text, 3:1 for non-text marks (WCAG 1.4.3 / 1.4.11).
         var minimumRatio: CGFloat {
             switch self {
-            case .icon, .controlEdge: Self.nonTextMinimum
+            case .icon, .controlEdge, .chevron, .linkGlyph, .historyAddGlyph: Self.nonTextMinimum
             default: Self.textMinimum
             }
         }
@@ -78,6 +78,8 @@ struct PhoneInk {
     static let commentFieldWashAlpha: CGFloat = 0.06
     /// The search fields' wash: ink at this alpha over the sheet.
     static let searchFieldWashAlpha: CGFloat = 0.07
+    /// The History card's Add circle: ink at this alpha over the card.
+    static let historyAddWashAlpha: CGFloat = 0.10
 
     /// The theme with its colours resolved for one appearance.
     let theme: Theme
@@ -86,17 +88,24 @@ struct PhoneInk {
 
     /// - Parameters:
     ///   - theme: the display theme (`Theme.theme(for: displayProfile)`).
-    ///   - userInterfaceStyle: resolves the high-contrast theme's dynamic colours;
-    ///     `.unspecified` uses `UITraitCollection.current`.
-    init(theme: Theme, userInterfaceStyle: UIUserInterfaceStyle = .unspecified) {
-        let style = userInterfaceStyle == .unspecified ? UITraitCollection.current.userInterfaceStyle : userInterfaceStyle
-        let traits = UITraitCollection(userInterfaceStyle: style == .dark ? .dark : .light)
+    ///   - userInterfaceStyle: the appearance the surface is drawn in, which resolves the
+    ///     high-contrast theme's dynamic colours. Required: SwiftUI's `body` gives no guarantee
+    ///     that `UITraitCollection.current` is the view's (or a sheet's forced) scheme, so a view
+    ///     passes its `@Environment(\.colorScheme)` (`init(theme:colorScheme:)`) or the scheme it
+    ///     forces, and a UIKit view its own `traitCollection`. `.unspecified` is read as light.
+    init(theme: Theme, userInterfaceStyle: UIUserInterfaceStyle) {
+        let traits = UITraitCollection(userInterfaceStyle: userInterfaceStyle == .dark ? .dark : .light)
         var resolved = theme
         resolved.textColor = theme.textColor.resolvedColor(with: traits)
         resolved.backgroundColor = theme.backgroundColor.resolvedColor(with: traits)
         resolved.caretColor = theme.caretColor.resolvedColor(with: traits)
         self.theme = resolved
         isDark = resolved.usesDarkChrome
+    }
+
+    /// The inks for a SwiftUI view drawn in `colorScheme` (its environment's).
+    init(theme: Theme, colorScheme: ColorScheme) {
+        self.init(theme: theme, userInterfaceStyle: colorScheme == .dark ? .dark : .light)
     }
 
     // MARK: - Surfaces
@@ -110,8 +119,13 @@ struct PhoneInk {
     /// The search field's wash flattened over the sheet.
     var searchFieldWash: UIColor { Self.flatten(theme.textColor, alpha: Self.searchFieldWashAlpha, over: page) }
 
-    /// An ink-filled capsule.
-    var inkCapsule: UIColor { theme.textColor }
+    /// The History card's Add circle flattened over the card.
+    var historyAddWash: UIColor { Self.flatten(theme.textColor, alpha: Self.historyAddWashAlpha, over: page) }
+
+    /// A Read pill's resting fill flattened over the page.
+    var readPill: UIColor {
+        Self.flatten(isDark ? .white : .black, alpha: ReadOverlayButton.fillAlpha(usesDarkChrome: isDark, pressed: false), over: page)
+    }
 
     /// A Form cell (`secondarySystemGroupedBackground`) in the sheet's forced scheme.
     var formCell: UIColor { systemColor(.secondarySystemGroupedBackground) }
@@ -122,11 +136,12 @@ struct PhoneInk {
     /// The surface `role` is measured against.
     func surface(for role: Role) -> UIColor {
         switch role {
-        case .secondary, .tertiary, .icon, .controlEdge, .accent, .destructive, .success: page
-        case .secondaryOnCommentField, .tertiaryOnCommentField: commentFieldWash
+        case .secondary, .tertiary, .icon, .controlEdge, .chevron, .linkGlyph: page
+        case .historyAddGlyph: historyAddWash
+        case .onReadPill: readPill
+        case .tertiaryOnCommentField: commentFieldWash
         case .secondaryOnSearchField, .tertiaryOnSearchField: searchFieldWash
-        case .onInkCapsule: inkCapsule
-        case .formSecondary, .formAccent, .formDestructive, .formSuccess: formCell
+        case .formSecondary, .formDestructive, .formSuccess: formCell
         case .formFooter: formBackground
         }
     }
@@ -146,25 +161,22 @@ struct PhoneInk {
             return theme.readableInk(ink.withAlphaComponent(0.45), minimumRatio: minimum)
         case .controlEdge:
             return theme.readableInk(ink.withAlphaComponent(0.3), minimumRatio: minimum)
-        case .accent:
+        case .chevron:
+            return theme.readableInk(ink.withAlphaComponent(0.6), minimumRatio: minimum)
+        case .linkGlyph:
             return theme.readableInk(systemColor(.systemBlue), minimumRatio: minimum)
-        case .destructive:
-            return theme.readableInk(systemColor(.systemRed), minimumRatio: minimum)
-        case .success:
-            return theme.readableInk(systemColor(.systemGreen), minimumRatio: minimum)
-        case .secondaryOnCommentField, .secondaryOnSearchField:
+        case .historyAddGlyph:
+            return theme.readableInk(ink.withAlphaComponent(0.85), minimumRatio: minimum, on: surface(for: role))
+        case .onReadPill:
+            return theme.readableInk(ink.withAlphaComponent(0.85), minimumRatio: minimum, on: surface(for: role))
+        case .secondaryOnSearchField:
             return theme.readableInk(ink.withAlphaComponent(0.6), minimumRatio: minimum, on: surface(for: role))
         case .tertiaryOnCommentField, .tertiaryOnSearchField:
             return theme.readableInk(ink.withAlphaComponent(0.45), minimumRatio: minimum, on: surface(for: role))
-        case .onInkCapsule:
-            // The page on the ink is body contrast reversed; nothing to adjust.
-            return page
         case .formSecondary:
             return formTheme.readableInk(systemColor(.secondaryLabel), minimumRatio: minimum, on: formCell)
         case .formFooter:
             return formTheme.readableInk(systemColor(.secondaryLabel), minimumRatio: minimum, on: formBackground)
-        case .formAccent:
-            return formTheme.readableInk(systemColor(.systemBlue), minimumRatio: minimum, on: formCell)
         case .formDestructive:
             return formTheme.readableInk(systemColor(.systemRed), minimumRatio: minimum, on: formCell)
         case .formSuccess:
@@ -178,14 +190,11 @@ struct PhoneInk {
     var secondary: Color { color(.secondary) }
     var tertiary: Color { color(.tertiary) }
     var icon: Color { color(.icon) }
-    var accent: Color { color(.accent) }
-    var destructive: Color { color(.destructive) }
-    var success: Color { color(.success) }
 
     // MARK: - Contrast test listing
 
     /// Every ink with the surface it is drawn on and the ratio it must reach.
-    static func allInks(for theme: Theme, userInterfaceStyle: UIUserInterfaceStyle = .unspecified) -> [Entry] {
+    static func allInks(for theme: Theme, userInterfaceStyle: UIUserInterfaceStyle) -> [Entry] {
         let inks = PhoneInk(theme: theme, userInterfaceStyle: userInterfaceStyle)
         return Role.allCases.map { role in
             Entry(name: role.rawValue, color: inks.uiColor(role), surface: inks.surface(for: role), minimumRatio: role.minimumRatio)

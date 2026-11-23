@@ -162,8 +162,8 @@ struct CommentField: View {
                     .fixedSize(horizontal: false, vertical: stacks)
                 Image(systemName: "chevron.down")
                     .font(.system(size: chevronSize, weight: .semibold))
-                    // A non-text mark: ink at 0.6 is 4.2:1 or more on every theme (3:1 needed).
-                    .opacity(0.6)
+                    // A non-text mark, measured by `PhoneInkContrastTests` (3:1).
+                    .foregroundStyle(inks.color(.chevron))
             }
             .font(.subheadline)
             .padding(.vertical, Self.textTargetOutset)

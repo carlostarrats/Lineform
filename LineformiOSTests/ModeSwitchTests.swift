@@ -31,7 +31,6 @@ final class ModeSwitchTests: XCTestCase {
     // MARK: - The pill
 
     func testModeSwitchUsesMacMetrics() throws {
-        try skipUnlessEnglishInterface()
         XCTAssertEqual(ModeSwitch.segmentWidth, 78)
         XCTAssertEqual(ModeSwitch.segmentHeight, 30)
         XCTAssertEqual(ModeSwitch.controlPadding, 3)
@@ -92,8 +91,10 @@ final class ModeSwitchTests: XCTestCase {
         XCTAssertEqual(ModeSwitch.verticalTouchOutset, 4)
         XCTAssertEqual(ModeSwitch.segmentTouchPadding, 7)
 
-        // The titles are the package's (the Mac's localized strings).
-        XCTAssertEqual(EditorDisplayMode.allCases.map(\.title), ["Write", "Read", "Preview"])
+        // The titles are the package's (the Mac's localized strings). pinned-en.
+        if interfaceLanguage == "en" {
+            XCTAssertEqual(EditorDisplayMode.allCases.map(\.title), ["Write", "Read", "Preview"])
+        }
     }
 
     func testReduceMotionDisablesAnimation() {

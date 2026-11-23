@@ -351,7 +351,7 @@ final class PhoneMenuAccessibilityTests: XCTestCase {
         var found: [UITextField] = []
         func walk(_ view: UIView) {
             if let field = view as? UITextField { found.append(field) }
-            view.subviews.forEach(walk)
+            view.subviews.forEach { walk($0) }
         }
         walk(view)
         return found.sorted { $0.convert($0.bounds, to: nil).minY < $1.convert($1.bounds, to: nil).minY }

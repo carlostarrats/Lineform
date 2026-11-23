@@ -48,6 +48,9 @@ struct HistoryCardModel: Equatable {
     /// Select Next / Previous Passage, for VoiceOver and Switch Control (a passage is otherwise
     /// picked by tapping its wash).
     var navigator = HistoryPassageNavigator()
+    /// VoiceOver moved the selection itself (the Passages rotor) and is reading it: the card's
+    /// announcement would talk over it.
+    var announcesChanges = true
 
     var hasSelection: Bool { selectedPassageID != nil }
 
@@ -65,6 +68,7 @@ struct HistoryCardModel: Equatable {
     @MainActor
     init(controller: PhoneHistoryController) {
         navigator = HistoryPassageNavigator(controller: controller)
+        announcesChanges = !controller.selectionIsSpokenElsewhere
         guard controller.isHistoryModeActive, let passage = controller.selectedPassage else { return }
         selectedPassageID = passage.id
         currentLevel = passage.level
@@ -156,7 +160,8 @@ struct HistoryCard: View {
     var body: some View {
         let theme = Theme.theme(for: profile)
         let ink = Color(uiColor: theme.textColor)
-        let phoneInk = PhoneInk(theme: theme)
+        // The card forces its scheme from the theme (below), so its inks resolve for that scheme.
+        let phoneInk = PhoneInk(theme: theme, userInterfaceStyle: theme.usesDarkChrome ? .dark : .light)
         let secondary = phoneInk.secondary
         let stacks = dynamicTypeSize.isAccessibilitySize
         VStack(alignment: .leading, spacing: 12) {
@@ -164,7 +169,8 @@ struct HistoryCard: View {
             if model.hasSelection {
                 if model.showsLevelSwitcher { levelSwitcher(ink: ink, secondary: secondary) }
                 versionList(ink: ink, theme: theme)
-                replacementField(ink: ink, secondary: secondary, edge: phoneInk.color(.controlEdge))
+                replacementField(ink: ink, secondary: secondary, edge: phoneInk.color(.controlEdge),
+                                 addGlyph: phoneInk.color(.historyAddGlyph))
             } else {
                 Text(HistoryCardModel.emptySelectionText)
                     .font(.subheadline)
@@ -180,18 +186,17 @@ struct HistoryCard: View {
         .padding(16)
         .background { HistoryCardBackground(theme: theme) }
         .environment(\.colorScheme, theme.usesDarkChrome ? .dark : .light)
+        // A container: its named actions would not reach the elements inside, so they sit on the
+        // title (where VoiceOver lands) instead. Escape does reach up from any element.
         .accessibilityElement(children: .contain)
-        .accessibilityAction(named: Text(HistoryCardModel.nextPassageTitle)) { model.navigator.move(by: 1) }
-        .accessibilityAction(named: Text(HistoryCardModel.previousPassageTitle)) { model.navigator.move(by: -1) }
-        .accessibilityAction(named: Text(HistoryCardModel.exitTitle)) { onDone() }
         .accessibilityAction(.escape) { onDone() }
-        .onAppear {
-            openFieldIfRequested()
-            // After the editor takes the focus on entry, VoiceOver is moved to the card.
-            Task { @MainActor in
-                try? await Task.sleep(for: .milliseconds(150))
-                titleFocused = true
-            }
+        .onAppear { openFieldIfRequested() }
+        .task {
+            // VoiceOver moves to the card's title once it is laid out: after this appearance, and
+            // after the editor's own first-responder change on entry (queued before the card
+            // appeared), never on a fixed clock.
+            await Task.yield()
+            titleFocused = true
         }
         .onChange(of: model.opensReplacementField) { _, _ in openFieldIfRequested() }
         .onChange(of: model.selectedPassageID) { _, id in
@@ -202,7 +207,7 @@ struct HistoryCard: View {
         }
         .onChange(of: model.announcement) { _, text in
             // A step, a level or another passage: say where the selection is now.
-            if let text { UIAccessibility.post(notification: .announcement, argument: text) }
+            if let text, model.announcesChanges { UIAccessibility.post(notification: .announcement, argument: text) }
         }
     }
 
@@ -215,6 +220,9 @@ struct HistoryCard: View {
             .font(.headline)
             .accessibilityAddTraits(.isHeader)
             .accessibilityFocused($titleFocused)
+            .accessibilityAction(named: Text(HistoryCardModel.nextPassageTitle)) { model.navigator.move(by: 1) }
+            .accessibilityAction(named: Text(HistoryCardModel.previousPassageTitle)) { model.navigator.move(by: -1) }
+            .accessibilityAction(named: Text(HistoryCardModel.exitTitle)) { onDone() }
         if stacks {
             VStack(alignment: .leading, spacing: 8) {
                 title
@@ -330,7 +338,7 @@ struct HistoryCard: View {
         .accessibilityAction(named: Text(HistoryCardModel.deleteVersionTitle)) { onDeleteVersion(row.id) }
     }
 
-    private func replacementField(ink: Color, secondary: Color, edge: Color) -> some View {
+    private func replacementField(ink: Color, secondary: Color, edge: Color, addGlyph: Color) -> some View {
         let canCommit = !draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         return HStack(spacing: 8) {
             TextField(
@@ -347,9 +355,10 @@ struct HistoryCard: View {
             Button { commit() } label: {
                 Image(systemName: "arrow.turn.down.left")
                     .font(.system(size: addGlyphSize, weight: .bold))
-                    .foregroundStyle(ink.opacity(canCommit ? 0.85 : 0.35))
+                    // Disabled, the glyph is exempt from the contrast floor (WCAG 1.4.11).
+                    .foregroundStyle(canCommit ? addGlyph : ink.opacity(0.35))
                     .frame(width: 30, height: 30)
-                    .background(Circle().fill(ink.opacity(canCommit ? 0.10 : 0.05)))
+                    .background(Circle().fill(ink.opacity(canCommit ? PhoneInk.historyAddWashAlpha : 0.05)))
                     .frame(width: Self.minimumTarget, height: Self.minimumTarget)
                     .contentShape(Rectangle())
             }

@@ -14,7 +14,8 @@ import SwiftUI
 /// - **Targets.** Each item draws 40 pt but is a 44 × 44 pt target: the extra 2 pt on each side
 ///   is taken back with negative padding, so the row looks as it always did.
 /// - **VoiceOver.** The row rises at the bottom while focus stays on the text, so a VoiceOver user
-///   would never learn it is there. When it appears a low-priority announcement says so: it is
+///   would never learn it is there. The first time it appears in a session (with VoiceOver on), a
+///   low-priority announcement says so: it is
 ///   queued behind whatever VoiceOver is reading (the selection), never interrupts it, and focus
 ///   is not moved — the writer may still be adjusting the selection. The items are one swipe
 ///   past the text, in the row's own container.
@@ -34,10 +35,12 @@ struct SelectionRow: View {
     var body: some View {
         let theme = Theme.theme(for: profile)
         let ink = Color(uiColor: theme.textColor)
+        // The row's card draws in the page colour; its scheme follows the theme's chrome.
+        let chevron = PhoneInk(theme: theme, userInterfaceStyle: theme.usesDarkChrome ? .dark : .light).color(.chevron)
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 2) {
                 ForEach(controller.items, id: \.self) { item in
-                    button(for: item)
+                    button(for: item, chevron: chevron)
                         .accessibilityShowsLargeContentViewer {
                             if let symbol = item.systemImage { Image(systemName: symbol) }
                             Text(item.title(aiName: controller.model.aiName))
@@ -59,14 +62,19 @@ struct SelectionRow: View {
         String(localized: "Formatting options available at the bottom of the screen.")
     }
 
-    /// Queues `appearanceAnnouncement` at low priority while VoiceOver runs; returns whether it
-    /// did. `post` is the system's announcement (replaced by the tests).
-    @discardableResult
+    /// Whether the row has already told VoiceOver it is there in this app session. The row comes
+    /// back on every settled selection; hearing the same sentence each time is noise.
+    @MainActor static var didAnnounceThisSession = false
+
+    /// Queues `appearanceAnnouncement` at low priority while VoiceOver runs, once per app session;
+    /// returns whether it did. `post` is the system's announcement (replaced by the tests).
+    @MainActor @discardableResult
     static func announceAppearance(
         isVoiceOverRunning: Bool = UIAccessibility.isVoiceOverRunning,
         post: @MainActor (AttributedString) -> Void = { AccessibilityNotification.Announcement($0).post() }
     ) -> Bool {
-        guard isVoiceOverRunning else { return false }
+        guard isVoiceOverRunning, !didAnnounceThisSession else { return false }
+        didAnnounceThisSession = true
         var announcement = AttributedString(appearanceAnnouncement)
         announcement.accessibilitySpeechAnnouncementPriority = .low
         post(announcement)
@@ -74,7 +82,7 @@ struct SelectionRow: View {
     }
 
     @ViewBuilder
-    private func button(for item: SelectionRowItem) -> some View {
+    private func button(for item: SelectionRowItem, chevron: Color) -> some View {
         let title = item.title(aiName: controller.model.aiName)
         switch item {
         case .heading:
@@ -93,7 +101,7 @@ struct SelectionRow: View {
                     Button(String(localized: "Body")) { controller.setHeading(nil) }
                 }
             } label: {
-                icon(item, title: title, showsChevron: true)
+                icon(item, title: title, chevron: chevron)
             }
             .padding(-hitOutset)
             .accessibilityLabel(title)
@@ -102,7 +110,7 @@ struct SelectionRow: View {
                 Button(String(localized: "Bulleted List")) { controller.applyList(ordered: false) }
                 Button(String(localized: "Numbered List")) { controller.applyList(ordered: true) }
             } label: {
-                icon(item, title: title, showsChevron: true)
+                icon(item, title: title, chevron: chevron)
             }
             .padding(-hitOutset)
             .accessibilityLabel(title)
@@ -113,7 +121,7 @@ struct SelectionRow: View {
                 if item.systemImage == nil || item == .askAI {
                     textLabel(item, title: title)
                 } else {
-                    icon(item, title: title, showsChevron: false)
+                    icon(item, title: title, chevron: nil)
                 }
             }
             .buttonStyle(.plain)
@@ -123,15 +131,15 @@ struct SelectionRow: View {
     }
 
     /// A glyph (fixed size, like a toolbar's) drawn in 40 pt and padded out to a 44 pt target.
-    private func icon(_ item: SelectionRowItem, title: String, showsChevron: Bool) -> some View {
+    private func icon(_ item: SelectionRowItem, title: String, chevron: Color?) -> some View {
         HStack(spacing: 2) {
             Image(systemName: item.systemImage ?? "questionmark")
                 .font(.system(size: 16, weight: .medium))
-            if showsChevron {
+            if let chevron {
                 Image(systemName: "chevron.down")
                     .font(.system(size: 9, weight: .semibold))
-                    // A non-text mark: ink at 0.6 is 4.2:1 or more on every theme (3:1 needed).
-                    .opacity(0.6)
+                    // A non-text mark, measured by `PhoneInkContrastTests` (3:1).
+                    .foregroundStyle(chevron)
             }
         }
         .frame(minWidth: Self.itemDrawnSide, minHeight: Self.itemDrawnSide)

@@ -49,6 +49,7 @@ struct AIReviewCardsView: View {
     var profile: ReadingProfile
 
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @Environment(\.colorScheme) private var colorScheme
     @Environment(\.accessibilityVoiceOverEnabled) private var voiceOverEnabled
     /// The glyph sizes scale with the text around them (13 and 12 pt at the default size).
     @ScaledMetric(relativeTo: .subheadline) private var retryGlyphSize: CGFloat = 14
@@ -127,6 +128,7 @@ struct AIReviewCardsView: View {
     @ViewBuilder
     private func textAndButton<Leading: View, Trailing: View>(
         stacks: Bool,
+        alignment: VerticalAlignment = .center,
         @ViewBuilder text: () -> Leading,
         @ViewBuilder button: () -> Trailing
     ) -> some View {
@@ -136,7 +138,7 @@ struct AIReviewCardsView: View {
                 button()
             }
         } else {
-            HStack(spacing: 12) {
+            HStack(alignment: alignment, spacing: 12) {
                 text()
                 Spacer(minLength: 8)
                 button()
@@ -152,21 +154,23 @@ struct AIReviewCardsView: View {
         let page = Color(uiColor: theme.backgroundColor)
         return card(theme: theme, ink: ink) {
             VStack(alignment: .leading, spacing: 10) {
-                textAndButton(stacks: stacks) {
+                // Done sits on the title's first baseline, as it always did.
+                textAndButton(stacks: stacks, alignment: .firstTextBaseline) {
                     Text(AIReviewCardPresentation.title(for: session))
                         .font(.subheadline.weight(.semibold))
                         .fixedSize(horizontal: false, vertical: true)
                 } button: {
-                    // A 44 pt target; on one line the reach is taken back with negative padding,
-                    // so the card lays out as it always did.
+                    // A 44 pt target; on one line the extra height is taken back with negative
+                    // padding measured from the font, so the card lays out exactly as it did. The
+                    // text keeps its trailing edge where it was when the word is narrower than 44.
                     Button { handle(.end) } label: {
                         Text(AIReviewCardsPresentation.doneTitle)
                             .font(.subheadline)
-                            .frame(minWidth: Self.minimumTarget, minHeight: Self.minimumTarget)
+                            .frame(minWidth: Self.minimumTarget, minHeight: Self.minimumTarget, alignment: .trailing)
                             .contentShape(Rectangle())
                     }
                     .buttonStyle(.borderless)
-                    .padding(.vertical, stacks ? 0 : -13)
+                    .padding(.vertical, stacks ? 0 : -Self.verticalTouchOutset(for: dynamicTypeSize))
                     .accessibilityIdentifier("ai.reviewDone")
                 }
                 ViewThatFits(in: .horizontal) {
@@ -246,7 +250,7 @@ struct AIReviewCardsView: View {
         Button(action: action) {
             Image(systemName: "xmark")
                 .font(.system(size: closeGlyphSize, weight: .bold))
-                .foregroundStyle(PhoneInk(theme: theme).icon)
+                .foregroundStyle(PhoneInk(theme: theme, colorScheme: colorScheme).icon)
                 .frame(width: 28, height: 28)
                 .frame(width: Self.minimumTarget, height: Self.minimumTarget)
                 .contentShape(Rectangle())
@@ -259,6 +263,14 @@ struct AIReviewCardsView: View {
 
     /// The smallest touch target (Apple's 44 × 44 pt).
     static let minimumTarget: CGFloat = 44
+
+    /// How far a one-line subheadline label reaches above and below its own line to make a 44 pt
+    /// target: half the difference, so the layout height is the line's, as before.
+    static func verticalTouchOutset(for size: DynamicTypeSize) -> CGFloat {
+        let traits = UITraitCollection(preferredContentSizeCategory: UIContentSizeCategory(size))
+        let lineHeight = UIFont.preferredFont(forTextStyle: .subheadline, compatibleWith: traits).lineHeight
+        return max(0, (minimumTarget - lineHeight) / 2)
+    }
 
     private func card<Content: View>(theme: Theme, ink: Color, @ViewBuilder content: () -> Content) -> some View {
         content()

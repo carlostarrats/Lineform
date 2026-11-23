@@ -226,7 +226,10 @@ final class PhoneStylingSelectionAccessibilityTests: XCTestCase {
         }
     }
 
-    func testSelectionRowAnnouncesItselfQuietlyOnlyUnderVoiceOver() throws {
+    func testSelectionRowAnnouncesItselfQuietlyOnceUnderVoiceOver() throws {
+        let saved = SelectionRow.didAnnounceThisSession
+        defer { SelectionRow.didAnnounceThisSession = saved }
+        SelectionRow.didAnnounceThisSession = false
         var posted: [AttributedString] = []
         XCTAssertFalse(SelectionRow.announceAppearance(isVoiceOverRunning: false) { posted.append($0) })
         XCTAssertTrue(posted.isEmpty)
@@ -235,6 +238,9 @@ final class PhoneStylingSelectionAccessibilityTests: XCTestCase {
         XCTAssertEqual(String(announcement.characters), SelectionRow.appearanceAnnouncement)
         XCTAssertEqual(announcement.accessibilitySpeechAnnouncementPriority, .low, "queued, never interrupting")
         XCTAssertFalse(SelectionRow.appearanceAnnouncement.isEmpty)
+        // The row comes back on every selection; VoiceOver hears it once per session.
+        XCTAssertFalse(SelectionRow.announceAppearance(isVoiceOverRunning: true) { posted.append($0) })
+        XCTAssertEqual(posted.count, 1)
     }
 
     func testSelectionRowAnnouncementIsEnglishSourceText() throws {

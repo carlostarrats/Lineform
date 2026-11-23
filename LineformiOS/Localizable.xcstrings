@@ -2385,74 +2385,6 @@
         }
       }
     },
-    "Toggle task" : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Aufgabe abhaken"
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Marcar o desmarcar la tarea"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Cocher ou décocher la tâche"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "タスクにチェックを付ける／外す"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "勾选或取消勾选任务"
-          }
-        }
-      }
-    },
-    "Toggle task: %@" : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Aufgabe abhaken: %@"
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Marcar o desmarcar la tarea: %@"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Cocher ou décocher la tâche : %@"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "タスクにチェックを付ける／外す: %@"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "勾选或取消勾选任务：%@"
-          }
-        }
-      }
-    },
     "Toggle Write / Read" : {
       "localizations" : {
         "de" : {
@@ -2757,46 +2689,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%@阅读主题"
-          }
-        }
-      }
-    },
-    "%@ value %@" : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%@, Wert %@"
-          }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%1$@ value %2$@"
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%@, valor %@"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%@, valeur %@"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%@、値%@"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%@，值 %@"
           }
         }
       }
@@ -6136,6 +6028,12 @@
             "value" : "%@, %@"
           }
         },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@, %2$@"
+          }
+        },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
@@ -6287,7 +6185,7 @@
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "“%@”を削除"
+            "value" : "「%@」を削除"
           }
         },
         "zh-Hans" : {
@@ -6525,7 +6423,7 @@
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "“%@”を挿入"
+            "value" : "「%@」を挿入"
           }
         },
         "zh-Hans" : {
@@ -6841,7 +6739,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "段落"
+            "value" : "片段"
           }
         }
       }
@@ -6903,7 +6801,7 @@
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "“%1$@”を“%2$@”に置き換え"
+            "value" : "「%1$@」を「%2$@」に置き換え"
           }
         },
         "zh-Hans" : {

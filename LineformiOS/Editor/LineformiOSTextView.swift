@@ -78,6 +78,9 @@ final class LineformTextView: UITextView {
         /// True while History applies its own edit (`performHistoryEdit`): the storage hook does
         /// not report it, and it never counts as typing.
         var isApplyingHistoryEdit = false
+        /// History mode is ending because the writer typed: the typed character's own echo says
+        /// so, and "History closed" would talk over it.
+        var isLeavingHistoryForTyping = false
         /// True while `setDocumentText` replaces the whole text: reported as one whole-text
         /// replacement, never as an edit.
         var isReplacingWholeText = false
@@ -616,14 +619,20 @@ extension LineformTextView {
     }
 
     /// History's passages in text order. Landing on one selects it, as a tap on its wash does, so
-    /// the card shows its versions.
+    /// the card shows its versions. The selection waits for the next turn of the run loop (after
+    /// VoiceOver has the item), and it is quiet: VoiceOver is reading the passage, and the card's
+    /// "Paragraph, version 2 of 3" would talk over it.
     private func historyPassageRotor() -> UIAccessibilityCustomRotor {
         rangeRotor({ search in UIAccessibilityCustomRotor(name: Self.historyPassagesRotorName, itemSearch: search) },
                    ranges: { view in view.historyWashDisplay?.passages.map(\.range) ?? [] },
                    landed: { view, range in
                        guard let display = view.historyWashDisplay,
-                             let passage = display.passages.first(where: { $0.range == range }) else { return }
-                       view.historyController?.select(passage.id)
+                             let passage = display.passages.first(where: { $0.range == range }),
+                             view.historyController?.selectedPassageID != passage.id else { return }
+                       let id = passage.id
+                       Task { @MainActor [weak view] in
+                           view?.historyController?.select(id, announces: false)
+                       }
                    })
     }
 

@@ -363,16 +363,23 @@ final class LineformReadView: UITextView {
     /// VoiceOver's Headings rotor moves between them in Read as it does on a web page. The level
     /// is read from the heading's own source line (`.headingSourceRange`) with
     /// `MarkdownHeadingParser`, the one heading definition. Speech only; nothing is drawn.
+    /// The render is marked in place when it is mutable (it is the renderer's fresh output), so a
+    /// large document is not copied once more on every render.
     static func markingHeadingLevels(in rendered: NSAttributedString, source: String) -> NSAttributedString {
-        let marked = NSMutableAttributedString(attributedString: rendered)
         let sourceText = source as NSString
-        let full = NSRange(location: 0, length: marked.length)
+        let full = NSRange(location: 0, length: rendered.length)
+        var levels: [(NSRange, Int)] = []
         rendered.enumerateAttribute(.headingSourceRange, in: full, options: []) { value, range, _ in
             guard let lineRange = (value as? NSValue)?.rangeValue,
                   lineRange.location >= 0, NSMaxRange(lineRange) <= sourceText.length
             else { return }
             let line = sourceText.substring(with: lineRange).trimmingCharacters(in: .newlines)
             guard let level = MarkdownHeadingParser.heading(in: line)?.level else { return }
+            levels.append((range, level))
+        }
+        guard !levels.isEmpty else { return rendered }
+        let marked = (rendered as? NSMutableAttributedString) ?? NSMutableAttributedString(attributedString: rendered)
+        for (range, level) in levels {
             marked.addAttribute(.accessibilityTextHeadingLevel, value: level, range: range)
         }
         return marked

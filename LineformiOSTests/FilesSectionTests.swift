@@ -113,7 +113,6 @@ final class FilesSectionTests: XCTestCase {
     }
 
     func testHostedSectionShowsRootsAndRows() async throws {
-        try skipUnlessEnglishInterface()
         try Data("hello".utf8).write(to: folder.appendingPathComponent("Hello.md"))
         let store = makeStore()
         let document = OpenDocument(folderProvider: { [folder] in folder! }, ubiquitousItems: FakeUbiquitousItems(arrivingText: nil))
@@ -132,10 +131,13 @@ final class FilesSectionTests: XCTestCase {
         }
         XCTAssertTrue(store.isVisible, "showing Files makes it visible")
         XCTAssertNotNil(Self.find("Hello.md", in: window))
-        XCTAssertNotNil(Self.find("On My iPhone", in: window))
-        XCTAssertNotNil(Self.find("Workspace", in: window))
-        XCTAssertNotNil(Self.find("Choose", in: window), "an unassigned Workspace offers Choose")
-        XCTAssertNotNil(Self.find("New Document", in: window))
+        // pinned-en: the roots' and buttons' English names.
+        if interfaceLanguage == "en" {
+            XCTAssertNotNil(Self.find("On My iPhone", in: window))
+            XCTAssertNotNil(Self.find("Workspace", in: window))
+            XCTAssertNotNil(Self.find("Choose", in: window), "an unassigned Workspace offers Choose")
+            XCTAssertNotNil(Self.find("New Document", in: window))
+        }
 
         window.isHidden = true
         window.rootViewController = nil

@@ -131,7 +131,6 @@ final class ReadViewTests: XCTestCase {
     // MARK: - Copy
 
     func testCopyPillCopiesSourceAndDoesNotEdit() async throws {
-        try skipUnlessEnglishInterface()
         let text = "Intro\n\n```swift\nlet a = 1\nlet b = 2\n```\n\nOutro\n"
         let document = await preparedDocument(text: text)
         let view = readView(for: document)
@@ -141,7 +140,7 @@ final class ReadViewTests: XCTestCase {
         XCTAssertEqual(copy.frame.size, CGSize(width: 26, height: 26))
         let columnRight = view.textContainerInset.left + view.textContainer.size.width
         XCTAssertEqual(copy.frame.maxX, columnRight - 8, accuracy: 0.5, "at the column's right edge")
-        XCTAssertEqual(copy.accessibilityLabel, "Copy code block 1")
+        if interfaceLanguage == "en" { XCTAssertEqual(copy.accessibilityLabel, "Copy code block 1") }
 
         copy.sendActions(for: .touchUpInside)
         XCTAssertEqual(pasteboard.string, "let a = 1\nlet b = 2")
@@ -157,7 +156,6 @@ final class ReadViewTests: XCTestCase {
     // MARK: - Images
 
     func testReconnectRewritesLinkRelativeToDocumentFolder() async throws {
-        try skipUnlessEnglishInterface()
         let document = await preparedDocument(text: "Notes\n![pic](old/pic.png)\n")
         XCTAssertEqual(document.documentDirectory?.standardizedFileURL, folder.standardizedFileURL)
         let picked = folder.appendingPathComponent("images/pic.png")
@@ -174,7 +172,7 @@ final class ReadViewTests: XCTestCase {
         XCTAssertTrue(blockAttachments(in: view).isEmpty, "the missing file is a placeholder")
         let pill = try XCTUnwrap(view.overlayButtons.first { $0.kind == .reconnect })
         XCTAssertEqual(pill.frame.height, 22)
-        XCTAssertEqual(pill.accessibilityLabel, "Reconnect image")
+        if interfaceLanguage == "en" { XCTAssertEqual(pill.accessibilityLabel, "Reconnect image") }
         pill.sendActions(for: .touchUpInside)
         let range = try XCTUnwrap(reconnectRanges.first)
         XCTAssertEqual(renderedTexts.first, document.text, "the pill reports the source it was rendered from")

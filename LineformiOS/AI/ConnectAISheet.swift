@@ -287,7 +287,7 @@ struct ConnectAISheet: View {
     private func connect() {
         let connected = form.connect()
         if let spoken = Self.connectAnnouncement(connected: connected, error: form.error) {
-            UIAccessibility.post(notification: .announcement, argument: spoken)
+            ChromeAnnouncer.announce(spoken)
         }
     }
 

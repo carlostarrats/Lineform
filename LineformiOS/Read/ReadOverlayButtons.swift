@@ -116,7 +116,8 @@ final class ReadOverlayButton: UIButton {
     /// The theme's page decides the fill and the ink.
     func apply(theme: Theme) {
         usesDarkChrome = theme.usesDarkChrome
-        ink = theme.readableInk(theme.textColor.withAlphaComponent(0.85))
+        // Readable on the pill's own fill, not only on the page.
+        ink = PhoneInk(theme: theme, userInterfaceStyle: traitCollection.userInterfaceStyle).uiColor(.onReadPill)
         label.textColor = ink
         glyphView.tintColor = ink
         updateFill()
@@ -150,11 +151,19 @@ final class ReadOverlayButton: UIButton {
         }
     }
 
+    /// The pill's fill: white (dark chrome) or black at this alpha over the page.
+    static func fillAlpha(usesDarkChrome: Bool, pressed: Bool) -> CGFloat {
+        switch (usesDarkChrome, pressed) {
+        case (true, false): 0.13
+        case (true, true): 0.22
+        case (false, false): 0.05
+        case (false, true): 0.11
+        }
+    }
+
     private func updateFill() {
         let tint: UIColor = usesDarkChrome ? .white : .black
-        let restAlpha: CGFloat = usesDarkChrome ? 0.13 : 0.05
-        let pressedAlpha: CGFloat = usesDarkChrome ? 0.22 : 0.11
-        backgroundColor = tint.withAlphaComponent(isHighlighted ? pressedAlpha : restAlpha)
+        backgroundColor = tint.withAlphaComponent(Self.fillAlpha(usesDarkChrome: usesDarkChrome, pressed: isHighlighted))
         layer.borderColor = tint.withAlphaComponent(usesDarkChrome ? 0.22 : 0.10).cgColor
     }
 

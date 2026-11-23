@@ -11,6 +11,9 @@ enum StylingRowStyle {
     static let qualifierFontSize: CGFloat = 11
     static let valueFontSize: CGFloat = 13
     static let valueMinWidth: CGFloat = 54
+    /// The picker's widest on one line with its title, as on the Mac panel. Stacked (accessibility
+    /// sizes, or a translation too long to share the line) it takes the width it needs.
+    static let pickerMaxWidth: CGFloat = 170
     /// A control row is at least this tall, its 6 pt inset included: a 44 pt target.
     static let minimumRowHeight: CGFloat = 44
     static let rowVerticalInset: CGFloat = 6
@@ -149,6 +152,7 @@ struct StylingPickerRow<Content: View>: View {
                 // text size; it does not grow with a frame).
                 content
                     .stylingLabelFont()
+                    .frame(maxWidth: isStacked ? nil : StylingRowStyle.pickerMaxWidth, alignment: .trailing)
             }
         }
     }
@@ -247,7 +251,8 @@ struct StylingToggleRow: View {
         .contentShape(.accessibility, Rectangle())
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(title)
-        .accessibilityHint(subtitle ?? "")
+        // The qualifier is already localized; no hint without one.
+        .accessibilityHint(Text(verbatim: subtitle ?? ""))
         .accessibilityValue(StylingRowStyle.toggleAccessibilityValue(isOn))
         .accessibilityAddTraits([.isButton, .isToggle])
         .accessibilityAction { isOn.toggle() }

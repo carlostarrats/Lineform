@@ -65,7 +65,7 @@ final class PhoneChromeAccessibilityTests: XCTestCase {
         XCTAssertEqual(ModeSwitch.backgroundFillOpacity(usesDarkChrome: true, reduceTransparency: false), ModeSwitch.darkBackgroundFillOpacity)
     }
 
-    func testModeSwitchAnnouncesTheNewModeAsAScreenChange() async throws {
+    func testModeSwitchAnnouncesTheNewModeWithoutResettingTheCursor() async throws {
         let document = await preparedDocument(text: "# Title\n\nBody.\n")
         let window = try hostScreen(document: document, mode: .write)
         let editor = try await waitAsync { Self.find(LineformTextView.self, in: window) }
@@ -77,8 +77,20 @@ final class PhoneChromeAccessibilityTests: XCTestCase {
         XCTAssertTrue(UIApplication.shared.sendAction(try XCTUnwrap(command.action), to: nil, from: command, for: nil))
         _ = try await waitAsync { Self.find(LineformReadView.self, in: window) }
 
-        let screenChanges = posted.filter { $0.0 == .screenChanged }
-        XCTAssertEqual(screenChanges.map(\.1), [EditorDisplayMode.read.title], "VoiceOver hears the new mode once")
+        XCTAssertTrue(posted.filter { $0.0 == .screenChanged }.isEmpty, "the cursor is never sent back to the top")
+        let layoutChanges = posted.filter { $0.0 == .layoutChanged }
+        XCTAssertEqual(layoutChanges.map(\.1), [EditorDisplayMode.read.title], "VoiceOver hears the new mode once")
+    }
+
+    func testModeChangeMovesTheCursorOnlyWhenTheSurfaceIsReplaced() {
+        // Read replaces the editor, and the other modes replace Read's own view.
+        XCTAssertEqual(ChromeAnnouncer.modeChangeNotification(from: .write, to: .read), .layoutChanged)
+        XCTAssertEqual(ChromeAnnouncer.modeChangeNotification(from: .split, to: .read), .layoutChanged)
+        XCTAssertEqual(ChromeAnnouncer.modeChangeNotification(from: .read, to: .write), .layoutChanged)
+        XCTAssertEqual(ChromeAnnouncer.modeChangeNotification(from: .read, to: .split), .layoutChanged)
+        // The editor stays on screen: only the name is spoken.
+        XCTAssertEqual(ChromeAnnouncer.modeChangeNotification(from: .write, to: .split), .announcement)
+        XCTAssertEqual(ChromeAnnouncer.modeChangeNotification(from: .split, to: .write), .announcement)
     }
 
     // MARK: - Floating buttons
@@ -245,15 +257,19 @@ final class PhoneChromeAccessibilityTests: XCTestCase {
 
     // MARK: - First run
 
-    func testWhatToExpectWaitsLongerUnderVoiceOver() throws {
+    func testWhatToExpectWaitsForTheWriterUnderVoiceOver() throws {
         XCTAssertEqual(FirstRunStage.expect.autoAdvanceDelay(reduceMotion: false), .milliseconds(1800))
-        XCTAssertEqual(FirstRunStage.expect.autoAdvanceDelay(reduceMotion: false, voiceOverRunning: true), .seconds(4))
-        XCTAssertEqual(FirstRunStage.expect.autoAdvanceDelay(reduceMotion: true, voiceOverRunning: true), .seconds(4))
+        XCTAssertNil(FirstRunStage.expect.autoAdvanceDelay(reduceMotion: false, voiceOverRunning: true))
+        XCTAssertNil(FirstRunStage.expect.autoAdvanceDelay(reduceMotion: true, voiceOverRunning: true))
         XCTAssertNil(FirstRunStage.points.autoAdvanceDelay(reduceMotion: false, voiceOverRunning: true))
         let start = ContinuousClock.now
-        XCTAssertEqual(
+        XCTAssertNil(
             FirstRunTiming.deadline(for: .expect, stageStart: start, lineReadyAt: nil, reduceMotion: false, voiceOverRunning: true),
-            start + .seconds(4)
+            "no timer: the writer continues when they have heard it"
+        )
+        XCTAssertEqual(
+            FirstRunTiming.deadline(for: .expect, stageStart: start, lineReadyAt: nil, reduceMotion: false),
+            start + .milliseconds(1800)
         )
     }
 

@@ -141,7 +141,8 @@ struct DocumentScreen: View {
             firstRun.finished()
         }
         let needsSwitch = displayMode != .write
-        if needsSwitch { switchMode(to: .write) }
+        // The editor takes the focus below; naming the mode too would only talk over it.
+        if needsSwitch { switchMode(to: .write, announces: false) }
         Task { @MainActor in
             if needsSwitch { await Task.yield() }
             positionKeeper.editor?.becomeFirstResponder()
@@ -160,8 +161,11 @@ struct DocumentScreen: View {
         Binding(get: { displayMode }, set: { switchMode(to: $0) })
     }
 
-    private func switchMode(to mode: EditorDisplayMode) {
+    /// `announces` is false when the switch is a side effect of something that moves VoiceOver's
+    /// focus itself (History mode's card, first run's end): two focus moves would race.
+    private func switchMode(to mode: EditorDisplayMode, announces: Bool = true) {
         guard mode != displayMode else { return }
+        let previous = displayMode
         // History mode is Write's: switching to Read or Preview leaves it (with the collapse).
         if mode != .write, let history = document.history, history.isHistoryModeActive {
             history.exitHistoryMode(text: editorText)
@@ -169,9 +173,7 @@ struct DocumentScreen: View {
         positionKeeper.switchMode(from: displayMode, to: mode)
         shownDisplayMode = mode
         storedDisplayMode = mode
-        // The surface under VoiceOver's cursor may have just been hidden (Read hides the editor):
-        // name the new mode and let VoiceOver start again on the new screen.
-        ChromeAnnouncer.modeDidChange(to: mode)
+        if announces { ChromeAnnouncer.modeDidChange(from: previous, to: mode) }
     }
 
     /// Makes the export commands once. Reading the previous document aloud stops whenever the
@@ -405,7 +407,8 @@ struct DocumentScreen: View {
         }
         .onChange(of: isHistoryModeActive) { _, active in
             // History mode is Write's: the row's Replace With… in Preview's editor lands here too.
-            if active, displayMode != .write { switchMode(to: .write) }
+            // The History card takes VoiceOver's focus itself.
+            if active, displayMode != .write { switchMode(to: .write, announces: false) }
         }
     }
 
@@ -466,7 +469,7 @@ struct DocumentScreen: View {
             text: { editorText },
             dismissMenu: { isShowingMenu = false },
             endAI: { selection.endAIForHistory() },
-            switchToWrite: { switchMode(to: .write) }
+            switchToWrite: { switchMode(to: .write, announces: false) }
         )
         // Hardware ← / → and Esc reach the read-only editor once it is first responder.
         Task { @MainActor in
@@ -604,6 +607,7 @@ extension DocumentScreen {
 /// Shown in place of the text while iCloud downloads the file being opened: quiet, no buttons.
 private struct DownloadingView: View {
     var profile: ReadingProfile
+    @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
         let theme = Theme.theme(for: profile)
@@ -611,7 +615,7 @@ private struct DownloadingView: View {
             ProgressView()
             Text(String(localized: "Downloading…"))
                 .font(.callout)
-                .foregroundStyle(PhoneInk(theme: theme).secondary)
+                .foregroundStyle(PhoneInk(theme: theme, colorScheme: colorScheme).secondary)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Color(uiColor: theme.backgroundColor))
@@ -677,9 +681,18 @@ enum ChromeAnnouncer {
         post(.announcement, message)
     }
 
-    /// The page changed under the cursor: VoiceOver says the mode's name (Write, Read, Preview)
-    /// and starts again on the new screen.
-    static func modeDidChange(to mode: EditorDisplayMode) {
-        post(.screenChanged, mode.title)
+    /// The writer switched modes: VoiceOver says the new mode's name (Write, Read, Preview).
+    static func modeDidChange(from old: EditorDisplayMode, to new: EditorDisplayMode) {
+        post(modeChangeNotification(from: old, to: new), new.title)
+    }
+
+    /// How a switch is spoken. Read replaces the editor (and Write or Preview replace Read's own
+    /// view), so the element under VoiceOver's cursor may be gone: `.layoutChanged` names the mode
+    /// and keeps the cursor where it is if that element is still there (the mode control), or
+    /// moves it to the new page if not. Write ↔ Preview keeps the editor on screen, so the name is
+    /// only announced and the cursor never moves. `.screenChanged` is never used: it sends the
+    /// cursor back to the top of the screen, away from the control just used.
+    static func modeChangeNotification(from old: EditorDisplayMode, to new: EditorDisplayMode) -> UIAccessibility.Notification {
+        (old == .read) != (new == .read) ? .layoutChanged : .announcement
     }
 }

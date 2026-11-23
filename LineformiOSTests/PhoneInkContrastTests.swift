@@ -69,19 +69,42 @@ final class PhoneInkContrastTests: XCTestCase {
     func testFloorsAreTheWCAGNumbers() {
         for role in PhoneInk.Role.allCases {
             switch role {
-            case .icon, .controlEdge: XCTAssertEqual(role.minimumRatio, 3, role.rawValue)
+            case .icon, .controlEdge, .chevron, .linkGlyph, .historyAddGlyph: XCTAssertEqual(role.minimumRatio, 3, role.rawValue)
             default: XCTAssertEqual(role.minimumRatio, 4.5, role.rawValue)
             }
         }
     }
 
-    /// Readable, not replaced: the accent stays blue where the page allows it, so it does not
-    /// collapse into body ink (the reason `readableInk` blends by the smallest step).
-    func testAccentKeepsItsHueOnTheDefaultTheme() {
-        let accent = PhoneInk(theme: .system, userInterfaceStyle: .light).uiColor(.accent)
+    /// Readable, not replaced: the link button's blue stays blue where the page allows it, so it
+    /// does not collapse into body ink (the reason `readableInk` blends by the smallest step).
+    func testLinkBlueKeepsItsHueOnTheDefaultTheme() {
+        let accent = PhoneInk(theme: .system, userInterfaceStyle: .light).uiColor(.linkGlyph)
         var r: CGFloat = 0, g: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
         accent.getRed(&r, green: &g, blue: &b, alpha: &a)
         XCTAssertGreaterThan(b, r + 0.2, "the accent is still blue")
+    }
+
+    /// Every role is drawn somewhere: a role nothing draws measures nothing, and a quiet ink drawn
+    /// without a role is never measured. Each role's name must appear in the iPhone sources.
+    func testEveryRoleIsDrawn() throws {
+        let sources = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent()
+            .appendingPathComponent("LineformiOS", isDirectory: true)
+        guard let files = FileManager.default.enumerator(at: sources, includingPropertiesForKeys: nil) else {
+            throw XCTSkip("the sources are not readable from the test host")
+        }
+        var text = ""
+        for case let url as URL in files where url.pathExtension == "swift" && url.lastPathComponent != "PhoneInk.swift" {
+            text += (try? String(contentsOf: url, encoding: .utf8)) ?? ""
+        }
+        if text.isEmpty { throw XCTSkip("the sources are not readable from the test host") }
+        let shortcuts: [PhoneInk.Role: String] = [.secondary: ".secondary", .tertiary: ".tertiary", .icon: ".icon"]
+        for role in PhoneInk.Role.allCases {
+            let used = text.contains("(.\(role.rawValue))") || shortcuts[role].map { shortcut in
+                ["ink", "Ink", "inks", ")"].contains { text.contains($0 + shortcut) }
+            } == true
+            XCTAssertTrue(used, "\(role.rawValue) is never drawn")
+        }
     }
 
     /// The composite surfaces are the wash flattened over the page, not the page itself.

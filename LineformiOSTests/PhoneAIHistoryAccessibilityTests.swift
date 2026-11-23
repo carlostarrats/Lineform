@@ -189,7 +189,7 @@ final class PhoneAIHistoryAccessibilityTests: XCTestCase {
 
     // MARK: - History: passages without a tap
 
-    func testHistoryPassagesReachableWithoutTapping() throws {
+    func testHistoryPassagesReachableWithoutTapping() async throws {
         let (controller, editor) = try makeHistory()
         XCTAssertTrue(editor.historyAccessibilityActions().isEmpty, "no History actions outside History mode")
         XCTAssertTrue(controller.enterHistoryMode(text: editor.text))
@@ -223,12 +223,40 @@ final class PhoneAIHistoryAccessibilityTests: XCTestCase {
         let rotor = try XCTUnwrap(editor.accessibilityCustomRotors?.first { $0.name == LineformTextView.historyPassagesRotorName })
         let landed = try XCTUnwrap(search(rotor, in: editor, from: nil, forward: true))
         XCTAssertEqual(landed, controller.located.first?.range)
+        // The selection follows on the next turn of the run loop, after VoiceOver has the item,
+        // and quietly: VoiceOver is reading the passage, so the card does not announce over it.
+        XCTAssertNil(controller.selectedPassageID, "not inside the rotor's search")
+        for _ in 0..<20 where controller.selectedPassageID == nil { await Task.yield() }
         XCTAssertEqual(controller.selectedPassageID, controller.located.first?.id)
+        XCTAssertFalse(HistoryCardModel(controller: controller).announcesChanges)
+        // Any later change (a step, Select Next Passage) is announced again.
+        perform(HistoryCardModel.nextPassageTitle, on: editor)
+        XCTAssertTrue(HistoryCardModel(controller: controller).announcesChanges)
 
         perform(HistoryCardModel.exitTitle, on: editor)
         XCTAssertFalse(controller.isHistoryModeActive)
         editor.historyDisplayDidChange()
         XCTAssertFalse(editor.accessibilityCustomRotors?.contains { $0.name == LineformTextView.historyPassagesRotorName } ?? true)
+    }
+
+    func testHistoryClosedIsSaidUnlessTypingLeftHistory() throws {
+        let (controller, editor) = try makeHistory()
+        let original = ChromeAnnouncer.post
+        var said: [String] = []
+        ChromeAnnouncer.post = { notification, argument in
+            if notification == .announcement, let text = argument as? String { said.append(text) }
+        }
+        defer { ChromeAnnouncer.post = original }
+
+        XCTAssertTrue(controller.enterHistoryMode(text: editor.text))
+        controller.exitHistoryMode(text: editor.text)
+        XCTAssertEqual(said, [LineformTextView.historyClosedAnnouncement], "Done, Exit History: said")
+
+        said.removeAll()
+        XCTAssertTrue(controller.enterHistoryMode(text: editor.text))
+        editor.exitHistoryModeBeforeUserEdit()
+        XCTAssertFalse(controller.isHistoryModeActive)
+        XCTAssertTrue(said.isEmpty, "typing left History: the typed text is heard, not \(said)")
     }
 
     func testHistoryCardAtDefaultAndAccessibilitySizes() async throws {
@@ -250,6 +278,14 @@ final class PhoneAIHistoryAccessibilityTests: XCTestCase {
                 )
                 let elements = host.elements()
                 XCTAssertNotNil(elements.first { $0.identifier == "history.done" }, "\(elements)")
+                // The card's commands are on the title, where VoiceOver lands (a container's
+                // named actions do not reach its elements).
+                let title = try XCTUnwrap(elements.first { $0.label == HistoryCardModel.title && $0.traits.contains(.header) },
+                                          "\(elements)")
+                let actions = title.object.accessibilityCustomActions?.map(\.name) ?? []
+                for name in [HistoryCardModel.nextPassageTitle, HistoryCardModel.previousPassageTitle, HistoryCardModel.exitTitle] {
+                    XCTAssertTrue(actions.contains(name), "\(name) on the title: \(actions)")
+                }
                 if selects {
                     let add = try XCTUnwrap(elements.first { $0.identifier == "history.add" }, "\(elements)")
                     XCTAssertGreaterThanOrEqual(add.frame.height, 44)
