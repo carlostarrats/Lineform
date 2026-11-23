@@ -32,6 +32,8 @@ struct PhoneInk {
         case chevron
         /// System blue as a non-text mark on the page: the Preview link button while linked.
         case linkGlyph
+        /// System blue as TEXT on the page: the announcement card's link.
+        case accent
         /// The History card's Add glyph (ink at 0.85) on its circle (ink at
         /// `historyAddWashAlpha`), while it can be used. Disabled, it is exempt.
         case historyAddGlyph
@@ -136,7 +138,7 @@ struct PhoneInk {
     /// The surface `role` is measured against.
     func surface(for role: Role) -> UIColor {
         switch role {
-        case .secondary, .tertiary, .icon, .controlEdge, .chevron, .linkGlyph: page
+        case .secondary, .tertiary, .icon, .controlEdge, .chevron, .linkGlyph, .accent: page
         case .historyAddGlyph: historyAddWash
         case .onReadPill: readPill
         case .tertiaryOnCommentField: commentFieldWash
@@ -163,7 +165,7 @@ struct PhoneInk {
             return theme.readableInk(ink.withAlphaComponent(0.3), minimumRatio: minimum)
         case .chevron:
             return theme.readableInk(ink.withAlphaComponent(0.6), minimumRatio: minimum)
-        case .linkGlyph:
+        case .linkGlyph, .accent:
             return theme.readableInk(systemColor(.systemBlue), minimumRatio: minimum)
         case .historyAddGlyph:
             return theme.readableInk(ink.withAlphaComponent(0.85), minimumRatio: minimum, on: surface(for: role))
@@ -190,6 +192,7 @@ struct PhoneInk {
     var secondary: Color { color(.secondary) }
     var tertiary: Color { color(.tertiary) }
     var icon: Color { color(.icon) }
+    var accent: Color { color(.accent) }
 
     // MARK: - Contrast test listing
 

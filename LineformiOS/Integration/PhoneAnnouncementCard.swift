@@ -25,6 +25,9 @@ struct PhoneAnnouncementCard: View {
     var body: some View {
         let theme = Theme.theme(for: profile)
         let ink = Color(uiColor: theme.textColor)
+        // The link is text: systemBlue is under 4.5:1 on the light pages, so it takes PhoneInk's
+        // readable accent for the page's own scheme.
+        let inks = PhoneInk(theme: theme, colorScheme: theme.usesDarkChrome ? .dark : .light)
         HStack(alignment: .top, spacing: 12) {
             Image(systemName: "sparkles")
                 .font(.footnote.weight(.medium))
@@ -51,11 +54,13 @@ struct PhoneAnnouncementCard: View {
                                 .accessibilityHidden(true)
                         }
                         .font(.footnote.weight(.medium))
-                        .foregroundStyle(Color.accentColor)
-                        .frame(minHeight: 32, alignment: .leading)
+                        .foregroundStyle(inks.accent)
+                        .frame(minHeight: 44, alignment: .leading)
                         .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
+                    // A 44 pt target laid out in the 32 pt the link always took.
+                    .padding(.vertical, -6)
                 }
             }
 
