@@ -1351,7 +1351,10 @@ material.
   VoiceOver orders them and asserts that they sit inside the window, that every interactive
   element has a label and a 44 × 44 pt target (an allowlist names exceptions, each with a reason),
   and that no reachable label is truncated. There is no snapshot library: these are layout
-  assertions on the live hierarchy.
+  assertions on the live hierarchy. SwiftUI only builds that tree when the simulator's
+  accessibility is on (`com.apple.Accessibility` `AccessibilityEnabled` and
+  `ApplicationAccessibilityEnabled`). Rebooting or erasing a simulator can turn it off, and the
+  hosted tests that walk SwiftUI elements then fail for that reason alone.
 - **German.** `LineformiOS.xctestplan` has two configurations: Default (English) and `de`. The
   same tests run in both, so every hosted layout check also covers German, the longest of the six
   languages. A test that pins English copy calls `skipUnlessEnglishInterface()` and is skipped in
