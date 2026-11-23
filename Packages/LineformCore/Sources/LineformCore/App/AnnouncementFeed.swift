@@ -19,12 +19,42 @@ public struct Announcement: Equatable, Identifiable, Sendable {
     public let actionURL: URL?
     /// Lowest app version this is meant for. Nil means "any version".
     let minAppVersion: String?
+    /// The apps this is for — "mac", "ios" — lowercased. Nil (no `platforms` in the feed) means
+    /// BOTH apps, so an entry without the field must be platform-neutral. An unknown value (a
+    /// future platform) matches neither app.
+    let platforms: [String]?
 
-    /// Whether this announcement should be shown to a build reporting `appVersion`.
-    /// Stops "update to 1.6" reaching someone already on 1.7.
-    public func appliesTo(appVersion: String) -> Bool {
+    init(
+        id: String, title: String, body: String,
+        actionLabel: String?, actionURL: URL?,
+        minAppVersion: String?, platforms: [String]? = nil
+    ) {
+        self.id = id
+        self.title = title
+        self.body = body
+        self.actionLabel = actionLabel
+        self.actionURL = actionURL
+        self.minAppVersion = minAppVersion
+        self.platforms = platforms
+    }
+
+    /// Whether this announcement should be shown to a build reporting `appVersion` on
+    /// `platform` (the running app's, unless a test says otherwise). Stops "update to 1.6"
+    /// reaching someone already on 1.7, and an entry for one app reaching the other.
+    public func appliesTo(appVersion: String, platform: AppStorePlatform = .current) -> Bool {
+        if let platforms, !platforms.contains(platform.announcementName) { return false }
         guard let minAppVersion else { return true }
         return AnnouncementFeed.compareVersions(appVersion, minAppVersion) != .orderedAscending
+    }
+}
+
+extension AppStorePlatform {
+    /// This platform's value in an announcement's `platforms`.
+    var announcementName: String {
+        switch self {
+        case .mac: "mac"
+        case .iPhone: "ios"
+        }
     }
 }
 
@@ -54,6 +84,9 @@ public enum AnnouncementFeed {
     /// `maximumPayloadBytes`, at which point the cached feed silently stops decoding and
     /// every relaunch loses the card. Generous next to any real link.
     static let maximumActionURLLength = 512
+    /// `platforms`: a handful of short names. Far above the two that exist.
+    static let maximumPlatformCount = 8
+    static let maximumPlatformLength = 16
 
     /// The only scheme an announcement may link to. Deliberately a single-scheme
     /// allowlist, not a denylist of dangerous schemes: this is remote input, so the
@@ -73,6 +106,9 @@ public enum AnnouncementFeed {
             let actionLabel: String?
             let actionURL: String?
             let minAppVersion: String?
+            /// Optional, and new: an older build's decoder ignores the key (unknown keys are
+            /// ignored), so it shows every entry as before.
+            let platforms: [String]?
         }
     }
 
@@ -115,6 +151,7 @@ public enum AnnouncementFeed {
             if let label = announcement.actionLabel { entry["actionLabel"] = label }
             if let url = announcement.actionURL { entry["actionURL"] = url.absoluteString }
             if let version = announcement.minAppVersion { entry["minAppVersion"] = version }
+            if let platforms = announcement.platforms { entry["platforms"] = platforms }
             return entry
         }
         let payload: [String: Any] = ["version": supportedVersion, "announcements": entries]
@@ -149,13 +186,27 @@ public enum AnnouncementFeed {
         let minAppVersion = entry.minAppVersion.flatMap(validatedVersion(_:))
         if entry.minAppVersion != nil && minAppVersion == nil { return nil }
 
+        // Each name trimmed and lowercased; a list that is too long or holds a name that breaks
+        // the string rules skips the entry, like any other malformed field.
+        var platforms: [String]?
+        if let rawPlatforms = entry.platforms {
+            guard rawPlatforms.count <= maximumPlatformCount else { return nil }
+            var names: [String] = []
+            for raw in rawPlatforms {
+                guard let name = sanitized(raw, maximumLength: maximumPlatformLength) else { return nil }
+                names.append(name.lowercased())
+            }
+            platforms = names
+        }
+
         return Announcement(
             id: id,
             title: title,
             body: body,
             actionLabel: actionLabel,
             actionURL: actionURL,
-            minAppVersion: minAppVersion
+            minAppVersion: minAppVersion,
+            platforms: platforms
         )
     }
 

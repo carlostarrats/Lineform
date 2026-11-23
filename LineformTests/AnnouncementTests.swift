@@ -329,6 +329,20 @@ final class AnnouncementStoreTests: XCTestCase {
         XCTAssertEqual(result?.id, "b")
     }
 
+    /// A feed entry may name its apps: the Mac skips one meant only for the iPhone, and shows
+    /// one with no `platforms` or naming "mac".
+    func testSkipsAnnouncementsMeantOnlyForTheIPhone() throws {
+        let feed = try XCTUnwrap(AnnouncementFeed.decode(Data(#"""
+        {"version":1,"announcements":[
+        {"id":"ios","title":"T","body":"B","platforms":["ios"]},
+        {"id":"mac","title":"T","body":"B","platforms":["mac"]},
+        {"id":"both","title":"T","body":"B"}]}
+        """#.utf8)))
+        XCTAssertEqual(AnnouncementStore.firstShowable(in: feed, dismissedIDs: [], appVersion: "1.5.0")?.id, "mac")
+        XCTAssertEqual(AnnouncementStore.firstShowable(in: feed, dismissedIDs: ["mac"], appVersion: "1.5.0")?.id, "both")
+        XCTAssertNil(AnnouncementStore.firstShowable(in: [feed[0]], dismissedIDs: [], appVersion: "1.5.0"))
+    }
+
     func testSkipsAnnouncementsAimedAtNewerBuilds() {
         let result = AnnouncementStore.firstShowable(
             in: [announcement("future", minAppVersion: "2.0.0"), announcement("now")],

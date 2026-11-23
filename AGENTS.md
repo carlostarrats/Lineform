@@ -417,6 +417,17 @@ iPhone only. Details: `docs/architecture/iphone-app.md`.
   AI is off in History mode, entering History ends a review, and History records once when a review
   ends (abandoning records nothing), as on the Mac. Details: `docs/architecture/iphone-app.md`, "The
   selection row and comment field" and "AI actions and the review".
+- **Updates, announcements, review prompt, App Intents** (`LineformiOS/Integration/`). Menu ▸
+  Settings ▸ Check for Updates… is the Mac's command (`PhoneUpdateCommand`): only on a tap, one at a
+  time, and the lookup reads the iPhone's listing (`entity=software`, `kind` "software" only — the
+  store answers with the Mac entry until an iPhone build is listed, and that is "couldn't check").
+  Announcements are the Mac's store rules (`PhoneAnnouncementStore`: the switch gates the request,
+  once a day, checked when the scene becomes active, NEVER under XCTest at that call site) and a
+  floating card above the Menu and Aa buttons. The review prompt is the Mac's policy
+  (`PhoneReviewPromptStore`, use = `OpenDocument.onConfirmedWrite`; the app's store is inert under
+  XCTest). New Lineform Note and Open in Lineform route through `OpenDocument` (`PhoneIntentRouter`,
+  attached after `prepare`); `AppIntents.framework` stays LINKED in the iPhone target too, and
+  `PhoneAppIntentsTests` asserts `Metadata.appintents`. Details: `docs/architecture/iphone-app.md`.
 - **Strings.** iPhone strings live in `LineformiOS/Localizable.xcstrings` (six languages), reusing
   the Mac's translation for the same English text. `LocalizationSourceSweepTests` scans
   `LineformiOS/` against that catalog. No iPhone string names a Mac or a sidebar
