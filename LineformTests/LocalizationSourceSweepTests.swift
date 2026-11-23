@@ -37,6 +37,8 @@ final class LocalizationSourceSweepTests: XCTestCase {
             "Icon lookup tables — normalized English titles and their per-language aliases. The decorator only ever sets NSMenuItem.image; it writes no titles.",
         "LineformAppIntents.swift":
             "Every literal is a LocalizedStringResource / IntentDescription / @Parameter title / AppShortcut phrase. Those types localize a bare literal by construction and extract into Localizable.xcstrings and AppShortcuts.xcstrings, where LocalizationCatalogTests covers them.",
+        "PhoneAppIntents.swift":
+            "The iPhone's copy of LineformAppIntents.swift: the same LocalizedStringResource / IntentDescription / @Parameter / AppShortcut literals, which localize by construction from the iPhone catalog and the Mac's AppShortcuts.xcstrings (by reference). PhoneAppIntentsTests.testTheIntentStringsAreLocalized checks every language.",
     ]
 
     /// `File.swift|declaration` — whole declarations that are deliberately English.
