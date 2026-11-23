@@ -320,7 +320,8 @@ extension DocumentScreen {
             keepsCaretVisibleOnResize: displayMode == .split,
             topChromeInset: ModeSwitch.pageTopClearance,
             readEditDocument: document,
-            checksSpelling: settings.checksSpellingWhileTyping
+            checksSpelling: settings.checksSpellingWhileTyping,
+            history: document.history
         )
     }
 

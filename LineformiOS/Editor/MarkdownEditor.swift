@@ -35,6 +35,9 @@ struct MarkdownEditor: UIViewRepresentable {
     var readEditDocument: OpenDocument?
     /// Settings › Check spelling while typing.
     var checksSpelling = true
+    /// The open document's History: told about every edit, and the only thing that applies
+    /// History's own edits (`PhoneHistoryController.attach`).
+    var history: PhoneHistoryController?
 
     /// Padding for the chrome that floats over the page (the menu button, the save notice).
     static let chromeMargin: CGFloat = 20
@@ -50,6 +53,7 @@ struct MarkdownEditor: UIViewRepresentable {
         positionKeeper?.editor = textView
         linkedScroll?.connect(editor: textView)
         readEditDocument?.readEditor = textView
+        history?.attach(textView)
         return textView
     }
 
@@ -68,6 +72,7 @@ struct MarkdownEditor: UIViewRepresentable {
         positionKeeper?.editor = textView
         linkedScroll?.connect(editor: textView)
         readEditDocument?.readEditor = textView
+        history?.attach(textView)
         if textView.text != text {
             // An outside replacement: the editor's undo steps describe the old text.
             textView.setDocumentText(text)
@@ -83,9 +88,11 @@ struct MarkdownEditor: UIViewRepresentable {
 
         init(parent: MarkdownEditor) { self.parent = parent }
 
-        /// Return's list continuation and CRLF rule (`LineformTextView.handlesChange`).
+        /// Return's list continuation and CRLF rule (`LineformTextView.handlesChange`). Typing while
+        /// History mode is up leaves it first, then the keystroke goes through.
         func textView(_ textView: UITextView, shouldChangeTextIn range: NSRange, replacementText text: String) -> Bool {
             guard let textView = textView as? LineformTextView else { return true }
+            textView.exitHistoryModeBeforeUserEdit()
             return !textView.handlesChange(in: range, replacementText: text)
         }
 
