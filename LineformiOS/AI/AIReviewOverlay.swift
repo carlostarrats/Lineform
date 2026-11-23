@@ -32,6 +32,8 @@ final class AIReviewOverlayTextView: UITextView {
     final class State {
         var composition = AIReviewComposition.empty
         var currentID: Int?
+        /// The profile the storage was last styled for; nil before the first present.
+        var presentedProfile: ReadingProfile?
         var pendingCount = 1
         var commandHandler: ((AIReviewCommand) -> Void)?
         var refusalHandler: (() -> Void)?
@@ -89,19 +91,46 @@ final class AIReviewOverlayTextView: UITextView {
     /// Draws `composition` with the editor's Markdown styling for `profile`, then the review's
     /// strike, dimming and tint. The current change's replacement is on the full tint; with several
     /// pending (Proofread), the others on the lighter one.
+    ///
+    /// A decision (accept, reject, a new current change) re-presents a composition that differs
+    /// from the one on screen in one span and a few changes' tints. With the same profile, only
+    /// that span is replaced and only the lines it and the re-tinted changes touch are restyled
+    /// (`presentIncrementally`): restyling and re-laying out the whole composition cost about
+    /// 680 ms per decision on 1 MB. The result is attribute for attribute what a whole present
+    /// draws (`PhonePerformanceBudgetTests.testIncrementalPresentDrawsWhatAWholePresentDraws`).
     func present(_ composition: AIReviewComposition, currentID: Int?, profile: ReadingProfile) {
+        let previous = reviewState.composition
+        let previousCurrentID = reviewState.currentID
+        let previousProfile = reviewState.presentedProfile
         reviewState.composition = composition
         reviewState.currentID = currentID
+        reviewState.presentedProfile = profile
         let theme = Theme.theme(for: profile)
         let storage = textStorage
-        storage.beginEditing()
-        storage.setAttributedString(NSAttributedString(string: composition.string,
-                                                       attributes: MarkdownTextStyle.baseAttributes(for: profile)))
-        MarkdownTokenStyler.apply(to: storage, profile: profile, tokenScope: nil)
-        let whole = NSRange(location: 0, length: storage.length)
+        if previousProfile == profile, storage.length > 0, storage.length == (previous.string as NSString).length {
+            presentIncrementally(composition, currentID: currentID, replacing: previous,
+                                 previousCurrentID: previousCurrentID, profile: profile, theme: theme)
+        } else {
+            storage.beginEditing()
+            storage.setAttributedString(NSAttributedString(string: composition.string,
+                                                           attributes: MarkdownTextStyle.baseAttributes(for: profile)))
+            MarkdownTokenStyler.apply(to: storage, profile: profile, tokenScope: nil)
+            Self.applyReviewStyling(composition, currentID: currentID, theme: theme, to: storage,
+                                    within: NSRange(location: 0, length: storage.length))
+            storage.endEditing()
+        }
+        backgroundColor = theme.backgroundColor
+        indicatorStyle = theme.usesDarkChrome ? .white : .black
+    }
+
+    /// The strike and dimming of every pending original, and the tint (with re-measured inks) of
+    /// every replacement, inside `scope` only. Over freshly styled text, so the re-ink starts from
+    /// the highlighter's inks.
+    private static func applyReviewStyling(_ composition: AIReviewComposition, currentID: Int?, theme: Theme,
+                                           to storage: NSTextStorage, within scope: NSRange) {
         let receded = HistoryPalette.recededInk(for: theme)
         for range in composition.removedRanges.values.joined() {
-            let clamped = NSIntersectionRange(range, whole)
+            let clamped = NSIntersectionRange(range, scope)
             guard clamped.length > 0 else { continue }
             storage.addAttributes([.foregroundColor: receded,
                                    .strikethroughStyle: NSUnderlineStyle.single.rawValue], range: clamped)
@@ -110,7 +139,7 @@ final class AIReviewOverlayTextView: UITextView {
             let isCurrent = id == currentID || composition.replacementRanges.count == 1
             let tint = isCurrent ? HistoryPalette.reviewInsertTint(for: theme) : HistoryPalette.reviewInsertOtherTint(for: theme)
             for range in ranges {
-                let clamped = NSIntersectionRange(range, whole)
+                let clamped = NSIntersectionRange(range, scope)
                 guard clamped.length > 0 else { continue }
                 storage.addAttribute(.backgroundColor, value: tint, range: clamped)
                 // The highlighter's inks are set against the page; on the tint a link (and, on
@@ -123,9 +152,126 @@ final class AIReviewOverlayTextView: UITextView {
                 }
             }
         }
+    }
+
+    /// How a change is drawn: absent (plain document or accepted text), pending on the full tint,
+    /// or pending on the lighter one.
+    private enum ChangeLook: Equatable { case plain, current, other }
+
+    private static func look(of id: Int, in composition: AIReviewComposition, currentID: Int?) -> ChangeLook {
+        guard composition.changeRanges[id] != nil || composition.removedRanges[id] != nil
+            || composition.replacementRanges[id] != nil else { return .plain }
+        return id == currentID || composition.replacementRanges.count == 1 ? .current : .other
+    }
+
+    private static func ranges(of id: Int, in composition: AIReviewComposition) -> [NSRange] {
+        (composition.removedRanges[id] ?? []) + (composition.replacementRanges[id] ?? [])
+            + (composition.changeRanges[id].map { [$0] } ?? [])
+    }
+
+    /// Replaces the one span where the two compositions' strings differ, then restyles (base,
+    /// tokens, review styling) only the whole lines that span and every change whose look changed
+    /// touch. Everything else keeps the attributes it was drawn with, moved with its text. The
+    /// token analyzer is line-local, so tokens of whole lines are the whole document's tokens.
+    private func presentIncrementally(_ composition: AIReviewComposition, currentID: Int?,
+                                      replacing previous: AIReviewComposition, previousCurrentID: Int?,
+                                      profile: ReadingProfile, theme: Theme) {
+        let storage = textStorage
+        let old = previous.string as NSString
+        let new = composition.string as NSString
+        let prefix = Self.commonPrefixLength(old, new)
+        let suffix = Self.commonSuffixLength(old, new, limit: min(old.length, new.length) - prefix)
+        let oldSpan = NSRange(location: prefix, length: old.length - prefix - suffix)
+        let newSpan = NSRange(location: prefix, length: new.length - prefix - suffix)
+        let delta = newSpan.length - oldSpan.length
+        /// An index in the previous string, in the new one: inside the replaced span it goes to
+        /// the span's start (a range's start) or end (a range's end).
+        func mapped(_ range: NSRange) -> NSRange {
+            func map(_ index: Int, isEnd: Bool) -> Int {
+                if index <= oldSpan.location { return index }
+                if index >= NSMaxRange(oldSpan) { return index + delta }
+                return isEnd ? NSMaxRange(newSpan) : newSpan.location
+            }
+            let start = map(range.location, isEnd: false)
+            return NSRange(location: start, length: max(0, map(NSMaxRange(range), isEnd: true) - start))
+        }
+
+        var regions: [NSRange] = []
+        let textChanged = oldSpan.length > 0 || newSpan.length > 0
+        if textChanged { regions.append(newSpan) }
+        let ids = Set(previous.changeRanges.keys).union(previous.removedRanges.keys).union(previous.replacementRanges.keys)
+            .union(composition.changeRanges.keys).union(composition.removedRanges.keys).union(composition.replacementRanges.keys)
+        for id in ids {
+            let newRanges = Self.ranges(of: id, in: composition)
+            let touchesSpan = textChanged && newRanges.contains { NSIntersectionRange($0, newSpan).length > 0
+                || NSLocationInRange(newSpan.location, $0) }
+            guard touchesSpan || Self.look(of: id, in: previous, currentID: previousCurrentID)
+                    != Self.look(of: id, in: composition, currentID: currentID) else { continue }
+            regions += newRanges
+            regions += Self.ranges(of: id, in: previous).map { mapped($0) }
+        }
+
+        // Whole lines, merged where they overlap.
+        let lineScopes = regions
+            .map { MarkdownTokenScope.scopedTokenRange(in: new, around: $0, margin: 0) }
+            .filter { $0.length > 0 }
+            .sorted { $0.location < $1.location }
+        var scopes: [NSRange] = []
+        for scope in lineScopes {
+            if let last = scopes.last, scope.location <= NSMaxRange(last) {
+                scopes[scopes.count - 1] = NSUnionRange(last, scope)
+            } else {
+                scopes.append(scope)
+            }
+        }
+
+        storage.beginEditing()
+        if textChanged {
+            storage.replaceCharacters(in: oldSpan, with: NSAttributedString(
+                string: new.substring(with: newSpan), attributes: MarkdownTextStyle.baseAttributes(for: profile)))
+        }
+        for scope in scopes {
+            MarkdownTokenStyler.applyTokens(to: storage, profile: profile, scope: scope)
+            Self.applyReviewStyling(composition, currentID: currentID, theme: theme, to: storage, within: scope)
+        }
         storage.endEditing()
-        backgroundColor = theme.backgroundColor
-        indicatorStyle = theme.usesDarkChrome ? .white : .black
+    }
+
+    /// UTF-16 units the two strings share at their start, compared a chunk at a time.
+    static func commonPrefixLength(_ a: NSString, _ b: NSString) -> Int {
+        let limit = min(a.length, b.length)
+        let chunk = 4096
+        var bufferA = [unichar](repeating: 0, count: chunk)
+        var bufferB = [unichar](repeating: 0, count: chunk)
+        var offset = 0
+        while offset < limit {
+            let count = min(chunk, limit - offset)
+            a.getCharacters(&bufferA, range: NSRange(location: offset, length: count))
+            b.getCharacters(&bufferB, range: NSRange(location: offset, length: count))
+            for index in 0..<count where bufferA[index] != bufferB[index] { return offset + index }
+            offset += count
+        }
+        return limit
+    }
+
+    /// UTF-16 units the two strings share at their end, at most `limit`.
+    static func commonSuffixLength(_ a: NSString, _ b: NSString, limit: Int) -> Int {
+        let chunk = 4096
+        var bufferA = [unichar](repeating: 0, count: chunk)
+        var bufferB = [unichar](repeating: 0, count: chunk)
+        var matched = 0
+        while matched < limit {
+            let count = min(chunk, limit - matched)
+            a.getCharacters(&bufferA, range: NSRange(location: a.length - matched - count, length: count))
+            b.getCharacters(&bufferB, range: NSRange(location: b.length - matched - count, length: count))
+            var index = count - 1
+            while index >= 0 {
+                if bufferA[index] != bufferB[index] { return matched + (count - 1 - index) }
+                index -= 1
+            }
+            matched += count
+        }
+        return limit
     }
 
     /// Lays the overlay out exactly as `editor` is laid out.
