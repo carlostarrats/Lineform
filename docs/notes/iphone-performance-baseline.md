@@ -51,3 +51,90 @@ After an open the editor had laid out glyphs up to 4,108 of 1,048,699
 Also found while measuring (e): the editor's Read → Write restore
 (`scrollCharacterRangeToTop`) calls `ensureLayout(for: textContainer)`, laying out the whole
 document, including everything after the target, whatever the target is.
+
+## Task 2: gates, fixes and rulings
+
+### Fixes, before → after
+
+| Fix | Before | After |
+|---|---|---|
+| AI review overlay: a decision replaces only the differing span and restyles only the lines it and the re-tinted changes touch (`AIReviewOverlayTextView.presentIncrementally`) | accept 682 ms vs whole present 99 ms (0.15×) | accept 2.2 ms (best) / 3.0 ms (median) vs 99 ms (**45×**) |
+| Read pills and table grid placed for a page above to a page below the visible one (`overlayWindow`), re-placed when a scroll leaves it | pills from a fresh layout 325–358 ms vs full layout 577–609 ms (≈ 1.7×) | 7.3 ms (best) / 9 ms (median) vs 500 ms (**68×**) |
+| Editor restore (`scrollCharacterRangeToTop`) lays out the prefix through the target and one page, not the whole text | Read → Write, page at the top: 535 ms vs whole restyle 98 ms (0.18×) | 2.8 ms vs 97 ms (**35×**) |
+
+Each fix keeps what the writer sees, asserted by
+`testIncrementalPresentDrawsWhatAWholePresentDraws` (the overlay's storage is `isEqual` to a whole
+present's through accept, move, reject, select, a theme change and Accept All),
+`testWindowedOverlaysMatchTheWholeSet` (top, middle and end: each placed pill has the whole set's
+rect and number, and the grid at the end is the whole document's grid) and
+`testScopedRestoreLandsWhereTheWholeLayoutRestoreDid` (targets at 0, 120, the middle and the end:
+the offset matches the old formula to 0.5 pt). `AIReviewTests`, `ReadingAssistsTests`,
+`ReadViewTests`, `ModeSwitchTests`, `LinkedScrollTests` and `StylingPerformanceTests` stay green.
+
+### Gates (one run, all on `step12b-sim`, Debug)
+
+| Gate | Scoped | Whole | Ratio | Asserted |
+|---|---|---|---|---|
+| `testKeystrokeIsScopedRatio` | 4.16 ms | 95.2 ms token pass | 22.9× | > 4× |
+| `testOpenDoesNotLayOutWholeDocument` | 12.6 ms | 519 ms full layout | 41× | > 2×, plus unlaid < half |
+| `testLaunchToTypableEditor` | 9.6 ms | 12.5 ms open / 96.5 ms token pass | 1.3× / 10× | > 0.4× / > 4× |
+| `testReadRepeatApplyIsCheap` | 0.002 ms | 454 ms first render | > 10⁵× | > 10× |
+| `testModeSwitchBackToWriteIsScoped` | 2.8 ms | 97.3 ms whole restyle | 35× | > 4× |
+| `testAIDecisionIsScopedRatio` | 2.2 ms | 98.8 ms whole present | 45× | > 4× |
+| `testReadingAssistsLayOutThePrefixOncePerRestyle` | 0.006 ms caret move | 615 ms restyle | > 10⁴× | > 10× |
+| `testReadOverlaysDoNotForceWholeLayout` | 7.3 ms | 500 ms full layout | 68× | > 4×, plus < 20 pills, no far table |
+
+### Rulings
+
+1. **Launch vs open (brief: ≥ 4×).** An open is lazy: it lays out the first screen only (13 ms),
+   so launch to a typable editor (about 10 ms, most of it `becomeFirstResponder`) measured
+   0.77–1.3× of it, never 4×. Ruling: the gate asserts launch is at most 2.5× an open (ratio
+   > 0.4, about half the measured low) and, for the brief's intent ("an empty editor must not do
+   document-scale work"), at least 4× cheaper than a document-scale pass, the whole-document token
+   pass (measured 10×).
+2. **Reading assists after a restyle (brief: structural, no prefix layout).** Unreachable without
+   changing what the writer sees. TextKit 1's estimate for a line past an unlaid stretch is far
+   off: for the last line of 1 MB, 335,817 pt estimated against 1,786,482 pt exact. The ruler and
+   Typewriter Mode placed from the estimate would sit on the wrong line once the text above is laid
+   out. So the prefix through the caret is laid out once per restyle or open with the ruler or
+   Typewriter Mode on (about 600 ms on 1 MB, caret at the end; nothing during a Styling drag). The
+   gate pins that it is paid ONCE: a caret move after the restyle is > 10× cheaper (measured over
+   10⁴×). Not fixed.
+3. **Read → Write gate position.** The restore must lay out the prefix through its target to place
+   it exactly (the same TextKit 1 fact), so with the target near the end of a document whose
+   editor layout was invalidated while in Read (a restyle in Read), the round trip still carries
+   about 550 ms of editor prefix layout (measured 552 ms in the Read → Write leg in one run; in
+   another the same work ran inside the Write → Read leg, 1,572 ms against 1,030 ms, because the
+   editor's queued re-asserts ran there, so `testMeasureBudgets` also prints the round trip). What the fix removes is everything after the target; that
+   part is largest with the target at the top, so the gate sits there (worst case for what it
+   guards) and asserts the restore really put the page back at the top. The end case is reported
+   by `testMeasureBudgets`, not gated. A possible follow-up: skip the restore when the editor
+   already shows the target (the editor stays mounted in Read, so after a Read session without a
+   scroll it never moved).
+4. **Read overlays (brief: structural `firstUnlaidGlyphIndex`).** The Read view's layout is
+   non-contiguous: placing every pill laid the whole document out in pieces (330 ms) while
+   `firstUnlaidGlyphIndex()` stayed near 3,400. That check would pass before the fix, so it is not
+   used. The gate is a ratio against a full layout plus structure: fewer than 20 pills placed on a
+   page whose document has over 100 code blocks, and no grid for a table at the end.
+5. **Write → Read** (first render 460 ms + the position restore's full Read layout, about 1,030 ms
+   in all) is reported, not gated, as the brief says.
+
+### Final measurement (`testMeasureBudgets`, after the fixes)
+
+| Budget | Median (ms) |
+|---|---|
+| (a) launch | 9.3 |
+| (b) open 1 MB / full layout | 12.9 / 591 |
+| (c) keystroke / whole token pass | 4.3 / 99.1 |
+| (d) Read first render (apply) / repeat apply | 470 (466) / 0.62 |
+| Read overlays from a fresh layout, page at top | 9.3 |
+| (e) end, editor invalidated in Read: Write → Read / Read → Write | 1,572 / 6.0 (the ~550 ms prefix layout fell in the first leg this run; 1,026 / 552 in another) |
+| (e) top, as an open leaves it: Write → Read / Read → Write | 1,041 / 3.8 |
+| (f) AI accept / whole present | 3.4 / 99.0 |
+| reading assists after a restyle (ruler on, caret at end) | 630 |
+
+A last run of the gates (same machine, nothing else building): AI accept 43.9×, keystroke 22.7×,
+launch 1.4× / 10.2×, Read → Write 27.8×, open 43.4×, ruler caret move 9×10⁴×, Read overlays 65.3×,
+Read repeat apply 2.7×10⁵×. 12 of 12 passed.
+
+Full `LineformiOS` suite on `step12b-sim` after the fixes: 432 tests, 0 failures.

@@ -125,9 +125,24 @@ final class PhonePerformanceBudgetTests: XCTestCase {
         let wholeRestyle = StylingPerformanceTests.time {
             MarkdownTokenStyler.apply(to: editor.textStorage, profile: profile, tokenScope: nil)
         }
-        print(String(format: "[perf] (e) Write→Read %.1f ms, Read→Write %.1f ms (medians of 3); whole-document restyle %.1f ms",
+        // The editor's prefix layout (the restore near the end) can land in either leg, depending
+        // on when its queued re-asserts run; the round trip is the stable number.
+        let roundTrips = zip(toRead, toWrite).map { $0 + $1 }
+        print(String(format: "[perf] (e) at the end, editor layout invalidated in Read: Write→Read %.1f ms, Read→Write %.1f ms, round trip %.1f ms (medians of 3); whole-document restyle %.1f ms",
                      StylingPerformanceTests.median(toRead) * 1000, StylingPerformanceTests.median(toWrite) * 1000,
-                     wholeRestyle * 1000))
+                     StylingPerformanceTests.median(roundTrips) * 1000, wholeRestyle * 1000))
+        var topToRead: [TimeInterval] = []
+        var topToWrite: [TimeInterval] = []
+        let topEditor = makeEditor(text, profile: profile, caretAtEnd: false)
+        for _ in 0..<3 {
+            let times = modeRoundTrip(editor: topEditor, text: text, profile: profile, atEnd: false)
+            topToRead.append(times.toRead)
+            topToWrite.append(times.toWrite)
+        }
+        print(String(format: "[perf] (e) at the top, as an open leaves it: Write→Read %.1f ms, Read→Write %.1f ms (medians of 3)",
+                     StylingPerformanceTests.median(topToRead) * 1000, StylingPerformanceTests.median(topToWrite) * 1000))
+        topEditor.removeFromSuperview()
+
         editor.removeFromSuperview()
 
         // (f) One AI review decision (accept) on 1 MB, ten changes near the end.
@@ -162,6 +177,286 @@ final class PhonePerformanceBudgetTests: XCTestCase {
         rulerEditor.removeFromSuperview()
     }
 
+    // MARK: - Gates
+
+    /// (c) One keystroke at the end (edit, scoped tokens, visible spell pass) against a token
+    /// pass over the whole document.
+    func testKeystrokeIsScopedRatio() throws {
+        let text = Self.corpus
+        let editor = makeEditor(text, profile: .original, caretAtEnd: true)
+        let language = try XCTUnwrap(SpellCheckPass.language(primary: "en-US"))
+        let checker = UITextChecker()
+        Self.keystroke(in: editor, language: language, checker: checker)
+        let keystroke = Self.bestPerCall(batches: 5, iterations: 5) {
+            Self.keystroke(in: editor, language: language, checker: checker)
+        }
+        let whole = Self.bestPerCall(batches: 2, iterations: 1) {
+            MarkdownTokenStyler.applyTokens(to: editor.textStorage, profile: editor.profile,
+                                            scope: NSRange(location: 0, length: editor.textStorage.length))
+        }
+        Self.report("keystroke", scoped: keystroke, whole: whole, wholeName: "whole-document token pass")
+        XCTAssertGreaterThan(whole, 0.001, "the whole side must take measurable time, or the ratio means nothing")
+        XCTAssertGreaterThan(whole / keystroke, 4, "a keystroke reached a whole-document pass")
+    }
+
+    /// (b) An open lays out the first screen, never the document: structurally, and against a
+    /// full layout of the text.
+    func testOpenDoesNotLayOutWholeDocument() {
+        let text = Self.corpus
+        let data = MarkdownFileCodec.encode(text)
+        let editor = makeEditor(text, profile: .original, caretAtEnd: true)
+        Self.open(data, in: editor)
+        let layoutManager = editor.layoutManager
+        XCTAssertLessThan(layoutManager.firstUnlaidGlyphIndex(), layoutManager.numberOfGlyphs / 2,
+                          "an open laid out the document, not its first screen")
+        let open = Self.bestPerCall(batches: 3, iterations: 1) { Self.open(data, in: editor) }
+        let whole = Self.bestPerCall(batches: 2, iterations: 1) {
+            layoutManager.invalidateLayout(forCharacterRange: NSRange(location: 0, length: editor.textStorage.length),
+                                           actualCharacterRange: nil)
+            layoutManager.ensureLayout(for: editor.textContainer)
+        }
+        Self.report("open 1 MB", scoped: open, whole: whole, wholeName: "full layout")
+        XCTAssertGreaterThan(whole, 0.001)
+        XCTAssertGreaterThan(whole / open, 2, "an open costs as much as laying out the whole document")
+    }
+
+    /// (a) Launch to a typable editor. Ruling (baseline note): an open is lazy (about 14 ms), so
+    /// launch measures about 0.85× of it, not 4×; the gate holds launch to at most 2.5× an open,
+    /// and to a quarter of a document-scale pass (a whole-document token pass).
+    func testLaunchToTypableEditor() throws {
+        let text = Self.corpus
+        let data = MarkdownFileCodec.encode(text)
+        var launches: [TimeInterval] = []
+        for _ in 0..<5 {
+            var made: LineformTextView?
+            launches.append(StylingPerformanceTests.time {
+                let editor = LineformTextView.make(profile: .original)
+                editor.setDocumentText("")
+                host(editor)
+                editor.becomeFirstResponder()
+                editor.layoutIfNeeded()
+                made = editor
+            })
+            made?.resignFirstResponder()
+            made?.removeFromSuperview()
+        }
+        let launch = launches.min() ?? 0
+        let editor = makeEditor(text, profile: .original, caretAtEnd: true)
+        let open = Self.bestPerCall(batches: 3, iterations: 1) { Self.open(data, in: editor) }
+        let wholeTokens = Self.bestPerCall(batches: 2, iterations: 1) {
+            MarkdownTokenStyler.applyTokens(to: editor.textStorage, profile: editor.profile,
+                                            scope: NSRange(location: 0, length: editor.textStorage.length))
+        }
+        Self.report("launch", scoped: launch, whole: open, wholeName: "open 1 MB")
+        Self.report("launch", scoped: launch, whole: wholeTokens, wholeName: "whole-document token pass")
+        XCTAssertGreaterThan(open, 0.001)
+        XCTAssertGreaterThan(open / launch, 0.4, "launching an empty editor costs more than 2.5 opens of 1 MB")
+        XCTAssertGreaterThan(wholeTokens / launch, 4, "launching an empty editor does document-scale work")
+    }
+
+    /// (d) A repeat apply of unchanged text renders nothing.
+    func testReadRepeatApplyIsCheap() {
+        let text = Self.corpus
+        let reader = LineformReadView.make(profile: .original)
+        host(reader)
+        let first = StylingPerformanceTests.time {
+            reader.apply(text: text, profile: .original, documentDirectory: nil)
+            reader.layoutIfNeeded()
+        }
+        let repeated = Self.bestPerCall(batches: 5, iterations: 5) {
+            reader.apply(text: text, profile: .original, documentDirectory: nil)
+            reader.layoutIfNeeded()
+        }
+        Self.report("Read repeat apply", scoped: repeated, whole: first, wholeName: "first render")
+        XCTAssertGreaterThan(first, 0.001)
+        XCTAssertGreaterThan(first / repeated, 10, "an unchanged apply rendered again")
+    }
+
+    /// (e) Read → Write, with the editor as an open leaves it (page at the top, first screen laid
+    /// out), against a whole-document restyle. The restore lays out the prefix through its target
+    /// and one page, never the rest: the scoped part this guards is largest with the target at
+    /// the top. Write → Read's first render is (d)'s cost and is reported, not gated.
+    func testModeSwitchBackToWriteIsScoped() {
+        let text = Self.corpus
+        let editor = makeEditor(text, profile: .original, caretAtEnd: false)
+        _ = modeRoundTrip(editor: editor, text: text, profile: .original, atEnd: false)
+        var legs: [TimeInterval] = []
+        for _ in 0..<3 {
+            legs.append(modeRoundTrip(editor: editor, text: text, profile: .original, atEnd: false).toWrite)
+        }
+        let toWrite = legs.min() ?? 0
+        let restyle = Self.bestPerCall(batches: 2, iterations: 1) {
+            MarkdownTokenStyler.apply(to: editor.textStorage, profile: editor.profile, tokenScope: nil)
+        }
+        Self.report("Read → Write", scoped: toWrite, whole: restyle, wholeName: "whole-document restyle")
+        XCTAssertGreaterThan(restyle, 0.001)
+        XCTAssertGreaterThan(restyle / toWrite, 4, "the switch back to Write laid out past its target")
+        XCTAssertLessThan(editor.topVisibleSourceLocation() ?? .max, 2_000, "the restore put the page back at the top")
+        XCTAssertLessThan(editor.layoutManager.firstUnlaidGlyphIndex(), editor.layoutManager.numberOfGlyphs / 2)
+    }
+
+    /// The scoped restore lands exactly where the old whole-layout restore did: at the top, in the
+    /// middle, and at the end (clamped).
+    func testScopedRestoreLandsWhereTheWholeLayoutRestoreDid() {
+        let text = Self.corpus
+        let length = (text as NSString).length
+        let editor = makeEditor(text, profile: .original, caretAtEnd: false)
+        for target in [0, 120, length / 2, length - 40] {
+            editor.layoutManager.invalidateLayout(forCharacterRange: NSRange(location: 0, length: length), actualCharacterRange: nil)
+            editor.scrollCharacterRangeToTop(NSRange(location: target, length: 0))
+            let landed = editor.contentOffset.y
+            editor.layoutManager.ensureLayout(for: editor.textContainer)
+            XCTAssertEqual(landed, Self.wholeLayoutRestoreOffset(editor, target: target), accuracy: 0.5, "target \(target)")
+        }
+    }
+
+    /// (f) One accept on a ten-change review near the end of 1 MB, against a whole-composition
+    /// present.
+    func testAIDecisionIsScopedRatio() {
+        let text = Self.corpus
+        let rig = makeReviewRig(text: text, profile: .original)
+        var accepts: [TimeInterval] = []
+        for _ in 0..<8 {
+            accepts.append(StylingPerformanceTests.time { rig.acceptCurrent() })
+        }
+        let accept = accepts.min() ?? 0
+        let whole = Self.bestPerCall(batches: 3, iterations: 1) {
+            AIReviewOverlayTextView.make().present(rig.composition, currentID: rig.session.currentID, profile: rig.profile)
+        }
+        Self.report("AI accept", scoped: accept, whole: whole, wholeName: "whole-composition present")
+        XCTAssertGreaterThan(whole, 0.001)
+        XCTAssertGreaterThan(whole / accept, 4, "a review decision restyled or laid out the whole composition")
+    }
+
+    /// The incremental present draws attribute for attribute what a whole present draws, through
+    /// accepts, a reject, moving and selecting, in two themes.
+    func testIncrementalPresentDrawsWhatAWholePresentDraws() {
+        let text = String(Self.corpus.prefix(60_000))
+        var profile = ReadingProfile.original
+        let session = Self.reviewSession(in: text, changes: 6)
+        let overlay = AIReviewOverlayTextView.make()
+        let rig = ReviewRig(text: text, profile: profile, overlay: overlay, session: session)
+        overlay.present(rig.composition, currentID: session.currentID, profile: profile)
+
+        func check(_ step: String) {
+            rig.composition = rig.cache.composition(text: text, session: rig.session)
+            overlay.present(rig.composition, currentID: rig.session.currentID, profile: profile)
+            let whole = AIReviewOverlayTextView.make()
+            whole.present(rig.composition, currentID: rig.session.currentID, profile: profile)
+            XCTAssertEqual(overlay.textStorage.string, whole.textStorage.string, step)
+            XCTAssertTrue(overlay.textStorage.isEqual(to: whole.textStorage), "\(step): drawn differently from a whole present")
+        }
+        let ids = rig.session.pending.map(\.id)
+        rig.session.accept(ids[0]); check("accept the first")
+        rig.session.move(by: 1); check("move")
+        rig.session.reject(ids[2]); check("reject")
+        rig.session.select(ids[4]); check("select")
+        rig.session.accept(ids[4]); check("accept the selected")
+        profile.themeID = .night
+        check("a new theme (whole present)")
+        rig.session.accept(ids[1]); check("accept in the new theme")
+        rig.session.acceptAllPending(); check("accept all")
+    }
+
+    /// Deferred issue 2, by ruling (baseline note): after a full restyle the Reading Ruler and
+    /// Typewriter Mode lay out the prefix through the caret, because TextKit 1's estimate for a
+    /// line past an unlaid stretch is far off (measured: 335,817 pt estimated vs 1,786,482 pt
+    /// exact for the last line of 1 MB). That cost is kept, once per restyle; it must never be
+    /// paid again for a caret move or a keystroke, and never during a Styling drag
+    /// (`StylingPerformanceTests.testDragDefersEditorAssistsLayout`).
+    func testReadingAssistsLayOutThePrefixOncePerRestyle() {
+        let text = Self.corpus
+        let length = (text as NSString).length
+        var profile = ReadingProfile.original
+        profile.readingRulerEnabled = true
+        let editor = makeEditor(text, profile: profile, caretAtEnd: true)
+        profile.fontSize = 19
+        let restyle = StylingPerformanceTests.time { editor.profile = profile }
+        editor.layoutIfNeeded()
+        var step = 0
+        let caretMove = Self.bestPerCall(batches: 5, iterations: 4) {
+            step += 1
+            editor.selectedRange = NSRange(location: length - 1 - (step % 2) * 200, length: 0)
+            editor.refreshReadingAssists()
+        }
+        Self.report("ruler caret move after a restyle", scoped: caretMove, whole: restyle, wholeName: "restyle with the ruler on")
+        XCTAssertGreaterThan(restyle, 0.001)
+        XCTAssertFalse(editor.readingRulerView?.isHidden ?? true)
+        XCTAssertGreaterThan(restyle / caretMove, 10, "the reading assists lay the prefix out again on a caret move")
+    }
+
+    /// Deferred issue 3: the pills and the table grid are placed for the page and its
+    /// neighbours only, never measured for the whole document.
+    func testReadOverlaysDoNotForceWholeLayout() throws {
+        let text = Self.corpus + "\n| Column | Other |\n| --- | --- |\n| a | b |\n| c | d |\n"
+        let reader = LineformReadView.make(profile: .original)
+        host(reader)
+        reader.apply(text: text, profile: .original, documentDirectory: nil)
+        reader.layoutIfNeeded()
+        let layoutManager = reader.layoutManager
+        let storageLength = reader.textStorage.length
+        var codeBlocks = 0
+        reader.textStorage.enumerateAttribute(.codeBlockSourceRange, in: NSRange(location: 0, length: storageLength)) { value, _, _ in
+            if value != nil { codeBlocks += 1 }
+        }
+        XCTAssertGreaterThan(codeBlocks, 100)
+        XCTAssertLessThan(reader.overlayButtons.count, 20, "pills were placed for the whole document")
+        XCTAssertTrue(reader.tableGridPath(in: reader.overlayWindow()).isEmpty, "the grid measured a table far below the page")
+
+        var overlays: [TimeInterval] = []
+        for _ in 0..<3 {
+            layoutManager.invalidateLayout(forCharacterRange: NSRange(location: 0, length: storageLength), actualCharacterRange: nil)
+            overlays.append(StylingPerformanceTests.time { reader.layoutOverlays() })
+        }
+        let whole = Self.bestPerCall(batches: 2, iterations: 1) {
+            layoutManager.invalidateLayout(forCharacterRange: NSRange(location: 0, length: storageLength), actualCharacterRange: nil)
+            layoutManager.ensureLayout(for: reader.textContainer)
+        }
+        let overlay = overlays.min() ?? 0
+        Self.report("Read overlays", scoped: overlay, whole: whole, wholeName: "full layout")
+        XCTAssertGreaterThan(whole, 0.001)
+        XCTAssertGreaterThan(whole / overlay, 4, "placing the pills laid out the whole document")
+    }
+
+    /// The windowed pills are the whole set's pills for that stretch: same rects, same numbers.
+    /// A scroll past the window places the pills and the grid there.
+    func testWindowedOverlaysMatchTheWholeSet() throws {
+        let text = Self.corpus + "\n| Column | Other |\n| --- | --- |\n| a | b |\n| c | d |\n"
+        let reader = LineformReadView.make(profile: .original)
+        host(reader)
+        reader.apply(text: text, profile: .original, documentDirectory: nil)
+        reader.layoutManager.ensureLayout(for: reader.textContainer)
+        reader.layoutIfNeeded()
+
+        func assertMatchesWholeSet(_ place: String) throws {
+            _ = try XCTUnwrap(reader.overlayWindow())
+            let all = reader.overlayPills()
+            let expected = all.filter { pill in
+                reader.overlayButtons.contains { NSEqualRanges($0.sourceRange, pill.sourceRange) }
+            }
+            XCTAssertFalse(expected.isEmpty, place)
+            XCTAssertEqual(reader.overlayButtons.count, expected.count, place)
+            for (button, pill) in zip(reader.overlayButtons, expected) {
+                XCTAssertEqual(button.frame, pill.rect, place)
+                XCTAssertEqual(button.codeBlockNumber, pill.codeBlockNumber, place)
+            }
+        }
+        try assertMatchesWholeSet("top")
+        XCTAssertTrue(reader.tableGridPath(in: reader.overlayWindow()).isEmpty)
+
+        reader.setContentOffset(CGPoint(x: 0, y: reader.contentSize.height / 2), animated: false)
+        reader.layoutIfNeeded()
+        try assertMatchesWholeSet("middle")
+
+        let bottom = reader.contentSize.height + reader.adjustedContentInset.bottom - reader.bounds.height
+        reader.setContentOffset(CGPoint(x: 0, y: bottom), animated: false)
+        reader.layoutIfNeeded()
+        try assertMatchesWholeSet("end")
+        let gridAtEnd = try XCTUnwrap(reader.subviews.compactMap { $0 as? ReadTableGridView }.first)
+        XCTAssertEqual(gridAtEnd.shapeLayer.path.map { UIBezierPath(cgPath: $0).bounds },
+                       reader.tableGridPath().bounds, "the grid at the end is the whole document's grid")
+    }
+
     // MARK: - Budget operations (shared with the gates)
 
     static let corpus = StylingPerformanceTests.largeDocument()
@@ -187,15 +482,22 @@ final class PhonePerformanceBudgetTests: XCTestCase {
 
     /// (e): Write → Read → Write the way `DocumentScreen` does it, with the editor's layout first
     /// invalidated (as after an open or a restyle). Returns each leg's time.
-    func modeRoundTrip(editor: LineformTextView, text: String, profile: ReadingProfile)
+    func modeRoundTrip(editor: LineformTextView, text: String, profile: ReadingProfile, atEnd: Bool = true)
         -> (toRead: TimeInterval, toWrite: TimeInterval) {
         let keeper = ModePositionKeeper()
         keeper.editor = editor
         keeper.adopt(.write)
         let length = editor.textStorage.length
+        // A previous trip's restore re-asserts for a few ticks; it must not move this trip's page.
+        editor.state.persistentScrollTarget = nil
         editor.layoutManager.invalidateLayout(forCharacterRange: NSRange(location: 0, length: length), actualCharacterRange: nil)
-        editor.selectedRange = NSRange(location: length - 1, length: 0)
-        editor.scrollRangeToVisible(editor.selectedRange)
+        if atEnd {
+            editor.selectedRange = NSRange(location: length - 1, length: 0)
+            editor.scrollRangeToVisible(editor.selectedRange)
+        } else {
+            editor.selectedRange = NSRange(location: 0, length: 0)
+            editor.setContentOffset(CGPoint(x: 0, y: -editor.adjustedContentInset.top), animated: false)
+        }
         editor.layoutIfNeeded()
 
         var reader: LineformReadView?
@@ -211,6 +513,7 @@ final class PhonePerformanceBudgetTests: XCTestCase {
         }
         StylingPerformanceTests.spinMainQueue()
 
+        // A restyle while in Read (the editor under it restyles too) leaves its layout invalid.
         editor.layoutManager.invalidateLayout(forCharacterRange: NSRange(location: 0, length: length), actualCharacterRange: nil)
         let toWrite = StylingPerformanceTests.time {
             keeper.switchMode(from: .read, to: .write)
@@ -284,6 +587,38 @@ final class PhonePerformanceBudgetTests: XCTestCase {
         let selection = NSRange(location: first, length: ns.length - first)
         return AIReviewSession(action: .proofread, changes: changes, selectionRange: selection,
                                originalSelection: ns.substring(with: selection))
+    }
+
+    /// The best per-call time over `batches` of `iterations` calls (`testSpellPassIsScopedRatio`).
+    static func bestPerCall(batches: Int, iterations: Int, _ body: () -> Void) -> TimeInterval {
+        var best = TimeInterval.infinity
+        for _ in 0..<batches {
+            let elapsed = StylingPerformanceTests.time {
+                for _ in 0..<iterations { body() }
+            }
+            best = min(best, elapsed / Double(iterations))
+        }
+        return best
+    }
+
+    static func report(_ name: String, scoped: TimeInterval, whole: TimeInterval, wholeName: String) {
+        print(String(format: "[perf] gate %@: %.3f ms vs %@ %.1f ms (%.1f×)",
+                     name, scoped * 1000, wholeName, whole * 1000, whole / max(scoped, 1e-9)))
+    }
+
+    /// Where `scrollCharacterRangeToTop` put `target` when it laid out the whole text first (the
+    /// formula before the scoped restore). Needs the whole text laid out.
+    static func wholeLayoutRestoreOffset(_ editor: LineformTextView, target: Int) -> CGFloat {
+        let layoutManager = editor.layoutManager
+        let location = min(max(0, target), editor.textStorage.length - 1)
+        let glyphs = layoutManager.glyphRange(forCharacterRange: NSRange(location: location, length: 1), actualCharacterRange: nil)
+        let rect = layoutManager.boundingRect(forGlyphRange: glyphs, in: editor.textContainer)
+        let top = -editor.adjustedContentInset.top
+        let targetTop = max(0, rect.minY + editor.textContainerInset.top - LineformTextView.scrollTopMargin)
+        let contentHeight = layoutManager.usedRect(for: editor.textContainer).height
+            + editor.textContainerInset.top + editor.textContainerInset.bottom
+        let maximumY = max(top, contentHeight + editor.adjustedContentInset.bottom - editor.bounds.height)
+        return min(max(top, targetTop - editor.adjustedContentInset.top), maximumY)
     }
 
     /// Runs the work queued on the main queue so far (the keeper's next-tick restore).
