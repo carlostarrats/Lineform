@@ -145,11 +145,13 @@ struct DocumentScreen: View {
 
     /// Makes the export commands once. Reading the previous document aloud stops whenever the
     /// document swaps (New Document, an open from the list or Files, the launch restore), and
-    /// any export copy a share sheet still held when iOS ended the app is deleted.
+    /// any export copy a share sheet (or Save As copy a picker) still held when iOS ended the app
+    /// is deleted.
     private func makeExportCommandsIfNeeded() {
         guard exportCommands == nil else { return }
         let commands = ExportCommands(document: document, profile: { [profileStore] in profileStore.activeProfile })
         commands.removeExports()
+        SaveAsStaging.removeAll()
         document.onDocumentSwap = { [weak commands] in commands?.documentWillChange() }
         exportCommands = commands
     }

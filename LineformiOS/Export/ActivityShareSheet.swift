@@ -43,7 +43,7 @@ struct ActivityShareSheet {
         presenter.presentedViewController == nil && !presenter.isBeingDismissed && !presenter.isBeingPresented
     }
 
-    private static func topPresenter() -> UIViewController? {
+    static func topPresenter() -> UIViewController? {
         let window = UIApplication.shared.connectedScenes
             .compactMap { $0 as? UIWindowScene }
             .flatMap(\.windows)

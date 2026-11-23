@@ -3,7 +3,8 @@ import SwiftUI
 
 /// The Menu sheet's Document section: the document's own commands, then the help pages.
 ///
-/// - New Document and Open from Files… (as in Files).
+/// - New Document and Open from Files… (as in Files), then Save As…: the system export picker,
+///   after which the document is the new file (`SaveAsPicker`, `OpenDocument.adoptSaveAs`).
 /// - Insert Table and Reformat Table, for Markdown only (the Mac shows its formatting commands
 ///   for Markdown only too).
 /// - Convert to Plain Text, or Convert to Markdown once converted: the title follows the
@@ -37,6 +38,8 @@ struct DocumentSection: View {
 
     static var newDocumentTitle: String { String(localized: "New Document") }
     static var openTitle: String { String(localized: "Open from Files…") }
+    /// The Mac's "Save As..." with the iPhone's ellipsis, as Print… and Share… are.
+    static var saveAsTitle: String { String(localized: "Save As\u{2026}") }
     static var insertTableTitle: String { String(localized: "Insert Table") }
     static var reformatTableTitle: String { String(localized: "Reformat Table") }
     static var checkDocumentTitle: String { String(localized: "Check Document Now") }
@@ -64,7 +67,7 @@ struct DocumentSection: View {
 
     /// Every row's title, in order, for `textFormat`.
     static func rowTitles(for textFormat: LineformTextFormat) -> [String] {
-        var titles = [newDocumentTitle, openTitle]
+        var titles = [newDocumentTitle, openTitle, saveAsTitle]
         if showsTableCommands(for: textFormat) { titles += [insertTableTitle, reformatTableTitle] }
         titles += [conversionTitle(for: textFormat), checkDocumentTitle]
         titles += ExportRows.idleRowTitles
@@ -88,6 +91,10 @@ struct DocumentSection: View {
                 } label: {
                     Label(Self.openTitle, systemImage: "doc.badge.ellipsis")
                 }
+                Button(action: { saveAs() }) {
+                    Label(Self.saveAsTitle, systemImage: "square.and.arrow.down")
+                }
+                .disabled(!document.canSaveAs)
             }
             .listRowBackground(Color.clear)
 
@@ -152,6 +159,26 @@ struct DocumentSection: View {
             guard case .success(let url) = result else { return }
             Task { await document.openReportingFailure(url) }
             onDismiss()
+        }
+    }
+
+    /// Save As: stage a copy (saving first), let the writer place it, then move the document
+    /// there. A failed save closes the menu so the screen's save notice shows; a cancel keeps the
+    /// menu open.
+    private func saveAs() {
+        let document = document
+        let onDismiss = onDismiss
+        Task {
+            guard let copy = await document.prepareSaveAs() else {
+                onDismiss()
+                return
+            }
+            SaveAsPicker(copyURL: copy.url) { destination in
+                SaveAsStaging.removeAll()
+                guard let destination else { return }
+                document.adoptSaveAs(copy, at: destination)
+                onDismiss()
+            }.present()
         }
     }
 
