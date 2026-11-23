@@ -101,6 +101,9 @@ public final class AIActionController: ObservableObject {
     /// The writer's note for the request behind the current run or review (the selection toolbar's
     /// comment). Try Again sends it again.
     private var reviewNote: String?
+    /// The current run or review is for the whole document (Ask AI with nothing selected):
+    /// its limit message is `WholeDocumentAIPolicy.refusalMessage`, and Try Again keeps it.
+    private var requestIsWholeDocument = false
     private var connectionObservation: AnyCancellable?
 
     public init(connectionStore: AIConnectionStore,
@@ -240,6 +243,27 @@ public final class AIActionController: ObservableObject {
     /// `avoiding`: the segments of a suggestion just discarded by Try Again; the prompt asks for a
     /// different result (`AIActionPrompt.editPrompt(_:segments:avoiding:)`).
     public func run(_ action: AIAction, range: NSRange, text: String, avoiding: [String]? = nil, note: String? = nil) {
+        start(action, range: range, text: text, avoiding: avoiding, note: note, wholeDocument: false)
+    }
+
+    /// Ask AI for the whole document (nothing selected): the range is the whole text. Refused by
+    /// `WholeDocumentAIPolicy` past `AILimits` — the message card says so, before the Keychain is
+    /// read. The confirmation above `WholeDocumentAIPolicy.confirmWordCount` words is the
+    /// caller's, before the comment field opens.
+    public func runWholeDocument(_ action: AIAction, text: String, avoiding: [String]? = nil, note: String?) {
+        guard WholeDocumentAIPolicy.decision(for: text) != .refuse else { return refuseWholeDocument() }
+        start(action, range: NSRange(location: 0, length: (text as NSString).length), text: text,
+              avoiding: avoiding, note: note, wholeDocument: true)
+    }
+
+    /// The whole-document refusal, through the ordinary message card. Nothing is read or sent.
+    public func refuseWholeDocument() {
+        guard connectionStore.isConnected, !isBusy else { return }
+        show(WholeDocumentAIPolicy.refusalMessage)
+    }
+
+    private func start(_ action: AIAction, range: NSRange, text: String, avoiding: [String]?, note: String?,
+                       wholeDocument: Bool) {
         guard allowsRun(on: range) else { return }
         let note = AIActionPrompt.trimmedNote(note)
         // Custom IS the note: without one there is nothing to ask.
@@ -268,7 +292,7 @@ public final class AIActionController: ObservableObject {
         }
         let proseLength = pieces.reduce(0) { $0 + ($1 as NSString).length }
         guard pieces.count <= AILimits.maxSegments, proseLength <= AILimits.maxProseUTF16 else {
-            return show(Self.tooMuchTextMessage)
+            return show(wholeDocument ? WholeDocumentAIPolicy.refusalMessage : Self.tooMuchTextMessage)
         }
         guard let connection = connectionStore.resolvedConnection() else {
             return show(Self.reconnectMessage)
@@ -283,6 +307,7 @@ public final class AIActionController: ObservableObject {
         case .mark: prompt = AIActionPrompt.markPrompt(action, sentences: pieces, note: note)
         }
         reviewNote = note
+        requestIsWholeDocument = wholeDocument
         let client = clientFactory(connection)
         // History mode on? Its selected passage is remembered and History mode ends; the action's
         // end brings it back (`settleHistory`).
@@ -486,9 +511,11 @@ public final class AIActionController: ObservableObject {
             // decisions made in it would be lost silently.
             guard !session.acceptedAny else { return }
             let previous = reviewRevisions
+            let wholeDocument = requestIsWholeDocument
             // The action goes on: History stays settled-later (the re-run keeps its context).
             endReview(settlingHistory: false)
-            run(session.action, range: session.selectionRange, text: editor.string, avoiding: previous, note: reviewNote)
+            start(session.action, range: session.selectionRange, text: editor.string, avoiding: previous,
+                  note: reviewNote, wholeDocument: wholeDocument)
             return
         }
         state = .reviewing(session)

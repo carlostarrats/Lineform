@@ -26,6 +26,11 @@ final class SelectionToolbarController {
     var placedAbove = true
     /// Screen-space pointer and frame origin when a drag began.
     var dragStart: (mouse: NSPoint, origin: NSPoint)?
+    /// The comment card is for the whole document (Edit ▸ Ask AI… with nothing selected):
+    /// `anchorRange` is the whole text, Send runs `.runWholeDocument`, and Esc puts back the
+    /// caret it was opened at (`wholeDocumentCaret`) rather than selecting everything.
+    var isWholeDocument = false
+    var wholeDocumentCaret: NSRange?
 }
 
 extension LineformTextView {
@@ -140,6 +145,8 @@ extension LineformTextView {
         controller.dragStart = nil
         releaseCommentHighlight()
         controller.anchorRange = nil
+        controller.isWholeDocument = false
+        controller.wholeDocumentCaret = nil
         controller.model.mode = .toolbar
         if hadFocus { window?.makeFirstResponder(self) }
     }
@@ -353,19 +360,79 @@ extension LineformTextView {
         }
     }
 
+    // MARK: - Edit ▸ Ask AI…
+
+    /// Edit ▸ Ask AI… with a selection: the comment card for it, exactly as the toolbar's Ask
+    /// button opens it (the bar is shown first if it was not up — a programmatic selection, or
+    /// one the writer dismissed with Esc).
+    func openSelectionToolbarCommentFromMenu() {
+        guard selectedRange().length > 0, aiCommandHandler != nil,
+              AIConnectionStore.shared.connectedProvider != nil else { return }
+        let controller = selectionToolbar
+        if controller.model.mode == .comment, controller.isVisible, !controller.isWholeDocument { return }
+        if controller.isWholeDocument { hideSelectionToolbar() }
+        showSelectionToolbarForCurrentSelection()
+        guard controller.isVisible else { return }
+        openSelectionToolbarComment()
+    }
+
+    /// Edit ▸ Ask AI… with nothing selected (after `WholeDocumentAIPolicy`): the same comment card,
+    /// for the whole document, at the top centre of the visible editor. Nothing is highlighted —
+    /// the whole document is the subject — and the caret stays where it was.
+    func openWholeDocumentAIComment() {
+        guard allowsSelectionToolbar, let provider = aiCommandHandler == nil ? nil : AIConnectionStore.shared.connectedProvider
+        else { return }
+        let length = (string as NSString).length
+        guard length > 0 else { return }
+        let caret = selectedRange()
+        hideSelectionToolbar()
+        let controller = selectionToolbar
+        let model = controller.model
+        controller.anchorRange = NSRange(location: 0, length: length)
+        controller.isWholeDocument = true
+        controller.wholeDocumentCaret = caret
+        model.aiName = SelectionToolbarPresentation.aiName(for: provider)
+        model.showsFormatting = false
+        model.usesDarkChrome = Theme.theme(for: appliedReadingProfile).usesDarkChrome
+        model.note = ""
+        model.action = .custom
+        let probeModel = SelectionToolbarModel()
+        probeModel.mode = .comment
+        probeModel.aiName = model.aiName
+        probeModel.usesDarkChrome = model.usesDarkChrome
+        let size = NSHostingView(rootView: SelectionToolbarRoot(model: probeModel)).fittingSize
+        let hosting = controller.hostingView
+        addSubview(hosting)
+        if size.width > 0, size.height > 0 {
+            let visible = visibleRect
+            let inset = SelectionToolbarHostingView.shadowInset
+            let x = min(max(visible.midX - size.width / 2, visible.minX), visible.maxX - size.width)
+            hosting.move(to: NSRect(x: x.rounded(), y: (visible.minY + 8 - inset).rounded(),
+                                    width: size.width, height: size.height))
+        }
+        model.mode = .comment
+        DispatchQueue.main.async { [weak self] in
+            guard self != nil, controller.isVisible else { return }
+            self?.window?.makeFirstResponder(hosting)
+            model.focusToken += 1
+        }
+    }
+
     private func sendSelectionToolbarComment() {
         guard let controller = selectionToolbarStorage, let range = controller.anchorRange else { return }
         let model = controller.model
         guard model.canSend else { return }
         let action = model.action
         let note = model.note
+        let wholeDocument = controller.isWholeDocument
         hideSelectionToolbar()
         window?.makeFirstResponder(self)
-        aiCommandHandler?(.run(action, range, note: note))
+        aiCommandHandler?(wholeDocument ? .runWholeDocument(action, note: note) : .run(action, range, note: note))
     }
 
     private func closeSelectionToolbarComment() {
-        let anchor = selectionToolbarStorage?.anchorRange
+        let anchor = selectionToolbarStorage?.isWholeDocument == true
+            ? selectionToolbarStorage?.wholeDocumentCaret : selectionToolbarStorage?.anchorRange
         hideSelectionToolbar()
         window?.makeFirstResponder(self)
         // Esc gives the writer their selection back, as it was before the card opened.

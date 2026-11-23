@@ -18,7 +18,7 @@ Core product principles:
 
 - Real files: documents are plain UTF-8 Markdown or text files that remain portable across Finder, iCloud Drive, Git, and other editors.
 - Native autosave: existing files use macOS document autosave and are written to their real `.md`, `.markdown`, or `.txt` file as the user writes. Untitled documents still need a user-chosen save location before they can become real files.
-- Local-first privacy: there is no account system, no analytics by default, and no document upload. The one exception is the writer's own choice: text they select for an AI action goes straight from their Mac to the AI provider THEY connected — never to Lineform's developer.
+- Local-first privacy: there is no account system, no analytics by default, and no document upload. The one exception is the writer's own choice: for an AI action, the passage they select, or the whole document when they choose Ask AI for it, goes straight from their Mac to the AI provider THEY connected — never to Lineform's developer. The file name is never sent.
 - Native macOS behavior: prefer SwiftUI, AppKit, TextKit, document-based app patterns, system controls, and platform conventions.
 - Calm writing: UI should reduce noise and support long drafting/review sessions.
 

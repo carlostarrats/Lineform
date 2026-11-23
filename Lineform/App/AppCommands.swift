@@ -69,6 +69,8 @@ enum AppMenuConfiguration {
     static let checkForUpdatesCommandTitle = String(localized: "Check for Updates…")
     static let settingsCommandTitle = String(localized: "Settings…")
     static let connectAICommandTitle = String(localized: "Connect Your AI…")
+    /// Edit ▸ Ask AI… (`AskAICommand`): the selection's comment card, or the whole document's.
+    static let askAICommandTitle = String(localized: "Ask AI…")
     /// MUST match `MARKETING_VERSION` in the project. This is a hand-maintained string, so it
     /// drifts silently on a version bump — it shipped as V1.2.0 while the app was 1.3.0. The
     /// release checklist in `Lineform/Resources/ReleaseReadiness.md` now calls it out explicitly.
@@ -190,6 +192,7 @@ enum AppMenuConfiguration {
         // Edit menu
         "Find",
         "Find & Replace…",
+        "Ask AI…",
         "Spelling and Grammar",
         "Check Spelling While Typing",
         "Show Spelling and Grammar",
@@ -389,6 +392,24 @@ final class LineformHistoryMenuState: ObservableObject {
     }
 }
 
+/// Whether Edit ▸ Ask AI… is enabled for the key window (`AskAICommand.isEnabled`). Same
+/// shared-state pattern as `LineformHistoryMenuState`.
+@MainActor
+final class LineformAIMenuState: ObservableObject {
+    static let shared = LineformAIMenuState()
+
+    @Published private(set) var canAskAI = false
+
+    func setCanAskAI(_ canAskAI: Bool) {
+        guard canAskAI != self.canAskAI else {
+            return
+        }
+
+        self.canAskAI = canAskAI
+        NSApp.mainMenu?.update()
+    }
+}
+
 /// Tracks the key window's `SpeechController` state so the Edit ▸ Speech submenu's Pause·Resume
 /// label and enablement track the frontmost window. Same shared-state pattern as
 /// `LineformCurrentFileMenuState`: each window's editor container pushes its controller's state
@@ -416,6 +437,7 @@ struct AppCommands: Commands {
     @ObservedObject private var currentFileMenuState: LineformCurrentFileMenuState
     @ObservedObject private var speechMenuState: LineformSpeechMenuState
     @ObservedObject private var historyMenuState: LineformHistoryMenuState
+    @ObservedObject private var aiMenuState: LineformAIMenuState
     @ObservedObject private var settingsStore: LineformSettingsStore
 
     init(
@@ -425,6 +447,7 @@ struct AppCommands: Commands {
         currentFileMenuState: LineformCurrentFileMenuState = .shared,
         speechMenuState: LineformSpeechMenuState = .shared,
         historyMenuState: LineformHistoryMenuState = .shared,
+        aiMenuState: LineformAIMenuState = .shared,
         settingsStore: LineformSettingsStore = .shared
     ) {
         _textFormatMenuState = ObservedObject(wrappedValue: textFormatMenuState)
@@ -433,6 +456,7 @@ struct AppCommands: Commands {
         _currentFileMenuState = ObservedObject(wrappedValue: currentFileMenuState)
         _speechMenuState = ObservedObject(wrappedValue: speechMenuState)
         _historyMenuState = ObservedObject(wrappedValue: historyMenuState)
+        _aiMenuState = ObservedObject(wrappedValue: aiMenuState)
         _settingsStore = ObservedObject(wrappedValue: settingsStore)
     }
 
@@ -728,6 +752,15 @@ struct AppCommands: Commands {
                 KeyEquivalent(Character(AppMenuConfiguration.findReplaceCommandKeyEquivalent)),
                 modifiers: [.command, .option]
             )
+
+            Divider()
+
+            // No shortcut (see `AskAICommand`). Enabled only while connected, outside History
+            // mode and with no request or review in progress.
+            Button(AppMenuConfiguration.askAICommandTitle) {
+                LineformAppNotification.askAI.post(object: LineformAppNotification.activeWindowPayload())
+            }
+            .disabled(!aiMenuState.canAskAI)
 
             Divider()
 

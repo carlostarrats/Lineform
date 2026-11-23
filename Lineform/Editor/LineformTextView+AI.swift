@@ -6,6 +6,8 @@ enum AITextCommand: Equatable {
     /// An action chosen from the context menu or the selection toolbar's comment card, for this
     /// selection. `note`: what the writer typed in the comment card (nil from the context menu).
     case run(AIAction, NSRange, note: String?)
+    /// The whole-document comment card's Send (Edit ▸ Ask AI… with nothing selected).
+    case runWholeDocument(AIAction, note: String?)
     /// Esc while a request runs.
     case cancel
     /// Esc, or a real edit, while Mark's sentences are shown.

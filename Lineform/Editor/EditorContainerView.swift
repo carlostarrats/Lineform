@@ -520,6 +520,14 @@ struct EditorContainerView: View {
             showHistory: { id in showHistory(focusing: id) }
         ))
         .modifier(AIActionModeHandlers(aiController: aiController, displayMode: $displayMode))
+        .modifier(AskAIMenuHandlers(
+            windowNumber: windowNumber,
+            aiController: aiController,
+            historyController: historyController,
+            connectionStore: .shared,
+            displayMode: displayMode,
+            isKeyWindow: { activeWindow?.isKeyWindow == true }
+        ))
         .onChange(of: tabStore.selectedTabID) { _, newID in
             guard newID != nil else { return }
             activateSelectedTab()
@@ -3240,6 +3248,48 @@ private struct AIActionModeHandlers: ViewModifier {
                 case .idle, .message:
                     break
                 }
+            }
+    }
+}
+
+/// Edit ▸ Ask AI… for this window (`AskAICommand`): the command, and the menu's enabled state
+/// tracking the key window. Bundled as a modifier for the same type-checker-budget reason as
+/// `HistoryMenuHandlers`.
+private struct AskAIMenuHandlers: ViewModifier {
+    let windowNumber: Int?
+    @ObservedObject var aiController: AIActionController
+    @ObservedObject var historyController: DocumentHistoryController
+    @ObservedObject var connectionStore: AIConnectionStore
+    let displayMode: EditorDisplayMode
+    let isKeyWindow: () -> Bool
+
+    private var isEnabled: Bool {
+        AskAICommand.isEnabled(isConnected: connectionStore.isConnected,
+                               isHistoryModeActive: historyController.isHistoryModeActive,
+                               state: aiController.state, displayMode: displayMode)
+    }
+
+    private func publish() {
+        if isKeyWindow() { LineformAIMenuState.shared.setCanAskAI(isEnabled) }
+    }
+
+    func body(content: Content) -> some View {
+        content
+            .onReceive(NotificationCenter.default.publisher(for: LineformAppNotification.askAI.name)) { notification in
+                guard let payload = notification.object as? LineformAppNotification.Payload,
+                      payload.matches(windowNumber: windowNumber), isEnabled,
+                      let textView = aiController.editor as? LineformTextView else { return }
+                AskAICommand.perform(in: textView, controller: aiController, connectionStore: connectionStore)
+            }
+            .onChange(of: isEnabled) { _, _ in publish() }
+            .onReceive(NotificationCenter.default.publisher(for: NSWindow.didBecomeKeyNotification)) { notification in
+                guard let number = windowNumber, (notification.object as? NSWindow)?.windowNumber == number else { return }
+                LineformAIMenuState.shared.setCanAskAI(isEnabled)
+            }
+            .onReceive(NotificationCenter.default.publisher(for: NSWindow.willCloseNotification)) { notification in
+                guard let window = notification.object as? NSWindow, let number = windowNumber,
+                      window.windowNumber == number, window.isKeyWindow else { return }
+                LineformAIMenuState.shared.setCanAskAI(false)
             }
     }
 }
