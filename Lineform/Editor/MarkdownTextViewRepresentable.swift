@@ -180,6 +180,16 @@ struct MarkdownTextViewRepresentable: NSViewRepresentable {
         return false
     }
 
+    /// What a text view's AI command does to the controller.
+    static func perform(_ command: AITextCommand, on aiController: AIActionController, text: String) {
+        switch command {
+        case let .run(action, range, note): aiController.run(action, range: range, text: text, note: note)
+        case let .runWholeDocument(action, note): aiController.runWholeDocument(action, text: text, note: note)
+        case .cancel: aiController.cancel()
+        case .dismissMarks: aiController.dismissMarks()
+        }
+    }
+
     /// Pushes the AI controller's handlers and state into the text view, like `historyDisplay`.
     /// Cheap: no text analysis happens here (availability is asked when a menu is built).
     private func configureAI(_ textView: LineformTextView) {
@@ -199,11 +209,7 @@ struct MarkdownTextViewRepresentable: NSViewRepresentable {
         }
         textView.aiCommandHandler = { [weak aiController, weak textView] command in
             guard let aiController, let textView else { return }
-            switch command {
-            case let .run(action, range, note): aiController.run(action, range: range, text: textView.string, note: note)
-            case .cancel: aiController.cancel()
-            case .dismissMarks: aiController.dismissMarks()
-            }
+            Self.perform(command, on: aiController, text: textView.string)
         }
         switch aiController.state {
         case .marking(let ranges):

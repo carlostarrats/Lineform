@@ -6,16 +6,21 @@ public enum AIConnectError: Error, Equatable {
     case insecureAddress
     case keychainFailed
 
-    public var message: String {
+    public var message: String { message(bundle: .module) }
+
+    func message(bundle: Bundle) -> String {
         switch self {
         case .missingKey:
-            return String(localized: "Paste your API key first.", bundle: .module)
+            return String(localized: "Paste your API key first.", bundle: bundle)
         case .invalidAddress:
-            return String(localized: "Enter an address that starts with http:// or https://.", bundle: .module)
+            return String(localized: "Enter an address that starts with http:// or https://.", bundle: bundle)
         case .insecureAddress:
-            return String(localized: "Plain http:// is only allowed for a server on this Mac. Use https:// for other addresses.", bundle: .module)
+            guard !AIDeviceWording.namesPhone else {
+                return String(localized: "Plain http:// is only allowed for a server on this iPhone. Use https:// for other addresses.", bundle: bundle)
+            }
+            return String(localized: "Plain http:// is only allowed for a server on this Mac. Use https:// for other addresses.", bundle: bundle)
         case .keychainFailed:
-            return String(localized: "Lineform couldn't save the key in your Keychain.", bundle: .module)
+            return String(localized: "Lineform couldn't save the key in your Keychain.", bundle: bundle)
         }
     }
 }

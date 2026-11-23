@@ -18,7 +18,7 @@ Core product principles:
 
 - Real files: documents are plain UTF-8 Markdown or text files that remain portable across Finder, iCloud Drive, Git, and other editors.
 - Native autosave: existing files use macOS document autosave and are written to their real `.md`, `.markdown`, or `.txt` file as the user writes. Untitled documents still need a user-chosen save location before they can become real files.
-- Local-first privacy: there is no account system, no analytics by default, and no document upload. The one exception is the writer's own choice: text they select for an AI action goes straight from their Mac to the AI provider THEY connected — never to Lineform's developer.
+- Local-first privacy: there is no account system, no analytics by default, and no document upload. The one exception is the writer's own choice: for an AI action, the passage they select, or the whole document when they choose Ask AI for it, goes straight from their Mac or iPhone to the AI provider THEY connected — never to Lineform's developer. The file name is never sent.
 - Native macOS behavior: prefer SwiftUI, AppKit, TextKit, document-based app patterns, system controls, and platform conventions.
 - Calm writing: UI should reduce noise and support long drafting/review sessions.
 
@@ -157,6 +157,7 @@ file named after it carries the full story and the reasoning.
 - Leaving `.reviewing` by ANY path collapses the editor's selection to the reviewed passage's TEXT end, before a trailing line ending (`AIActionController.state` didSet → `collapseSelectionForAI(at: caretEnd)`); Mark collapses it too, or the selection hides the wash. The passage stays selected under the overlay; without the collapse, the next keystroke, Delete, Tab or dictation replaced the whole passage. The overlay's ⌫ ends the review and is not re-sent.
 - One AI action records History once, when the review ends: one passage per CHANGED paragraph. Abandon (reload, whole-text writers, disconnect) applies and records nothing; a tab or document swap ENDS the review and records what was accepted; a reply that arrives after the text changed is discarded (exact UTF-16 compare).
 - API keys live ONLY in the Keychain (`SystemAIKeychain`, service `<bundle id>.ai`, not synchronizable). Never UserDefaults, never files, never logged (`AIConnection.description` redacts).
+- Whole-document AI (the Mac's Edit ▸ Ask AI… with nothing selected, the iPhone's Menu ▸ Document ▸ Ask AI…) goes through ONE policy, `WholeDocumentAIPolicy`, measured on the prose that would be sent: up to 1,500 words it runs, above that the writer confirms (Cancel the default), past `AILimits` it is refused before the Keychain is read. `runWholeDocument` re-checks it before `resolvedConnection()`. Any wording about what is sent names both cases: the passage you select, or the whole document when you choose Ask AI for it.
 
 **Rendering** (`rendering.md`)
 - Every INSERTION path (Return, list continuation, Insert Table, Tab's appended row, Reformat, image drop/paste) writes `MarkdownLineEnding.inForce(at:in:)`, never a bare `\n` — the document's endings are preserved, never normalised. It reads the caret's own line, never the whole document (per-keystroke). `ImageInsertionText` was outside this sweep and left a lone LF in Windows-authored files.
@@ -399,7 +400,7 @@ iPhone only. Details: `docs/architecture/iphone-app.md`.
   1.2 s per change. Both catch up once when the drag ends. Details: `docs/architecture/iphone-app.md`,
   "Styling sheet".
 - **History.** Menu ▸ History (listed only when the document has history) and Replace With… (the
-  system edit menu until step 8's selection row) enter History mode: read-only editor, passages on a
+  selection row, its one entry point) enter History mode: read-only editor, passages on a
   wash drawn by `CAShapeLayer`s behind the text (never text attributes; the Mac's receded ink is not
   drawn — phone exception), tap selects the innermost passage, ← / → / Esc on a hardware keyboard,
   and `HistoryCard` at the bottom (levels, versions, Delete, "Type a replacement", Done). The store is
@@ -420,6 +421,21 @@ iPhone only. Details: `docs/architecture/iphone-app.md`.
   scaled to the page; any other tall line gets its own scaled page). UIKit calls
   `PhonePrintRenderer`'s `numberOfPages`/`drawPage` OFF main: never hop to main there; render on
   main beforehand. `OpenDocument.onDocumentSwap` is the only place read aloud stops on a swap.
+- **Selection row, comment field and AI.** A settled selection raises `SelectionRow` above the
+  keyboard or home indicator (`SelectionController`, 0.35 s): Ask AI (connected only), Heading,
+  Bold, Italic, Strikethrough, Code, List, Link, Blockquote, Replace With… (History's, where it
+  can keep the selection) and Another Word. It
+  never changes the system edit menu, and the app's own selections never raise it. Ask AI opens
+  the comment field (note, Action menu, Send; nothing is sent while marked text is composing).
+  The review is `AIReviewOverlayTextView`, a read-only overlay with an EMPTY undo manager, and the
+  editor refuses every edit path while `isAIReviewActive`; cards sit above the keyboard. Each
+  accept is ONE undo group through `applyRuleEdit`. Menu ▸ Document ▸ Ask AI… sends the whole
+  document through the shared `WholeDocumentAIPolicy` (confirm above 1,500 words, refuse past
+  `AILimits` before the Keychain is read). History is the document's `PhoneHistoryController`
+  (`AIHistoryRecording`), the one `SelectionController.aiHistory` assignment in `DocumentScreen`:
+  AI is off in History mode, entering History ends a review, and History records once when a review
+  ends (abandoning records nothing), as on the Mac. Details: `docs/architecture/iphone-app.md`, "The
+  selection row and comment field" and "AI actions and the review".
 - **Strings.** iPhone strings live in `LineformiOS/Localizable.xcstrings` (six languages), reusing
   the Mac's translation for the same English text. `LocalizationSourceSweepTests` scans
   `LineformiOS/` against that catalog. No iPhone string names a Mac or a sidebar

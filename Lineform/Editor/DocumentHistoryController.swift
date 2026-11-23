@@ -819,3 +819,7 @@ final class DocumentHistoryController: ObservableObject {
         }
     }
 }
+
+/// The AI controller (in LineformCore, shared with the iPhone) reaches History only through
+/// `AIHistoryRecording`. The methods are the ones above, unchanged.
+extension DocumentHistoryController: AIHistoryRecording {}

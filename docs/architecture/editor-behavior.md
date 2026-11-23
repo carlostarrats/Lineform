@@ -1395,6 +1395,57 @@ action does to the document. The two sections after it cover the text-view and o
   an edit action that must change the text; `AIActionController.run` sends nothing for Custom
   without a note, and Try Again resends the same note (`reviewNote`).
 
+## Whole-document AI (2026-11-22)
+
+Ask AI for the whole document: the Mac's **Edit ▸ Ask AI…** with nothing selected, and the
+iPhone's **Menu ▸ Document ▸ Ask AI…**. Both open the ordinary comment card or field for the
+whole document, and the writer's Send runs `AIActionController.runWholeDocument`. With a
+selection, the Mac's Edit ▸ Ask AI… opens the selection toolbar's comment card, exactly as the
+toolbar's Ask button does, with no length policy. The iPhone row is always for the whole document.
+
+- **One length policy, before anything opens.** `WholeDocumentAIPolicy.decision(for:)` in the
+  package measures what would be SENT: the document's prose segments
+  (`MarkdownStructureMap.proseSegments`), never code, front matter or other structure.
+  - Up to `confirmWordCount` (1,500) words: `.run`. The comment opens at once.
+  - Above that: `.confirm(words:)`. "Send the whole document (%lld words) to %@?", with Send and
+    Cancel. Cancel is the default, so Return never sends a whole document by accident. The
+    recipient is the provider's name, or Other's host (`recipient(for:otherEndpoint:)`).
+  - Past `AILimits` (24,000 UTF-16 units of prose, or 400 segments): `.refuse`. The message card
+    shows `refusalMessage` ("Select a part of the document — about 4,000 words at most."). No
+    comment opens, nothing is sent and the Keychain is not read.
+- **The controller refuses too.** `runWholeDocument` checks the policy again before
+  `resolvedConnection()`, so a stale Send cannot read the key or send. Find counts sentences, so
+  it can still pass the policy and go over the limit; in whole-document mode it then shows the
+  same refusal, and Try Again keeps the mode.
+- **Enablement.** Connected, an editor on screen (not Read), an editable document with text in it
+  (not empty or only white space: `AskAICommand.hasText`, `DocumentSection.hasText`), and no
+  request or review in progress; on the Mac, not in History mode. Absent on iPhone when it cannot
+  act; disabled on the Mac, where the menu item always exists. The Mac publishes the item's state
+  when the editor appears too (`AskAIMenuHandlers`), so it is enabled at launch when already
+  connected. No keyboard shortcut.
+- **Where the comment goes.** The Mac shows the comment card at the top centre of the visible
+  editor, with no highlight; Esc puts the caret back. On iPhone the row closes the Menu sheet, and
+  the screen runs `SelectionController.askAIForWholeDocument` from the sheet's `onDismiss`
+  (a confirmation cannot be presented over a closing sheet). The confirmation is a
+  `UIAlertController` whose `preferredAction` is Cancel. The comment field's range is the whole
+  text (`anchorRange`, `isWholeDocument`), and Cancel puts the caret back where it was. On both
+  apps the card carries a quiet "Whole document" subtitle (`SelectionToolbarModel.isWholeDocument`,
+  `SelectionToolbarPresentation.wholeDocumentSubtitle`). On iPhone any change closes the field (an
+  edit, a selection, an outside replacement), and Send runs the policy again: above the count the
+  writer confirmed it asks again, past the limit it refuses.
+- **The review.** The same overlay and cards as a selection's review, over the whole document.
+  Every accept is re-verified with `MarkdownStructureGuard` and is one undo group. Leaving the
+  review collapses the selection to `caretEnd`.
+- **Privacy wording.** Every place that said only the selection is sent now names both cases: the
+  passage you select, or the whole document when you choose Ask AI for it (`Privacy.md`,
+  `Help.md`, `web/privacy.html`, the iPhone's Settings note). They also say what Find sends (each
+  whole sentence the selection touches, or every sentence of the document), and the AI wording in
+  `Privacy.md` and `web/privacy.html` covers both apps ("your device's Keychain"; "Connect Your AI
+  (Lineform ▸ Connect Your AI… on Mac, Menu ▸ Settings on iPhone)"). The public marketing privacy page
+  lives in its own repository; the owner updates it before this ships.
+- Tests: package `WholeDocumentAIPolicyTests`; Mac `WholeDocumentAICommandTests`; iPhone
+  `WholeDocumentAITests`.
+
 ## AI review overlay and cards (2026-11-12)
 
 `Lineform/AI/AIReview*.swift`, wired in `EditorContainerView` (one `AIActionController` per editor,

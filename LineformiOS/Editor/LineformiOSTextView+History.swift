@@ -181,9 +181,6 @@ extension LineformTextView {
     /// document: about the card's height with a passage selected.
     static let historyCardClearance: CGFloat = 300
 
-    /// The Mac's string and translations.
-    static var replaceWithTitle: String { String(localized: "Replace With…") }
-
     /// The controller's display changed (any `revision` bump, and attach): follow the mode and
     /// redraw the washes on the next layout pass.
     func historyDisplayDidChange() {
@@ -301,8 +298,10 @@ extension LineformTextView {
     }
 
     /// A printable key from a hardware keyboard while History mode is up types (leaving it);
-    /// everything else — arrows, Esc, shortcuts — goes on as usual.
+    /// everything else — arrows, Esc, shortcuts — goes on as usual. Any key also makes an
+    /// app-set selection the writer's (`writerPressedKey`, the selection row's rule).
     override func pressesBegan(_ presses: Set<UIPress>, with event: UIPressesEvent?) {
+        writerPressedKey()
         if isShowingHistoryMode, let key = presses.first?.key,
            key.modifierFlags.intersection([.command, .control, .alternate]).isEmpty,
            let typed = Self.historyTypedCharacters(key.characters) {
@@ -324,15 +323,13 @@ extension LineformTextView {
 
     // MARK: Replace With…
 
-    /// The edit menu's Replace With… for `range`, or nil where it is not offered: outside History
-    /// mode only, and only where the controller can add the passage (one line, no front matter,
-    /// fenced code or math — `PhoneHistoryController.canAdd`).
-    func replaceWithMenuAction(for range: NSRange) -> UIAction? {
+    /// Whether the selection row offers Replace With… for `range`: outside History mode only, and
+    /// only where the controller can add the passage (one line, no front matter, fenced code or
+    /// math — `PhoneHistoryController.canAdd`, the Mac rule). The row is its one entry point.
+    func offersReplaceWith(for range: NSRange) -> Bool {
         guard markedTextRange == nil, let controller = historyController, !controller.isHistoryModeActive,
-              range.length > 0, controller.canAdd(range, text: textStorage.string) else { return nil }
-        return UIAction(title: Self.replaceWithTitle, image: UIImage(systemName: "clock.arrow.circlepath")) { [weak self] _ in
-            self?.performReplaceWith(range)
-        }
+              range.length > 0 else { return false }
+        return controller.canAdd(range, text: textStorage.string)
     }
 
     /// Replace With…: the selection becomes a passage (its text the original), History mode opens

@@ -8,8 +8,9 @@ all off, so the iPhone build of `com.lineform.app` can never run on a Mac.
 
 This page covers roadmap step 3 (shell and files), step 4 (Write mode), step 5 (Read and
 Preview, with the Write/Read/Preview switch), step 6 (the Menu sheet), step 7 (the Styling
-sheet), step 10 (export, print, share and read aloud) and step 11 (first run). The rest arrive in
-later steps.
+sheet), step 8 (the selection row, the comment field, AI actions with their review, and
+whole-document AI), step 9 (History and History sync), step 10 (export, print, share and read
+aloud) and step 11 (first run). The rest arrive in later steps.
 
 ## Each app stands alone
 
@@ -752,6 +753,10 @@ from search.md carries over; see the iPhone Search paragraph there.
   selection (wrapping) is selected and brought to the top of the surface on screen. It is the
   only whole-document spelling pass, and it is never scheduled. With Check spelling while typing
   off, its underlines last until the next edit, which clears them.
+- **Ask AI…** follows Check Document Now while an AI is connected and Write or Preview is on
+  screen (`DocumentSection.showsAskAI`; the row observes `AIConnectionStore`, so connecting in
+  Settings shows it). It closes the sheet and opens the comment field for the whole document,
+  after the shared length policy (see "Ask AI for the whole document").
 - Show Hidden Folders, the Files setting (`FilesStore.setShowsHidden`, `Lineform.outline.showsHiddenFolders`).
 - Lineform Guide, Privacy Policy and Terms of Use open in Safari (`openURL`) at the package's
   `LineformLinks`, which the Mac's Help menu also forwards to.
@@ -808,12 +813,20 @@ are worded for iPhone: no iPhone string names a Mac or a sidebar
 - **In-app notifications** (`checksForAnnouncements`): it gates the announcement request itself.
   Announcements reach the iPhone in roadmap step 12; until then the switch only keeps the choice.
 
+- **Connect Your AI…** (`ConnectAISheet`) connects Claude, ChatGPT, Google or Other, one provider
+  at a time, with the Mac's `ConnectAIPresentation` and `AIConnectionStore`. The key is kept in the
+  Keychain (service `<bundle id>.ai`, not synchronizable); connecting deletes the other providers'
+  keys. Its note says what is sent: "Only the passage you select is sent, or the whole document
+  when you choose Ask AI for it, with any comment you type. For Find, that is each whole sentence
+  your selection touches, or every sentence of the document. Nothing is sent until you choose an
+  action." Package text that named a Mac has iPhone variants (`billingNote(.other)`,
+  `reconnectMessage`, `AIConnectError.insecureAddress`).
 - **Clear History** (the Mac's row, note "Removes saved versions for every document. Your files
   are not changed.", button "Clear…" and destructive confirmation "Clear all history?"):
   `SettingsSection.clearHistory(store:)` → `PhoneHistoryController.clearAllHistory(in:)`, the same
   path as the Mac (see "History").
 
-Connect Your AI and Check for Updates arrive with steps 8 and 12.
+Check for Updates arrives with step 12.
 
 ### Markdown Basics on iPhone
 
@@ -871,15 +884,25 @@ History is local to this iPhone. History never writes into the document file.
   `performHistoryEdit` and are not reported; `setDocumentText` and edits over 1 000 UTF-16 units are
   whole-text replacements (`LineformiOSTextView+History.swift`,
   `HistoryEditReportingTests.testAWideEditIsTrimmedToWhatChanged`).
-- **Entry points (D10, D11).** Menu ▸ **History** closes the sheet, switches to Write and enters
-  History mode (`HistoryEntry.enterFromMenu`; a passage an AI accept left is selected). **Replace
-  With…** is on the system edit menu (`editMenuForTextIn`, after the spelling group), offered only
-  outside History mode and where the Mac offers it (`PhoneHistoryController.canAdd`: one line, no
-  front matter, fenced code or math). It keeps the selection as the passage's original, enters
-  History mode on it, and the card opens "Type a replacement" with focus; leaving without a
-  replacement discards the passage (Mac parity). Until step 8 merges, the edit menu is its home;
-  it moves to the selection row then. History mode is Write's: entering it from Preview switches to
-  Write, and switching to Read or Preview leaves it (with the collapse).
+- **Entry points (D10, D11).** Menu ▸ **History** closes the sheet, ends any AI work
+  (`SelectionController.endAIForHistory`: a review ends keeping what was accepted, then a request,
+  marks or a message go — the Mac's History tab), switches to Write and enters History mode
+  (`HistoryEntry.enterFromMenu`; a passage an AI accept left is selected). **Replace With…** is the
+  selection row's button, its ONE entry point (the system edit menu carries only spelling),
+  offered only outside History mode and where the Mac offers it
+  (`LineformTextView.offersReplaceWith` → `PhoneHistoryController.canAdd`: one line, no front
+  matter, fenced code or math). It ends a request or review and dismisses Find's wash first
+  (`AIActionController.yieldToHistory`, the Mac's show-History path), keeps the selection as the
+  passage's original, enters History mode on it, and the card opens "Type a replacement" with
+  focus; leaving without a replacement discards the passage (Mac parity). History mode is Write's:
+  entering it from Preview switches to Write, and switching to Read or Preview leaves it (with the
+  collapse).
+- **AI and History** (the Mac's semantics, `AIHistoryRecording`): `PhoneHistoryController` is the
+  AI controller's History, assigned once by `DocumentScreen` (`selection.aiHistory =
+  document.history`). AI is unavailable in History mode (`allowsAIAction`; the editor is read-only,
+  so neither the row nor Menu ▸ Document ▸ Ask AI… shows). History records ONCE, when a review ends:
+  one passage per changed paragraph, the original and the AI's text. Abandoning (a live reload,
+  another document, the controller's `abandon`) records nothing (`PhoneAIHistoryTests`).
 - **The editor in History mode.** Read-only (`isEditable` false, so the keyboard goes); a tap
   selects the innermost passage under it (shortest range, then the finer level) and a tap on
   ordinary text returns to the overview; the page keeps `historyCardClearance` (300 pt) below its
@@ -910,6 +933,122 @@ History is local to this iPhone. History never writes into the document file.
 - **Clear History** (Settings): the store's `clearAll()`, then `didClearAllNotification`; every
   controller on the store re-reads it, replacing its engine BEFORE leaving History mode (leaving
   saves).
+## The selection row and comment field
+
+`LineformiOS/Selection/` (`SelectionController`, `SelectionRow`, `CommentField`), drawn by
+`SelectionBottomChrome`, an overlay on `DocumentScreen`. The spec is §5.5.
+
+- **When it shows.** `SelectionController.settleDelay` (0.35 s) after a non-empty selection stops
+  changing; it hides at once when the selection collapses. It needs an editable editor in a
+  window, no marked text, and no AI request or review in progress. The app's own selections
+  (`selectProgrammatically`: Search, Check Document Now, a position restore, the AI's collapse)
+  never raise it. It hides on a switch to Read.
+- **Order**, scrolling sideways: Ask AI (only while connected, titled with the AI's name: "Ask
+  Claude"), Heading ▾, Bold, Italic, Strikethrough, Code, List ▾ (Bulleted, Numbered), Link,
+  Blockquote, Replace With… (History's, the Mac's meaning: the selection becomes a passage and
+  History mode opens on it with "Type a replacement"; only where History can keep the selection —
+  see "History", Entry points), and Another Word (one word only, and only while connected).
+- **One button, one undo step.** Each formatting button calls the editor's own command, which goes
+  through `applyRuleEdit`. The row then adopts the resulting selection instead of hiding.
+- **Placement.** Above the keyboard, or above the home indicator when it is down: bottom padding
+  = `max(0, keyboard overlap − safe-area bottom) + 12` (`SelectionRowPlacement`), from the keyboard
+  frame notifications. The overlap lives in its own `SelectionKeyboardTracker`, observed only by
+  the bottom chrome: publishing it from the controller re-rendered the screen in the middle of an
+  undo and broke the editor's undo grouping. The editor's insets are never touched. The row
+  replaces the Menu, Aa and link buttons while it shows. The system edit menu is not changed: it
+  floats at the selection, and the row sits at the bottom.
+- **The comment field.** Ask AI swaps the row for a full-width card with no drag handle: the
+  title and Cancel, the note (a plain `UITextView`, where Return inserts a newline; it grows to
+  120 pt, then scrolls), the Action menu (`SelectionToolbarPresentation.actionGroups`, Custom
+  first and the default) and Send. Send needs a note for Custom (`canSend`) and is off while an
+  input method is composing, so Return during Japanese input only confirms the candidate. Cancel
+  with the button or a swipe down of 60 pt or more; the selection comes back. Send runs the shared
+  `AIActionController` on the range the row was shown for (`anchorRange`).
+- **Any change closes the field** (the Mac's card closes on any click): an editor text change
+  (`editorTextDidChange`, from `textViewDidChange`), a selection change, or an outside replacement
+  (`editorTextWillBeReplaced`: a live reload, Open, Save As, Convert). It hides with nothing sent
+  and no selection put back. Backstops: the field snapshots the text when it opens, and a
+  selection's Send is refused (the field closed) if the text differs; a whole-document Send runs
+  `WholeDocumentAIPolicy` again (above the confirmed count it asks again, the field kept; past the
+  limit it refuses on the message card).
+
+## AI actions and the review
+
+`LineformiOS/AI/` (`LineformiOSTextView+AI.swift`, `AIReviewOverlay.swift`, `AIReviewCardsView.swift`),
+wired by `SelectionController`. The controller is the shared `AIActionController`, made on first
+use (nothing at launch); `SelectionController.wireAI` gives it the editor and History, and History
+is ONE assignment, `aiHistory`: the document's `PhoneHistoryController`, set by `DocumentScreen`.
+
+- **The surface.** `applyAIEdits` is ONE undo group on the editor's undo manager, each edit through
+  `applyRuleEdit` (a localized `textStorage.replaceCharacters` with its registration, then the
+  delegate's `textViewDidChange`, so the binding and autosave hear it), named
+  `AIActionController.acceptOneActionName`. Never a whole-text replacement; an edit that splits a
+  composed character or touches a line ending / BOM is skipped. `collapseSelectionForAI` sets the
+  caret as the app's own selection.
+- **Read-only review.** `refusesEditForAI` blocks every path while `isAIReviewActive`: the
+  delegate's `shouldChangeTextIn` (typing, Return, dictation), `insertText` / `deleteBackward` /
+  `setMarkedText` / `replace(_:withText:)` / `cut` / `paste` overrides, image paste and drop,
+  `applyRuleEdit` (formatting, Read's checkbox and Reconnect via `applyReadEdit`, Search's Replace
+  and Replace All). A refusal says the review's status again ("1 change suggested") through
+  `SelectionController.editRefusedDuringReview`. `isAIReviewActive` and Mark's ranges follow the
+  controller's state in `SelectionController.aiStateChanged`, which runs in `willSet`, before the
+  controller's `didSet` collapse.
+- **Leaving a review.** Every path collapses to `caretEnd` (the controller's `didSet`). A switch to
+  Read ends a review (keeping what was accepted) and drops a request or marks
+  (`displayModeDidChange`); an outside text replacement abandons (`editorTextWillBeReplaced`),
+  applying and recording nothing. Read allows no AI: the row's Ask AI and Another Word are absent.
+- **The overlay.** `AIReviewOverlayTextView`, a TextKit 1 `UITextView`, not editable or selectable,
+  with its own EMPTY undo manager, laid over the editor (an overlay on `MarkdownEditor`: Write, or
+  Preview's top pane; below the chrome) with the editor's text container inset, content inset,
+  padding and page colour. Its storage is its own, so the strike, receded ink, review tint and
+  re-inked runs are ordinary attributes there (the document's storage never sees them). It takes
+  the editor's scroll position BY CHARACTER on make and hands it back on dismantle (the Mac's
+  `topAnchor`); it scrolls on its own meanwhile. It takes the keyboard focus (the software keyboard
+  goes down) and gives it back if the editor had it. Hardware `UIKeyCommand`s: Return accepts, Esc
+  rejects, ← / → move. A typed hardware key is refused. A tap on a pending change selects it.
+  VoiceOver: "Suggested changes", value = the composition, custom actions Accept / Reject Change,
+  Accept All, Next / Previous Change (2+ pending), End Review.
+- **Cards** (`AIReviewCardsView`), at the bottom above the keyboard or home indicator, placed by
+  `SelectionBottomChrome` from the keyboard tracker; the Menu and Aa buttons step aside only while
+  a request is running or a review is up (`SelectionController.showsBottomButtons`). A message or
+  Mark's card sits above them (`DocumentScreen.bottomChromeClearance`), so both stay reachable. Running (spinner, progress text, Stop), message (✕, gone after 8 s), Mark (count, Done),
+  review (`AIReviewCardPresentation.title`, Try Again, Reject, Accept, Next and Accept All for 2+
+  pending, Done = end). No Esc / Return hints. The card's top is measured
+  (`AIReviewCardTopKey`) so the overlay reveals the current change above it.
+- **Mark's wash.** TextKit 1 on UIKit has no temporary attributes, so the wash is a `CAShapeLayer`
+  filled with `HistoryPalette.markWash` (resolved for the view's traits), the editor's LOWEST
+  sublayer (behind the text), from the layout manager's enclosing rects, redrawn in
+  `layoutSubviews` like the spelling underlines. A real edit dismisses the marks.
+- **The app's own selections.** `selectProgrammatically` (Search and Check Document Now via
+  `LiveEditorCommands.selectRange`, `setDocumentText`'s restore, the AI collapse) marks the
+  selection as the app's; `SelectionController.editorSelectionDidChange` never raises the row for
+  it (`isSelectionProgrammatic`), and forgets it at the writer's next selection. The writer's own
+  next touch on that selection (`hitTest` → `writerTouched(at:)`, within 22 pt of its rects) or a
+  key (`pressesBegan`) also makes it theirs, and the row can rise for it.
+- **Focus back after a review.** On dismantle the editor takes the focus again, which would scroll
+  it to the caret (at the change's end); the handed-back position is held instead
+  (`AIReviewOverlay.offsetHoldDelays`), unless the writer scrolls.
+
+### Ask AI for the whole document
+
+Menu ▸ Document ▸ Ask AI… (the Mac's Edit ▸ Ask AI… with nothing selected). The row closes the
+sheet; the sheet's `onDismiss` then runs `SelectionController.askAIForWholeDocument`, because a
+confirmation cannot be presented over a closing sheet. The shared `WholeDocumentAIPolicy` decides
+first, on the prose that would be sent:
+
+- up to 1,500 words, the comment field opens for the whole document;
+- above that, a `UIAlertController` (`WholeDocumentConfirmationAlert`) asks "Send the whole
+  document (N words) to …?", with Send and Cancel; Cancel is the `preferredAction`, as on the Mac.
+  The pending count clears however the alert goes away (its `viewDidDisappear`);
+- past `AILimits`, the refusal ("Select a part of the document — about 4,000 words at most.")
+  shows on the message card. Nothing opens or is sent, and the Keychain is not read.
+
+The row shows only for a document with text (`DocumentSection.hasText`). The field's range is the
+whole text (`anchorRange`, `isWholeDocument`), nothing is highlighted, the card's quiet subtitle
+says "Whole document" (`SelectionToolbarPresentation.wholeDocumentSubtitle`, as on the Mac), and
+Cancel puts the caret back. Send runs `AIActionController.runWholeDocument`, which checks the
+policy again before `resolvedConnection()`. The review is the same overlay and cards. Tests:
+`WholeDocumentAITests`. Details for both apps: `editor-behavior.md`, "Whole-document AI".
 
 ## Strings
 

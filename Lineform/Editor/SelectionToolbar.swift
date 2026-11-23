@@ -13,111 +13,10 @@ import LineformCore
 ///
 /// The comment card sends the writer's note with an optional action (`AIAction`); `.custom` means
 /// "only the note". The result is the ordinary AI review: nothing changes until accepted.
-enum SelectionToolbarPresentation {
-    static func aiName(for provider: AIProvider, bundle: Bundle = .main) -> String {
-        provider == .other ? String(localized: "Your AI", bundle: bundle) : provider.displayName
-    }
-
-    static func commentTitle(aiName: String, bundle: Bundle = .main) -> String {
-        String(localized: "Ask \(aiName)", bundle: bundle)
-    }
-
-    static var notePlaceholder: String { String(localized: "What should change?") }
-    static var actionLabel: String { String(localized: "Action:") }
-    static var sendTitle: String { String(localized: "Send") }
-    static var sendHint: String { String(localized: "Return to send · Esc") }
-    static var headingTitle: String { String(localized: "Heading") }
-    static var listTitle: String { String(localized: "List") }
-    static var dragHint: String { String(localized: "Drag to move") }
-
-    /// The comment card's action menu: Custom, then the same actions — with the same rules — as
-    /// the context menu's AI group (one word: Another Word; Find only for two or more sentences).
-    static func actionGroups(selectedText: String, sentenceCount: () -> Int) -> [[AIAction]] {
-        var groups: [[AIAction]] = [[.custom]]
-        for entry in LineformTextContextMenuPresentation.aiMenuEntries(selectedText: selectedText,
-                                                                         sentenceCount: sentenceCount) {
-            switch entry {
-            case .action(let action): groups.append([action])
-            case .submenu(_, let submenuGroups): groups.append(contentsOf: submenuGroups)
-            }
-        }
-        // Another Word and Proofread arrive as two one-item groups; keep them together.
-        var merged: [[AIAction]] = []
-        for group in groups {
-            if group.count == 1, let last = merged.last, last.count == 1, last != [.custom] {
-                merged[merged.count - 1].append(contentsOf: group)
-            } else {
-                merged.append(group)
-            }
-        }
-        return merged
-    }
-
-    /// The action's name in the comment card. The Find actions live in a "Find ▸" submenu on the
-    /// context menu; out here, flat, they say what they do.
-    static func menuTitle(for action: AIAction, bundle: Bundle = .main) -> String {
-        switch action {
-        case .markWeakest: return String(localized: "Find Weakest Sentences", bundle: bundle)
-        case .markLong: return String(localized: "Find Long Sentences", bundle: bundle)
-        case .custom: return String(localized: "Custom", bundle: bundle)
-        default: return action.title
-        }
-    }
-
-    /// Custom needs a note; any other action may be sent with or without one.
-    static func canSend(action: AIAction, note: String) -> Bool {
-        action != .custom || AIActionPrompt.trimmedNote(note) != nil
-    }
-
-    /// Where the bar goes, in the text view's (flipped) coordinates: centred over the selection's
-    /// first line, above it when there is room inside the visible rect, otherwise below the
-    /// selection's last line; always kept inside the visible rect.
-    static func origin(barSize: NSSize, firstLine: NSRect, lastLine: NSRect, visible: NSRect,
-                       gap: CGFloat = 8, margin: CGFloat = 8) -> NSPoint {
-        var x = firstLine.midX - barSize.width / 2
-        x = min(max(x, visible.minX + margin), visible.maxX - barSize.width - margin)
-        var y = firstLine.minY - gap - barSize.height
-        if y < visible.minY + margin {
-            y = lastLine.maxY + gap
-        }
-        y = min(max(y, visible.minY + margin), visible.maxY - barSize.height - margin)
-        return NSPoint(x: x.rounded(), y: y.rounded())
-    }
-}
-
-@MainActor
-final class SelectionToolbarModel: ObservableObject {
-    enum Mode { case toolbar, comment }
-
-    @Published var mode: Mode = .toolbar
-    @Published var showsFormatting = true
-    /// The connected AI's name; nil hides the comment button (no AI UI without a connection).
-    @Published var aiName: String?
-    @Published var usesDarkChrome = false
-    @Published var note = ""
-    @Published var action: AIAction = .custom
-    /// Bumped to move keyboard focus into the note field.
-    @Published var focusToken = 0
-
-    /// Button frames in the hosting view's coordinates, for anchoring their menus.
-    var headingButtonFrame: CGRect = .zero
-    var listButtonFrame: CGRect = .zero
-    var actionButtonFrame: CGRect = .zero
-
-    var onCommand: (Selector) -> Void = { _ in }
-    var onMenu: (SelectionToolbarMenu) -> Void = { _ in }
-    var onOpenComment: () -> Void = {}
-    var onSend: () -> Void = {}
-    var onClose: () -> Void = {}
-    /// The card is being dragged (`ended` false) or was released (`true`). `translation`: how far
-    /// the pointer has moved since the press — only its first value is used, to recover where the
-    /// press was (the drag is recognised a few points in).
-    var onDrag: (_ translation: CGSize, _ ended: Bool) -> Void = { _, _ in }
-
-    var canSend: Bool { SelectionToolbarPresentation.canSend(action: action, note: note) }
-}
-
-enum SelectionToolbarMenu { case heading, list, action }
+///
+/// The pure decisions and the model (`SelectionToolbarPresentation`, `SelectionToolbarModel`,
+/// `SelectionToolbarMenu`) live in LineformCore, shared with the iPhone's selection row; the
+/// views below stay here.
 
 // MARK: - Views
 
@@ -226,6 +125,15 @@ private struct SelectionCommentCard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
+            // What Send sends, quietly, when the card is for the whole document (Edit ▸ Ask AI…
+            // with nothing selected).
+            if model.isWholeDocument {
+                Text(SelectionToolbarPresentation.wholeDocumentSubtitle)
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+                    .padding(.bottom, -6)
+                    .background(CursorRectView(cursor: .arrow))
+            }
             ZStack(alignment: .topLeading) {
                 SelectionNoteTextView(
                     text: $model.note,

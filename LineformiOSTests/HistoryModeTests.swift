@@ -4,7 +4,7 @@ import UIKit
 import XCTest
 @testable import LineformiOS
 
-/// History mode on screen (D10): Menu ▸ History, Replace With… on the edit menu, the read-only
+/// History mode on screen (D10): Menu ▸ History, Replace With… (the selection row's), the read-only
 /// editor with its washes, taps and hardware keys, the card's model, Settings ▸ Clear History,
 /// the strings, and the store that is not even made at launch. Real `LineformTextView`s in a
 /// window; every store is in memory or in a temporary folder.
@@ -58,12 +58,14 @@ final class HistoryModeTests: XCTestCase {
         var steps: [String] = []
         let entered = HistoryEntry.enterFromMenu(
             history: controller,
-            text: textView.text,
+            text: { textView.text },
             dismissMenu: { steps.append("dismiss") },
+            endAI: { steps.append("endAI") },
             switchToWrite: { steps.append("write") }
         )
         XCTAssertTrue(entered)
-        XCTAssertEqual(steps, ["dismiss", "write"], "the sheet closes and Write comes up before History mode opens")
+        XCTAssertEqual(steps, ["dismiss", "endAI", "write"],
+                       "the sheet closes, AI ends, and Write comes up before History mode opens")
         XCTAssertTrue(controller.isHistoryModeActive)
         XCTAssertNil(controller.selectedPassageID, "the overview: the card says to tap a passage")
         XCTAssertFalse(textView.isEditable, "History mode is read-only")
@@ -77,11 +79,11 @@ final class HistoryModeTests: XCTestCase {
         let selection = range(of: sentence, in: text)
         textView.selectedRange = selection
 
-        let elements = MarkdownEditor.Coordinator.leadingMenuElements(for: textView, range: selection)
-        let action = try XCTUnwrap(elements.compactMap { $0 as? UIAction }.first)
+        // The selection row's button (its one entry point; the edit menu carries none).
+        XCTAssertTrue(textView.offersReplaceWith(for: selection))
         // pinned-en: the Mac's string.
-        XCTAssertEqual(action.title, "Replace With…")
-        XCTAssertEqual(action.title, LineformTextView.replaceWithTitle)
+        XCTAssertEqual(SelectionRowItem.replaceWith.title, "Replace With…")
+        XCTAssertTrue(MarkdownEditor.Coordinator.leadingMenuElements(for: textView, range: selection).isEmpty)
 
         XCTAssertTrue(textView.performReplaceWith(selection))
         XCTAssertTrue(controller.isHistoryModeActive)
@@ -109,16 +111,14 @@ final class HistoryModeTests: XCTestCase {
         let doc = "Intro line.\n\n```\ncode here\n```\n\nLast line."
         // The view holds its controller weakly: keep it alive.
         let (controller, textView) = makeEditor(doc)
-        XCTAssertNotNil(textView.replaceWithMenuAction(for: range(of: "Intro line.", in: doc)))
-        XCTAssertNil(textView.replaceWithMenuAction(for: range(of: "Intro line.\n\n```", in: doc)), "never across lines")
-        XCTAssertNil(textView.replaceWithMenuAction(for: range(of: "code here", in: doc)), "never inside fenced code")
-        XCTAssertNil(textView.replaceWithMenuAction(for: NSRange(location: 3, length: 0)), "never on a caret")
-        let menu = MarkdownEditor.Coordinator.leadingMenuElements(for: textView, range: range(of: "code here", in: doc))
-        XCTAssertFalse(menu.contains { ($0 as? UIAction)?.title == LineformTextView.replaceWithTitle })
+        XCTAssertTrue(textView.offersReplaceWith(for: range(of: "Intro line.", in: doc)))
+        XCTAssertFalse(textView.offersReplaceWith(for: range(of: "Intro line.\n\n```", in: doc)), "never across lines")
+        XCTAssertFalse(textView.offersReplaceWith(for: range(of: "code here", in: doc)), "never inside fenced code")
+        XCTAssertFalse(textView.offersReplaceWith(for: NSRange(location: 3, length: 0)), "never on a caret")
 
         XCTAssertTrue(textView.performReplaceWith(range(of: "Last line.", in: doc)))
         XCTAssertTrue(controller.isHistoryModeActive)
-        XCTAssertNil(textView.replaceWithMenuAction(for: range(of: "Intro line.", in: doc)), "not in History mode")
+        XCTAssertFalse(textView.offersReplaceWith(for: range(of: "Intro line.", in: doc)), "not in History mode")
     }
 
     // MARK: - The editor in History mode

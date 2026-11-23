@@ -10,7 +10,8 @@ import UIKit
 /// schedules the visible-window coverage check; `shouldChangeTextIn` routes Return through the
 /// editing rules; a selection change or an edit refreshes the reading assists (ruler, typewriter);
 /// the edit menu leads with spelling guesses on a misspelling; Writing Tools is told which
-/// Markdown regions to leave alone. A pasted or dropped image is saved beside `imageHost`'s
+/// Markdown regions to leave alone. A settled selection raises the selection row
+/// (`SelectionController`). A pasted or dropped image is saved beside `imageHost`'s
 /// document (`LineformiOSTextView+ImagePaste.swift`).
 ///
 /// A text that changes from outside (a live reload, another file) replaces the editor's text and
@@ -38,6 +39,8 @@ struct MarkdownEditor: UIViewRepresentable {
     /// The open document's History: told about every edit, and the only thing that applies
     /// History's own edits (`PhoneHistoryController.attach`).
     var history: PhoneHistoryController?
+    /// The selection row and comment field (`SelectionController`), told of every selection change.
+    var selectionController: SelectionController?
 
     /// Padding for the chrome that floats over the page (the menu button, the save notice).
     static let chromeMargin: CGFloat = 20
@@ -54,6 +57,7 @@ struct MarkdownEditor: UIViewRepresentable {
         linkedScroll?.connect(editor: textView)
         readEditDocument?.readEditor = textView
         history?.attach(textView)
+        selectionController?.attach(textView)
         return textView
     }
 
@@ -73,7 +77,11 @@ struct MarkdownEditor: UIViewRepresentable {
         linkedScroll?.connect(editor: textView)
         readEditDocument?.readEditor = textView
         history?.attach(textView)
+        selectionController?.attach(textView)
         if textView.text != text {
+            // An outside replacement (a live reload, another document): an AI request or review
+            // for the old text is abandoned first, recording and applying nothing.
+            selectionController?.editorTextWillBeReplaced()
             // An outside replacement: the editor's undo steps describe the old text.
             textView.setDocumentText(text)
             textView.undoManager?.removeAllActions()
@@ -92,20 +100,26 @@ struct MarkdownEditor: UIViewRepresentable {
         /// History mode is up leaves it first, then the keystroke goes through.
         func textView(_ textView: UITextView, shouldChangeTextIn range: NSRange, replacementText text: String) -> Bool {
             guard let textView = textView as? LineformTextView else { return true }
+            // Typing, Delete, dictation and autocorrection are refused while an AI review is up.
+            if textView.refusesEditForAI() { return false }
             textView.exitHistoryModeBeforeUserEdit()
             return !textView.handlesChange(in: range, replacementText: text)
         }
 
         func textViewDidChange(_ textView: UITextView) {
             parent.text = textView.text
+            // An open comment field closes: its range no longer names the same text.
+            parent.selectionController?.editorTextDidChange()
             guard let textView = textView as? LineformTextView else { return }
             textView.textDidChangeForHighlighting()
             textView.refreshReadingAssists()
         }
 
-        /// The Reading Ruler follows the caret, and Typewriter Mode re-centres it.
+        /// The Reading Ruler follows the caret, and Typewriter Mode re-centres it. The selection row
+        /// rises once a non-empty selection settles, and goes when it collapses.
         func textViewDidChangeSelection(_ textView: UITextView) {
             (textView as? LineformTextView)?.refreshReadingAssists()
+            parent.selectionController?.editorSelectionDidChange()
         }
 
         func scrollViewDidScroll(_ scrollView: UIScrollView) {
@@ -113,8 +127,8 @@ struct MarkdownEditor: UIViewRepresentable {
             parent.linkedScroll?.editorDidScroll(scrollView)
         }
 
-        /// On a misspelling, the spelling group (guesses, Learn, Ignore) leads the system's menu;
-        /// on a selection History can keep, Replace With… comes next (outside History mode).
+        /// On a misspelling, the spelling group (guesses, Learn, Ignore) leads the system's menu.
+        /// Nothing else is added: Replace With… is on the selection row.
         func textView(_ textView: UITextView, editMenuForTextIn range: NSRange, suggestedActions: [UIMenuElement]) -> UIMenu? {
             guard let textView = textView as? LineformTextView else { return nil }
             let leading = Self.leadingMenuElements(for: textView, range: range)
@@ -122,12 +136,11 @@ struct MarkdownEditor: UIViewRepresentable {
             return UIMenu(children: leading + suggestedActions)
         }
 
-        /// The app's own items ahead of the system's: spelling, then Replace With…. Internal so
-        /// tests read the menu.
+        /// The app's own items ahead of the system's: the spelling group only. Internal so tests
+        /// read the menu.
         static func leadingMenuElements(for textView: LineformTextView, range: NSRange) -> [UIMenuElement] {
             var elements: [UIMenuElement] = []
             if let spelling = textView.spellingMenu(for: range) { elements.append(spelling) }
-            if let replace = textView.replaceWithMenuAction(for: range) { elements.append(replace) }
             return elements
         }
 

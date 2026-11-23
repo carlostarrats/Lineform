@@ -74,7 +74,7 @@ final class AdversarialReviewProbeTests: XCTestCase {
         let controller = AIActionController(connectionStore: makeStore()) { _ in client }
         let surface = FakeAIEditorSurface(text)
         retained.append(surface)
-        surface.history = history
+        surface.onApplyEdit = { [weak history] edit in history?.noteUserEdit(edit.range, replacement: edit.replacement) }
         controller.editor = surface
         controller.history = history
         return (controller, surface)

@@ -66,6 +66,12 @@ struct DocumentScreen: View {
     @State private var firstRun: FirstRunPresentation
     /// Whether `onAppear` has checked the restored scene against first run yet.
     @State private var hasCheckedFirstRunRestore = false
+    /// The selection row and comment field over the bottom of the page (spec §5.5). While either
+    /// shows, it replaces the bottom-right buttons.
+    @StateObject private var selection: SelectionController
+    /// The Menu's Ask AI… was tapped: once the sheet has closed, the whole-document policy runs
+    /// (a confirmation cannot be presented over the closing sheet).
+    @State private var asksAIForWholeDocument = false
 
     /// The quiet notice over the bottom of the page, if any: a failed save, else an image that
     /// could not be written beside the document.
@@ -84,7 +90,8 @@ struct DocumentScreen: View {
         files: FilesStore = .shared,
         settings: AppSettings = .shared,
         initialMode: EditorDisplayMode = .write,
-        showsFirstRun: Bool = false
+        showsFirstRun: Bool = false,
+        selection: SelectionController? = nil
     ) {
         self.document = document
         self.profileStore = profileStore
@@ -92,6 +99,7 @@ struct DocumentScreen: View {
         self.settings = settings
         _storedDisplayMode = SceneStorage(wrappedValue: initialMode, "displayMode")
         _firstRun = State(initialValue: FirstRunPresentation(launchWantsFirstRun: showsFirstRun))
+        _selection = StateObject(wrappedValue: selection ?? SelectionController())
     }
 
     private var presentsFirstRun: Bool {
@@ -196,7 +204,11 @@ struct DocumentScreen: View {
             }
         }
         .overlay(alignment: .bottomTrailing) {
-            if !isHistoryModeActive {
+            // The selection row, the comment field and a running request or review take the
+            // bottom in turn. A message or Find's marks leave these reachable: that card sits
+            // above them (`SelectionBottomChrome`). History's card replaces them all.
+            if !isHistoryModeActive,
+               SelectionController.showsBottomButtons(phase: selection.phase, aiState: selection.aiState) {
                 HStack(spacing: Self.bottomChromeSpacing) {
                     if displayMode == .split {
                         PreviewLinkButton(isLinked: arePanesLinked, profile: profile) {
@@ -208,7 +220,19 @@ struct DocumentScreen: View {
                     StylingButton(profile: profile) { isShowingStyling = true }
                 }
                 .padding(MarkdownEditor.chromeMargin)
+                .transition(.opacity)
             }
+        }
+        .animation(
+            EditorMotionPolicy.animation(.easeOut(duration: LineformDesign.Motion.standard), reduceMotion: reduceMotion),
+            value: selection.phase
+        )
+        .animation(
+            EditorMotionPolicy.animation(.easeOut(duration: LineformDesign.Motion.standard), reduceMotion: reduceMotion),
+            value: SelectionController.showsBottomButtons(phase: selection.phase, aiState: selection.aiState)
+        )
+        .overlay {
+            SelectionBottomChrome(controller: selection, profile: profile)
         }
         .overlay {
             // Above all the other chrome, so nothing of the document shows through or takes taps.
@@ -226,7 +250,12 @@ struct DocumentScreen: View {
             .disabled(presentsFirstRun)
             .hidden()
         }
-        .sheet(isPresented: $isShowingMenu) {
+        .sheet(isPresented: $isShowingMenu, onDismiss: {
+            if asksAIForWholeDocument {
+                asksAIForWholeDocument = false
+                selection.askAIForWholeDocument()
+            }
+        }) {
             MenuSheet(
                 document: document,
                 editor: LiveEditorCommands(positionKeeper: positionKeeper, document: document, mode: displayMode),
@@ -237,6 +266,8 @@ struct DocumentScreen: View {
                 selection: { [positionKeeper] in positionKeeper.editor?.selectedRange },
                 mode: displayMode,
                 onShowHistory: { showHistoryFromMenu() },
+                aiStore: selection.aiConnectionStore,
+                onAskAI: { asksAIForWholeDocument = true },
                 onDismiss: { isShowingMenu = false }
             )
         }
@@ -276,7 +307,10 @@ struct DocumentScreen: View {
                 hasCheckedFirstRunRestore = true
             }
             makeExportCommandsIfNeeded()
+            // History for AI actions: the document's, the ONE assignment (`SelectionController`).
+            selection.aiHistory = document.history
             shownDisplayMode = shownDisplayMode ?? storedDisplayMode
+            selection.displayModeDidChange(to: displayMode)
             positionKeeper.adopt(displayMode)
             let linkedScroll = linkedScroll
             positionKeeper.isPreviewLinked = { [weak linkedScroll] in linkedScroll?.isLinked ?? true }
@@ -297,11 +331,16 @@ struct DocumentScreen: View {
                 }
             }
         }
+        .onChange(of: displayMode) {
+            // Read has no editor on screen to hold a selection row, and allows no AI: a review
+            // ends (keeping what was accepted), a request or marks are dropped.
+            selection.displayModeDidChange(to: displayMode)
+        }
         .onChange(of: scenePhase) { _, phase in
             if OpenDocument.savesImmediately(on: phase) { document.flushForBackground() }
         }
         .onChange(of: isHistoryModeActive) { _, active in
-            // History mode is Write's: Replace With… from Preview's editor lands here too.
+            // History mode is Write's: the row's Replace With… in Preview's editor lands here too.
             if active, displayMode != .write { switchMode(to: .write) }
         }
     }
@@ -316,8 +355,9 @@ struct DocumentScreen: View {
         guard let history = document.history else { return }
         HistoryEntry.enterFromMenu(
             history: history,
-            text: editorText,
+            text: { editorText },
             dismissMenu: { isShowingMenu = false },
+            endAI: { selection.endAIForHistory() },
             switchToWrite: { switchMode(to: .write) }
         )
         // Hardware ← / → and Esc reach the read-only editor once it is first responder.
@@ -349,13 +389,15 @@ enum HistoryEntry {
     @discardableResult
     static func enterFromMenu(
         history: PhoneHistoryController,
-        text: String,
+        text: () -> String,
         dismissMenu: () -> Void,
+        endAI: () -> Void,
         switchToWrite: () -> Void
     ) -> Bool {
         dismissMenu()
+        endAI()
         switchToWrite()
-        return history.enterHistoryModeFromMenu(text: text)
+        return history.enterHistoryModeFromMenu(text: text())
     }
 }
 
@@ -393,8 +435,34 @@ extension DocumentScreen {
             topChromeInset: ModeSwitch.pageTopClearance,
             readEditDocument: document,
             checksSpelling: settings.checksSpellingWhileTyping,
-            history: document.history
+            history: document.history,
+            selectionController: selection
         )
+        // Above the editor (Write, and Preview's top pane) and below the chrome, which overlays
+        // the whole page.
+        .overlay { aiReviewOverlay }
+    }
+
+    /// The review overlay, while a review is up and an editor is on screen (Read allows no AI).
+    @ViewBuilder
+    private var aiReviewOverlay: some View {
+        if displayMode != .read, case .reviewing(let session) = selection.aiState, let editor = selection.editor {
+            AIReviewOverlay(
+                composition: selection.compositionCache.composition(text: editor.string, session: session),
+                currentID: session.currentID,
+                pendingCount: session.pending.count,
+                profile: profile,
+                editor: editor,
+                bottomObscured: { [selection] view in
+                    // The card, plus a little air: the current change is revealed above it.
+                    let frame = view.convert(view.bounds, to: nil)
+                    return max(0, frame.maxY - selection.aiCardTopInWindow + 8)
+                },
+                onCommand: { [selection] command in selection.aiController.handle(command) },
+                onRefused: { [selection] in selection.editRefusedDuringReview() }
+            )
+            .ignoresSafeArea(.keyboard)
+        }
     }
 
     private var reader: some View {

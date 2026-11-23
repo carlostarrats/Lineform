@@ -431,6 +431,8 @@ enum MainMenuIconDecorator {
         // Edit menu
         "find": "magnifyingglass",
         "find & replace": "text.magnifyingglass",
+        // The selection toolbar's Ask button wears the same symbol.
+        "ask ai": "text.bubble",
         "speech": "waveform",
         "start speaking": "play.circle",
         "pause": "pause.circle",

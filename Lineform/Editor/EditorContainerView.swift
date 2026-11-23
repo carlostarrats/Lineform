@@ -520,6 +520,15 @@ struct EditorContainerView: View {
             showHistory: { id in showHistory(focusing: id) }
         ))
         .modifier(AIActionModeHandlers(aiController: aiController, displayMode: $displayMode))
+        .modifier(AskAIMenuHandlers(
+            windowNumber: windowNumber,
+            aiController: aiController,
+            historyController: historyController,
+            connectionStore: .shared,
+            displayMode: displayMode,
+            documentHasText: AskAICommand.hasText(document.text),
+            isKeyWindow: { activeWindow?.isKeyWindow == true }
+        ))
         .onChange(of: tabStore.selectedTabID) { _, newID in
             guard newID != nil else { return }
             activateSelectedTab()
@@ -3240,6 +3249,60 @@ private struct AIActionModeHandlers: ViewModifier {
                 case .idle, .message:
                     break
                 }
+            }
+    }
+}
+
+/// Edit ▸ Ask AI… for this window (`AskAICommand`): the command, and the menu's enabled state
+/// tracking the key window. The state is published when the editor appears (and once more on the
+/// next turn, when the editor view is wired), when it changes, and when the window becomes key:
+/// at launch with an AI already connected the item is enabled without a click first. Bundled as
+/// a modifier for the same type-checker-budget reason as `HistoryMenuHandlers`.
+struct AskAIMenuHandlers: ViewModifier {
+    let windowNumber: Int?
+    @ObservedObject var aiController: AIActionController
+    @ObservedObject var historyController: DocumentHistoryController
+    @ObservedObject var connectionStore: AIConnectionStore
+    let displayMode: EditorDisplayMode
+    /// The document has text to send (`AskAICommand.hasText`).
+    let documentHasText: Bool
+    let isKeyWindow: () -> Bool
+
+    private var isEnabled: Bool {
+        AskAICommand.isEnabled(isConnected: connectionStore.isConnected,
+                               isHistoryModeActive: historyController.isHistoryModeActive,
+                               state: aiController.state, displayMode: displayMode,
+                               isEditable: (aiController.editor as? NSTextView)?.isEditable ?? false,
+                               hasText: documentHasText)
+    }
+
+    private func publish() {
+        if isKeyWindow() { LineformAIMenuState.shared.setCanAskAI(isEnabled) }
+    }
+
+    func body(content: Content) -> some View {
+        content
+            .onReceive(NotificationCenter.default.publisher(for: LineformAppNotification.askAI.name)) { notification in
+                guard let payload = notification.object as? LineformAppNotification.Payload,
+                      payload.matches(windowNumber: windowNumber), isEnabled,
+                      let textView = aiController.editor as? LineformTextView else { return }
+                AskAICommand.perform(in: textView, controller: aiController, connectionStore: connectionStore)
+            }
+            .onAppear {
+                publish()
+                // The editor view is wired to the controller as it is made, which can follow this.
+                DispatchQueue.main.async { publish() }
+            }
+            .onChange(of: isEnabled) { _, _ in publish() }
+            .onChange(of: windowNumber) { _, _ in publish() }
+            .onReceive(NotificationCenter.default.publisher(for: NSWindow.didBecomeKeyNotification)) { notification in
+                guard let number = windowNumber, (notification.object as? NSWindow)?.windowNumber == number else { return }
+                LineformAIMenuState.shared.setCanAskAI(isEnabled)
+            }
+            .onReceive(NotificationCenter.default.publisher(for: NSWindow.willCloseNotification)) { notification in
+                guard let window = notification.object as? NSWindow, let number = windowNumber,
+                      window.windowNumber == number, window.isKeyWindow else { return }
+                LineformAIMenuState.shared.setCanAskAI(false)
             }
     }
 }

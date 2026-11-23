@@ -52,7 +52,8 @@ struct LiveEditorCommands: EditorCommands {
         guard let editor else { return }
         let length = editor.textStorage.length
         let location = min(max(0, range.location), length)
-        editor.selectedRange = NSRange(location: location, length: min(max(0, range.length), length - location))
+        // The app's own selection (a Search or Outline jump): it never raises the selection row.
+        editor.selectProgrammatically(NSRange(location: location, length: min(max(0, range.length), length - location)))
     }
 
     func insertTable() { editor?.insertTable() }
