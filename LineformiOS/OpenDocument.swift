@@ -748,10 +748,13 @@ final class OpenDocument: ImageInsertionHost {
         if text == lastSyncedText || url != nil || saveFolder != nil {
             saveNow()
             history?.persist(text: text)
+            // Shared History is written on a queue: on disk before the assertion ends.
+            history?.flushPendingWrites()
             assertion.end(using: tasks)
         } else {
             Task {
                 await self.flush()
+                self.history?.flushPendingWrites()
                 assertion.end(using: tasks)
             }
         }

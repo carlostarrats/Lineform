@@ -75,10 +75,21 @@ public final class SystemHistoryDeviceIDKeychain: HistoryDeviceIDStoring, @unche
 /// defaults (`LineformHistoryDeviceID.v1`, which a backup restore copies to a new device) is
 /// moved there once and removed from defaults. When the Keychain cannot be used, the name lives
 /// in defaults instead, so it is still the same name at every launch.
+///
+/// `salt` (the Mac's hardware hash, passed in by the app) is appended: `mac-<UUID>-<salt>`. The
+/// Mac's Keychain is the legacy file keychain, which Migration Assistant and Time Machine carry to
+/// a new Mac, so the stored part alone could be shared by two live Macs. No salt: the stored name.
 public enum HistoryDeviceIdentity {
     static let defaultsKey = "LineformHistoryDeviceID.v1"
 
-    public static func current(platform: String, storage: HistoryDeviceIDStoring, defaults: UserDefaults) -> String {
+    public static func current(platform: String, storage: HistoryDeviceIDStoring, defaults: UserDefaults,
+                               salt: String? = nil) -> String {
+        let stored = storedName(platform: platform, storage: storage, defaults: defaults)
+        guard let salt, !salt.isEmpty else { return stored }
+        return "\(stored)-\(salt)"
+    }
+
+    private static func storedName(platform: String, storage: HistoryDeviceIDStoring, defaults: UserDefaults) -> String {
         let prefix = platform + "-"
         let legacy = defaults.string(forKey: defaultsKey).flatMap { $0.hasPrefix(prefix) ? $0 : nil }
         switch storage.readDeviceID() {

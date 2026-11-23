@@ -86,11 +86,17 @@ public final class RoutingPassageHistoryStore: PassageHistoryPersisting, @unchec
     /// The app's store. Local History stays where 1.8/1.9 keep it; the bookmark sidecar is in its
     /// own folder beside it, so the local format and `clearAll` are unchanged. The device name is
     /// read from `deviceIDStorage` (the Keychain) only when a shared document is first used.
+    ///
+    /// `deviceSalt` (the Mac: a hash of this Mac's hardware UUID) is appended to the name, so a
+    /// Keychain carried to another Mac by Migration Assistant or Time Machine still makes a
+    /// different name there. Read with the name, at first shared use.
     public static func live(platform: String, home: URL, defaults: UserDefaults = .standard,
-                            deviceIDStorage: HistoryDeviceIDStoring = SystemHistoryDeviceIDKeychain()) -> RoutingPassageHistoryStore {
+                            deviceIDStorage: HistoryDeviceIDStoring = SystemHistoryDeviceIDKeychain(),
+                            deviceSalt: @escaping @Sendable () -> String? = { nil }) -> RoutingPassageHistoryStore {
         let directory = FilePassageHistoryStore.defaultDirectory(home: home)
         let device = LazyDeviceName {
-            HistoryDeviceIdentity.current(platform: platform, storage: deviceIDStorage, defaults: defaults)
+            HistoryDeviceIdentity.current(platform: platform, storage: deviceIDStorage, defaults: defaults,
+                                          salt: deviceSalt())
         }
         return RoutingPassageHistoryStore(
             local: FilePassageHistoryStore(directory: directory),
@@ -235,6 +241,14 @@ public final class RoutingPassageHistoryStore: PassageHistoryPersisting, @unchec
                 }
             }
         }
+    }
+
+    /// The router's queued work (bookmarks, Clear History), then every shared store's writes,
+    /// each retrying a held-back save once, then whatever their completions queued here.
+    public func flushPendingWrites() {
+        queue.sync {}
+        for store in lock.withLock({ Array(sharedStores.values) }) { store.flushPendingWrites() }
+        queue.sync {}
     }
 
     /// Waits for the router's background work and every shared store's queued writes (tests).

@@ -1,6 +1,8 @@
 import AppKit
 import Combine
+import CryptoKit
 import Foundation
+import IOKit
 import LineformCore
 
 /// History for the document shown in one editor: owns the engine and the store access, publishes
@@ -97,7 +99,21 @@ final class DocumentHistoryController: ObservableObject {
     /// is made at the store's first use, and this Mac's device name (Keychain, this device only) is
     /// read only when a document in the Lineform iCloud folder first uses History.
     static let sharedStore: LazyHistoryStore = LazyHistoryStore {
-        RoutingPassageHistoryStore.live(platform: "mac", home: URL(fileURLWithPath: NSHomeDirectory(), isDirectory: true))
+        RoutingPassageHistoryStore.live(platform: "mac", home: URL(fileURLWithPath: NSHomeDirectory(), isDirectory: true),
+                                        deviceSalt: { DocumentHistoryController.hardwareSalt() })
+    }
+
+    /// The first 8 hex characters of SHA-256 of this Mac's `IOPlatformUUID`, appended to the shared
+    /// History device name: the legacy file keychain that holds the name travels with Migration
+    /// Assistant and Time Machine, the hardware UUID does not. nil when it cannot be read (the
+    /// name is then the stored one alone). Read only with the device name, at first shared use.
+    nonisolated static func hardwareSalt() -> String? {
+        let service = IOServiceGetMatchingService(kIOMainPortDefault, IOServiceMatching("IOPlatformExpertDevice"))
+        guard service != 0 else { return nil }
+        defer { IOObjectRelease(service) }
+        guard let property = IORegistryEntryCreateCFProperty(service, kIOPlatformUUIDKey as CFString, kCFAllocatorDefault, 0),
+              let uuid = property.takeRetainedValue() as? String, !uuid.isEmpty else { return nil }
+        return SHA256.hash(data: Data(uuid.utf8)).prefix(4).map { String(format: "%02x", $0) }.joined()
     }
 
     /// Posted (object: the store) after `clearAllHistory(in:)` emptied a store. Every controller
@@ -121,7 +137,12 @@ final class DocumentHistoryController: ObservableObject {
         lifecycleObservations = [
             notificationCenter.publisher(for: NSApplication.willTerminateNotification)
                 .sink { [weak self] _ in
-                    MainActor.assumeIsolated { self?.persistEditorText() }
+                    MainActor.assumeIsolated {
+                        guard let self else { return }
+                        self.persistEditorText()
+                        // Shared History writes are queued; the process exits next.
+                        self.store.flushPendingWrites()
+                    }
                 },
             notificationCenter.publisher(for: NSWindow.willCloseNotification)
                 .sink { [weak self] notification in

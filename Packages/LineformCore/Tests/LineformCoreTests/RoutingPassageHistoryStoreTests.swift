@@ -423,6 +423,33 @@ final class RoutingPassageHistoryStoreTests: XCTestCase {
         XCTAssertEqual(ids.writes, 0)
     }
 
+    /// Re-review I3 (Mac): the salt is part of the name, so a Keychain carried to another Mac
+    /// still makes a different name there; the same Mac keeps its name.
+    func testHardwareSaltMakesTheNamePerMac() throws {
+        let ids = MemoryDeviceIDs()
+        let defaults = try defaultsSuite()
+        let here = HistoryDeviceIdentity.current(platform: "mac", storage: ids, defaults: defaults, salt: "0a1b2c3d")
+        XCTAssertEqual(HistoryDeviceIdentity.current(platform: "mac", storage: ids, defaults: defaults, salt: "0a1b2c3d"), here)
+        XCTAssertTrue(here.hasSuffix("-0a1b2c3d"))
+        let migrated = HistoryDeviceIdentity.current(platform: "mac", storage: ids, defaults: defaults, salt: "ffee0011")
+        XCTAssertNotEqual(migrated, here)
+        XCTAssertEqual(HistoryDeviceIdentity.current(platform: "mac", storage: ids, defaults: defaults, salt: nil), ids.stored)
+        XCTAssertEqual(HistoryDeviceIdentity.current(platform: "mac", storage: ids, defaults: defaults), ids.stored,
+                       "no salt: the stored name, unchanged")
+    }
+
+    /// N1: the router's flush drains the shared store's queued save and the bookmark it queues.
+    func testFlushPendingWritesPutsSharedHistoryOnDisk() throws {
+        let url = try file(documents.appendingPathComponent("d.md"))
+        let store = router()
+        let saved = history()
+        store.save(saved, for: url)
+        store.flushPendingWrites()
+        XCTAssertEqual(sharedFolders().count, 1)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: bookmarksURL().path))
+        XCTAssertEqual(router("iphone-B").load(for: url), saved)
+    }
+
     // MARK: - Container lookups (Minor 2)
 
     func testNoContainerLookupOnLoadOrSave() throws {

@@ -34,6 +34,10 @@ public final class LazyHistoryStore: PassageHistoryPersisting, @unchecked Sendab
     public func retargetDirectory(from oldDir: URL, to newDir: URL) { store.retargetDirectory(from: oldDir, to: newDir) }
     public func prune(now: Date) { store.prune(now: now) }
     public func clearAll() { store.clearAll() }
+    /// Only a store already made has anything queued: this never makes one.
+    public func flushPendingWrites() {
+        lock.withLock { made }?.flushPendingWrites()
+    }
     public func noteVersionDeleted(passage: UUID, at index: Int, in history: DocumentHistory, for url: URL) {
         store.noteVersionDeleted(passage: passage, at: index, in: history, for: url)
     }

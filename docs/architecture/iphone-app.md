@@ -861,7 +861,9 @@ History is local to this iPhone. History never writes into the document file.
   mode ends without the collapse), and close when the file is deleted or trashed elsewhere.
 - **Edits.** Every character change reaches History from ONE text-storage hook
   (`didProcessEditing`, `.editedCharacters`), in pre-change coordinates, TRIMMED to the minimal
-  changed span (`HistoryUndoCollapse.minimalEdit`, the Mac invariant): an undo, redo or grouped
+  changed span (`HistoryUndoCollapse.unambiguousEdit`, the Mac's per-edit trim — a change in
+  repeated text reports the union of its placements, so a passage there is dropped, never left on
+  the wrong copy): an undo, redo or grouped
   edit reports its whole range even where nothing changed, and the engine drops every passage an
   edit straddles. The storage has already changed when it reports, so the hook keeps a copy of the
   text while History is attached (`State.historyShadowText`, kept in step by each report; out of

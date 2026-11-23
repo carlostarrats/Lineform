@@ -557,6 +557,81 @@ final class SharedPassageHistoryStoreTests: XCTestCase {
         XCTAssertEqual(try record("n25.md", "mac-A").formerPaths, [], "none of those folders exists any more")
     }
 
+    // MARK: - Re-review N1, N3, N5
+
+    /// N1: a queued save is on disk after `flushPendingWrites()` — no `waitForBackgroundWork()`
+    /// (what the Mac's quit and the iPhone's background assertion call).
+    func testFlushPendingWritesPutsAQueuedSaveOnDisk() throws {
+        let a = store("mac-A")
+        a.save(DocumentHistory(passages: [passage(p1, [v("One", -30), v("Two", -20)])]), relativePath: "d.md")
+        a.flushPendingWrites()
+        XCTAssertEqual(try record("d.md", "mac-A").passages.map(\.id), [p1])
+    }
+
+    /// N1: a save held back by an evicted record is retried once by the flush, with no new save.
+    func testFlushPendingWritesRetriesAHeldBackSave() throws {
+        let a = store("mac-A")
+        a.saveAndWait(DocumentHistory(passages: [passage(p1, [v("One", -30), v("Two", -20)])]), relativePath: "d.md")
+        let dir = folder("d.md")
+        let bytes = try Data(contentsOf: dir.appendingPathComponent("mac-A.json"))
+        try FileManager.default.removeItem(at: dir.appendingPathComponent("mac-A.json"))
+        try Data().write(to: dir.appendingPathComponent(".mac-A.json.icloud"))
+        let relaunched = store("mac-A")
+        XCTAssertFalse(relaunched.saveAndWait(DocumentHistory(passages: [passage(p2, [v("Uno", -30), v("Dos", -20)])]),
+                                              relativePath: "d.md"))
+        try FileManager.default.removeItem(at: dir.appendingPathComponent(".mac-A.json.icloud"))
+        try bytes.write(to: dir.appendingPathComponent("mac-A.json"))
+        relaunched.flushPendingWrites()
+        XCTAssertEqual(try record("d.md", "mac-A").passages.map(\.id), [p2])
+    }
+
+    /// N3: this device's record at the old path is evicted when the document is renamed. The move
+    /// neither merges nor moves it (and never moves the stub by its literal name); the old folder
+    /// stays as a former path, and another device's record still moves.
+    func testMoveLeavesThisDevicesEvictedOldRecordInPlace() throws {
+        let a = store("iphone-A"), b = store("mac-B")
+        a.saveAndWait(DocumentHistory(passages: [passage(p1, [v("One", -30), v("Two", -20)])]), relativePath: "a.md")
+        b.saveAndWait(DocumentHistory(passages: [passage(p2, [v("Uno", -30), v("Dos", -20)])]), relativePath: "a.md")
+        let old = folder("a.md")
+        let bytes = try Data(contentsOf: old.appendingPathComponent("iphone-A.json"))
+        try FileManager.default.removeItem(at: old.appendingPathComponent("iphone-A.json"))
+        try Data().write(to: old.appendingPathComponent(".iphone-A.json.icloud"))
+
+        let relaunched = store("iphone-A")
+        relaunched.move(from: "a.md", to: "b.md")
+        relaunched.waitForBackgroundWork()
+        XCTAssertEqual(names(old), [".iphone-A.json.icloud"], "the stub stays where it is")
+        XCTAssertEqual(names(folder("b.md")), ["iphone-A.json", "mac-B.json"])
+        XCTAssertEqual(try record("b.md", "iphone-A").formerPaths, ["a.md"])
+        XCTAssertEqual(try record("b.md", "iphone-A").passages, [])
+
+        // Downloaded again: the next save at the new path carries it over.
+        try FileManager.default.removeItem(at: old.appendingPathComponent(".iphone-A.json.icloud"))
+        try bytes.write(to: old.appendingPathComponent("iphone-A.json"))
+        let history = relaunched.load(relativePath: "b.md")
+        XCTAssertEqual(texts(history, p1), ["One", "Two"])
+        clock.advance(1)
+        XCTAssertTrue(relaunched.saveAndWait(history, relativePath: "b.md"))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: old.path))
+        XCTAssertEqual(texts(store("mac-C").load(relativePath: "b.md"), p1), ["One", "Two"])
+    }
+
+    /// N5: a version saved after Clear History, already written when the clear's queued job runs,
+    /// is not dropped by it.
+    func testASaveMadeAfterTheClearSurvivesTheClearJob() {
+        let a = store("mac-A")
+        a.saveAndWait(DocumentHistory(passages: [passage(p1, [v("One", -30), v("Two", -20)])]), relativePath: "d.md")
+        let clearedAt = clock.now
+        clock.advance(10)
+        let after = DocumentHistory(passages: [passage(p2, [v("Uno", -2), v("Dos", -1)])])
+        a.saveAndWait(after, relativePath: "d.md")
+        a.clearAll(at: clearedAt)
+        a.waitForBackgroundWork()
+        let merged = store("mac-C").load(relativePath: "d.md")
+        XCTAssertNil(texts(merged, p1))
+        XCTAssertEqual(texts(merged, p2), ["Uno", "Dos"])
+    }
+
     final class Flag: @unchecked Sendable {
         private let lock = NSLock()
         private var value = false

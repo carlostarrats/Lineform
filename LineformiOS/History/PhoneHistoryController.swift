@@ -224,6 +224,12 @@ final class PhoneHistoryController {
         persistNow(text: text)
     }
 
+    /// Writes the store's queued History writes now (shared History is written on a queue): called
+    /// inside the background-task assertion, before iOS may suspend or end the app.
+    func flushPendingWrites() {
+        store.flushPendingWrites()
+    }
+
     /// Live reload from disk: reload wins. History mode closes WITHOUT the collapse (the disk text
     /// replaces everything) and passages are re-found literally.
     func documentReloaded(text: String) {

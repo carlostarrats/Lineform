@@ -17,10 +17,16 @@ public protocol PassageHistoryPersisting: AnyObject {
     /// so the version — or a passage the engine removes with it — is not brought back from another
     /// device's copy. Default: nothing.
     func noteVersionDeleted(passage: UUID, at index: Int, in history: DocumentHistory, for url: URL)
+    /// Writes every queued write NOW, on the calling thread, and retries once a write that was held
+    /// back (an evicted record of this device's). For the moments the process may end next: Mac
+    /// quit, iPhone background-task assertion. Never call it from a store's own queue. Default:
+    /// nothing (a store that writes synchronously has nothing queued).
+    func flushPendingWrites()
 }
 
 public extension PassageHistoryPersisting {
     func noteVersionDeleted(passage: UUID, at index: Int, in history: DocumentHistory, for url: URL) {}
+    func flushPendingWrites() {}
 }
 
 /// Keeps nothing. Used by tests and by untitled documents (no file to key history to).

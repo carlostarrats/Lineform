@@ -340,8 +340,13 @@ public final class SharedPassageHistoryStore: @unchecked Sendable {
     func clearAll(at date: Date, deleteFolders: Bool = true, completion: (@Sendable (Bool) -> Void)? = nil) {
         lock.lock()
         clearedFloor = max(clearedFloor ?? date, date)
-        let dropped = pending.values.flatMap(\.completions)
-        pending = [:]; lastKnown = [:]; knownTombstones = [:]; pendingTombstones = [:]; formerPaths = [:]; paths = [:]
+        // Queued saves stay (a version added after the Clear must not be dropped): every write
+        // strips what was touched at or before the floor. What this store knows is cut the same way.
+        let floor = clearedFloor ?? date
+        lastKnown = lastKnown.mapValues { history in
+            DocumentHistory(passages: history.passages.filter { $0.lastTouched > floor })
+        }
+        knownTombstones = [:]; pendingTombstones = [:]; formerPaths = [:]
         queue.async { [self] in
             let markerURL = clearedRoot.appendingPathComponent(ownFileName)
             var written = false
@@ -356,11 +361,21 @@ public final class SharedPassageHistoryStore: @unchecked Sendable {
                 for item in CoordinatedFileAccess.contents(of: documentsRoot) ?? [] {
                     CoordinatedFileAccess.remove(item)
                 }
+                // A save made after the Clear, already written and so just deleted: written again.
+                lock.lock()
+                for (key, history) in lastKnown where !history.isEmpty && pending[key] == nil {
+                    guard let path = paths[key] else { continue }
+                    generation += 1
+                    pending[key] = PendingSave(history: history, relativePath: path, generation: generation, completions: [])
+                }
+                let keys = Array(pending.keys)
+                lock.unlock()
+                // Written here, on the queue, so nothing queued after the Clear runs before them.
+                for key in keys { flush(key) }
             }
             completion?(written)
         }
         lock.unlock()
-        dropped.forEach { $0(false) }
     }
 
     /// Every later load drops passages last touched at or before `date`, and no write stores them
@@ -372,6 +387,16 @@ public final class SharedPassageHistoryStore: @unchecked Sendable {
 
     /// Waits for every queued write (tests, and callers that must order after them).
     func waitForBackgroundWork() { queue.sync {} }
+
+    /// Every queued write, now; then one retry of every save still pending (held back because this
+    /// device's record on disk was evicted or unreadable). Never from the store's own queue.
+    public func flushPendingWrites() {
+        queue.sync {}
+        lock.lock()
+        for key in pending.keys { scheduleFlushLocked(key) }
+        lock.unlock()
+        queue.sync {}
+    }
 
     /// D8, on the store's queue (call it from a background queue, never from a completion):
     /// - Another device's record is deleted only when it was written more than 30 days ago —
@@ -490,13 +515,17 @@ public final class SharedPassageHistoryStore: @unchecked Sendable {
                                      tombstones: tombstones, formers: formers, floor: floor)
 
         lock.lock()
-        if let written {
+        // A key moved away (or removed) while the write ran keeps no state: `paths` no longer
+        // names this document there.
+        if let written, paths[key].map({ Self.key(for: $0) == key }) == true {
             if pending[key]?.generation == job.generation { pending[key] = nil }
             if let left = pendingTombstones[key] {
                 pendingTombstones[key] = left.count > consumed ? Array(left.dropFirst(consumed)) : nil
             }
             knownTombstones[key] = written.tombstones
             formerPaths[key] = Self.orderedUnion(formerPaths[key] ?? [], written.formers)
+        } else if written != nil, pending[key]?.generation == job.generation {
+            pending[key] = nil
         }
         lock.unlock()
         job.completions.forEach { $0(written != nil) }
@@ -554,6 +583,9 @@ public final class SharedPassageHistoryStore: @unchecked Sendable {
         case .absent: existing = nil
         case let .readable(record): existing = record
         }
+        // This device's old record evicted or unreadable (I2): it is neither merged nor removed. It
+        // stays in the old folder, which the new record lists as a former path, and joins the new
+        // folder at a later save once it is readable.
         var ownOld: SharedHistoryRecord?
         if case let .readable(record) = readOwn(oldKey) { ownOld = record }
         lock.lock()
@@ -709,7 +741,17 @@ public final class SharedPassageHistoryStore: @unchecked Sendable {
         guard oldKey != key, let items = CoordinatedFileAccess.contents(of: folder(oldKey)) else { return }
         var keep = false
         for item in items {
-            let destination = folder(key).appendingPathComponent(item.lastPathComponent)
+            let name = item.lastPathComponent
+            // An `.icloud` stub is never moved by its literal name (its logical file would then
+            // clash with that device's record at the destination): it stays, with its folder, and
+            // is retired once downloaded.
+            if name.hasPrefix("."), name.hasSuffix(".icloud") {
+                try? FileManager.default.startDownloadingUbiquitousItem(
+                    at: folder(oldKey).appendingPathComponent(String(name.dropFirst().dropLast(".icloud".count))))
+                keep = true
+                continue
+            }
+            let destination = folder(key).appendingPathComponent(name)
             let taken = FileManager.default.fileExists(atPath: destination.path)
             guard Self.isRecordName(item), isDownloaded(item), let record = readRecord(item) else {
                 if taken || !CoordinatedFileAccess.move(item, to: destination) { keep = true }

@@ -534,6 +534,34 @@ final class DocumentHistoryControllerTests: XCTestCase {
         XCTAssertEqual(note.history.passages.first { $0.id == id }?.versions.count, 2, "the history before the delete")
     }
 
+    /// Re-review N1: shared History writes are queued, so quit drains them after persisting.
+    func testQuitFlushesTheStoresQueuedWrites() {
+        final class FlushingStore: PassageHistoryPersisting {
+            var flushes = 0
+            func load(for url: URL) -> DocumentHistory { DocumentHistory(passages: []) }
+            func save(_ history: DocumentHistory, for url: URL) {}
+            func retarget(from old: URL, to new: URL) {}
+            func retargetDirectory(from oldDir: URL, to newDir: URL) {}
+            func prune(now: Date) {}
+            func clearAll() {}
+            func flushPendingWrites() { flushes += 1 }
+        }
+        let store = FlushingStore()
+        let center = NotificationCenter()
+        let controller = DocumentHistoryController(store: store, notificationCenter: center)
+        center.post(name: NSApplication.willTerminateNotification, object: nil)
+        XCTAssertEqual(store.flushes, 1)
+        withExtendedLifetime(controller) {}
+    }
+
+    /// Re-review I3: the Mac's hardware salt is 8 lowercase hex characters, the same every call.
+    func testHardwareSaltIsStableHex() throws {
+        let salt = try XCTUnwrap(DocumentHistoryController.hardwareSalt())
+        XCTAssertEqual(salt.count, 8)
+        XCTAssertTrue(salt.allSatisfy { "0123456789abcdef".contains($0) })
+        XCTAssertEqual(DocumentHistoryController.hardwareSalt(), salt)
+    }
+
     func testTypingCommandExitsHistoryMode() throws {
         let (controller, edited) = controllerWithEditedPassage()
         controller.enterHistoryMode(text: edited)

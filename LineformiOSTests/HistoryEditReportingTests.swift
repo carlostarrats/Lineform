@@ -53,6 +53,31 @@ final class HistoryEditReportingTests: XCTestCase {
         XCTAssertEqual((textView.text as NSString).substring(with: passage.range), accepted)
     }
 
+    /// Re-review N2: a wide edit that removes one of two identical sentences has two valid
+    /// placements. The trim reports their union (`unambiguousEdit`, Mac parity), so the passage on
+    /// the first copy is DROPPED — never left in place reading what used to be the second copy.
+    func testAWideEditInRepeatedTextDropsThePassageInsteadOfGuessing() throws {
+        let date = fixedDate
+        let controller = PhoneHistoryController(store: MemoryHistoryStore(), now: { date },
+                                                pruneQueue: DispatchQueue(label: "HistoryEditReportingTests"))
+        let original = "Keep it. Keep this. End."
+        controller.open(url: nil, text: original)
+        let textView = LineformTextView.make(profile: .original)
+        textView.setDocumentText(original)
+        controller.attach(textView)
+        textView.applyRuleEdit(replacing: NSRange(location: 0, length: 8), with: "Keep this.")
+        XCTAssertEqual(textView.text, "Keep this. Keep this. End.")
+        _ = controller.recordAccepted(range: NSRange(location: 0, length: 10), original: "Keep it.", accepted: "Keep this.",
+                                  text: textView.text)
+        textView.undoManager?.removeAllActions()
+        settle()
+        XCTAssertTrue(controller.hasHistory)
+
+        textView.applyRuleEdit(replacing: NSRange(location: 0, length: 21), with: "Keep this.")
+        XCTAssertEqual(textView.text, "Keep this. End.")
+        XCTAssertFalse(controller.hasHistory, "the ambiguous edit straddles the passage, which is dropped")
+    }
+
     func testReturnContinuationMovesPassagesAfterIt() throws {
         let (controller, textView) = makeEditorWithPassage(prefix: "- item\n")
         let before = controller.reportedEditCountForTesting

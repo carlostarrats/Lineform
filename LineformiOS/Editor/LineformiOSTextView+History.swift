@@ -14,8 +14,10 @@ import UIKit
 ///   its whole range even where the text did not change, and the engine drops every passage an
 ///   edit straddles. The storage has already changed when it reports, so the hook keeps a copy of
 ///   the text (`State.historyShadowText`, made when History attaches, kept in step by every
-///   report) and trims old against new with `HistoryUndoCollapse.minimalEdit`. A copy out of step
-///   is remade and the edit reported as a whole-text replacement.
+///   report) and trims old against new with `HistoryUndoCollapse.unambiguousEdit`, the Mac's
+///   per-edit trim: when a change in repeated text has several valid placements it reports their
+///   union, so a passage there is DROPPED rather than left on an identical but different
+///   occurrence. A copy out of step is remade and the edit reported as a whole-text replacement.
 /// - **History's own edits are never reported**: they run inside `performHistoryEdit`, and the
 ///   engine already moved its live ranges for them.
 /// - **Typing leaves History mode** first, with the session's collapse, then goes through (the
@@ -84,8 +86,10 @@ extension LineformTextView {
             return
         }
         let replacement = edited.length == 0 ? "" : current.substring(with: edited)
-        // Nothing changed in the characters (an attribute-only rewrite of the same text).
-        guard let trimmed = HistoryUndoCollapse.minimalEdit(from: old, to: replacement) else { return }
+        guard let trimmed = HistoryUndoCollapse.unambiguousEdit(from: old, to: replacement) else {
+            controller.noteWholeTextReplacement()
+            return
+        }
         controller.noteUserEdit(
             NSRange(location: before.location + trimmed.range.location, length: trimmed.range.length),
             replacement: trimmed.replacement)
