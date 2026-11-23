@@ -8,8 +8,9 @@ all off, so the iPhone build of `com.lineform.app` can never run on a Mac.
 
 This page covers roadmap step 3 (shell and files), step 4 (Write mode), step 5 (Read and
 Preview, with the Write/Read/Preview switch), step 6 (the Menu sheet), step 7 (the Styling
-sheet), step 10 (export, print, share and read aloud) and step 11 (first run). The rest arrive in
-later steps.
+sheet), step 8 (the selection row, the comment field, AI actions with their review, and
+whole-document AI), step 10 (export, print, share and read aloud) and step 11 (first run). The
+rest arrive in later steps.
 
 ## Each app stands alone
 
@@ -752,6 +753,10 @@ from search.md carries over; see the iPhone Search paragraph there.
   selection (wrapping) is selected and brought to the top of the surface on screen. It is the
   only whole-document spelling pass, and it is never scheduled. With Check spelling while typing
   off, its underlines last until the next edit, which clears them.
+- **Ask AI…** follows Check Document Now while an AI is connected and Write or Preview is on
+  screen (`DocumentSection.showsAskAI`; the row observes `AIConnectionStore`, so connecting in
+  Settings shows it). It closes the sheet and opens the comment field for the whole document,
+  after the shared length policy (see "Ask AI for the whole document").
 - Show Hidden Folders, the Files setting (`FilesStore.setShowsHidden`, `Lineform.outline.showsHiddenFolders`).
 - Lineform Guide, Privacy Policy and Terms of Use open in Safari (`openURL`) at the package's
   `LineformLinks`, which the Mac's Help menu also forwards to.
@@ -809,7 +814,12 @@ are worded for iPhone: no iPhone string names a Mac or a sidebar
   Announcements reach the iPhone in roadmap step 12; until then the switch only keeps the choice.
 
 - **Connect Your AI…** (`ConnectAISheet`) connects Claude, ChatGPT, Google or Other, one provider
-  at a time, with the Mac's `ConnectAIPresentation` and `AIConnectionStore`.
+  at a time, with the Mac's `ConnectAIPresentation` and `AIConnectionStore`. The key is kept in the
+  Keychain (service `<bundle id>.ai`, not synchronizable); connecting deletes the other providers'
+  keys. Its note says what is sent: "Only the passage you select is sent, or the whole document
+  when you choose Ask AI for it, and only when you choose an action." Package text that named a
+  Mac has iPhone variants (`billingNote(.other)`, `reconnectMessage`,
+  `AIConnectError.insecureAddress`).
 - **Clear History** (the Mac's row, note "Removes saved versions for every document. Your files
   are not changed.", button "Clear…" and destructive confirmation "Clear all history?"):
   `SettingsSection.clearHistory(store:)` → `PhoneHistoryController.clearAllHistory(in:)`, the same
@@ -912,6 +922,37 @@ History is local to this iPhone. History never writes into the document file.
 - **Clear History** (Settings): the store's `clearAll()`, then `didClearAllNotification`; every
   controller on the store re-reads it, replacing its engine BEFORE leaving History mode (leaving
   saves).
+## The selection row and comment field
+
+`LineformiOS/Selection/` (`SelectionController`, `SelectionRow`, `CommentField`), drawn by
+`SelectionBottomChrome`, an overlay on `DocumentScreen`. The spec is §5.5.
+
+- **When it shows.** `SelectionController.settleDelay` (0.35 s) after a non-empty selection stops
+  changing; it hides at once when the selection collapses. It needs an editable editor in a
+  window, no marked text, and no AI request or review in progress. The app's own selections
+  (`selectProgrammatically`: Search, Check Document Now, a position restore, the AI's collapse)
+  never raise it. It hides on a switch to Read.
+- **Order**, scrolling sideways: Ask AI (only while connected, titled with the AI's name: "Ask
+  Claude"), Heading ▾, Bold, Italic, Strikethrough, Code, List ▾ (Bulleted, Numbered), Link,
+  Blockquote, Replace With… (opens Menu ▸ Search with the selection as the query), and Another Word
+  (one word only, and only while connected).
+- **One button, one undo step.** Each formatting button calls the editor's own command, which goes
+  through `applyRuleEdit`. The row then adopts the resulting selection instead of hiding.
+- **Placement.** Above the keyboard, or above the home indicator when it is down: bottom padding
+  = `max(0, keyboard overlap − safe-area bottom) + 12` (`SelectionRowPlacement`), from the keyboard
+  frame notifications. The overlap lives in its own `SelectionKeyboardTracker`, observed only by
+  the bottom chrome: publishing it from the controller re-rendered the screen in the middle of an
+  undo and broke the editor's undo grouping. The editor's insets are never touched. The row
+  replaces the Menu, Aa and link buttons while it shows. The system edit menu is not changed: it
+  floats at the selection, and the row sits at the bottom.
+- **The comment field.** Ask AI swaps the row for a full-width card with no drag handle: the
+  title and Cancel, the note (a plain `UITextView`, where Return inserts a newline; it grows to
+  120 pt, then scrolls), the Action menu (`SelectionToolbarPresentation.actionGroups`, Custom
+  first and the default) and Send. Send needs a note for Custom (`canSend`) and is off while an
+  input method is composing, so Return during Japanese input only confirms the candidate. Cancel
+  with the button or a swipe down of 60 pt or more; the selection comes back. Send runs the shared
+  `AIActionController` on the range the row was shown for (`anchorRange`).
+
 ## AI actions and the review
 
 `LineformiOS/AI/` (`LineformiOSTextView+AI.swift`, `AIReviewOverlay.swift`, `AIReviewCardsView.swift`),
@@ -962,6 +1003,24 @@ is ONE assignment, `aiHistory` (nil until roadmap step 9's `AIHistoryRecording`)
   `LiveEditorCommands.selectRange`, `setDocumentText`'s restore, the AI collapse) marks the
   selection as the app's; `SelectionController.editorSelectionDidChange` never raises the row for
   it (`isSelectionProgrammatic`), and forgets it at the writer's next selection.
+
+### Ask AI for the whole document
+
+Menu ▸ Document ▸ Ask AI… (the Mac's Edit ▸ Ask AI… with nothing selected). The row closes the
+sheet; the sheet's `onDismiss` then runs `SelectionController.askAIForWholeDocument`, because a
+confirmation cannot be presented over a closing sheet. The shared `WholeDocumentAIPolicy` decides
+first, on the prose that would be sent:
+
+- up to 1,500 words, the comment field opens for the whole document;
+- above that, a `UIAlertController` asks "Send the whole document (N words) to …?", with Send
+  and Cancel; Cancel is the `preferredAction`, as on the Mac;
+- past `AILimits`, the refusal ("Select a part of the document — about 4,000 words at most.")
+  shows on the message card. Nothing opens or is sent, and the Keychain is not read.
+
+The field's range is the whole text (`anchorRange`, `isWholeDocument`), nothing is highlighted,
+and Cancel puts the caret back. Send runs `AIActionController.runWholeDocument`, which checks the
+policy again before `resolvedConnection()`. The review is the same overlay and cards. Tests:
+`WholeDocumentAITests`. Details for both apps: `editor-behavior.md`, "Whole-document AI".
 
 ## Strings
 

@@ -402,6 +402,18 @@ iPhone only. Details: `docs/architecture/iphone-app.md`.
   scaled to the page; any other tall line gets its own scaled page). UIKit calls
   `PhonePrintRenderer`'s `numberOfPages`/`drawPage` OFF main: never hop to main there; render on
   main beforehand. `OpenDocument.onDocumentSwap` is the only place read aloud stops on a swap.
+- **Selection row, comment field and AI.** A settled selection raises `SelectionRow` above the
+  keyboard or home indicator (`SelectionController`, 0.35 s): Ask AI (connected only), Heading,
+  Bold, Italic, Strikethrough, Code, List, Link, Blockquote, Replace With… and Another Word. It
+  never changes the system edit menu, and the app's own selections never raise it. Ask AI opens
+  the comment field (note, Action menu, Send; nothing is sent while marked text is composing).
+  The review is `AIReviewOverlayTextView`, a read-only overlay with an EMPTY undo manager, and the
+  editor refuses every edit path while `isAIReviewActive`; cards sit above the keyboard. Each
+  accept is ONE undo group through `applyRuleEdit`. Menu ▸ Document ▸ Ask AI… sends the whole
+  document through the shared `WholeDocumentAIPolicy` (confirm above 1,500 words, refuse past
+  `AILimits` before the Keychain is read). History is the one `SelectionController.aiHistory`
+  assignment, nil until roadmap step 9. Details: `docs/architecture/iphone-app.md`, "The
+  selection row and comment field" and "AI actions and the review".
 - **Strings.** iPhone strings live in `LineformiOS/Localizable.xcstrings` (six languages), reusing
   the Mac's translation for the same English text. `LocalizationSourceSweepTests` scans
   `LineformiOS/` against that catalog. No iPhone string names a Mac or a sidebar

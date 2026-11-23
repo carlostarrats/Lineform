@@ -311,7 +311,10 @@ final class AIReviewTests: XCTestCase {
         try await spin { Self.find(AIReviewOverlayTextView.self, in: window) != nil }
         let overlay = try XCTUnwrap(Self.find(AIReviewOverlayTextView.self, in: window))
 
-        // Over the editor, with its profile, insets and container; read-only; empty undo.
+        // Over the editor, with its profile, insets and container; read-only; empty undo. The overlay
+        // takes the focus, so the software keyboard (when the simulator shows one) goes down and the
+        // screen lays out again: compare once both views have settled.
+        try await spin { overlay.convert(overlay.bounds, to: nil) == editor.convert(editor.bounds, to: nil) }
         XCTAssertEqual(overlay.convert(overlay.bounds, to: nil), editor.convert(editor.bounds, to: nil))
         XCTAssertEqual(overlay.textContainerInset, editor.textContainerInset)
         XCTAssertEqual(overlay.textContainer.size.width, editor.textContainer.size.width)
