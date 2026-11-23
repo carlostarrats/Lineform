@@ -843,19 +843,32 @@ History in the container's `History/v1/` and so shares it with the Mac (the merg
 moves and Clear History are in `editor-behavior.md` § History, Sync); every other document's
 History is local to this iPhone. History never writes into the document file.
 
-- **Nothing at launch.** `PhoneHistoryController.sharedStore` is a `LazyHistoryStore`: the app's
-  `OpenDocument.live()` is built at launch, but the router (which reads, or makes once, the device
-  name `LineformHistoryDeviceID.v1` in user defaults) is made at the store's first use — the first
-  document opened with a file, or Clear History. The session's one prune runs at that first open, on
-  a background queue (`HistoryModeTests.testTheLiveDocumentMakesNoHistoryStoreAtLaunch`).
+- **Nothing at launch.** `PhoneHistoryController.sharedStore` is the package's `LazyHistoryStore`
+  (the Mac's is too): the app's `OpenDocument.live()` is built at launch, but the router is made at
+  the store's first use — the first document opened with a file, or Clear History — and the device
+  name (`iphone-<UUID>`, in the Keychain for this device only, never restored onto another iPhone)
+  is read only when a document in the Lineform iCloud folder first uses History. The session's one
+  prune runs at that first open, on a background queue
+  (`HistoryModeTests.testTheLiveDocumentMakesNoHistoryStoreAtLaunch`).
+- **Shared writes never block the editor.** Saves, moves and Clear History of shared History run on
+  the shared store's queue, coalesced; a load never waits for a record iCloud has not downloaded
+  (it merges at a later load). When iOS has evicted this iPhone's own record
+  (`.iphone-<UUID>.json.icloud`), the save is held (load still shows it) until the record is back,
+  never written over it unread (`editor-behavior.md` § History, Sync).
 - **Lifecycle.** `OpenDocument` drives the controller: open, close before a swap, persist after a
   save, `documentGotFile` when an Untitled document is first saved, `fileMoved` for the first-line
   rename, a user rename, a presenter move and Save As, `documentReloaded` for live reload (History
   mode ends without the collapse), and close when the file is deleted or trashed elsewhere.
 - **Edits.** Every character change reaches History from ONE text-storage hook
-  (`didProcessEditing`, `.editedCharacters`), in pre-change coordinates; History's own edits run in
+  (`didProcessEditing`, `.editedCharacters`), in pre-change coordinates, TRIMMED to the minimal
+  changed span (`HistoryUndoCollapse.minimalEdit`, the Mac invariant): an undo, redo or grouped
+  edit reports its whole range even where nothing changed, and the engine drops every passage an
+  edit straddles. The storage has already changed when it reports, so the hook keeps a copy of the
+  text while History is attached (`State.historyShadowText`, kept in step by each report; out of
+  step it is remade and the edit is a whole-text replacement). History's own edits run in
   `performHistoryEdit` and are not reported; `setDocumentText` and edits over 1 000 UTF-16 units are
-  whole-text replacements (`LineformiOSTextView+History.swift`).
+  whole-text replacements (`LineformiOSTextView+History.swift`,
+  `HistoryEditReportingTests.testAWideEditIsTrimmedToWhatChanged`).
 - **Entry points (D10, D11).** Menu ▸ **History** closes the sheet, switches to Write and enters
   History mode (`HistoryEntry.enterFromMenu`; a passage an AI accept left is selected). **Replace
   With…** is on the system edit menu (`editMenuForTextIn`, after the spelling group), offered only

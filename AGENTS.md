@@ -140,6 +140,7 @@ file named after it carries the full story and the reasoning.
 **History** (`editor-behavior.md` § History)
 - History in iCloud is one record per device per document, merged on read (`HistoryMerge`); a device writes only its own record, a missing passage never deletes another device's versions, and only an explicit Delete Version writes a tombstone (`noteVersionDeleted`, called by Delete Version with the history from before the delete — the engine removes a two-version passage whole, which alone writes none).
 - Every History file access goes through `CoordinatedFileAccess`.
+- Never fold another device's History record into your own: a move or former-path retire MOVES each record file under its own name, and document absence never deletes another device's record (only its 30-day `writtenAt` does). This device's engine drops passages it cannot locate, so a record it writes may lack them — add-wins holds only while every record stays separate. Shared writes run on the shared store's queue; `load` never reads a record that is not downloaded.
 
 **Rendering** (`rendering.md`)
 - Every INSERTION path (Return, list continuation, Insert Table, Tab's appended row, Reformat, image drop/paste) writes `MarkdownLineEnding.inForce(at:in:)`, never a bare `\n` — the document's endings are preserved, never normalised. It reads the caret's own line, never the whole document (per-keystroke). `ImageInsertionText` was outside this sweep and left a lone LF in Windows-authored files.
