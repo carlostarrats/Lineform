@@ -203,7 +203,9 @@ struct DocumentScreen: View {
             }
         }
         .overlay(alignment: .bottomTrailing) {
-            if !isHistoryModeActive && selection.phase == .hidden {
+            // The selection row, the comment field and the AI's cards take the bottom in turn, and
+            // History's card replaces them all.
+            if !isHistoryModeActive, selection.phase == .hidden, selection.aiState == .idle {
                 HStack(spacing: Self.bottomChromeSpacing) {
                     if displayMode == .split {
                         PreviewLinkButton(isLinked: arePanesLinked, profile: profile) {
@@ -221,6 +223,10 @@ struct DocumentScreen: View {
         .animation(
             EditorMotionPolicy.animation(.easeOut(duration: LineformDesign.Motion.standard), reduceMotion: reduceMotion),
             value: selection.phase
+        )
+        .animation(
+            EditorMotionPolicy.animation(.easeOut(duration: LineformDesign.Motion.standard), reduceMotion: reduceMotion),
+            value: selection.aiState == .idle
         )
         .overlay {
             SelectionBottomChrome(controller: selection, profile: profile)
@@ -297,6 +303,7 @@ struct DocumentScreen: View {
                 isShowingMenu = true
             }
             shownDisplayMode = shownDisplayMode ?? storedDisplayMode
+            selection.displayModeDidChange(to: displayMode)
             positionKeeper.adopt(displayMode)
             let linkedScroll = linkedScroll
             positionKeeper.isPreviewLinked = { [weak linkedScroll] in linkedScroll?.isLinked ?? true }
@@ -318,8 +325,9 @@ struct DocumentScreen: View {
             }
         }
         .onChange(of: displayMode) {
-            // Read has no editor on screen to hold a selection row.
-            if displayMode == .read { selection.hide() }
+            // Read has no editor on screen to hold a selection row, and allows no AI: a review
+            // ends (keeping what was accepted), a request or marks are dropped.
+            selection.displayModeDidChange(to: displayMode)
         }
         .onChange(of: scenePhase) { _, phase in
             if OpenDocument.savesImmediately(on: phase) { document.flushForBackground() }
@@ -420,6 +428,31 @@ extension DocumentScreen {
             history: document.history,
             selectionController: selection
         )
+        // Above the editor (Write, and Preview's top pane) and below the chrome, which overlays
+        // the whole page.
+        .overlay { aiReviewOverlay }
+    }
+
+    /// The review overlay, while a review is up and an editor is on screen (Read allows no AI).
+    @ViewBuilder
+    private var aiReviewOverlay: some View {
+        if displayMode != .read, case .reviewing(let session) = selection.aiState, let editor = selection.editor {
+            AIReviewOverlay(
+                composition: selection.compositionCache.composition(text: editor.string, session: session),
+                currentID: session.currentID,
+                pendingCount: session.pending.count,
+                profile: profile,
+                editor: editor,
+                bottomObscured: { [selection] view in
+                    // The card, plus a little air: the current change is revealed above it.
+                    let frame = view.convert(view.bounds, to: nil)
+                    return max(0, frame.maxY - selection.aiCardTopInWindow + 8)
+                },
+                onCommand: { [selection] command in selection.aiController.handle(command) },
+                onRefused: { [selection] in selection.editRefusedDuringReview() }
+            )
+            .ignoresSafeArea(.keyboard)
+        }
     }
 
     private var reader: some View {

@@ -84,6 +84,7 @@ extension LineformTextView: UIDropInteractionDelegate {
     }
 
     override func paste(_ sender: Any?) {
+        guard !refusesEditForAI() else { return }
         let pasteboard = activePasteboard
         guard Self.pastesImage(from: pasteboard) else {
             super.paste(sender)
@@ -117,6 +118,7 @@ extension LineformTextView: UIDropInteractionDelegate {
     /// Decided from the providers alone, never from a pasteboard: a drop through
     /// `pasteConfiguration` arrives here too, and has none.
     override func paste(itemProviders: [NSItemProvider]) {
+        guard !refusesEditForAI() else { return }
         guard !itemProviders.contains(where: Self.providesText),
               itemProviders.contains(where: Self.providesImage)
         else {
@@ -129,7 +131,7 @@ extension LineformTextView: UIDropInteractionDelegate {
     // MARK: - Drop
 
     func dropInteraction(_ interaction: UIDropInteraction, canHandle session: any UIDropSession) -> Bool {
-        isEditable
+        isEditable && !isAIReviewActive
             && session.hasItemsConforming(toTypeIdentifiers: [UTType.image.identifier])
             && !session.hasItemsConforming(toTypeIdentifiers: [UTType.text.identifier])
     }
@@ -151,6 +153,7 @@ extension LineformTextView: UIDropInteractionDelegate {
     /// are only good during `performDrop`); only the inserts wait for each other. The open
     /// document is captured now, too. The work is `imagePasteTask`.
     func insertImages(from providers: [NSItemProvider], at index: Int?) {
+        guard !refusesEditForAI() else { return }
         let loads = providers.filter(Self.providesImage).map { provider in
             (name: provider.suggestedName ?? Self.pastedImageBaseName, png: Self.beginLoadingPNG(from: provider))
         }
@@ -177,7 +180,8 @@ extension LineformTextView: UIDropInteractionDelegate {
     /// document took this one's place since `documentIdentity` was taken (nil: now).
     @discardableResult
     func insertImage(png: Data, preferredName: String, at index: Int?, documentIdentity: Int? = nil) async -> Int? {
-        guard isEditable, let host = imageInsertionHost else { return nil }
+        // Refused before any file is written: no orphan image beside the document.
+        guard isEditable, !refusesEditForAI(), let host = imageInsertionHost else { return nil }
         let identity = documentIdentity ?? host.imageInsertionDocumentIdentity
         guard let folder = await host.folderForInsertedImage() else { return nil }
         guard let written = await Self.writeImage(png, imagesFolderNextTo: folder, preferredName: preferredName) else {

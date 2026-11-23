@@ -912,6 +912,56 @@ History is local to this iPhone. History never writes into the document file.
 - **Clear History** (Settings): the store's `clearAll()`, then `didClearAllNotification`; every
   controller on the store re-reads it, replacing its engine BEFORE leaving History mode (leaving
   saves).
+## AI actions and the review
+
+`LineformiOS/AI/` (`LineformiOSTextView+AI.swift`, `AIReviewOverlay.swift`, `AIReviewCardsView.swift`),
+wired by `SelectionController`. The controller is the shared `AIActionController`, made on first
+use (nothing at launch); `SelectionController.wireAI` gives it the editor and History, and History
+is ONE assignment, `aiHistory` (nil until roadmap step 9's `AIHistoryRecording`).
+
+- **The surface.** `applyAIEdits` is ONE undo group on the editor's undo manager, each edit through
+  `applyRuleEdit` (a localized `textStorage.replaceCharacters` with its registration, then the
+  delegate's `textViewDidChange`, so the binding and autosave hear it), named
+  `AIActionController.acceptOneActionName`. Never a whole-text replacement; an edit that splits a
+  composed character or touches a line ending / BOM is skipped. `collapseSelectionForAI` sets the
+  caret as the app's own selection.
+- **Read-only review.** `refusesEditForAI` blocks every path while `isAIReviewActive`: the
+  delegate's `shouldChangeTextIn` (typing, Return, dictation), `insertText` / `deleteBackward` /
+  `setMarkedText` / `replace(_:withText:)` / `cut` / `paste` overrides, image paste and drop,
+  `applyRuleEdit` (formatting, Read's checkbox and Reconnect via `applyReadEdit`, Search's Replace
+  and Replace All). A refusal says the review's status again ("1 change suggested") through
+  `SelectionController.editRefusedDuringReview`. `isAIReviewActive` and Mark's ranges follow the
+  controller's state in `SelectionController.aiStateChanged`, which runs in `willSet`, before the
+  controller's `didSet` collapse.
+- **Leaving a review.** Every path collapses to `caretEnd` (the controller's `didSet`). A switch to
+  Read ends a review (keeping what was accepted) and drops a request or marks
+  (`displayModeDidChange`); an outside text replacement abandons (`editorTextWillBeReplaced`),
+  applying and recording nothing. Read allows no AI: the row's Ask AI and Another Word are absent.
+- **The overlay.** `AIReviewOverlayTextView`, a TextKit 1 `UITextView`, not editable or selectable,
+  with its own EMPTY undo manager, laid over the editor (an overlay on `MarkdownEditor`: Write, or
+  Preview's top pane; below the chrome) with the editor's text container inset, content inset,
+  padding and page colour. Its storage is its own, so the strike, receded ink, review tint and
+  re-inked runs are ordinary attributes there (the document's storage never sees them). It takes
+  the editor's scroll position BY CHARACTER on make and hands it back on dismantle (the Mac's
+  `topAnchor`); it scrolls on its own meanwhile. It takes the keyboard focus (the software keyboard
+  goes down) and gives it back if the editor had it. Hardware `UIKeyCommand`s: Return accepts, Esc
+  rejects, ← / → move. A typed hardware key is refused. A tap on a pending change selects it.
+  VoiceOver: "Suggested changes", value = the composition, custom actions Accept / Reject Change,
+  Accept All, Next / Previous Change (2+ pending), End Review.
+- **Cards** (`AIReviewCardsView`), at the bottom above the keyboard or home indicator, placed by
+  `SelectionBottomChrome` from the keyboard tracker; the Menu and Aa buttons step aside while one is
+  up. Running (spinner, progress text, Stop), message (✕, gone after 8 s), Mark (count, Done),
+  review (`AIReviewCardPresentation.title`, Try Again, Reject, Accept, Next and Accept All for 2+
+  pending, Done = end). No Esc / Return hints. The card's top is measured
+  (`AIReviewCardTopKey`) so the overlay reveals the current change above it.
+- **Mark's wash.** TextKit 1 on UIKit has no temporary attributes, so the wash is a `CAShapeLayer`
+  filled with `HistoryPalette.markWash` (resolved for the view's traits), the editor's LOWEST
+  sublayer (behind the text), from the layout manager's enclosing rects, redrawn in
+  `layoutSubviews` like the spelling underlines. A real edit dismisses the marks.
+- **The app's own selections.** `selectProgrammatically` (Search and Check Document Now via
+  `LiveEditorCommands.selectRange`, `setDocumentText`'s restore, the AI collapse) marks the
+  selection as the app's; `SelectionController.editorSelectionDidChange` never raises the row for
+  it (`isSelectionProgrammatic`), and forgets it at the writer's next selection.
 
 ## Strings
 

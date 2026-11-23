@@ -189,27 +189,3 @@ struct CommentNoteView: UIViewRepresentable {
         }
     }
 }
-
-/// The AI controller's status while it runs or has a message: a small capsule over the page. A tap
-/// stops a request, or dismisses a message or found sentences.
-struct AIRunStatusView: View {
-    var message: String
-    var profile: ReadingProfile
-    var onTap: () -> Void
-
-    var body: some View {
-        let theme = Theme.theme(for: profile)
-        Button(action: onTap) {
-            Text(message)
-                .font(.footnote)
-                .multilineTextAlignment(.center)
-                .padding(.horizontal, 14)
-                .padding(.vertical, 8)
-        }
-        .buttonStyle(.plain)
-        .foregroundStyle(Color(uiColor: theme.textColor))
-        .floatingCardChrome(theme: theme, cornerRadius: 17)
-        .padding(.horizontal, MarkdownEditor.chromeMargin)
-        .accessibilityIdentifier("selection.aiStatus")
-    }
-}

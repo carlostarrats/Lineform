@@ -93,6 +93,17 @@ final class LineformTextView: UITextView {
         var needsHistoryWashRedraw = false
         /// The tap that selects a passage in History mode. Made on first use.
         var historyTapRecognizer: UITapGestureRecognizer?
+        // AI (logic in LineformiOS/AI/LineformiOSTextView+AI.swift).
+        var isAIReviewActive = false
+        var isApplyingAIEdit = false
+        var aiMarkRanges: [NSRange] = []
+        var aiMarkWashLayer: CAShapeLayer?
+        var needsAIMarkWashRedraw = false
+        var aiRefusalHandler: (() -> Void)?
+        var aiDismissMarksHandler: (() -> Void)?
+        /// A selection the app set itself (`selectProgrammatically`), and whether it is being set now.
+        var programmaticSelection: NSRange?
+        var isSettingSelectionProgrammatically = false
         #if DEBUG
         var pasteboardForTesting: UIPasteboard?
         #endif
@@ -240,6 +251,7 @@ final class LineformTextView: UITextView {
         refreshReadingAssists()
         setNeedsSpellingUnderlineRedraw()
         setNeedsHistoryWashRedraw()
+        setNeedsAIMarkWashRedraw()
     }
 
     private func updateTextContainerInset() {
@@ -272,6 +284,7 @@ final class LineformTextView: UITextView {
         // After super: the underlines follow this layout pass (an edit, a re-style, a new size).
         redrawSpellingUnderlinesIfNeeded()
         redrawHistoryWashIfNeeded()
+        redrawAIMarkWashIfNeeded()
     }
 
     override func tintColorDidChange() {
@@ -302,7 +315,8 @@ final class LineformTextView: UITextView {
     }
 
     override func canPerformAction(_ action: Selector, withSender sender: Any?) -> Bool {
-        canPerformMarkdownAction(action)
+        canPerformDuringAIReview(action)
+            ?? canPerformMarkdownAction(action)
             ?? canPerformImagePaste(action)
             ?? super.canPerformAction(action, withSender: sender)
     }
@@ -321,7 +335,8 @@ final class LineformTextView: UITextView {
         typingAttributes = attributes
         let length = (text as NSString).length
         let location = min(selection.location, length)
-        selectedRange = NSRange(location: location, length: min(selection.length, length - location))
+        // The app's own selection (a position restore): it never raises the selection row.
+        selectProgrammatically(NSRange(location: location, length: min(selection.length, length - location)))
         refreshHighlighting()
         refreshReadingAssists()
         scheduleSpellCheck()

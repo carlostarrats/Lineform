@@ -105,8 +105,8 @@ struct SelectionRow: View {
     }
 }
 
-/// Everything the selection puts at the bottom of the page: the AI status, then the row or the
-/// comment field. It ignores the keyboard's safe area and places itself from the keyboard's frame
+/// Everything the selection puts at the bottom of the page: the AI's card (`AIReviewCardsView`),
+/// then the row or the comment field. It ignores the keyboard's safe area and places itself from the keyboard's frame
 /// (`SelectionRowPlacement`), so it sits just above the keyboard, or above the home indicator.
 /// Transitions are `LineformDesign.Motion.standard` through `EditorMotionPolicy` (a plain fade
 /// under Reduce Motion).
@@ -130,9 +130,10 @@ struct SelectionBottomChrome: View {
         GeometryReader { proxy in
             VStack(spacing: 8) {
                 Spacer(minLength: 0)
-                if let status = controller.aiStatus {
-                    AIRunStatusView(message: status, profile: profile) { controller.dismissAIStatus() }
-                        .transition(.opacity)
+                if controller.aiState != .idle {
+                    AIReviewCardsView(controller: controller, profile: profile)
+                        .padding(.horizontal, 8)
+                        .transition(transition)
                 }
                 switch controller.phase {
                 case .hidden:
@@ -153,11 +154,16 @@ struct SelectionBottomChrome: View {
             ))
         }
         .ignoresSafeArea(.keyboard)
+        .onPreferenceChange(AIReviewCardTopKey.self) { [controller] top in
+            MainActor.assumeIsolated { controller.aiCardTopInWindow = top }
+        }
         .animation(
             EditorMotionPolicy.animation(.easeOut(duration: LineformDesign.Motion.standard), reduceMotion: reduceMotion),
             value: controller.phase
         )
         .animation(EditorMotionPolicy.animation(.easeOut(duration: 0.2), reduceMotion: reduceMotion), value: controller.aiStatus)
+        .animation(EditorMotionPolicy.animation(.easeOut(duration: LineformDesign.Motion.standard), reduceMotion: reduceMotion),
+                   value: controller.aiState == .idle)
     }
 }
 

@@ -89,7 +89,7 @@ extension LineformTextView {
         redrawSpellingUnderlines()
         let after = NSMaxRange(selectedRange)
         guard let target = found.first(where: { $0.location >= after }) ?? found.first else { return false }
-        selectedRange = target
+        selectProgrammatically(target)
         scrollRangeToVisible(target)
         return true
     }

@@ -89,9 +89,29 @@ final class SelectionController: NSObject, ObservableObject {
     /// undo grouping in the middle of an undo).
     let keyboard = SelectionKeyboardTracker()
     var keyboardOverlap: CGFloat { keyboard.overlap }
-    /// The AI controller's status, shown while it runs or has something to say. Task 5 replaces the
-    /// review's part of it with the review overlay and its cards.
+    /// The AI controller's status in words (what it is doing, its message, what it found or
+    /// suggested), nil while idle. Spoken again when an edit is refused during a review.
     @Published private(set) var aiStatus: String?
+    /// The AI controller's state, mirrored so the cards and the review overlay follow it without
+    /// making the controller (nothing is made at launch).
+    @Published private(set) var aiState: AIActionController.State = .idle
+    /// History for AI actions. Roadmap step 9 assigns the document's `AIHistoryRecording` here;
+    /// until then it is nil, as the iPhone has no History yet. This is the ONE assignment.
+    weak var aiHistory: (any AIHistoryRecording)? {
+        didSet { aiControllerStorage?.history = aiHistory }
+    }
+    /// Edits refused during a review, and the status said for the last one (for tests; the card
+    /// pulses through `refusalPulse`).
+    private(set) var refusedEditCount = 0
+    private(set) var refusedEditMessage: String?
+    @Published private(set) var refusalPulse = 0
+    /// Composes the review overlay's text, reusing the last composition between renders.
+    let compositionCache = AIReviewCompositionCache()
+    /// The AI card's top in the window (`.infinity` without one): the overlay reveals the current
+    /// change above it.
+    var aiCardTopInWindow: CGFloat = .infinity
+    /// Read is on screen: no AI there (Read has no editor to hold a review).
+    private(set) var isReadMode = false
     /// The note's input method is composing (marked text): Send is off.
     @Published private(set) var isNoteComposing = false
 
@@ -127,7 +147,14 @@ final class SelectionController: NSObject, ObservableObject {
         let controller = AIActionController(connectionStore: connectionStore())
         aiControllerStorage = controller
         observe(controller)
+        wireAI(controller)
         return controller
+    }
+
+    /// The editor and History the controller works on. History is `aiHistory`'s single assignment.
+    private func wireAI(_ controller: AIActionController) {
+        controller.editor = editor
+        controller.history = aiHistory
     }
 
     /// The editor whose selection the row follows (`MarkdownEditor` calls it).
@@ -135,6 +162,12 @@ final class SelectionController: NSObject, ObservableObject {
         guard self.editor !== editor else { return }
         self.editor = editor
         hide()
+        editor.aiRefusalHandler = { [weak self] in self?.editRefusedDuringReview() }
+        editor.aiDismissMarksHandler = { [weak self] in self?.aiControllerStorage?.dismissMarks() }
+        if let controller = aiControllerStorage {
+            wireAI(controller)
+            editor.isAIReviewActive = { if case .reviewing = controller.state { return true }; return false }()
+        }
         guard !observesKeyboard else { return }
         observesKeyboard = true
         let center = NotificationCenter.default
@@ -151,6 +184,7 @@ final class SelectionController: NSObject, ObservableObject {
     /// and only while connected: it is an AI action).
     static func rowItems(aiConnected: Bool, selectedText: String) -> [SelectionRowItem] {
         var items: [SelectionRowItem] = aiConnected ? [.askAI] : []
+        // (Read mode passes `aiConnected: false`: Read allows no AI.)
         items += [.heading, .bold, .italic, .strikethrough, .code, .list, .link, .blockquote, .replaceWith]
         if aiConnected, AIMenuPresentation.isSingleWord(selectedText) { items.append(.anotherWord) }
         return items
@@ -165,12 +199,17 @@ final class SelectionController: NSObject, ObservableObject {
         // The comment holds its own range; the note field has focus.
         guard phase != .comment else { return }
         settleTask?.cancel()
+        // The app's own selection (a Search or Outline jump, a position restore, a review's end)
+        // never raises the row.
+        if editor.isSelectionProgrammatic { return hide() }
+        editor.forgetProgrammaticSelection()
         let range = editor.selectedRange
         guard range.length > 0 else { return hide() }
         if phase == .row, range == anchorRange { return }
         settleTask = Task { @MainActor [weak self] in
             try? await Task.sleep(for: .seconds(Self.settleDelay))
-            guard !Task.isCancelled, let self, let editor = self.editor, editor.selectedRange == range else { return }
+            guard !Task.isCancelled, let self, let editor = self.editor, editor.selectedRange == range,
+                  !editor.isSelectionProgrammatic else { return }
             self.showRowNow()
         }
     }
@@ -187,7 +226,7 @@ final class SelectionController: NSObject, ObservableObject {
         if model.aiName != aiName { model.aiName = aiName }
         let dark = Theme.theme(for: editor.profile).usesDarkChrome
         if model.usesDarkChrome != dark { model.usesDarkChrome = dark }
-        let newItems = Self.rowItems(aiConnected: provider != nil, selectedText: selectedText(in: range))
+        let newItems = Self.rowItems(aiConnected: provider != nil && !isReadMode, selectedText: selectedText(in: range))
         if items != newItems { items = newItems }
         anchorRange = range
         if phase != .row { phase = .row }
@@ -271,7 +310,7 @@ final class SelectionController: NSObject, ObservableObject {
     // MARK: - Comment
 
     func openComment() {
-        guard phase == .row, anchorRange != nil, model.aiName != nil else { return }
+        guard phase == .row, anchorRange != nil, model.aiName != nil, !isReadMode else { return }
         model.note = ""
         model.action = .custom
         isNoteComposing = false
@@ -322,7 +361,15 @@ final class SelectionController: NSObject, ObservableObject {
         }
     }
 
+    /// Called as the controller's state is about to change (`@Published` delivers in `willSet`):
+    /// the editor's read-only backstop and Mark's wash follow it before the controller's own
+    /// `didSet` collapses the selection.
     private func aiStateChanged(_ state: AIActionController.State) {
+        if let editor {
+            if case .reviewing = state { editor.isAIReviewActive = true } else { editor.isAIReviewActive = false }
+            if case .marking(let ranges) = state { editor.applyAIMarkRanges(ranges) } else { editor.applyAIMarkRanges([]) }
+        }
+        if aiState != state { aiState = state }
         let status: String?
         switch state {
         case .idle: status = nil
@@ -341,14 +388,44 @@ final class SelectionController: NSObject, ObservableObject {
         }
     }
 
-    /// A tap on the status: a request stops, a message or marks go away.
-    func dismissAIStatus() {
+    /// An edit was refused while a review is up: the review's status is said again, and the card
+    /// pulses. Published on the next turn: a refusal can arrive in the middle of an edit, and a
+    /// screen update there broke the editor's undo grouping before (Task 4).
+    func editRefusedDuringReview() {
+        guard case .reviewing(let session) = aiState else { return }
+        let message = session.action.reviewsPerCorrection
+            ? AIActionController.correctionsSuggestedMessage(session.pending.count)
+            : AIActionController.changeSuggestedMessage
+        refusedEditCount += 1
+        refusedEditMessage = message
+        editor?.announceAI(message)
+        DispatchQueue.main.async { [weak self] in self?.refusalPulse += 1 }
+    }
+
+    /// The editor's text is about to be replaced from outside (a live reload, another document):
+    /// reload wins. A request, review or marks for the old text are abandoned, applying and
+    /// recording nothing.
+    func editorTextWillBeReplaced() {
         guard let controller = aiControllerStorage else { return }
         switch controller.state {
-        case .running: controller.cancel()
-        case .message: controller.dismissMessage()
-        case .marking: controller.dismissMarks()
-        case .idle, .reviewing: break
+        case .running, .reviewing, .marking: controller.abandon()
+        case .idle, .message: break
+        }
+    }
+
+    /// The mode on screen changed. Read allows no AI: the row goes, a review ends (keeping what was
+    /// accepted, as the Mac does), and a request or marks are dropped.
+    func displayModeDidChange(to mode: EditorDisplayMode) {
+        isReadMode = mode == .read
+        guard isReadMode else { return }
+        hide()
+        guard let controller = aiControllerStorage else { return }
+        switch controller.state {
+        case .reviewing, .running, .marking:
+            controller.endReview()
+            controller.abandon()
+        case .idle, .message:
+            break
         }
     }
 

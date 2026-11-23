@@ -79,6 +79,9 @@ struct MarkdownEditor: UIViewRepresentable {
         history?.attach(textView)
         selectionController?.attach(textView)
         if textView.text != text {
+            // An outside replacement (a live reload, another document): an AI request or review
+            // for the old text is abandoned first, recording and applying nothing.
+            selectionController?.editorTextWillBeReplaced()
             // An outside replacement: the editor's undo steps describe the old text.
             textView.setDocumentText(text)
             textView.undoManager?.removeAllActions()
@@ -97,6 +100,8 @@ struct MarkdownEditor: UIViewRepresentable {
         /// History mode is up leaves it first, then the keystroke goes through.
         func textView(_ textView: UITextView, shouldChangeTextIn range: NSRange, replacementText text: String) -> Bool {
             guard let textView = textView as? LineformTextView else { return true }
+            // Typing, Delete, dictation and autocorrection are refused while an AI review is up.
+            if textView.refusesEditForAI() { return false }
             textView.exitHistoryModeBeforeUserEdit()
             return !textView.handlesChange(in: range, replacementText: text)
         }

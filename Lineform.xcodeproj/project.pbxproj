@@ -248,6 +248,11 @@
 		1F0000C10000000000000005 /* SelectionController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000C00000000000000004 /* SelectionController.swift */; };
 		1F0000C10000000000000006 /* SelectionRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000C00000000000000005 /* SelectionRow.swift */; };
 		1F0000C10000000000000007 /* CommentField.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000C00000000000000006 /* CommentField.swift */; };
+		1F0000D10000000000000001 /* LineformiOSTextView+AI.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000D00000000000000001 /* LineformiOSTextView+AI.swift */; };
+		1F0000D10000000000000002 /* AIReviewOverlay.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000D00000000000000002 /* AIReviewOverlay.swift */; };
+		1F0000D10000000000000003 /* AIReviewCardsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000D00000000000000003 /* AIReviewCardsView.swift */; };
+		1F0000D10000000000000004 /* AIReviewTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0000D00000000000000004 /* AIReviewTests.swift */; };
+		1F0000D10000000000000005 /* AIEditorTestDoubles.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000004E1 /* AIEditorTestDoubles.swift */; };
 /* End PBXBuildFile section */
 
  /* Begin PBXContainerItemProxy section */
@@ -512,6 +517,10 @@
 		1F0000C00000000000000004 /* SelectionController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SelectionController.swift; sourceTree = "<group>"; };
 		1F0000C00000000000000005 /* SelectionRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SelectionRow.swift; sourceTree = "<group>"; };
 		1F0000C00000000000000006 /* CommentField.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommentField.swift; sourceTree = "<group>"; };
+		1F0000D00000000000000001 /* LineformiOSTextView+AI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "LineformiOSTextView+AI.swift"; sourceTree = "<group>"; };
+		1F0000D00000000000000002 /* AIReviewOverlay.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIReviewOverlay.swift; sourceTree = "<group>"; };
+		1F0000D00000000000000003 /* AIReviewCardsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIReviewCardsView.swift; sourceTree = "<group>"; };
+		1F0000D00000000000000004 /* AIReviewTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIReviewTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 		1F0000400000000000000092 /* PhonePDFExportTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhonePDFExportTests.swift; sourceTree = "<group>"; };
 		1F0000400000000000000093 /* PhoneRasterInk.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhoneRasterInk.swift; sourceTree = "<group>"; };
@@ -878,6 +887,7 @@
 				1F0000400000000000000098 /* PhonePrintRendererTests.swift */,
 				1F0000C00000000000000001 /* ConnectAITests.swift */,
 				1F0000C00000000000000003 /* SelectionRowTests.swift */,
+				1F0000D00000000000000004 /* AIReviewTests.swift */,
 			);
 			path = LineformiOSTests;
 			sourceTree = "<group>";
@@ -991,6 +1001,9 @@
 			isa = PBXGroup;
 			children = (
 				1F0000C00000000000000002 /* ConnectAISheet.swift */,
+				1F0000D00000000000000001 /* LineformiOSTextView+AI.swift */,
+				1F0000D00000000000000002 /* AIReviewOverlay.swift */,
+				1F0000D00000000000000003 /* AIReviewCardsView.swift */,
 			);
 			path = AI;
 			sourceTree = "<group>";
@@ -1444,6 +1457,9 @@
 				1F0000C10000000000000005 /* SelectionController.swift in Sources */,
 				1F0000C10000000000000006 /* SelectionRow.swift in Sources */,
 				1F0000C10000000000000007 /* CommentField.swift in Sources */,
+				1F0000D10000000000000001 /* LineformiOSTextView+AI.swift in Sources */,
+				1F0000D10000000000000002 /* AIReviewOverlay.swift in Sources */,
+				1F0000D10000000000000003 /* AIReviewCardsView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -1488,6 +1504,8 @@
 				1F0000C10000000000000001 /* ConnectAITests.swift in Sources */,
 				1F0000C10000000000000002 /* AITestDoubles.swift in Sources */,
 				1F0000C10000000000000004 /* SelectionRowTests.swift in Sources */,
+				1F0000D10000000000000004 /* AIReviewTests.swift in Sources */,
+				1F0000D10000000000000005 /* AIEditorTestDoubles.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

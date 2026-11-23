@@ -16,6 +16,8 @@ import UIKit
 ///   (`LineformiOSTextView+History.swift`); a rule edit while History mode is up leaves it first.
 /// - **Read edits are rule edits.** A checkbox toggle or a Reconnect made in Read or Preview comes
 ///   here (`applyReadEdit`), so the document has one undo history in every mode.
+/// - **AI review.** While a review is up every rule edit is refused (`refusesEditForAI`): Search's
+///   Replace and Replace All, Read's checkbox and Reconnect, the formatting commands, image paste.
 extension LineformTextView: ReadEditApplying {
     // MARK: - Return
 
@@ -251,6 +253,8 @@ extension LineformTextView: ReadEditApplying {
         selecting: NSRange? = nil,
         revealsSelection: Bool = true
     ) -> Bool {
+        // Read-only while an AI review is up (its own accept passes); real edits dismiss Mark.
+        guard !refusesEditForAI() else { return false }
         guard markedTextRange == nil else { return false }
         let storage = textStorage
         guard range.location >= 0, NSMaxRange(range) <= storage.length else { return false }
