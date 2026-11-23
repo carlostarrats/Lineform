@@ -1004,7 +1004,10 @@ History is local to this iPhone. History never writes into the document file.
   = `max(0, keyboard overlap − safe-area bottom) + 12` (`SelectionRowPlacement`), from the keyboard
   frame notifications. The overlap lives in its own `SelectionKeyboardTracker`, observed only by
   the bottom chrome: publishing it from the controller re-rendered the screen in the middle of an
-  undo and broke the editor's undo grouping. The editor's insets are never touched. The row
+  undo and broke the editor's undo grouping. The notifications come from the default center;
+  hosted tests pass their own (`SelectionController(keyboardNotifications:)`) and post frames
+  there, so the simulator's real keyboard (it goes down when the review overlay takes the focus)
+  cannot race a frame the test posted. The editor's insets are never touched. The row
   replaces the Menu, Aa and link buttons while it shows. The system edit menu is not changed: it
   floats at the selection, and the row sits at the bottom.
 - **The comment field.** Ask AI swaps the row for a full-width card with no drag handle: the

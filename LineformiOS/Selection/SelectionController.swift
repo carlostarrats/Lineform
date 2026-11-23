@@ -161,10 +161,16 @@ final class SelectionController: NSObject, ObservableObject {
     /// Set while the row itself moves the selection (a formatting command, Cancel).
     private var isAdjustingSelection = false
     private var observesKeyboard = false
+    /// Where the keyboard's frame notifications come from: the default center, which UIKit posts
+    /// to. Tests give their own, so the simulator's real keyboard (going down when the review
+    /// overlay takes the focus) never moves the chrome they place from a frame they posted.
+    private let keyboardNotifications: NotificationCenter
 
-    init(connectionStore: @escaping () -> AIConnectionStore = { .shared }, aiController: AIActionController? = nil) {
+    init(connectionStore: @escaping () -> AIConnectionStore = { .shared }, aiController: AIActionController? = nil,
+         keyboardNotifications: NotificationCenter = .default) {
         self.connectionStore = connectionStore
         aiControllerStorage = aiController
+        self.keyboardNotifications = keyboardNotifications
         super.init()
         presentAlert = { [weak self] alert in self?.presentFromEditorWindow(alert) }
         if let aiController { observe(aiController) }
@@ -209,7 +215,7 @@ final class SelectionController: NSObject, ObservableObject {
         }
         guard !observesKeyboard else { return }
         observesKeyboard = true
-        let center = NotificationCenter.default
+        let center = keyboardNotifications
         center.addObserver(self, selector: #selector(keyboardWillChangeFrame(_:)),
                            name: UIResponder.keyboardWillChangeFrameNotification, object: nil)
         center.addObserver(self, selector: #selector(keyboardWillHide(_:)),
