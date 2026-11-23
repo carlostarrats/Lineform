@@ -196,6 +196,81 @@ final class PassageHistoryStoreTests: XCTestCase {
         XCTAssertTrue(store.load(for: file).isEmpty)
     }
 
+    // MARK: - Hooks for the History sync router
+
+    func testStoredDocumentURLsListsIndex() {
+        let store = makeStore()
+        XCTAssertEqual(store.storedDocumentURLs(), [])
+        store.save(history(), for: url("a.md"))
+        store.save(history(), for: url("b.md"))
+        XCTAssertEqual(Set(store.storedDocumentURLs().map { FileIdentity.key(for: $0) }),
+                       [FileIdentity.key(for: url("a.md")), FileIdentity.key(for: url("b.md"))])
+        store.save(DocumentHistory(passages: []), for: url("a.md"))
+        XCTAssertEqual(store.storedDocumentURLs().map { FileIdentity.key(for: $0) }, [FileIdentity.key(for: url("b.md"))])
+    }
+
+    func testRemoveForURLDropsOnlyThatEntry() {
+        let store = makeStore()
+        let a = history(), b = history(touched: Date(timeIntervalSince1970: 2_000_000))
+        store.save(a, for: url("a.md"))
+        store.save(b, for: url("b.md"))
+        XCTAssertEqual(storedFiles().count, 3)
+
+        store.remove(for: url("a.md"))
+        XCTAssertTrue(store.load(for: url("a.md")).isEmpty)
+        XCTAssertEqual(store.load(for: url("b.md")), b)
+        XCTAssertEqual(storedFiles().count, 2, "the removed entry's history file is deleted too")
+
+        store.remove(for: url("never-stored.md"))
+        XCTAssertEqual(store.load(for: url("b.md")), b)
+    }
+
+    func testPruneReportsBookmarkMoves() throws {
+        let work = directory.appendingPathComponent("work", isDirectory: true)
+        let file = try realFile("a.md", in: work)
+        let stays = try realFile("stays.md", in: work)
+        let store = FilePassageHistoryStore(directory: directory.appendingPathComponent("store"))
+        let touched = Date(timeIntervalSince1970: Date().timeIntervalSince1970.rounded())
+        store.save(history(touched: touched), for: file)
+        store.save(history(touched: touched), for: stays)
+        let oldKey = FileIdentity.key(for: file)
+        let moved = work.appendingPathComponent("moved.md")
+        try FileManager.default.moveItem(at: file, to: moved)
+
+        final class Moves: @unchecked Sendable {
+            let lock = NSLock()
+            var pairs: [(String, String)] = []
+        }
+        let moves = Moves()
+        store.onPruneMoved = { from, to in
+            moves.lock.lock(); defer { moves.lock.unlock() }
+            moves.pairs.append((from.path, to.path))
+        }
+        store.prune(now: Date())
+
+        XCTAssertEqual(moves.pairs.count, 1, "only the moved document is reported, once")
+        XCTAssertEqual(moves.pairs.first?.0, oldKey)
+        XCTAssertEqual(moves.pairs.first?.1, FileIdentity.key(for: moved))
+        XCTAssertFalse(store.load(for: moved).isEmpty)
+
+        store.prune(now: Date())
+        XCTAssertEqual(moves.pairs.count, 1, "a second prune finds nothing new to report")
+    }
+
+    func testPruneCallbackMayCallBackIntoTheStore() throws {
+        let work = directory.appendingPathComponent("work", isDirectory: true)
+        let file = try realFile("a.md", in: work)
+        let store = FilePassageHistoryStore(directory: directory.appendingPathComponent("store"))
+        store.save(history(touched: Date(timeIntervalSince1970: Date().timeIntervalSince1970.rounded())), for: file)
+        let moved = work.appendingPathComponent("moved.md")
+        try FileManager.default.moveItem(at: file, to: moved)
+        // The router removes the local entry from inside the callback: it must not deadlock.
+        store.onPruneMoved = { [unowned store] _, to in store.remove(for: to) }
+        store.prune(now: Date())
+        XCTAssertTrue(store.load(for: moved).isEmpty)
+        XCTAssertEqual(store.storedDocumentURLs(), [])
+    }
+
     func testPruneOnAStoreThatHoldsNothingWritesNothing() {
         let store = makeStore()
         store.prune(now: Date())

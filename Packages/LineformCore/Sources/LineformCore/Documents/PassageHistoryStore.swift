@@ -27,8 +27,12 @@ public final class NullPassageHistoryStore: PassageHistoryPersisting {
 /// Stores history as JSON under Application Support: `index.json` maps each document
 /// (`FileIdentity.key`, plus a bookmark so a Finder move made while Lineform was closed can be
 /// followed) to a `<id>.json` holding its `DocumentHistory`. Nothing is stored for a document
-/// with no history.
-public final class FilePassageHistoryStore: PassageHistoryPersisting {
+/// with no history. Every file read, write, delete and listing is coordinated
+/// (`CoordinatedFileAccess`).
+///
+/// `@unchecked Sendable`: every method takes `lock` around the index and its files (the
+/// protocol's thread-safety contract), so the `onPruneMoved` handler may capture the store.
+public final class FilePassageHistoryStore: PassageHistoryPersisting, @unchecked Sendable {
     /// Passages untouched for this long are dropped by `prune`.
     public static let staleInterval: TimeInterval = 30 * 24 * 60 * 60
 
@@ -42,6 +46,16 @@ public final class FilePassageHistoryStore: PassageHistoryPersisting {
     private let isConfirmedMissing: (URL) -> Bool
     private let fileManager = FileManager.default
     private let lock = NSLock()
+    private var pruneMovedHandler: (@Sendable (_ from: URL, _ to: URL) -> Void)?
+
+    /// Called by `prune`, after its lock is released, once per stored document whose bookmark
+    /// resolved to a new path (a move made while the app was closed) and whose history survived
+    /// the prune. `from` and `to` are the old and new stored paths as file URLs. Called on the
+    /// queue `prune` runs on.
+    public var onPruneMoved: (@Sendable (_ from: URL, _ to: URL) -> Void)? {
+        get { lock.lock(); defer { lock.unlock() }; return pruneMovedHandler }
+        set { lock.lock(); defer { lock.unlock() }; pruneMovedHandler = newValue }
+    }
 
     /// `isConfirmedMissing` must return true ONLY on positive evidence the file is gone; the
     /// default is `confirmedMissing(_:)`.
@@ -79,7 +93,6 @@ public final class FilePassageHistoryStore: PassageHistoryPersisting {
             writeIndex(index)
             return
         }
-        try? fileManager.createDirectory(at: directory, withIntermediateDirectories: true)
         let id: UUID
         if let existing {
             id = index[existing].id
@@ -90,7 +103,24 @@ public final class FilePassageHistoryStore: PassageHistoryPersisting {
             index.append(IndexEntry(id: id, pathKey: key, bookmark: Self.bookmark(for: url)))
         }
         guard let data = try? Self.encoder.encode(history) else { return }
-        do { try data.write(to: historyURL(id), options: .atomic) } catch { return }
+        guard CoordinatedFileAccess.write(data, to: historyURL(id)) else { return }
+        writeIndex(index)
+    }
+
+    /// Every document this store holds history for, as file URLs of the stored paths.
+    public func storedDocumentURLs() -> [URL] {
+        lock.lock(); defer { lock.unlock() }
+        return readIndex().map { URL(fileURLWithPath: $0.pathKey) }
+    }
+
+    /// Drops the history stored for `url` (its index entry and its file); every other entry stays.
+    public func remove(for url: URL) {
+        lock.lock(); defer { lock.unlock() }
+        let key = FileIdentity.key(for: url)
+        var index = readIndex()
+        guard let existing = index.firstIndex(where: { $0.pathKey == key }) else { return }
+        removeHistoryFile(index[existing].id)
+        index.remove(at: existing)
         writeIndex(index)
     }
 
@@ -154,10 +184,9 @@ public final class FilePassageHistoryStore: PassageHistoryPersisting {
         let snapshot = readIndex()
         lock.unlock()
 
-        enum Fate { case deleted, moved(pathKey: String, bookmark: Data?), unchanged }
-        var fates: [UUID: (pathKey: String, fate: Fate)] = [:]
+        var fates: [UUID: (pathKey: String, fate: PruneFate)] = [:]
         for entry in snapshot {
-            let fate: Fate
+            let fate: PruneFate
             if let resolved = Self.resolve(entry.bookmark) {
                 if Self.isTrashed(resolved) {
                     // A bookmark follows a file into the Trash; a trashed file is a deleted file.
@@ -174,8 +203,22 @@ public final class FilePassageHistoryStore: PassageHistoryPersisting {
             fates[entry.id] = (entry.pathKey, fate)
         }
 
+        let (moves, handler) = applyPrune(fates, now: now)
+        // Outside the lock: the handler may call back into this store.
+        if let handler {
+            for move in moves { handler(move.from, move.to) }
+        }
+    }
+
+    private enum PruneFate { case deleted, moved(pathKey: String, bookmark: Data?), unchanged }
+
+    /// The locked half of `prune`: applies the decisions and returns the moves that survived,
+    /// with the handler to report them to.
+    private func applyPrune(_ fates: [UUID: (pathKey: String, fate: PruneFate)], now: Date)
+        -> (moves: [(from: URL, to: URL)], handler: (@Sendable (URL, URL) -> Void)?) {
         lock.lock(); defer { lock.unlock() }
-        guard fileManager.fileExists(atPath: indexURL.path) else { return }  // cleared meanwhile
+        guard fileManager.fileExists(atPath: indexURL.path) else { return ([], nil) }  // cleared meanwhile
+        var moved: [UUID: String] = [:]   // entry id → path it moved from
         let cutoff = now.addingTimeInterval(-Self.staleInterval)
         var kept: [IndexEntry] = []
         for var entry in readIndex() {
@@ -186,6 +229,7 @@ public final class FilePassageHistoryStore: PassageHistoryPersisting {
                     removeHistoryFile(entry.id)
                     continue
                 case let .moved(pathKey, bookmark):
+                    moved[entry.id] = entry.pathKey
                     entry.pathKey = pathKey
                     entry.bookmark = bookmark
                 case .unchanged:
@@ -213,19 +257,22 @@ public final class FilePassageHistoryStore: PassageHistoryPersisting {
             if fresh.count != history.passages.count {
                 history.passages = fresh
                 if let data = try? Self.encoder.encode(history) {
-                    try? data.write(to: historyURL(entry.id), options: .atomic)
+                    CoordinatedFileAccess.write(data, to: historyURL(entry.id))
                 }
             }
             kept.append(entry)
         }
         writeIndex(kept)
+        let moves = kept.compactMap { entry in
+            moved[entry.id].map { (from: URL(fileURLWithPath: $0), to: URL(fileURLWithPath: entry.pathKey)) }
+        }
+        return (moves, pruneMovedHandler)
     }
 
     public func clearAll() {
         lock.lock(); defer { lock.unlock() }
-        let files = (try? fileManager.contentsOfDirectory(atPath: directory.path)) ?? []
-        for name in files {
-            try? fileManager.removeItem(at: directory.appendingPathComponent(name))
+        for item in CoordinatedFileAccess.contents(of: directory) ?? [] {
+            CoordinatedFileAccess.remove(item)
         }
     }
 
@@ -253,25 +300,24 @@ public final class FilePassageHistoryStore: PassageHistoryPersisting {
     private func historyURL(_ id: UUID) -> URL { directory.appendingPathComponent("\(id.uuidString).json") }
 
     private func readIndex() -> [IndexEntry] {
-        guard let data = try? Data(contentsOf: indexURL),
+        guard let data = CoordinatedFileAccess.read(indexURL),
               let index = try? Self.decoder.decode([IndexEntry].self, from: data) else { return [] }
         return index
     }
 
     private func writeIndex(_ index: [IndexEntry]) {
-        try? fileManager.createDirectory(at: directory, withIntermediateDirectories: true)
         guard let data = try? Self.encoder.encode(index) else { return }
-        try? data.write(to: indexURL, options: .atomic)
+        CoordinatedFileAccess.write(data, to: indexURL)
     }
 
     private func readHistory(_ id: UUID) -> DocumentHistory {
-        guard let data = try? Data(contentsOf: historyURL(id)),
+        guard let data = CoordinatedFileAccess.read(historyURL(id)),
               let history = try? Self.decoder.decode(DocumentHistory.self, from: data) else { return Self.empty }
         return history
     }
 
     private func removeHistoryFile(_ id: UUID) {
-        try? fileManager.removeItem(at: historyURL(id))
+        CoordinatedFileAccess.remove(historyURL(id))
     }
 
     // MARK: - Bookmarks
