@@ -293,6 +293,7 @@ final class HistoryModeTests: XCTestCase {
         // pinned-en: the Mac's copy, and the row joins the list.
         XCTAssertEqual(SettingsSection.rowTitles, [
             "Automatic Dark Mode", "Show iCloud in Files", "Check spelling while typing", "In-app notifications", "Clear History",
+            "Check for Updates…",
         ])
         XCTAssertEqual(SettingsSection.clearHistoryButtonTitle, "Clear…")
         XCTAssertEqual(SettingsSection.clearHistoryConfirmTitle, "Clear all history?")
