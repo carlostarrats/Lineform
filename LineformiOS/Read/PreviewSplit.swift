@@ -60,12 +60,16 @@ struct PreviewSplit<Editor: View, Reader: View>: View {
 }
 
 /// Preview's link button, the Mac's `splitScrollLinkButton` in the iPhone's floating chrome: a
-/// 38 pt circle with the `link` symbol, system blue on a blue wash while linked, struck through in
+/// 38 pt circle (in a 44 pt touch square) with the `link` symbol, system blue on a blue wash while linked, struck through in
 /// the page ink while unlinked. It sits at the bottom right of the Read pane, left of the Menu
 /// button, and shares the Menu button's `LineformDesign` floating chrome (fill, hairline, shadow).
 /// A phone has no hover: the Mac's hover values are the pressed state.
 struct PreviewLinkButton: View {
     static let diameter: CGFloat = 38
+    /// The touch target: the circle is centred in a square this size.
+    static let touchSide: CGFloat = 44
+    /// How far the touch square reaches past the circle on each side.
+    static var horizontalTouchOutset: CGFloat { (touchSide - diameter) / 2 }
     static let symbolSize: CGFloat = 15
     static let strikeSize = CGSize(width: 1.7, height: 20)
 
@@ -84,6 +88,10 @@ struct PreviewLinkButton: View {
         }
         .buttonStyle(LinkButtonStyle(isLinked: isLinked, profile: profile))
         .accessibilityLabel(Self.accessibilityTitle(isLinked: isLinked))
+        // A fixed-size glyph: at the accessibility text sizes a long press shows it large.
+        .accessibilityShowsLargeContentViewer {
+            Label(Self.accessibilityTitle(isLinked: isLinked), systemImage: "link")
+        }
     }
 }
 
@@ -126,7 +134,9 @@ private struct LinkButtonBody: View {
         let theme = Theme.theme(for: profile)
         let isDark = theme.usesDarkChrome
         let blue = Color(uiColor: .systemBlue)
-        let ink = isLinked || isPressed ? blue : Color(uiColor: theme.textColor).opacity(0.62)
+        // Unlinked: the page's secondary ink, readable on every theme (`PhoneInk`). Linked: system
+        // blue, a non-text mark at 3.6:1 or more on every theme.
+        let ink = isLinked || isPressed ? blue : PhoneInk(theme: theme).secondary
         let ringOpacity = PreviewLinkButton.ringOpacity(isLinked: isLinked, isPressed: isPressed)
         ZStack {
             Image(systemName: "link")
@@ -165,7 +175,9 @@ private struct LinkButtonBody: View {
             x: LineformDesign.FloatingCard.shadowOffset.width,
             y: LineformDesign.FloatingCard.shadowOffset.height
         )
-        .contentShape(Circle())
+        // The 44 pt target around the 38 pt circle; the row's spacing gives the difference back.
+        .frame(width: PreviewLinkButton.touchSide, height: PreviewLinkButton.touchSide)
+        .contentShape(Rectangle())
         .animation(ModeSwitch.pressAnimation(reduceMotion: reduceMotion), value: isPressed)
     }
 }

@@ -14,6 +14,11 @@ import UIKit
 /// glyph. The fill is the Mac's quiet one: black at 0.05 on light pages, white at 0.13 on dark,
 /// with a 1 pt stroke at 0.10 / 0.22. The phone has no hover, so the Mac's hover fill
 /// (0.11 / 0.22) is the pressed state.
+///
+/// Accessibility: each pill takes touches in at least a 44 pt square around it (`minimumTouchSide`)
+/// without being drawn larger, and, being fixed-size chrome, shows the Large Content Viewer on a
+/// long press at the accessibility text sizes. VoiceOver reaches the pills as the Read view's
+/// custom actions (the text view is one element), and a copy is announced.
 final class ReadOverlayButton: UIButton {
     enum Kind: Equatable {
         case copy
@@ -31,14 +36,20 @@ final class ReadOverlayButton: UIButton {
     static let pillLabelFont = UIFont.systemFont(ofSize: 11, weight: .medium)
     static let copyGlyphSize = CGSize(width: 13, height: 13)
     static let reconnectGlyphSize = CGSize(width: 11, height: 11)
+    /// The smallest touch target, on each side: Apple's 44 pt.
+    static let minimumTouchSide: CGFloat = 44
 
     /// The pill's drawn label. One constant, because its WIDTH is measured from it, as on the Mac.
     static let reconnectPillLabel = String(localized: "Reconnect")
 
-    static let reconnectPillWidth: CGFloat = {
-        let labelWidth = (reconnectPillLabel as NSString).size(withAttributes: [.font: pillLabelFont]).width
+    /// Measured from the label in the interface's language at the pill's font, so a long
+    /// translation (German "Erneut verbinden") gets a wider pill rather than a cut label.
+    static let reconnectPillWidth: CGFloat = reconnectPillWidth(for: reconnectPillLabel)
+
+    static func reconnectPillWidth(for label: String) -> CGFloat {
+        let labelWidth = ceil((label as NSString).size(withAttributes: [.font: pillLabelFont]).width)
         return ceil(labelWidth + reconnectPillGap + reconnectGlyphSize.width + 24)
-    }()
+    }
 
     let kind: Kind
     /// For Copy, the code body's range in the source; for Reconnect, the whole image line's.
@@ -79,8 +90,22 @@ final class ReadOverlayButton: UIButton {
         }
         isAccessibilityElement = true
         accessibilityTraits = .button
+        showsLargeContentViewer = true
+        scalesLargeContentImage = true
+        addInteraction(UILargeContentViewerInteraction())
         updateGlyph()
         updateAccessibility()
+    }
+
+    /// The pill's bounds grown to at least `minimumTouchSide` on each side, about its centre.
+    var touchBounds: CGRect {
+        let dx = max(0, Self.minimumTouchSide - bounds.width) / 2
+        let dy = max(0, Self.minimumTouchSide - bounds.height) / 2
+        return bounds.insetBy(dx: -dx, dy: -dy)
+    }
+
+    override func point(inside point: CGPoint, with event: UIEvent?) -> Bool {
+        touchBounds.contains(point)
     }
 
     @available(*, unavailable)
@@ -91,7 +116,7 @@ final class ReadOverlayButton: UIButton {
     /// The theme's page decides the fill and the ink.
     func apply(theme: Theme) {
         usesDarkChrome = theme.usesDarkChrome
-        ink = theme.textColor.withAlphaComponent(0.85)
+        ink = theme.readableInk(theme.textColor.withAlphaComponent(0.85))
         label.textColor = ink
         glyphView.tintColor = ink
         updateFill()
@@ -141,6 +166,7 @@ final class ReadOverlayButton: UIButton {
         }
         let pointSize = kind == .copy ? Self.copyGlyphSize.height : Self.reconnectGlyphSize.height
         glyphView.image = UIImage(systemName: name, withConfiguration: UIImage.SymbolConfiguration(pointSize: pointSize))
+        largeContentImage = UIImage(systemName: name)
     }
 
     private func updateAccessibility() {
@@ -148,9 +174,11 @@ final class ReadOverlayButton: UIButton {
         case .copy:
             accessibilityLabel = String(localized: "Copy code block \(codeBlockNumber)")
             accessibilityValue = isShowingCopied ? String(localized: "Copied") : nil
+            largeContentTitle = isShowingCopied ? String(localized: "Copied") : accessibilityLabel
         case .reconnect:
             accessibilityLabel = String(localized: "Reconnect image")
             accessibilityValue = nil
+            largeContentTitle = Self.reconnectPillLabel
         }
     }
 }

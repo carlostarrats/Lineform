@@ -30,12 +30,13 @@ final class FirstRunFlow {
     }
 
     /// When the current stage advances by itself, or nil when it waits for the writer.
-    func autoAdvanceDeadline(reduceMotion: Bool) -> ContinuousClock.Instant? {
+    func autoAdvanceDeadline(reduceMotion: Bool, voiceOverRunning: Bool = false) -> ContinuousClock.Instant? {
         FirstRunTiming.deadline(
             for: stage,
             stageStart: stageStartedAt,
             lineReadyAt: lineReadyAt,
-            reduceMotion: reduceMotion
+            reduceMotion: reduceMotion,
+            voiceOverRunning: voiceOverRunning
         )
     }
 

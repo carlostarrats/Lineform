@@ -356,8 +356,9 @@ final class ReadViewTests: XCTestCase {
         let names = actions.map(\.name)
         XCTAssertEqual(Array(names.prefix(3)), ["Copy code block 1", "Copy code block 2", "Reconnect image"])
         XCTAssertEqual(names.count, 5)
-        XCTAssertTrue(names[3].hasPrefix("Toggle task: ") && names[3].contains("water the plants"), names[3])
-        XCTAssertTrue(names[4].hasPrefix("Toggle task: ") && names[4].contains("post the letter"), names[4])
+        // Each task action says what it will do, from the task's state, without the glyph.
+        XCTAssertEqual(names[3], "Mark task done: water the plants")
+        XCTAssertEqual(names[4], "Mark task not done: post the letter")
         XCTAssertEqual(Set(names), Set((view.accessibilityCustomActions ?? []).map(\.name)).intersection(names),
                        "the view offers them")
 

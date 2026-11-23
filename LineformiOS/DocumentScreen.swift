@@ -169,6 +169,9 @@ struct DocumentScreen: View {
         positionKeeper.switchMode(from: displayMode, to: mode)
         shownDisplayMode = mode
         storedDisplayMode = mode
+        // The surface under VoiceOver's cursor may have just been hidden (Read hides the editor):
+        // name the new mode and let VoiceOver start again on the new screen.
+        ChromeAnnouncer.modeDidChange(to: mode)
     }
 
     /// Makes the export commands once. Reading the previous document aloud stops whenever the
@@ -205,10 +208,16 @@ struct DocumentScreen: View {
                     .transition(.opacity)
             }
         }
-        .animation(.easeInOut(duration: 0.2), value: noticeMessage)
+        .animation(EditorMotionPolicy.animation(.easeInOut(duration: 0.2), reduceMotion: reduceMotion), value: noticeMessage)
+        .onChange(of: noticeMessage) { _, message in
+            // The notice never takes the focus; VoiceOver hears it as it appears.
+            if let message { ChromeAnnouncer.announce(message) }
+        }
         .overlay(alignment: .top) {
+            // The control's touch band is taller than the drawn capsule: the capsule still sits
+            // `topMargin` below the safe area.
             ModeSwitch(mode: modeSelection, usesDarkChrome: Theme.theme(for: profile).usesDarkChrome)
-                .padding(.top, ModeSwitch.topMargin)
+                .padding(.top, ModeSwitch.topMargin - ModeSwitch.verticalTouchOutset)
         }
         .overlay(alignment: .bottom) {
             // History mode's card replaces the bottom chrome while it is up (Done leaves).
@@ -226,13 +235,17 @@ struct DocumentScreen: View {
             if !isHistoryModeActive,
                SelectionController.showsBottomButtons(phase: selection.phase, aiState: selection.aiState) {
                 HStack(spacing: Self.bottomChromeSpacing) {
-                    if displayMode == .split {
-                        PreviewLinkButton(isLinked: arePanesLinked, profile: profile) {
-                            linkedScroll.toggleLink()
-                            arePanesLinked = linkedScroll.isLinked
+                    // The link button's touch square is wider than its circle: the gap to Menu
+                    // shrinks by the difference, so the circles stay `bottomChromeSpacing` apart.
+                    HStack(spacing: Self.bottomChromeSpacing - PreviewLinkButton.horizontalTouchOutset) {
+                        if displayMode == .split {
+                            PreviewLinkButton(isLinked: arePanesLinked, profile: profile) {
+                                linkedScroll.toggleLink()
+                                arePanesLinked = linkedScroll.isLinked
+                            }
                         }
+                        MenuButton(profile: profile) { isShowingMenu = true }
                     }
-                    MenuButton(profile: profile) { isShowingMenu = true }
                     StylingButton(profile: profile) { isShowingStyling = true }
                 }
                 .padding(MarkdownEditor.chromeMargin)
@@ -598,7 +611,7 @@ private struct DownloadingView: View {
             ProgressView()
             Text(String(localized: "Downloading…"))
                 .font(.callout)
-                .foregroundStyle(Color(uiColor: theme.textColor).opacity(0.6))
+                .foregroundStyle(PhoneInk(theme: theme).secondary)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Color(uiColor: theme.backgroundColor))
@@ -614,18 +627,31 @@ private struct QuietNotice: View {
     var message: String
     var profile: ReadingProfile
 
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
     var body: some View {
+        // A capsule for the usual one or two lines; at the accessibility sizes the text wraps to
+        // many lines, where a capsule's round ends would cut into it.
+        if dynamicTypeSize.isAccessibilitySize {
+            notice(in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        } else {
+            notice(in: Capsule())
+        }
+    }
+
+    private func notice<Shape: InsettableShape>(in shape: Shape) -> some View {
         let theme = Theme.theme(for: profile)
         let isDark = theme.usesDarkChrome
-        Text(message)
+        return Text(message)
             .font(.footnote)
             .multilineTextAlignment(.center)
+            .fixedSize(horizontal: false, vertical: true)
             .foregroundStyle(Color(uiColor: theme.textColor))
             .padding(.horizontal, 14)
             .padding(.vertical, 8)
-            .background(Capsule().fill(Color(uiColor: theme.backgroundColor)))
+            .background(shape.fill(Color(uiColor: theme.backgroundColor)))
             .overlay(
-                Capsule().strokeBorder(
+                shape.strokeBorder(
                     isDark
                         ? Color.white.opacity(LineformDesign.FloatingCard.hairlineOpacityDark)
                         : Color.black.opacity(LineformDesign.FloatingCard.hairlineOpacityLight),
@@ -634,5 +660,26 @@ private struct QuietNotice: View {
             )
             .allowsHitTesting(false)
             .accessibilityAddTraits(.isStaticText)
+    }
+}
+
+/// The chrome's spoken announcements: a mode switch, a notice, a copy in Read. Every string is
+/// localized by the caller. `post` is the one way out, so tests can record what was said.
+@MainActor
+enum ChromeAnnouncer {
+    /// Posts a notification to VoiceOver. Tests replace it.
+    static var post: (UIAccessibility.Notification, Any?) -> Void = { notification, argument in
+        UIAccessibility.post(notification: notification, argument: argument)
+    }
+
+    /// Speaks `message` without moving the VoiceOver cursor.
+    static func announce(_ message: String) {
+        post(.announcement, message)
+    }
+
+    /// The page changed under the cursor: VoiceOver says the mode's name (Write, Read, Preview)
+    /// and starts again on the new screen.
+    static func modeDidChange(to mode: EditorDisplayMode) {
+        post(.screenChanged, mode.title)
     }
 }
