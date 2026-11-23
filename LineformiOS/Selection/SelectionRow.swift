@@ -5,11 +5,31 @@ import SwiftUI
 /// in the spec's order. Heading and List open menus; every other formatting button runs its
 /// command at once. It sits at the bottom, so it never fights the system edit menu, which floats at
 /// the selection; it never changes that menu either.
+///
+/// Accessibility:
+/// - **Text size.** The row is floating chrome of a fixed height, like a toolbar: its text stops
+///   growing at `maximumDynamicTypeSize` (so it never clips in the 48 pt card) and, as in the
+///   system's bars, every item shows the Large Content Viewer at the accessibility sizes (touch
+///   and hold).
+/// - **Targets.** Each item draws 40 pt but is a 44 × 44 pt target: the extra 2 pt on each side
+///   is taken back with negative padding, so the row looks as it always did.
+/// - **VoiceOver.** The row rises at the bottom while focus stays on the text, so a VoiceOver user
+///   would never learn it is there. When it appears a low-priority announcement says so: it is
+///   queued behind whatever VoiceOver is reading (the selection), never interrupts it, and focus
+///   is not moved — the writer may still be adjusting the selection. The items are one swipe
+///   past the text, in the row's own container.
 struct SelectionRow: View {
     @ObservedObject var controller: SelectionController
     var profile: ReadingProfile
 
     static let height: CGFloat = 48
+    /// What each item draws, and the target it is.
+    static let itemDrawnSide: CGFloat = 40
+    static let itemTargetSide: CGFloat = 44
+    /// The row's text grows to here and no further; past it the Large Content Viewer takes over.
+    static let maximumDynamicTypeSize: DynamicTypeSize = .xxxLarge
+
+    private var hitOutset: CGFloat { (Self.itemTargetSide - Self.itemDrawnSide) / 2 }
 
     var body: some View {
         let theme = Theme.theme(for: profile)
@@ -17,7 +37,11 @@ struct SelectionRow: View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 2) {
                 ForEach(controller.items, id: \.self) { item in
-                    button(for: item, ink: ink)
+                    button(for: item)
+                        .accessibilityShowsLargeContentViewer {
+                            if let symbol = item.systemImage { Image(systemName: symbol) }
+                            Text(item.title(aiName: controller.model.aiName))
+                        }
                 }
             }
             .padding(.horizontal, 8)
@@ -27,10 +51,30 @@ struct SelectionRow: View {
         .floatingCardChrome(theme: theme, cornerRadius: Self.height / 2)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("selection.row")
+        .onAppear { Self.announceAppearance() }
+    }
+
+    /// What VoiceOver hears when the row rises.
+    static var appearanceAnnouncement: String {
+        String(localized: "Formatting options available at the bottom of the screen.")
+    }
+
+    /// Queues `appearanceAnnouncement` at low priority while VoiceOver runs; returns whether it
+    /// did. `post` is the system's announcement (replaced by the tests).
+    @discardableResult
+    static func announceAppearance(
+        isVoiceOverRunning: Bool = UIAccessibility.isVoiceOverRunning,
+        post: @MainActor (AttributedString) -> Void = { AccessibilityNotification.Announcement($0).post() }
+    ) -> Bool {
+        guard isVoiceOverRunning else { return false }
+        var announcement = AttributedString(appearanceAnnouncement)
+        announcement.accessibilitySpeechAnnouncementPriority = .low
+        post(announcement)
+        return true
     }
 
     @ViewBuilder
-    private func button(for item: SelectionRowItem, ink: Color) -> some View {
+    private func button(for item: SelectionRowItem) -> some View {
         let title = item.title(aiName: controller.model.aiName)
         switch item {
         case .heading:
@@ -51,6 +95,7 @@ struct SelectionRow: View {
             } label: {
                 icon(item, title: title, showsChevron: true)
             }
+            .padding(-hitOutset)
             .accessibilityLabel(title)
         case .list:
             Menu {
@@ -59,6 +104,7 @@ struct SelectionRow: View {
             } label: {
                 icon(item, title: title, showsChevron: true)
             }
+            .padding(-hitOutset)
             .accessibilityLabel(title)
         default:
             Button {
@@ -71,10 +117,12 @@ struct SelectionRow: View {
                 }
             }
             .buttonStyle(.plain)
+            .padding(-hitOutset)
             .accessibilityLabel(title)
         }
     }
 
+    /// A glyph (fixed size, like a toolbar's) drawn in 40 pt and padded out to a 44 pt target.
     private func icon(_ item: SelectionRowItem, title: String, showsChevron: Bool) -> some View {
         HStack(spacing: 2) {
             Image(systemName: item.systemImage ?? "questionmark")
@@ -82,10 +130,12 @@ struct SelectionRow: View {
             if showsChevron {
                 Image(systemName: "chevron.down")
                     .font(.system(size: 9, weight: .semibold))
+                    // A non-text mark: ink at 0.6 is 4.2:1 or more on every theme (3:1 needed).
                     .opacity(0.6)
             }
         }
-        .frame(minWidth: 40, minHeight: 40)
+        .frame(minWidth: Self.itemDrawnSide, minHeight: Self.itemDrawnSide)
+        .padding(hitOutset)
         .contentShape(Rectangle())
     }
 
@@ -98,9 +148,13 @@ struct SelectionRow: View {
             Text(title)
                 .font(.subheadline.weight(.medium))
                 .lineLimit(1)
+                // Only the text is capped: the Large Content Viewer outside it still sees the
+                // writer's own text size.
+                .dynamicTypeSize(...Self.maximumDynamicTypeSize)
         }
         .padding(.horizontal, 10)
-        .frame(minHeight: 40)
+        .frame(minHeight: Self.itemDrawnSide)
+        .padding(hitOutset)
         .contentShape(Rectangle())
     }
 }

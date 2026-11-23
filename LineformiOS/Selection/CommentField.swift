@@ -9,15 +9,26 @@ import UIKit
 /// - Return in the note inserts a newline; Send is a button. While an input method is composing,
 ///   Send is off, so Return there only confirms the candidate.
 /// - Send needs a note when the action is Custom (`SelectionToolbarModel.canSend`).
-/// - Cancel with the button, or by swiping the field down.
+/// - Cancel with the button, by swiping the field down, or with VoiceOver's escape (two-finger Z).
+/// - At the accessibility text sizes the header and the action row stack vertically. Cancel, the
+///   Action menu and Send are 44 pt targets; the extra is taken back with negative padding, so the
+///   field looks as it always did. Send is a fixed-size glyph and shows the Large Content Viewer.
 struct CommentField: View {
     @ObservedObject var controller: SelectionController
     @ObservedObject private var model: SelectionToolbarModel
     var profile: ReadingProfile
     @GestureState private var dragOffset: CGFloat = 0
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @ScaledMetric(relativeTo: .subheadline) private var chevronSize: CGFloat = 9
 
     /// How far down a swipe must travel to cancel.
     static let cancelDistance: CGFloat = 60
+    /// Send's drawn circle, and the target it is.
+    static let sendDrawnSide: CGFloat = 32
+    static let minimumTarget: CGFloat = 44
+    /// What a text button (Cancel, the Action menu) is padded by above and below: a subheadline
+    /// line is at least 18 pt, so it is then at least 44 pt tall.
+    static let textTargetOutset: CGFloat = 13
 
     init(controller: SelectionController, profile: ReadingProfile) {
         self.controller = controller
@@ -28,48 +39,50 @@ struct CommentField: View {
     var body: some View {
         let theme = Theme.theme(for: profile)
         let ink = Color(uiColor: theme.textColor)
+        let inks = PhoneInk(theme: theme, userInterfaceStyle: theme.usesDarkChrome ? .dark : .light)
+        let stacks = dynamicTypeSize.isAccessibilitySize
         VStack(alignment: .leading, spacing: 10) {
-            HStack(alignment: .firstTextBaseline) {
+            rowLayout(stacks: stacks, alignment: .firstTextBaseline) {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(SelectionToolbarPresentation.commentTitle(aiName: model.aiName ?? SelectionToolbarPresentation.aiName(for: .other)))
                         .font(.subheadline.weight(.semibold))
+                        .accessibilityAddTraits(.isHeader)
                     // What Send sends, quietly, when it is the whole document.
                     if model.isWholeDocument {
                         Text(SelectionToolbarPresentation.wholeDocumentSubtitle)
                             .font(.footnote)
-                            .opacity(0.6)
+                            .foregroundStyle(inks.secondary)
                     }
                 }
-                Spacer(minLength: 8)
-                Button(String(localized: "Cancel")) { controller.cancelComment() }
-                    .font(.subheadline)
+                if !stacks { Spacer(minLength: 8) }
+                Button { controller.cancelComment() } label: {
+                    Text(String(localized: "Cancel"))
+                        .font(.subheadline)
+                        .padding(.vertical, Self.textTargetOutset)
+                        .frame(minWidth: Self.minimumTarget)
+                        .contentShape(Rectangle())
+                }
+                // Side by side the extra is taken back, so the header keeps its height; stacked,
+                // it is kept, so the targets never overlap.
+                .padding(.vertical, stacks ? 0 : -Self.textTargetOutset)
             }
             ZStack(alignment: .topLeading) {
                 CommentNoteView(controller: controller, profile: profile)
                 if model.note.isEmpty {
                     Text(SelectionToolbarPresentation.notePlaceholder)
                         .font(.body)
-                        .opacity(0.4)
+                        .foregroundStyle(inks.color(.tertiaryOnCommentField))
                         .padding(.top, 8)
                         .padding(.leading, 5)
                         .allowsHitTesting(false)
                         .accessibilityHidden(true)
                 }
             }
-            .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(ink.opacity(0.06)))
-            HStack(spacing: 8) {
-                actionMenu
-                Spacer(minLength: 8)
-                Button { controller.send() } label: {
-                    Image(systemName: "arrow.up")
-                        .font(.system(size: 15, weight: .bold))
-                        .foregroundStyle(Color(uiColor: theme.backgroundColor))
-                        .frame(width: 32, height: 32)
-                        .background(Circle().fill(ink.opacity(controller.canSendNow ? 1 : 0.25)))
-                }
-                .buttonStyle(.plain)
-                .disabled(!controller.canSendNow)
-                .accessibilityLabel(SelectionToolbarPresentation.sendTitle)
+            .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(ink.opacity(PhoneInk.commentFieldWashAlpha)))
+            rowLayout(stacks: stacks, alignment: .center) {
+                actionMenu(inks: inks, stacks: stacks)
+                if !stacks { Spacer(minLength: 8) }
+                sendButton(theme: theme, ink: ink, stacks: stacks)
             }
         }
         .padding(14)
@@ -84,10 +97,46 @@ struct CommentField: View {
                     if value.translation.height > Self.cancelDistance { controller.cancelComment() }
                 }
         )
+        .accessibilityElement(children: .contain)
         .accessibilityIdentifier("selection.comment")
+        .accessibilityAction(.escape) { controller.cancelComment() }
     }
 
-    private var actionMenu: some View {
+    /// Side by side, or stacked (leading) at the accessibility text sizes.
+    @ViewBuilder
+    private func rowLayout<Content: View>(
+        stacks: Bool, alignment: VerticalAlignment, @ViewBuilder content: () -> Content
+    ) -> some View {
+        if stacks {
+            VStack(alignment: .leading, spacing: 8) { content() }
+        } else {
+            HStack(alignment: alignment, spacing: 8) { content() }
+        }
+    }
+
+    /// The 32 pt circle, a 44 pt target (the extra taken back by negative padding).
+    private func sendButton(theme: Theme, ink: Color, stacks: Bool) -> some View {
+        let outset = (Self.minimumTarget - Self.sendDrawnSide) / 2
+        return Button { controller.send() } label: {
+            Image(systemName: "arrow.up")
+                .font(.system(size: 15, weight: .bold))
+                .foregroundStyle(Color(uiColor: theme.backgroundColor))
+                .frame(width: Self.sendDrawnSide, height: Self.sendDrawnSide)
+                .background(Circle().fill(ink.opacity(controller.canSendNow ? 1 : 0.25)))
+                .padding(outset)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .disabled(!controller.canSendNow)
+        .padding(stacks ? 0 : -outset)
+        .accessibilityLabel(SelectionToolbarPresentation.sendTitle)
+        .accessibilityShowsLargeContentViewer {
+            Image(systemName: "arrow.up")
+            Text(SelectionToolbarPresentation.sendTitle)
+        }
+    }
+
+    private func actionMenu(inks: PhoneInk, stacks: Bool) -> some View {
         let groups = actionGroups
         return Menu {
             ForEach(Array(groups.enumerated()), id: \.offset) { _, group in
@@ -108,14 +157,22 @@ struct CommentField: View {
         } label: {
             HStack(spacing: 4) {
                 Text(SelectionToolbarPresentation.actionLabel)
-                    .opacity(0.6)
+                    .foregroundStyle(inks.secondary)
                 Text(SelectionToolbarPresentation.menuTitle(for: model.action))
+                    .fixedSize(horizontal: false, vertical: stacks)
                 Image(systemName: "chevron.down")
-                    .font(.system(size: 9, weight: .semibold))
+                    .font(.system(size: chevronSize, weight: .semibold))
+                    // A non-text mark: ink at 0.6 is 4.2:1 or more on every theme (3:1 needed).
                     .opacity(0.6)
             }
             .font(.subheadline)
+            .padding(.vertical, Self.textTargetOutset)
+            .contentShape(Rectangle())
         }
+        .padding(.vertical, stacks ? 0 : -Self.textTargetOutset)
+        // One stop, "Action, Custom", never the chevron's symbol name.
+        .accessibilityLabel(SelectionToolbarPresentation.actionLabel)
+        .accessibilityValue(SelectionToolbarPresentation.menuTitle(for: model.action))
     }
 
     /// Custom, then the same actions with the same rules as the Mac (one word: Another Word; Find
@@ -138,7 +195,17 @@ struct CommentNoteView: UIViewRepresentable {
     @ObservedObject var controller: SelectionController
     var profile: ReadingProfile
 
+    /// About five body lines at the default text size. It scales with the text, up to twice
+    /// this, so the field still clears the keyboard at the largest sizes.
     static let maximumHeight: CGFloat = 120
+    static let minimumHeight: CGFloat = 40
+    static let maximumHeightScale: CGFloat = 2
+
+    /// `maximumHeight` for `traits`' text size.
+    static func maximumHeight(for traits: UITraitCollection) -> CGFloat {
+        let scaled = UIFontMetrics(forTextStyle: .body).scaledValue(for: maximumHeight, compatibleWith: traits)
+        return min(scaled, maximumHeight * maximumHeightScale)
+    }
 
     func makeUIView(context: Context) -> UITextView {
         let view = UITextView()
@@ -152,7 +219,7 @@ struct CommentNoteView: UIViewRepresentable {
         view.accessibilityLabel = SelectionToolbarPresentation.notePlaceholder
         controller.noteMarkedText = { [weak view] in view?.markedTextRange != nil }
         context.coordinator.focusToken = controller.model.focusToken
-        DispatchQueue.main.async { [weak view] in view?.becomeFirstResponder() }
+        DispatchQueue.main.async { [weak view] in view.map { Self.focus($0) } }
         return view
     }
 
@@ -167,15 +234,27 @@ struct CommentNoteView: UIViewRepresentable {
         }
         if context.coordinator.focusToken != controller.model.focusToken {
             context.coordinator.focusToken = controller.model.focusToken
-            DispatchQueue.main.async { [weak view] in view?.becomeFirstResponder() }
+            DispatchQueue.main.async { [weak view] in view.map { Self.focus($0) } }
         }
+    }
+
+    /// Puts the caret in the note, and VoiceOver's focus with it: the field just replaced the
+    /// row the writer was on.
+    static func focus(
+        _ view: UITextView,
+        isVoiceOverRunning: Bool = UIAccessibility.isVoiceOverRunning,
+        post: @MainActor (UIAccessibility.Notification, Any?) -> Void = { UIAccessibility.post(notification: $0, argument: $1) }
+    ) {
+        view.becomeFirstResponder()
+        if isVoiceOverRunning { post(.layoutChanged, view) }
     }
 
     func sizeThatFits(_ proposal: ProposedViewSize, uiView: UITextView, context: Context) -> CGSize? {
         let width = proposal.width ?? 300
         let fitting = uiView.sizeThatFits(CGSize(width: width, height: .greatestFiniteMagnitude))
-        uiView.isScrollEnabled = fitting.height > Self.maximumHeight
-        return CGSize(width: width, height: min(max(fitting.height, 40), Self.maximumHeight))
+        let maximum = Self.maximumHeight(for: uiView.traitCollection)
+        uiView.isScrollEnabled = fitting.height > maximum
+        return CGSize(width: width, height: min(max(fitting.height, Self.minimumHeight), maximum))
     }
 
     func makeCoordinator() -> Coordinator { Coordinator(controller: controller) }

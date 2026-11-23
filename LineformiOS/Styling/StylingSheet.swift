@@ -13,6 +13,7 @@ struct StylingSheet: View {
 
     static let detents: Set<PresentationDetent> = [.medium, .large]
     static let cornerRadius: CGFloat = LineformDesign.Radius.modal
+    /// 15 pt at the default text size, scaled like `.subheadline` (also 15 pt).
     static let headerTitleFontSize: CGFloat = 15
     /// The Mac panel's section spacing and padding.
     static let sectionSpacing: CGFloat = 18
@@ -65,7 +66,13 @@ struct StylingSheet: View {
 
     /// The Mac panel's layout values.
     static let presetGridColumnCount = 3
+    /// Fewer, wider cards at the accessibility text sizes, so a title fits.
+    static func presetGridColumnCount(for size: DynamicTypeSize) -> Int {
+        guard size.isAccessibilitySize else { return presetGridColumnCount }
+        return size >= .accessibility3 ? 1 : 2
+    }
     static let presetGridSpacing: CGFloat = 10
+    /// 13 pt at the default text size, scaled like `.footnote`.
     static let themeTitleFontSize: CGFloat = 13
     static let themeToFontSpacing: CGFloat = 10
     static let resetTopSpacing: CGFloat = 20
@@ -74,7 +81,23 @@ struct StylingSheet: View {
     /// The page behind the medium detent stays undimmed and usable, so a change shows live.
     static let backgroundInteraction: PresentationBackgroundInteraction = .enabled(upThrough: .medium)
 
+    /// What one VoiceOver swipe moves each slider by: one step of what its value text shows.
+    static func accessibilityStep(for keyPath: WritableKeyPath<ReadingProfile, Double>) -> Double {
+        switch keyPath {
+        case \.fontSize, \.paragraphSpacing: return 1
+        case \.lineHeightMultiple: return 0.05
+        case \.letterSpacing: return 0.1
+        case \.columnWidth: return 20
+        default: return 1
+        }
+    }
+
     private var theme: Theme { Theme.theme(for: store.activeProfile) }
+    /// The qualifier, value and description ink: the theme's ink made readable (AA) on its page.
+    private var secondaryInk: Color {
+        PhoneInk(theme: theme, userInterfaceStyle: theme.usesDarkChrome ? .dark : .light).secondary
+    }
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     /// Coalesces slider drags (`StylingDrag`).
     @State private var coalescer = ProfileUpdateCoalescer()
     private var bindings: Bindings { Bindings(store: store, coalescer: coalescer) }
@@ -115,18 +138,21 @@ struct StylingSheet: View {
                     StylingToggleRow(
                         title: Self.readingRulerTitle,
                         subtitle: Self.readingRulerDescription,
-                        isOn: bindings.toggle(\.readingRulerEnabled)
+                        isOn: bindings.toggle(\.readingRulerEnabled),
+                        secondaryInk: secondaryInk
                     )
                     StylingToggleRow(
                         title: Self.typewriterModeTitle,
                         subtitle: Self.typewriterModeDescription,
-                        isOn: bindings.toggle(\.typewriterModeEnabled)
+                        isOn: bindings.toggle(\.typewriterModeEnabled),
+                        secondaryInk: secondaryInk
                     )
 
                     StylingControlRow {
-                        Button(Self.resetTitle) { bindings.reset() }
-                            .font(StylingRowStyle.labelFont)
-                            .buttonStyle(.bordered)
+                        Button { bindings.reset() } label: {
+                            Text(Self.resetTitle).stylingLabelFont()
+                        }
+                        .buttonStyle(.bordered)
                     }
                     .padding(.top, Self.resetTopSpacing)
                 }
@@ -147,7 +173,7 @@ struct StylingSheet: View {
 
     private var header: some View {
         Text(Self.headerTitle)
-            .font(.system(size: Self.headerTitleFontSize, weight: .semibold))
+            .stylingFont(size: Self.headerTitleFontSize, relativeTo: .subheadline, weight: .semibold)
             .accessibilityAddTraits(.isHeader)
             .frame(maxWidth: .infinity)
             .padding(.top, Self.verticalPadding + 8)
@@ -158,13 +184,13 @@ struct StylingSheet: View {
     private var presetGrid: some View {
         let columns = Array(
             repeating: GridItem(.flexible(), spacing: Self.presetGridSpacing),
-            count: Self.presetGridColumnCount
+            count: Self.presetGridColumnCount(for: dynamicTypeSize)
         )
         let selectedPresetID = bindings.selectedPresetID
         let usesDarkChrome = theme.usesDarkChrome
         return VStack(alignment: .leading, spacing: Self.presetGridSpacing) {
             Text(Self.themesTitle)
-                .font(.system(size: Self.themeTitleFontSize, weight: .medium))
+                .stylingFont(size: Self.themeTitleFontSize, relativeTo: StylingRowStyle.labelTextStyle, weight: .medium)
                 .accessibilityAddTraits(.isHeader)
             LazyVGrid(columns: columns, alignment: .leading, spacing: Self.presetGridSpacing) {
                 ForEach(ReadingPreset.builtIn) { preset in
@@ -192,6 +218,8 @@ struct StylingSheet: View {
             valueText: ReadingExperienceControls.valueText(for: keyPath, in: store.activeProfile),
             value: bindings.numeric(keyPath, range: range),
             range: range,
+            step: Self.accessibilityStep(for: keyPath),
+            secondaryInk: secondaryInk,
             onEditingChanged: { [coalescer] editing in
                 if editing { coalescer.beginDrag() } else { coalescer.endDrag() }
             }

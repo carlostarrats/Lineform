@@ -188,13 +188,12 @@ final class StylingSheetTests: XCTestCase {
         XCTAssertEqual(StylingRowStyle.toggleAccessibilityValue(false), "Off")
     }
 
-    func testSliderAccessibilityValueUsesTheDesktopWording() throws {
+    func testSliderAccessibilityTitleJoinsTheQualifier() throws {
         try skipUnlessEnglishInterface()
+        // The slider row is one adjustable element: this is its label, the value text its value.
         XCTAssertEqual(
-            StylingRowStyle.sliderAccessibilityValue(
-                title: "Block Spacing", subtitle: "(Read / Preview)", valueText: "12 px"
-            ),
-            "Block Spacing (Read / Preview) value 12 px"
+            StylingRowStyle.accessibilityTitle(title: "Block Spacing", subtitle: "(Read / Preview)"),
+            "Block Spacing (Read / Preview)"
         )
         XCTAssertEqual(StylingRowStyle.labelFontSize, 13)
         XCTAssertEqual(StylingRowStyle.qualifierFontSize, 11)
@@ -222,7 +221,7 @@ final class StylingSheetTests: XCTestCase {
     func testEveryStylingStringIsInSixLanguages() throws {
         try skipUnlessEnglishInterface()
         let keys = StylingSheet.controlLabels + [
-            "Reading", "Reading Experience", "%@ reading theme", "%@ value %@", "On", "Off",
+            "Reading", "Reading Experience", "%@ reading theme", "%@ %@", "On", "Off",
         ]
 
         // English is the source language: every key must be in the iPhone catalog itself.
