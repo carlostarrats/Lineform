@@ -285,8 +285,8 @@ domains, no collected data types, and these required-reason APIs:
 | Category | Reasons | Why |
 |---|---|---|
 | `NSPrivacyAccessedAPICategoryUserDefaults` | `CA92.1` | Settings, reading profiles, the Files sort, the first-run flag: the app's own defaults, no App Group. |
-| `NSPrivacyAccessedAPICategoryFileTimestamp` | `C617.1` | Modification dates of files in the app's Documents folder and its iCloud container (live reload, image cache keys, the Files list). |
-| | `3B52.1` | The same for a document or Workspace folder the writer picked in Files. |
+| `NSPrivacyAccessedAPICategoryFileTimestamp` | `C617.1` | Modification dates of files inside the app container, its Documents folder (live reload, image cache keys, the Files list). C617.1 covers the app, app group and CloudKit containers, not the iCloud Drive (ubiquity) container. |
+| | `3B52.1` | The same for documents outside the app container that the writer works with: the iCloud Drive (ubiquity) folder and any document or Workspace folder picked in Files. |
 | | `DDA9.1` | The Files list shows a file's created or modified date when sorted by date. |
 
 How it was settled (2026-11-23): `LineformiOS/`, `Packages/LineformCore/Sources`, and the
