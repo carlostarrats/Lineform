@@ -592,6 +592,14 @@ final class LineformReadView: UITextView {
         if state.needsOverlayLayout {
             state.needsOverlayLayout = false
             layoutOverlays()
+        } else {
+            // A taller page with no scroll (SwiftUI's first short pass, Preview's pane growing as
+            // the keyboard goes down) can show characters the pills were not placed for.
+            placeOverlaysIfUncovered()
+            if state.needsOverlayLayout {
+                state.needsOverlayLayout = false
+                layoutOverlays()
+            }
         }
         applyPendingScrollIfPossible()
     }
@@ -749,7 +757,18 @@ final class LineformReadView: UITextView {
         let page = bounds.height
         let top = contentOffset.y + adjustedContentInset.top - textContainerInset.top
         let rect = CGRect(x: 0, y: max(0, top - page), width: max(1, textContainer.size.width), height: page * 3)
-        let glyphs = layoutManager.glyphRange(forBoundingRect: rect, in: textContainer)
+        // TextKit 1 layout here is non-contiguous: past the laid-out prefix a position is an
+        // estimate (after a re-render that kept a deep offset, hundreds of thousands of points
+        // off), and a pill placed from it would sit on the wrong line. When the stretch starts
+        // inside the laid-out prefix, the prefix is extended through it (a page or two);
+        // otherwise the whole text is laid out first, as placing every pill always did.
+        var glyphs = layoutManager.glyphRange(forBoundingRect: rect, in: textContainer)
+        if glyphs.length > 0, glyphs.location <= layoutManager.firstUnlaidGlyphIndex() {
+            layoutManager.ensureLayout(forGlyphRange: NSRange(location: 0, length: NSMaxRange(glyphs)))
+        } else {
+            layoutManager.ensureLayout(for: textContainer)
+        }
+        glyphs = layoutManager.glyphRange(forBoundingRect: rect, in: textContainer)
         return layoutManager.characterRange(forGlyphRange: glyphs, actualGlyphRange: nil)
     }
 
