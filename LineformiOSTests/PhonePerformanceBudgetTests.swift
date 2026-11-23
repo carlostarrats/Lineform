@@ -104,6 +104,22 @@ final class PhonePerformanceBudgetTests: XCTestCase {
             let overlays = StylingPerformanceTests.time { reader.layoutOverlays() }
             print(String(format: "[perf] Read overlays (pills + grid) from an invalidated layout, page at top: %.1f ms", overlays * 1000))
             readGlyphs = reader.layoutManager.numberOfGlyphs
+            // The same with the page at the end of the document.
+            reader.layoutManager.ensureLayout(for: reader.textContainer)
+            let bottom = reader.contentSize.height + reader.adjustedContentInset.bottom - reader.bounds.height
+            reader.setContentOffset(CGPoint(x: 0, y: bottom), animated: false)
+            reader.layoutIfNeeded()
+            reader.layoutManager.invalidateLayout(forCharacterRange: NSRange(location: 0, length: reader.textStorage.length), actualCharacterRange: nil)
+            // Through a layout pass, as on screen: UIKit lays the visible text out, then the pills.
+            let overlaysAtEnd = StylingPerformanceTests.time {
+                reader.setNeedsOverlayLayout()
+                reader.layoutIfNeeded()
+            }
+            print(String(format: "[perf] Read overlays (pills + grid) from an invalidated layout, page at the end: %.1f ms; placed %d pills",
+                         overlaysAtEnd * 1000, reader.overlayButtons.count))
+            XCTAssertFalse(reader.overlayButtons.isEmpty, "the page at the end has its pills after a fresh layout")
+            reader.setContentOffset(CGPoint(x: 0, y: -reader.adjustedContentInset.top), animated: false)
+            reader.layoutIfNeeded()
             repeatApply.append(StylingPerformanceTests.time {
                 reader.apply(text: text, profile: profile, documentDirectory: nil)
                 reader.layoutIfNeeded()
@@ -358,6 +374,77 @@ final class PhonePerformanceBudgetTests: XCTestCase {
         rig.session.acceptAllPending(); check("accept all")
     }
 
+    /// The same equivalence for a whole-line Rewrite review (each replacement stacked on a line of
+    /// its own, so the composition's line count changes), accepted then rejected, in an LF and a
+    /// CRLF document; and for Proofread in a CRLF document.
+    func testIncrementalPresentMatchesForWholeLineRewritesAndCRLF() {
+        let lf = String(Self.corpus.prefix(60_000))
+        let crlf = lf.replacingOccurrences(of: "\n", with: "\r\n")
+        for (name, text) in [("LF", lf), ("CRLF", crlf)] {
+            let rewrite = Self.wholeLineRewriteSession(in: text)
+            XCTAssertEqual(rewrite.pending.count, 2, name)
+            assertIncrementalPresentMatches(text: text, session: rewrite, "\(name) rewrite") { box, check in
+                let ids = box.session.pending.map(\.id)
+                box.session.accept(ids[0]); check("accept")
+                box.session.reject(ids[1]); check("reject")
+            }
+            let composition = AIReviewCompositionCache().composition(text: text, session: rewrite)
+            XCTAssertGreaterThan(composition.string.components(separatedBy: "\n").count,
+                                 text.components(separatedBy: "\n").count, "\(name): the rewrite stacks whole lines")
+        }
+        assertIncrementalPresentMatches(text: crlf, session: Self.reviewSession(in: crlf, changes: 6), "CRLF proofread") { box, check in
+            let ids = box.session.pending.map(\.id)
+            box.session.accept(ids[0]); check("accept")
+            box.session.reject(ids[1]); check("reject")
+            box.session.move(by: 1); check("move")
+            box.session.acceptAllPending(); check("accept all")
+        }
+    }
+
+    final class SessionBox {
+        var session: AIReviewSession
+        init(_ session: AIReviewSession) { self.session = session }
+    }
+
+    /// Presents `session`, runs `steps` (each `check` re-presents the box's session and compares
+    /// with a whole present), attribute for attribute.
+    func assertIncrementalPresentMatches(text: String, session: AIReviewSession, _ name: String,
+                                         steps: (SessionBox, (String) -> Void) -> Void) {
+        let profile = ReadingProfile.original
+        let overlay = AIReviewOverlayTextView.make()
+        let cache = AIReviewCompositionCache()
+        let box = SessionBox(session)
+        overlay.present(cache.composition(text: text, session: box.session), currentID: box.session.currentID, profile: profile)
+        steps(box) { step in
+            let composition = cache.composition(text: text, session: box.session)
+            overlay.present(composition, currentID: box.session.currentID, profile: profile)
+            let whole = AIReviewOverlayTextView.make()
+            whole.present(composition, currentID: box.session.currentID, profile: profile)
+            XCTAssertEqual(overlay.textStorage.string, whole.textStorage.string, "\(name), \(step)")
+            XCTAssertTrue(overlay.textStorage.isEqual(to: whole.textStorage), "\(name), \(step): drawn differently from a whole present")
+        }
+    }
+
+    /// A Rephrase session of two whole list-item lines near the end of `text`, each reworded as
+    /// a whole (one sentence), so each is drawn struck with its new line stacked under it.
+    static func wholeLineRewriteSession(in text: String) -> AIReviewSession {
+        let ns = text as NSString
+        var changes: [AIChange] = []
+        var searchEnd = ns.length
+        while changes.count < 2 {
+            let found = ns.range(of: "- a bullet about calm writing", options: .backwards, range: NSRange(location: 0, length: searchEnd))
+            guard found.location != NSNotFound else { break }
+            let prose = NSRange(location: found.location + 2, length: found.length - 2)
+            changes.append(AIChange(id: changes.count + 1, range: prose, original: ns.substring(with: prose),
+                                    replacement: "one more item on quiet drafting"))
+            searchEnd = found.location
+        }
+        let first = changes.map(\.range.location).min() ?? 0
+        let selection = NSRange(location: first, length: ns.length - first)
+        return AIReviewSession(action: .rephrase, changes: changes, selectionRange: selection,
+                               originalSelection: ns.substring(with: selection))
+    }
+
     /// Deferred issue 2, by ruling (baseline note): after a full restyle the Reading Ruler and
     /// Typewriter Mode lay out the prefix through the caret, because TextKit 1's estimate for a
     /// line past an unlaid stretch is far off (measured: 335,817 pt estimated vs 1,786,482 pt
@@ -429,14 +516,12 @@ final class PhonePerformanceBudgetTests: XCTestCase {
         reader.layoutIfNeeded()
 
         func assertMatchesWholeSet(_ place: String) throws {
-            _ = try XCTUnwrap(reader.overlayWindow())
             let all = reader.overlayPills()
-            let expected = all.filter { pill in
-                reader.overlayButtons.contains { NSEqualRanges($0.sourceRange, pill.sourceRange) }
-            }
-            XCTAssertFalse(expected.isEmpty, place)
-            XCTAssertEqual(reader.overlayButtons.count, expected.count, place)
-            for (button, pill) in zip(reader.overlayButtons, expected) {
+            try Self.assertPlacedPillsCoverThePage(reader, all: all, place)
+            // Every placed button is a pill of the whole set, with its rect and number.
+            for button in reader.overlayButtons {
+                let pill = try XCTUnwrap(all.first { $0.kind == button.kind && NSEqualRanges($0.sourceRange, button.sourceRange) },
+                                         "\(place): a placed pill the whole set does not have")
                 XCTAssertEqual(button.frame, pill.rect, place)
                 XCTAssertEqual(button.codeBlockNumber, pill.codeBlockNumber, place)
             }
@@ -455,6 +540,71 @@ final class PhonePerformanceBudgetTests: XCTestCase {
         let gridAtEnd = try XCTUnwrap(reader.subviews.compactMap { $0 as? ReadTableGridView }.first)
         XCTAssertEqual(gridAtEnd.shapeLayer.path.map { UIBezierPath(cgPath: $0).bounds },
                        reader.tableGridPath().bounds, "the grid at the end is the whole document's grid")
+    }
+
+    /// Pills and the grid follow a height-only change (SwiftUI's first short pass, Preview's pane
+    /// growing as the keyboard goes down), with no scroll.
+    func testOverlaysFollowAHeightOnlyResize() throws {
+        var parts: [String] = []
+        for index in 0..<60 {
+            parts.append("Paragraph \(index) of calm prose that wraps once or twice on a phone screen at the default size.")
+            if index % 8 == 4 { parts.append("```\nlet code = \(index)\n```") }
+            if index == 9 { parts.append("| Column | Other |\n| --- | --- |\n| a | b |") }
+        }
+        let text = parts.joined(separator: "\n\n")
+        let reader = LineformReadView.make(profile: .original)
+        host(reader)
+        reader.frame.size.height = 160
+        reader.apply(text: text, profile: .original, documentDirectory: nil)
+        reader.layoutIfNeeded()
+        let grid = try XCTUnwrap(reader.subviews.compactMap { $0 as? ReadTableGridView }.first)
+        XCTAssertNil(grid.shapeLayer.path, "the table is far below a 160 pt page")
+        let shortCount = reader.overlayButtons.count
+
+        reader.frame.size.height = 852
+        reader.layoutIfNeeded()
+        let all = reader.overlayPills()
+        try Self.assertPlacedPillsCoverThePage(reader, all: all, "after growing")
+        XCTAssertGreaterThan(reader.overlayButtons.count, shortCount, "the taller page shows pills placed for it")
+        XCTAssertNotNil(grid.shapeLayer.path, "the grid of a table now within a page of the view is drawn")
+    }
+
+    /// A re-render of changed text (a Read checkbox, Preview typing) with the page near the end
+    /// replaces the storage and keeps the offset: the pills on that page are placed again.
+    func testPillsFollowAReRenderNearTheEnd() throws {
+        let text = Self.corpus
+        let reader = LineformReadView.make(profile: .original)
+        host(reader)
+        reader.apply(text: text, profile: .original, documentDirectory: nil)
+        reader.layoutManager.ensureLayout(for: reader.textContainer)
+        let bottom = reader.contentSize.height + reader.adjustedContentInset.bottom - reader.bounds.height
+        reader.setContentOffset(CGPoint(x: 0, y: bottom - 2_000), animated: false)
+        reader.layoutIfNeeded()
+        let offset = reader.contentOffset.y
+        reader.apply(text: text + "\nOne more line.\n", profile: .original, documentDirectory: nil)
+        reader.layoutIfNeeded()
+        // The next frame: UIKit settles the new content size.
+        StylingPerformanceTests.spinMainQueue()
+        reader.layoutIfNeeded()
+        XCTAssertEqual(reader.contentOffset.y, offset, accuracy: 0.5, "the re-render kept the page")
+        try Self.assertPlacedPillsCoverThePage(reader, all: reader.overlayPills(), "after a re-render near the end")
+    }
+
+    /// Every pill of the whole set whose rect lies in the stretch the pills are placed for — the
+    /// visible page and a page above and below it, less 40 pt at each edge for line snapping —
+    /// has a placed button with its rect and number. Built from geometry, never from the buttons.
+    static func assertPlacedPillsCoverThePage(_ reader: LineformReadView, all: [LineformReadView.Pill], _ place: String) throws {
+        let page = reader.bounds.height
+        let top = reader.contentOffset.y + reader.adjustedContentInset.top
+        let stretch = CGRect(x: 0, y: top - page + 40, width: reader.bounds.width, height: page * 3 - 80)
+        let expected = all.filter { $0.rect.intersects(stretch) }
+        XCTAssertFalse(expected.isEmpty, "\(place): no pill near the page to check")
+        for pill in expected {
+            let button = try XCTUnwrap(reader.overlayButtons.first { $0.kind == pill.kind && NSEqualRanges($0.sourceRange, pill.sourceRange) },
+                                       "\(place): a pill on the page was not placed")
+            XCTAssertEqual(button.frame, pill.rect, place)
+            XCTAssertEqual(button.codeBlockNumber, pill.codeBlockNumber, place)
+        }
     }
 
     // MARK: - Budget operations (shared with the gates)
