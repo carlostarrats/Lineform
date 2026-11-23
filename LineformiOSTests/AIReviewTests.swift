@@ -303,17 +303,27 @@ final class AIReviewTests: XCTestCase {
 
     func testOverlayCoversEditorAndCardsSitAboveKeyboard() async throws {
         let text = "Hello world. This is fine.\n\nMore text below.\n"
+        // The screen hears the keyboard only through this center. The overlay takes the focus one
+        // turn after it is made, and the editor resigning makes UIKit post a real "keyboard went
+        // down" frame; on the default center that arrived after the frame posted below whenever
+        // the hand-off ran late (a loaded machine), put the cards back at the bottom, and timed out.
+        let keyboardNotifications = NotificationCenter()
         let (editor, selection, ai, document) = try await hostScreen(text: text,
-            client: FakeAIClient(FakeAIClient.revising { _, segment in segment.uppercased() }))
+            client: FakeAIClient(FakeAIClient.revising { _, segment in segment.uppercased() }),
+            keyboardNotifications: keyboardNotifications)
         let window = try XCTUnwrap(self.window)
         editor.selectedRange = NSRange(location: 0, length: 26)
         ai.run(.rephrase, range: NSRange(location: 0, length: 26), text: editor.string)
         try await spin { Self.find(AIReviewOverlayTextView.self, in: window) != nil }
         let overlay = try XCTUnwrap(Self.find(AIReviewOverlayTextView.self, in: window))
 
-        // Over the editor, with its profile, insets and container; read-only; empty undo. The overlay
-        // takes the focus, so the software keyboard (when the simulator shows one) goes down and the
-        // screen lays out again: compare once both views have settled.
+        // The overlay takes the focus, so the read-only editor gets no keys and the software
+        // keyboard (when the simulator shows one) goes down.
+        try await spin { overlay.isFirstResponder }
+        XCTAssertFalse(editor.isFirstResponder, "the overlay holds the focus: the read-only editor gets no keys")
+
+        // Over the editor, with its profile, insets and container; read-only; empty undo. The
+        // keyboard going down lays the screen out again: compare once both views have settled.
         try await spin { overlay.convert(overlay.bounds, to: nil) == editor.convert(editor.bounds, to: nil) }
         XCTAssertEqual(overlay.convert(overlay.bounds, to: nil), editor.convert(editor.bounds, to: nil))
         XCTAssertEqual(overlay.textContainerInset, editor.textContainerInset)
@@ -333,20 +343,22 @@ final class AIReviewTests: XCTestCase {
         XCTAssertNil(Self.element(AIReviewCardPresentation.reviewHint, in: window), "no Esc / Return hints")
         let keyboardHeight: CGFloat = 336
         let keyboard = CGRect(x: 0, y: window.bounds.maxY - keyboardHeight, width: window.bounds.width, height: keyboardHeight)
-        NotificationCenter.default.post(name: UIResponder.keyboardWillChangeFrameNotification, object: nil, userInfo: [
+        keyboardNotifications.post(name: UIResponder.keyboardWillChangeFrameNotification, object: nil, userInfo: [
             UIResponder.keyboardFrameEndUserInfoKey: NSValue(cgRect: window.convert(keyboard, to: window.screen.coordinateSpace)),
             UIResponder.keyboardAnimationDurationUserInfoKey: 0.0,
         ])
+        XCTAssertEqual(selection.keyboardOverlap, keyboardHeight)
         try await spin {
             let accept = Self.element(titles.accept, in: window)?.accessibilityFrame ?? .zero
             return accept.maxY <= keyboard.minY && accept.maxY > keyboard.minY - 160
         }
+        XCTAssertEqual(selection.keyboardOverlap, keyboardHeight, "nothing but the posted frame moved the cards")
         XCTAssertEqual(selection.phase, .hidden)
 
         // Hardware keys: Return accepts.
         XCTAssertTrue(overlay.keyCommands?.contains { $0.input == "\r" && $0.modifierFlags.isEmpty } ?? false)
         XCTAssertTrue(overlay.keyCommands?.contains { $0.input == UIKeyCommand.inputEscape } ?? false)
-        try await spin { overlay.isFirstResponder }
+        XCTAssertTrue(overlay.isFirstResponder)
         XCTAssertFalse(editor.isFirstResponder, "the overlay holds the focus: the read-only editor gets no keys")
         overlay.performReviewKey(.accept)
         XCTAssertEqual(ai.state, .idle)
@@ -476,7 +488,7 @@ final class AIReviewTests: XCTestCase {
         try await spin { if case .reviewing = rig.ai.state { return true }; return false }
     }
 
-    private func hostScreen(text: String, client: FakeAIClient) async throws
+    private func hostScreen(text: String, client: FakeAIClient, keyboardNotifications: NotificationCenter = .default) async throws
         -> (LineformTextView, SelectionController, AIActionController, OpenDocument) {
         let folder = self.folder!
         let document = OpenDocument(folderProvider: { folder }, ubiquitousItems: AIReviewTestUbiquitousItems())
@@ -490,7 +502,8 @@ final class AIReviewTests: XCTestCase {
         let settings = AppSettings(defaults: try XCTUnwrap(UserDefaults(suiteName: settingsSuite)))
         let store = try makeStore(connected: true, keychain: InMemoryAIKeychain())
         let ai = AIActionController(connectionStore: store, clientFactory: { _ in client })
-        let selection = SelectionController(connectionStore: { store }, aiController: ai)
+        let selection = SelectionController(connectionStore: { store }, aiController: ai,
+                                            keyboardNotifications: keyboardNotifications)
         let screen = DocumentScreen(document: document, profileStore: profiles, settings: settings, selection: selection)
         let scene = try XCTUnwrap(UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first)
         let window = UIWindow(windowScene: scene)
