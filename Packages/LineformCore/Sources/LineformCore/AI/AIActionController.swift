@@ -66,6 +66,8 @@ public final class AIActionController: ObservableObject {
         case reviewing(AIReviewSession)
         case marking([NSRange])
         case message(String)
+        /// A question's prose answer (the AI drawer): nothing to review, nothing changes.
+        case answer(String)
     }
 
     /// Leaving `.reviewing` — by ANY path (Esc, the card's buttons or ✕, Return, a typed key,
@@ -89,6 +91,9 @@ public final class AIActionController: ObservableObject {
     public var documentFallback: (text: () -> String, apply: ([AIReviewEdit]) -> Void)?
     public weak var history: (any AIHistoryRecording)?
     public private(set) var runTask: Task<Void, Never>?
+    /// The version behind the current review (set just before `state` becomes `.reviewing`):
+    /// the AI drawer keeps each one, so the writer can step back to it (`restoreReview`).
+    public private(set) var currentVersion: AIReviewVersion?
 
     private let connectionStore: AIConnectionStore
     private let clientFactory: (AIConnection) -> AIClient
@@ -226,7 +231,7 @@ public final class AIActionController: ObservableObject {
     private var isBusy: Bool {
         switch state {
         case .running, .reviewing: return true
-        case .idle, .marking, .message: return false
+        case .idle, .marking, .message, .answer: return false
         }
     }
 
@@ -245,6 +250,8 @@ public final class AIActionController: ObservableObject {
     private enum Request {
         case edit([ProseSegment])
         case mark([AISentence])
+        /// A question about the prose: answered in words (`.answer`), never reviewed.
+        case question([ProseSegment])
     }
 
     /// `avoiding`: the segments of a suggestion just discarded by Try Again; the prompt asks for a
@@ -263,6 +270,21 @@ public final class AIActionController: ObservableObject {
               avoiding: avoiding, note: note, wholeDocument: true)
     }
 
+    /// A question about the selection (`AIRequestClassifier.isQuestion`): its prose is sent with
+    /// the question, and the reply is a prose answer (`.answer`). Same gates as `run`.
+    public func ask(_ question: String, range: NSRange, text: String) {
+        guard let question = AIActionPrompt.trimmedNote(question) else { return }
+        start(.custom, range: range, text: text, avoiding: nil, note: nil, wholeDocument: false, question: question)
+    }
+
+    /// A question about the whole document, through `WholeDocumentAIPolicy` like `runWholeDocument`.
+    public func askWholeDocument(_ question: String, text: String) {
+        guard let question = AIActionPrompt.trimmedNote(question) else { return }
+        guard WholeDocumentAIPolicy.decision(for: text) != .refuse else { return refuseWholeDocument() }
+        start(.custom, range: NSRange(location: 0, length: (text as NSString).length), text: text,
+              avoiding: nil, note: nil, wholeDocument: true, question: question)
+    }
+
     /// The whole-document refusal, through the ordinary message card. Nothing is read or sent.
     public func refuseWholeDocument() {
         guard connectionStore.isConnected, !isBusy else { return }
@@ -270,11 +292,11 @@ public final class AIActionController: ObservableObject {
     }
 
     private func start(_ action: AIAction, range: NSRange, text: String, avoiding: [String]?, note: String?,
-                       wholeDocument: Bool) {
+                       wholeDocument: Bool, question: String? = nil) {
         guard allowsRun(on: range) else { return }
         let note = AIActionPrompt.trimmedNote(note)
         // Custom IS the note: without one there is nothing to ask.
-        guard action != .custom || note != nil else { return }
+        guard action != .custom || note != nil || question != nil else { return }
         let ns = text as NSString
         let clamped = NSIntersectionRange(range, NSRange(location: 0, length: ns.length))
         guard clamped.length > 0 else { return }
@@ -286,7 +308,12 @@ public final class AIActionController: ObservableObject {
 
         let request: Request
         let pieces: [String]
-        if action.isMark {
+        if question != nil {
+            let segments = MarkdownStructureMap.proseSegments(in: text, selection: selection)
+            guard !segments.isEmpty else { return show(Self.noChangesMessage) }
+            request = .question(segments)
+            pieces = segments.map(\.text)
+        } else if action.isMark {
             let sentences = AISentenceSplitter.sentences(in: text, selection: selection)
             guard !sentences.isEmpty else { return show(Self.nothingToMarkMessage) }
             request = .mark(sentences)
@@ -312,6 +339,7 @@ public final class AIActionController: ObservableObject {
             let avoid = avoiding?.count == pieces.count ? avoiding : nil
             prompt = AIActionPrompt.editPrompt(action, segments: pieces, avoiding: avoid, note: note)
         case .mark: prompt = AIActionPrompt.markPrompt(action, sentences: pieces, note: note)
+        case .question: prompt = AIActionPrompt.questionPrompt(question ?? "", segments: pieces)
         }
         reviewNote = note
         requestIsWholeDocument = wholeDocument
@@ -376,7 +404,7 @@ public final class AIActionController: ObservableObject {
             abandon()
         case .marking:
             dismissMarks()
-        case .idle, .message:
+        case .idle, .message, .answer:
             break
         }
         // History opens on its own target: it must not ALSO come back where it was.
@@ -388,7 +416,10 @@ public final class AIActionController: ObservableObject {
     }
 
     public func dismissMessage() {
-        if case .message = state { state = .idle }
+        switch state {
+        case .message, .answer: state = .idle
+        default: break
+        }
     }
 
     private func stopRequest() {
@@ -410,7 +441,7 @@ public final class AIActionController: ObservableObject {
             switch state {
             case .reviewing: break // the review's end settles History
             case .marking: history?.aiActionAbandoned() // History would dismiss the marks at once
-            case .idle, .running, .message: settleHistory(recorded: nil)
+            case .idle, .running, .message, .answer: settleHistory(recorded: nil)
             }
         }
         let reply: String
@@ -429,6 +460,13 @@ public final class AIActionController: ObservableObject {
         }
 
         switch request {
+        case .question:
+            guard let answer = AIResponseParser.answer(from: reply, allowsPlainText: true) else {
+                return show(AIClientError.unusableResponse.message)
+            }
+            state = .answer(answer)
+            editor.announceAI(answer)
+
         case .mark(let sentences):
             guard let indices = AIResponseParser.sentenceIndices(from: reply, sentenceCount: sentences.count) else {
                 return show(AIClientError.unusableResponse.message)
@@ -441,6 +479,12 @@ public final class AIActionController: ObservableObject {
 
         case .edit(let segments):
             guard let revisions = AIResponseParser.segments(from: reply, expectedCount: segments.count) else {
+                // A typed instruction that was really a question is answered in words.
+                if action == .custom, let answer = AIResponseParser.answer(from: reply) {
+                    state = .answer(answer)
+                    editor.announceAI(answer)
+                    return
+                }
                 return show(AIClientError.unusableResponse.message)
             }
             let admitted = MarkdownStructureGuard.admissibleRevisions(revisions, for: segments, in: snapshot)
@@ -461,8 +505,12 @@ public final class AIActionController: ObservableObject {
                 guard !kept.isEmpty else { return show(AIClientError.unusableResponse.message) }
                 reviewProvider = provider
                 reviewRevisions = revisions
-                state = .reviewing(AIReviewSession(action: action, changes: kept, selectionRange: selection,
-                                                   originalSelection: ns.substring(with: selection)))
+                let session = AIReviewSession(action: action, changes: kept, selectionRange: selection,
+                                              originalSelection: ns.substring(with: selection))
+                currentVersion = AIReviewVersion(session: session, snapshot: snapshot, segments: segments,
+                                                 revisions: revisions, assumptions: [], provider: provider,
+                                                 note: reviewNote, wholeDocument: requestIsWholeDocument)
+                state = .reviewing(session)
                 editor.announceAI(Self.correctionsSuggestedMessage(kept.count))
                 return
             }
@@ -476,10 +524,88 @@ public final class AIActionController: ObservableObject {
             }
             reviewProvider = provider
             reviewRevisions = revisions
-            state = .reviewing(AIReviewSession(action: action, changes: [change], selectionRange: selection,
-                                               originalSelection: ns.substring(with: selection)))
+            let session = AIReviewSession(action: action, changes: [change], selectionRange: selection,
+                                          originalSelection: ns.substring(with: selection))
+            // Blanks only for a typed instruction, and only those its admitted text still holds.
+            let revised = zip(segments, admitted).map { $1 ?? $0.text }
+            let assumptions = action == .custom ? AIResponseParser.assumptions(from: reply, revisions: revised) : []
+            currentVersion = AIReviewVersion(session: session, snapshot: snapshot, segments: segments,
+                                             revisions: revisions, assumptions: assumptions, provider: provider,
+                                             note: reviewNote, wholeDocument: requestIsWholeDocument)
+            state = .reviewing(session)
             editor.announceAI(Self.changeSuggestedMessage)
         }
+    }
+
+    // MARK: - Versions and blanks
+
+    /// Puts an earlier version of this review back on screen (the drawer's ‹ ›), or brings one back
+    /// after a Try Again that failed. Only for the SAME text it was built from (exact UTF-16), the
+    /// same provider still connected, and nothing accepted yet; nothing is sent. False otherwise.
+    @discardableResult
+    public func restoreReview(_ version: AIReviewVersion) -> Bool {
+        guard let editor, connectionStore.connectedProvider == version.provider,
+              editor.string.utf16.elementsEqual(version.snapshot.utf16) else { return false }
+        switch state {
+        case .reviewing(let session):
+            guard !session.acceptedAny else { return false }
+        case .idle, .message, .answer:
+            guard history?.allowsAIAction(on: version.session.selectionRange) != false else { return false }
+            history?.aiActionWillStart()
+        case .running, .marking:
+            return false
+        }
+        reviewProvider = version.provider
+        reviewRevisions = version.revisions
+        reviewNote = version.note
+        requestIsWholeDocument = version.wholeDocument
+        currentVersion = version
+        state = .reviewing(version.session)
+        return true
+    }
+
+    /// Fills in a blank: every occurrence of the assumption's phrase in the suggestion becomes
+    /// `choice`, through the same structure guard and change builder as a reply (no request). The
+    /// review then shows the new text, without that assumption. False (nothing changes) when the
+    /// result would alter the Markdown, or the review moved on.
+    @discardableResult
+    public func applyAssumption(_ assumption: AIAssumption, choice: String) -> Bool {
+        guard case .reviewing(let current) = state, !current.acceptedAny,
+              let version = currentVersion, version.session == current,
+              let index = version.assumptions.firstIndex(of: assumption) else { return false }
+        let choice = choice.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !choice.isEmpty, !choice.unicodeScalars.contains(where: {
+            let category = $0.properties.generalCategory
+            return category == .control || category == .lineSeparator || category == .paragraphSeparator
+        }) else { return false }
+        let snapshot = version.snapshot
+        let admittedBefore = MarkdownStructureGuard.admissibleRevisions(version.revisions, for: version.segments,
+                                                                         in: snapshot)
+        let revised = zip(version.segments, admittedBefore).map { segment, admitted in
+            (admitted ?? segment.text).replacingOccurrences(of: assumption.phrase, with: choice)
+        }
+        let admitted = MarkdownStructureGuard.admissibleRevisions(revised, for: version.segments, in: snapshot)
+        // Every segment that took the choice must still be admitted, or the blank is refused whole.
+        let allAdmitted = zip(admitted, zip(version.segments, revised)).allSatisfy { admittedRevision, pair in
+            admittedRevision != nil || pair.1 == pair.0.text
+        }
+        guard allAdmitted,
+              let change = AIChangeBuilder.change(segments: version.segments, revisions: admitted, in: snapshot),
+              MarkdownStructureGuard.verify(original: snapshot, revised: Self.applying(change.edits(), to: snapshot)) else {
+            editor?.announceAI(Self.structureRefusedMessage)
+            return false
+        }
+        var remaining = version.assumptions
+        remaining.remove(at: index)
+        let session = AIReviewSession(action: current.action, changes: [change], selectionRange: current.selectionRange,
+                                      originalSelection: current.originalSelection)
+        let next = AIReviewVersion(session: session, snapshot: snapshot, segments: version.segments, revisions: revised,
+                                   assumptions: remaining, provider: version.provider, note: version.note,
+                                   wholeDocument: version.wholeDocument)
+        reviewRevisions = revised
+        currentVersion = next
+        state = .reviewing(session)
+        return true
     }
 
     // MARK: - Review
@@ -694,5 +820,42 @@ public final class AIActionController: ObservableObject {
             result.replaceCharacters(in: edit.range, with: edit.replacement)
         }
         return result as String
+    }
+}
+
+/// One suggestion as the AI drawer keeps it: the review it opens, the text it was built from, and
+/// what the selection reads with every change in it accepted (`displayText`, the bubble's text).
+public struct AIReviewVersion: Equatable {
+    public let session: AIReviewSession
+    public let snapshot: String
+    public let assumptions: [AIAssumption]
+    /// The selection as it would read with this version accepted: only the new text.
+    public let displayText: String
+    let segments: [ProseSegment]
+    let revisions: [String]
+    let provider: AIProvider
+    let note: String?
+    let wholeDocument: Bool
+
+    init(session: AIReviewSession, snapshot: String, segments: [ProseSegment], revisions: [String],
+         assumptions: [AIAssumption], provider: AIProvider, note: String?, wholeDocument: Bool) {
+        self.session = session
+        self.snapshot = snapshot
+        self.segments = segments
+        self.revisions = revisions
+        self.assumptions = assumptions
+        self.provider = provider
+        self.note = note
+        self.wholeDocument = wholeDocument
+        let edits = session.changes.flatMap { $0.edits() }.sorted { $0.range.location > $1.range.location }
+        let revised = AIActionController.applying(edits, to: snapshot) as NSString
+        let range = session.selectionRange
+        let length = range.length + AIReviewSession.lengthDelta(of: edits)
+        if range.location >= 0, length >= 0, range.location + length <= revised.length {
+            displayText = revised.substring(with: NSRange(location: range.location, length: length))
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+        } else {
+            displayText = ""
+        }
     }
 }

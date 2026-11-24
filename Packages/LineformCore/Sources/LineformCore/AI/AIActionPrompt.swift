@@ -30,6 +30,18 @@ public enum AIActionPrompt {
     /// in the user JSON (`note`), never spliced into the system text.
     static let noteInstruction = "The request includes the writer's note about this passage. Follow it."
 
+    /// The typed instruction's extra line: a question gets a prose answer instead of segments, and
+    /// a guess the passage does not settle may come back as a blank.
+    static let conversationInstruction = "If the note asks a question about the passage instead of asking for a change, reply {\"answer\": \"...\"} instead: plain prose, no Markdown, at most about 120 words. If you had to guess a detail the passage does not give, you may add \"assumptions\" to the JSON: at most two objects {\"phrase\": the exact words of the guess as they appear in your revised segments, \"line\": one short sentence starting with I assumed that contains the phrase, \"question\": a short question about it, \"options\": two to four short alternatives, the first being the phrase}."
+
+    static let questionSystem = "You answer a writer's question about their passage. The user message is JSON with the question and the passage's prose pieces. Reply with JSON only, in the form {\"answer\": \"...\"}: plain prose, no Markdown, at most about 120 words. Never rewrite the passage. Answer in the language of the question."
+
+    /// A question about the passage (not a request to change it): answered in prose, nothing to review.
+    public static func questionPrompt(_ question: String, segments: [String]) -> AIPrompt {
+        let question = question.trimmingCharacters(in: .whitespacesAndNewlines)
+        return AIPrompt(system: questionSystem, user: json(["question": question, "passage": segments]))
+    }
+
     /// Try Again's extra line, followed by the discarded suggestion as `{"segments": [...]}`.
     static let differentResultInstruction = "Give a different result than: "
 
@@ -39,6 +51,9 @@ public enum AIActionPrompt {
                            note: String? = nil) -> AIPrompt {
         let note = trimmedNote(note)
         var system = editSystem + "\n" + instruction(for: action)
+        // A typed instruction (Custom) may turn out to be a question, and may leave one or two
+        // guesses as blanks the writer fills in (`AIResponseParser.answer`, `.assumptions`).
+        if action == .custom { system += "\n" + conversationInstruction }
         if note != nil { system += "\n" + noteInstruction }
         if let avoiding {
             system += "\n" + differentResultInstruction + json(["segments": avoiding])
