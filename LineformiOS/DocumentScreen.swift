@@ -185,7 +185,12 @@ struct DocumentScreen: View {
         let commands = ExportCommands(document: document, profile: { [profileStore] in profileStore.activeProfile })
         commands.removeExports()
         SaveAsStaging.removeAll()
-        document.onDocumentSwap = { [weak commands] in commands?.documentWillChange() }
+        let selection = self.selection
+        document.onDocumentSwap = { [weak commands, weak selection] in
+            commands?.documentWillChange()
+            // The AI conversation belongs to the document being replaced.
+            selection?.documentWillSwap()
+        }
         exportCommands = commands
     }
 
@@ -335,6 +340,11 @@ struct DocumentScreen: View {
         // staying half-hidden behind it.
         .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillShowNotification)) { _ in
             if isShowingStyling { isShowingStyling = false }
+        }
+        .sheet(isPresented: $selection.isShowingAISheet) {
+            AISheetView(conversation: selection.conversation, profile: profile) { [selection] top in
+                selection.aiCardTopInWindow = top
+            }
         }
         .sheet(isPresented: $isShowingStyling, onDismiss: {
             // A Reconnect tapped on the page beside the open sheet waits for it to close: a view

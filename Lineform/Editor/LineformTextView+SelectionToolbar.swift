@@ -334,31 +334,11 @@ extension LineformTextView {
 
     // MARK: - Comment card
 
+    /// The toolbar's Ask (2026-11-24): opens the window's AI drawer, the same route as Edit ▸ Ask
+    /// AI…. The selection stays as it is: the drawer's requests go to it.
     private func openSelectionToolbarComment() {
-        guard let controller = selectionToolbarStorage, controller.isVisible else { return }
-        let model = controller.model
-        model.note = ""
-        model.action = .custom
-        let hosting = controller.hostingView
-        // Measure the card BEFORE switching, on a throwaway hosting view, so the frame is final
-        // when the content changes: the bar stays on screen until the card replaces it in the
-        // same place — no blank frame, no half-drawn card, no jump.
-        let probeModel = SelectionToolbarModel()
-        probeModel.mode = .comment
-        probeModel.aiName = model.aiName
-        probeModel.usesDarkChrome = model.usesDarkChrome
-        let probe = NSHostingView(rootView: SelectionToolbarRoot(model: probeModel))
-        let size = probe.fittingSize
-        if size.width > 0, size.height > 0 {
-            hosting.move(to: commentCardFrame(size: size, replacing: hosting.frame, growsUp: controller.placedAbove))
-        }
-        model.mode = .comment
-        holdCommentHighlight()
-        DispatchQueue.main.async { [weak self] in
-            guard self != nil, controller.isVisible else { return }
-            self?.window?.makeFirstResponder(hosting)
-            model.focusToken += 1
-        }
+        LineformAppNotification.askAI.post(object: LineformAppNotification.Payload(
+            windowNumber: window?.windowNumber, value: nil, selectedRange: selectedRange()))
     }
 
     // MARK: - Edit ▸ Ask AI…

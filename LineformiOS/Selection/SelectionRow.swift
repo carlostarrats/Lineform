@@ -224,8 +224,8 @@ struct SelectionRow: View {
     }
 }
 
-/// Everything the selection puts at the bottom of the page: the AI's card (`AIReviewCardsView`),
-/// then the row or the comment field. It ignores the keyboard's safe area and places itself from the keyboard's frame
+/// Everything the selection puts at the bottom of the page: the row or the comment field. (The
+/// AI's requests, replies and decisions live in the AI sheet, `AISheetView`.) It ignores the keyboard's safe area and places itself from the keyboard's frame
 /// (`SelectionRowPlacement`), so it sits just above the keyboard, or above the home indicator.
 /// Transitions are `LineformDesign.Motion.standard` through `EditorMotionPolicy` (a plain fade
 /// under Reduce Motion).
@@ -249,15 +249,6 @@ struct SelectionBottomChrome: View {
         GeometryReader { proxy in
             VStack(spacing: 8) {
                 Spacer(minLength: 0)
-                if controller.aiState != .idle {
-                    AIReviewCardsView(controller: controller, profile: profile)
-                        .padding(.horizontal, 8)
-                        // A message or Find's marks leave the Menu and Aa buttons up: the card
-                        // sits above them, so neither covers the other.
-                        .padding(.bottom, SelectionController.showsBottomButtons(phase: controller.phase, aiState: controller.aiState)
-                            ? DocumentScreen.bottomChromeClearance : 0)
-                        .transition(transition)
-                }
                 switch controller.phase {
                 case .hidden:
                     EmptyView()

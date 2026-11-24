@@ -43,8 +43,8 @@ Core product principles:
 - Save As retargets the Markdown file; File ▸ Export As writes a copy as HTML, PDF, Styled PDF, or Rich Text (.rtf), plus Print (⌘P). Exported HTML is one-to-one with the source — image paths and link URLs are emitted exactly as written.
 - Read-aloud of the rendered text (Edit ▸ Speech), skipping code, math, and diagrams.
 - History: right-click a selection ▸ Add to History keeps per-passage versions (Paragraph · Sentence · Word); the sidebar's History tab (shown only when the document has history) or View ▸ History (⌘Y) enters a read-only History mode that steps them. Stored in the app container, or for documents in the Lineform iCloud folder in the container's hidden `History/` folder, shared with the user's other devices; never in the file; 30-day cleanup; Settings ▸ Clear History removes everything.
-- Bring your own AI: Lineform ▸ Connect Your AI… connects Claude, ChatGPT, Google or an OpenAI-compatible server with the user's key (Keychain); a Standard (default) or Higher quality model tier per provider; right-click Rewrite ▸ Trim/Cut in half/Rewrite, Proofread, Mark ▸ Weakest/Long sentences, each result reviewed as ONE change (struck original + highlighted replacement) on a bottom-right card, as a read-only overlay. Write mode only; absent (not disabled) when nothing is connected.
-- Selection toolbar: selecting text in the editor floats one-click formatting (Heading ▾, Bold, Italic, Strikethrough, Code, List ▾, Link) over it; while an AI is connected it also offers a comment card — a free-form note to the AI, optionally with an action (Custom = the note alone), reviewed like any AI result. Right-click and the Format menu are unchanged.
+- Bring your own AI: Lineform ▸ Connect Your AI… connects Claude, ChatGPT, Google or an OpenAI-compatible server with the user's key (Keychain); a Standard (default) or Higher quality model tier per provider; the AI drawer (right side, in Reading Experience's inspector slot; Edit ▸ Ask AI…, the toolbar's AI icon, the selection toolbar's Ask) holds a session-only conversation: quick actions, typed instructions whose curated words (`AIPromptLexicon`) get a dotted underline and an options card, plain answers to questions, Accept / Reject / Try Again with versions, and blanks. Right-click Rewrite / Proofread / Find still work and open the drawer. Each suggestion is reviewed as a read-only overlay in the editor. Write mode only; absent (not disabled) when nothing is connected.
+- Selection toolbar: selecting text in the editor floats one-click formatting (Heading ▾, Bold, Italic, Strikethrough, Code, List ▾, Link) over it; while an AI is connected its Ask opens the AI drawer. Right-click and the Format menu are unchanged.
 - ⌘E toggles Write ↔ Read; Split stays on the toolbar and View menu.
 - Reading profiles for type size, line height, block spacing, margins, column width, caret width, focus, ruler, and themes.
 - Automatic Dark Mode (Settings, default on): while the Mac is in Dark Mode every preset draws with Quiet's page and ink but keeps its own font and layout. Display only — export and print keep the chosen theme.
@@ -158,7 +158,8 @@ file named after it carries the full story and the reasoning.
 - Leaving `.reviewing` by ANY path collapses the editor's selection to the reviewed passage's TEXT end, before a trailing line ending (`AIActionController.state` didSet → `collapseSelectionForAI(at: caretEnd)`); Mark collapses it too, or the selection hides the wash. The passage stays selected under the overlay; without the collapse, the next keystroke, Delete, Tab or dictation replaced the whole passage. The overlay's ⌫ ends the review and is not re-sent.
 - One AI action records History once, when the review ends: one passage per CHANGED paragraph. Abandon (reload, whole-text writers, disconnect) applies and records nothing; a tab or document swap ENDS the review and records what was accepted; a reply that arrives after the text changed is discarded (exact UTF-16 compare).
 - API keys live ONLY in the Keychain (`SystemAIKeychain`, service `<bundle id>.ai`, not synchronizable). Never UserDefaults, never files, never logged (`AIConnection.description` redacts).
-- Whole-document AI (the Mac's Edit ▸ Ask AI… with nothing selected, the iPhone's Menu ▸ Document ▸ Ask AI…) goes through ONE policy, `WholeDocumentAIPolicy`, measured on the prose that would be sent: up to 1,500 words it runs, above that the writer confirms (Cancel the default), past `AILimits` it is refused before the Keychain is read. `runWholeDocument` re-checks it before `resolvedConnection()`. Any wording about what is sent names both cases: the passage you select, or the whole document when you choose Ask AI for it.
+- The AI drawer (Mac) and sheet (iPhone) share ONE conversation model, `AIConversation`, and ONE view, `Lineform/AI/AIConversationView.swift`; the conversation is memory only (never written) and goes when its document closes. It only drives `AIActionController`: every rule above still holds through it. No request while the writer types — curated prompt words are matched on the device. A version step or a filled blank re-enters the review only through `restoreReview` / `applyAssumption` (same text, same provider, nothing accepted; blanks re-run the structure guard). The drawer shares the inspector slot with Reading Experience, one at a time (`EditorInspectorContent`). Details: `editor-behavior.md` § The AI drawer and sheet.
+- Whole-document AI (a request from the drawer or sheet with nothing selected; the iPhone's Menu ▸ Document ▸ Ask AI… asks before the sheet opens) goes through ONE policy, `WholeDocumentAIPolicy`, measured on the prose that would be sent: up to 1,500 words it runs, above that the writer confirms (Cancel the default), past `AILimits` it is refused before the Keychain is read. `runWholeDocument` re-checks it before `resolvedConnection()`. Any wording about what is sent names both cases: the passage you select, or the whole document when you choose Ask AI for it.
 
 **Rendering** (`rendering.md`)
 - Every INSERTION path (Return, list continuation, Insert Table, Tab's appended row, Reformat, image drop/paste) writes `MarkdownLineEnding.inForce(at:in:)`, never a bare `\n` — the document's endings are preserved, never normalised. It reads the caret's own line, never the whole document (per-keystroke). `ImageInsertionText` was outside this sweep and left a lone LF in Windows-authored files.
@@ -425,22 +426,24 @@ iPhone only. Details: `docs/architecture/iphone-app.md`.
   scaled to the page; any other tall line gets its own scaled page). UIKit calls
   `PhonePrintRenderer`'s `numberOfPages`/`drawPage` OFF main: never hop to main there; render on
   main beforehand. `OpenDocument.onDocumentSwap` is the only place read aloud stops on a swap.
-- **Selection row, comment field and AI.** A settled selection raises `SelectionRow` above the
+- **Selection row, the AI sheet and AI.** A settled selection raises `SelectionRow` above the
   keyboard or home indicator (`SelectionController`, 0.35 s): Ask (connected only, Lineform blue),
   Heading (its levels open in place, ‹ back), Bold, Italic, Strikethrough, Code, List, Link,
   Blockquote, Image (Photos or Files, through the paste path), Insert Table, Reformat Table (on a
   table row), Replace With… (History's, where it can keep the selection) and Another Word. It
   never changes the system edit menu, and the app's own selections never raise it. Ask AI opens
-  the comment field (note, Action menu, Send; nothing is sent while marked text is composing).
+  the AI sheet (`AISheetView`: three-quarters, drags to half or a quarter, no ✕), the Mac drawer's
+  conversation; the comment field is no longer opened.
   The review is `AIReviewOverlayTextView`, a read-only overlay with an EMPTY undo manager, and the
-  editor refuses every edit path while `isAIReviewActive`; cards sit above the keyboard. Each
+  editor refuses every edit path while `isAIReviewActive`; the decisions are the sheet's. Each
   accept is ONE undo group through `applyRuleEdit`. Menu ▸ Document ▸ Ask AI… sends the whole
   document through the shared `WholeDocumentAIPolicy` (confirm above 1,500 words, refuse past
   `AILimits` before the Keychain is read). History is the document's `PhoneHistoryController`
   (`AIHistoryRecording`), the one `SelectionController.aiHistory` assignment in `DocumentScreen`:
   AI is off in History mode, entering History ends a review, and History records once when a review
   ends (abandoning records nothing), as on the Mac. Details: `docs/architecture/iphone-app.md`, "The
-  selection row and comment field" and "AI actions and the review".
+  selection row and comment field" and "AI actions and the review", and `editor-behavior.md` § The
+  AI drawer and sheet.
 - **Updates, announcements, review prompt, App Intents** (`LineformiOS/Integration/`). Menu ▸
   Settings ▸ Check for Updates… is the Mac's command (`PhoneUpdateCommand`): only on a tap, one at a
   time, and the lookup reads the iPhone's listing (`entity=software`, `kind` "software" only — the

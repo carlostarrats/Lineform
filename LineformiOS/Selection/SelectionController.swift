@@ -144,6 +144,11 @@ final class SelectionController: NSObject, ObservableObject {
 
     /// The comment's note, action and the connected AI's name: the Mac toolbar's model.
     let model = SelectionToolbarModel()
+    /// The AI conversation for the document on screen (2026-11-24): the AI sheet's. Memory only;
+    /// it goes when another document replaces this one (`documentWillSwap`).
+    let conversation = AIConversation()
+    /// The AI sheet is up. Ask AI on the row and the Menu's Ask AI… open it.
+    @Published var isShowingAISheet = false
     /// The selection the row was shown for; the comment sends against exactly this range (the
     /// whole document's range for the Menu's Ask AI…).
     private(set) var anchorRange: NSRange?
@@ -214,6 +219,39 @@ final class SelectionController: NSObject, ObservableObject {
     private func wireAI(_ controller: AIActionController) {
         controller.editor = editor
         controller.history = aiHistory
+        conversation.attach(controller)
+        conversation.target = { [weak self] in
+            guard let editor = self?.editor, editor.isEditable, self?.isReadMode == false else { return nil }
+            return AIConversation.Target(range: editor.selectedRange, text: editor.textStorage.string)
+        }
+        conversation.confirmWholeDocument = { [weak self] words, proceed in
+            self?.presentConversationConfirmation(words: words, proceed: proceed)
+        }
+    }
+
+    // MARK: - The AI sheet
+
+    /// Opens the AI sheet for the selection (Ask AI on the row). The selection stays in the editor:
+    /// the sheet's requests go to it.
+    func openAISheet() {
+        guard connectionStore().isConnected, !isReadMode, editor != nil else { return }
+        wireAI(aiController)
+        hide()
+        isShowingAISheet = true
+    }
+
+    /// Another document replaces this one: its conversation goes.
+    func documentWillSwap() {
+        isShowingAISheet = false
+        conversation.reset()
+    }
+
+    /// A whole-document request from the sheet above `WholeDocumentAIPolicy.confirmWordCount`.
+    private func presentConversationConfirmation(words: Int, proceed: @escaping () -> Void) {
+        let store = connectionStore()
+        guard let provider = store.connectedProvider else { return }
+        let recipient = WholeDocumentAIPolicy.recipient(for: provider, otherEndpoint: store.otherEndpoint)
+        presentAlert(Self.wholeDocumentConfirmation(words: words, recipient: recipient, onSend: proceed, onCancel: {}))
     }
 
     /// The editor whose selection the row follows (`MarkdownEditor` calls it).
@@ -309,7 +347,7 @@ final class SelectionController: NSObject, ObservableObject {
         guard phase == .hidden else { return false }
         switch aiState {
         case .running, .reviewing: return false
-        case .idle, .message, .marking: return true
+        case .idle, .message, .marking, .answer: return true
         }
     }
 
@@ -384,7 +422,7 @@ final class SelectionController: NSObject, ObservableObject {
 
     func perform(_ item: SelectionRowItem) {
         switch item {
-        case .askAI: openComment()
+        case .askAI: openAISheet()
         // Heading opens the levels in place (`setHeading`); List is a menu (`applyList`).
         case .heading: showHeadingLevels(true)
         // Image is a menu (`pickImage`).
@@ -591,6 +629,8 @@ final class SelectionController: NSObject, ObservableObject {
             openWholeDocumentComment(confirmedWords: nil)
         case .refuse:
             hide()
+            wireAI(aiController)
+            isShowingAISheet = true
             aiController.refuseWholeDocument()
         case .confirm(let words):
             hide()
@@ -660,27 +700,21 @@ final class SelectionController: NSObject, ObservableObject {
         pendingConfirmationID = nil
     }
 
-    /// The comment field, for the whole document: its range is the whole text, nothing is
-    /// highlighted, and the caret is remembered for Cancel.
+    /// The AI sheet, for the whole document (2026-11-24; it was the comment field): the selection
+    /// collapses to a caret, so the sheet's requests go to the whole text, and the count the
+    /// writer confirmed is not asked about again.
     private func openWholeDocumentComment(confirmedWords: Int?) {
-        guard allowsWholeDocumentAI, let editor, let provider = connectionStore().connectedProvider else { return }
-        let caret = editor.selectedRange
+        guard allowsWholeDocumentAI, let editor, connectionStore().connectedProvider != nil else { return }
         hide()
-        let aiName = SelectionToolbarPresentation.aiName(for: provider)
-        if model.aiName != aiName { model.aiName = aiName }
-        let dark = Theme.theme(for: editor.profile).usesDarkChrome
-        if model.usesDarkChrome != dark { model.usesDarkChrome = dark }
-        model.note = ""
-        model.action = .custom
-        wholeDocumentCaret = caret
-        confirmedWholeDocumentWords = confirmedWords
-        commentSnapshot = editor.textStorage.string
-        anchorRange = NSRange(location: 0, length: editor.textStorage.length)
-        isWholeDocument = true
-        model.isWholeDocument = true
-        isNoteComposing = false
-        phase = .comment
-        model.focusToken += 1
+        let selected = editor.selectedRange
+        if selected.length > 0 {
+            isAdjustingSelection = true
+            editor.selectedRange = NSRange(location: selected.location, length: 0)
+            isAdjustingSelection = false
+        }
+        wireAI(aiController)
+        conversation.confirmedWholeDocumentWords = confirmedWords
+        isShowingAISheet = true
     }
 
     private func presentFromEditorWindow(_ alert: UIAlertController) {
@@ -716,6 +750,7 @@ final class SelectionController: NSObject, ObservableObject {
         case .idle: status = nil
         case .running(let action, _): status = action.progressVerb
         case .message(let message): status = message
+        case .answer(let answer): status = answer
         case .marking(let ranges): status = AIActionController.markedMessage(ranges.count)
         case .reviewing(let session):
             status = session.action.reviewsPerCorrection
@@ -752,7 +787,7 @@ final class SelectionController: NSObject, ObservableObject {
         guard let controller = aiControllerStorage else { return }
         switch controller.state {
         case .running, .reviewing, .marking: controller.abandon()
-        case .idle, .message: break
+        case .idle, .message, .answer: break
         }
     }
 
@@ -762,12 +797,13 @@ final class SelectionController: NSObject, ObservableObject {
         isReadMode = mode == .read
         guard isReadMode else { return }
         hide()
+        isShowingAISheet = false
         guard let controller = aiControllerStorage else { return }
         switch controller.state {
         case .reviewing, .running, .marking:
             controller.endReview()
             controller.abandon()
-        case .idle, .message:
+        case .idle, .message, .answer:
             break
         }
     }
