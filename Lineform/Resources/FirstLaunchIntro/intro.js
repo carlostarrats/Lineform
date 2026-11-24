@@ -59,6 +59,7 @@ uniform float u_reveal;
 uniform float u_dispersion;
 uniform float u_refraction;
 uniform float u_glass;
+uniform float u_colorBoost;
 
 varying vec2 v_uv;
 
@@ -219,15 +220,23 @@ void main() {
   color *= 1.0 - treatedEdgeColor * 0.36;
   color = mix(color, vec3(0.0), clamp(treatedInk * 0.96, 0.0, 1.0));
 
+  // u_colorBoost is 1.0 unless the embedding app sets window.lineformIntroColorBoost (the
+  // iPhone's first run does, for a stronger colour field); at 1.0 the sum is unchanged. The
+  // boost fades out on and around the letters, so they keep the effect's normal strength.
+  float colorBoost = u_colorBoost;
+  if (u_colorBoost != 1.0) {
+    float nearLetters = clamp(progressiveLogoBlur(logoUV, texel, 9.0) * 4.0, 0.0, 1.0);
+    colorBoost = mix(u_colorBoost, 1.0, nearLetters);
+  }
   float alpha = clamp(
-    chromaStrength * 0.42 +
+    (chromaStrength * 0.42 +
     ghost * 0.12 +
     smear * 0.36 +
     halo * 0.2 +
     curlAlpha * 0.78 +
     curlEdge * 0.18 +
     caustic * 0.52 +
-    writeSpark +
+    writeSpark) * colorBoost +
     treatedInk * 0.92,
     0.0,
     0.92
@@ -295,7 +304,8 @@ if (gl) {
       reveal: gl.getUniformLocation(program, "u_reveal"),
       dispersion: gl.getUniformLocation(program, "u_dispersion"),
       refraction: gl.getUniformLocation(program, "u_refraction"),
-      glass: gl.getUniformLocation(program, "u_glass")
+      glass: gl.getUniformLocation(program, "u_glass"),
+      colorBoost: gl.getUniformLocation(program, "u_colorBoost")
     };
   } catch (error) {
     console.warn("Lineform intro WebGL disabled:", error);
@@ -406,6 +416,7 @@ function animate(now) {
     gl.uniform1f(locations.dispersion, Number(controls.dispersion.value));
     gl.uniform1f(locations.refraction, Number(controls.refraction.value));
     gl.uniform1f(locations.glass, Number(controls.glass.value));
+    gl.uniform1f(locations.colorBoost, Number(window.lineformIntroColorBoost) || 1);
     gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
   }
 

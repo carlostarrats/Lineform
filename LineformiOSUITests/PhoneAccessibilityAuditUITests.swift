@@ -73,9 +73,16 @@ final class PhoneAccessibilityAuditUITests: XCTestCase {
     private func auditFirstRun(contentSize: String?) throws {
         let app = launch(contentSize: contentSize, firstRunCompleted: false, forceFirstRun: true)
         let labels = Labels.current
+        // Nothing advances by itself: Get Started shows once the wordmark is written, and the
+        // points wait for Start Writing.
+        let getStarted = app.buttons[labels.getStarted]
+        XCTAssertTrue(getStarted.waitForExistence(timeout: 20), "First run never showed Get Started")
+        try audit(app, screen: "First run ▸ welcome")
+        getStarted.tap()
         let start = app.buttons[labels.startWriting]
-        // The line and "What to expect" advance by themselves; the points wait for the writer.
-        XCTAssertTrue(start.waitForExistence(timeout: 20), "First run never reached its points")
+        XCTAssertTrue(start.waitForExistence(timeout: 10), "First run never reached its points")
+        // The points and Start Writing finish arriving (about 1.7 s).
+        Thread.sleep(forTimeInterval: 2)
         try audit(app, screen: "First run ▸ points", textGrowsInScrollView: true)
         start.tap()
         XCTAssertTrue(app.textViews.firstMatch.waitForExistence(timeout: 10), "Start Writing never reached the document")
@@ -361,6 +368,7 @@ private struct Labels {
     var menu: String
     var done: String
     var styling: String
+    var getStarted: String
     var startWriting: String
     var menuSections: [String]
 
@@ -374,13 +382,13 @@ private struct Labels {
 
     static let english = Labels(
         write: "Write", read: "Read", menu: "Menu", done: "Done", styling: "Reading Experience",
-        startWriting: "Start Writing",
+        getStarted: "Get Started", startWriting: "Start Writing",
         menuSections: ["Files", "Outline", "Markdown Basics", "Search", "Document", "Settings"]
     )
 
     static let german = Labels(
         write: "Schreiben", read: "Lesen", menu: "Menü", done: "Fertig", styling: "Leseerlebnis",
-        startWriting: "Losschreiben",
+        getStarted: "Loslegen", startWriting: "Losschreiben",
         menuSections: ["Dateien", "Gliederung", "Markdown-Grundlagen", "Suchen", "Dokument", "Einstellungen"]
     )
 }
