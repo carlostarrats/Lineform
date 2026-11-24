@@ -991,6 +991,10 @@ History is local to this iPhone. History never writes into the document file.
   saves).
 ## The selection row and comment field
 
+> **2026-11-24:** Ask AI on the row, and Menu ▸ Ask AI…, open the AI sheet (`AISheetView`; see
+> `editor-behavior.md` § The AI drawer and sheet). The comment field is no longer opened; its code
+> remains until the selection row's redesign removes it.
+
 `LineformiOS/Selection/` (`SelectionController`, `SelectionRow`, `CommentField`), drawn by
 `SelectionBottomChrome`, an overlay on `DocumentScreen`. The spec is §5.5.
 
@@ -1032,6 +1036,10 @@ History is local to this iPhone. History never writes into the document file.
   limit it refuses on the message card).
 
 ## AI actions and the review
+
+> **2026-11-24:** `AIReviewCardsView` is gone. Progress, messages, Find's count and the decisions
+> (Accept / Reject / Try Again, versions, blanks) live in the AI sheet; the review overlay below is
+> unchanged and keeps the current change above the sheet (`aiCardTopInWindow`).
 
 `LineformiOS/AI/` (`LineformiOSTextView+AI.swift`, `AIReviewOverlay.swift`, `AIReviewCardsView.swift`),
 wired by `SelectionController`. The controller is the shared `AIActionController`, made on first
