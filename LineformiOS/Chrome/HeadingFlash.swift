@@ -14,12 +14,17 @@ enum HeadingFlash {
     /// The scroll re-asserts itself for a few ticks; the flash waits for the layout to settle.
     static let delay: TimeInterval = 0.08
 
-    /// The editor: `sourceRange` is in the document's text.
-    static func flash(sourceRange: NSRange, in editor: UITextView) {
+    /// The editor: `sourceRange` is in the document's text. The whole line by default (an
+    /// Outline jump); `wholeLine: false` washes the range itself (a search match).
+    static func flash(sourceRange: NSRange, in editor: UITextView, wholeLine: Bool = true) {
         DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak editor] in
             guard let editor else { return }
             let text = editor.textStorage.string as NSString
             guard sourceRange.location <= text.length else { return }
+            if !wholeLine, sourceRange.length > 0, NSMaxRange(sourceRange) <= text.length {
+                show(characterRange: sourceRange, in: editor)
+                return
+            }
             let line = text.lineRange(for: NSRange(location: sourceRange.location, length: 0))
             show(characterRange: trimmed(line, in: text), in: editor)
         }

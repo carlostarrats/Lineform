@@ -28,11 +28,16 @@ protocol EditorCommands {
     @discardableResult func checkDocumentNow() -> Bool
     /// Flashes the line at `range` briefly on the surface on screen (an Outline jump).
     func flashCharacterRange(_ range: NSRange)
+    /// Flashes a search match briefly on the surface on screen: the match itself in the editor,
+    /// its rendered line in Read. The selection the jump sets is not drawn while the keyboard is
+    /// away, so the flash is what shows where the match is.
+    func flashMatch(_ range: NSRange)
 }
 
 extension EditorCommands {
     @discardableResult func checkDocumentNow() -> Bool { false }
     func flashCharacterRange(_ range: NSRange) {}
+    func flashMatch(_ range: NSRange) {}
 }
 
 /// The screen's commands over the live editor, which stays mounted in every mode.
@@ -63,6 +68,15 @@ struct LiveEditorCommands: EditorCommands {
         switch mode {
         case .write, .split:
             if let editor { HeadingFlash.flash(sourceRange: range, in: editor) }
+        case .read:
+            if let reader = positionKeeper.reader { HeadingFlash.flash(sourceRange: range, inReader: reader) }
+        }
+    }
+
+    func flashMatch(_ range: NSRange) {
+        switch mode {
+        case .write, .split:
+            if let editor { HeadingFlash.flash(sourceRange: range, in: editor, wholeLine: false) }
         case .read:
             if let reader = positionKeeper.reader { HeadingFlash.flash(sourceRange: range, inReader: reader) }
         }

@@ -776,15 +776,46 @@ puts the keyboard away first. Design source: the owner's TestFlight review, §14
 `FilesSection`, `FolderView` (a folder's page) and `FilesStore`. It keeps the Mac's rules
 (files-sidebar.md) and adds iPhone ones:
 
-- **Search** sits at the top ("Search all documents"). It is `SearchController` with the All
-  filter, made on the first query (never in `init`): this document's matches, file-name matches
-  (`QuickOpenIndex`) and matches inside other files (`CrossFileSearchModel`), grouped into ONE card
-  per document (`SearchResultCard.cards`) with its first matching line, the match in bold. A tap
-  activates that row: an in-document match is selected and scrolled to, another file opens with its
-  match selected (the open's task holds the editor, not the controller). The quiet status says
-  "Searching…" or "No matches". The search's file scan starts on the first query that needs it and
-  ends with the page (`setVisible(false, for: .search)`). There is no Replace on iPhone any more (the
-  Mac sidebar's search has none either); `SearchController` still carries it, tested.
+- **Search** sits at the top. It is `SearchController`, made on the first query (never in
+  `init`). Search stays here, in ⋯ ▸ Files: there is never a find bar on the document page
+  (owner's option C, §24 of the TestFlight feedback, `mockups/find-replace.html`). Under the field,
+  the **scope button** (`FilesSearchScope`: a pill with a chevron, a native menu with checkmarks)
+  picks one of two scopes, and only that scope's results show:
+  - **All documents** (the default; prompt "Search all documents"; `SearchFilter.all`): this
+    document's matches, file-name matches (`QuickOpenIndex`) and matches inside other files
+    (`CrossFileSearchModel`), grouped into ONE card per document (`SearchResultCard.cards`) with
+    its first matching line, the match in bold. A tap activates that row: an in-document match is
+    selected and scrolled to, another file opens with its match selected (the open's task holds
+    the editor, not the controller). The quiet status says "Searching…" or "No matches". The
+    search's file scan starts on the first query that needs it and ends with the page
+    (`setVisible(false, for: .search)`). No replace button and no arrows here: replace only ever
+    touches the open document.
+  - **The open document, named by its FILE name** with the extension ("Export update.md";
+    "Untitled" for a document never saved; prompt "Find in document"; `SearchFilter.document`, so
+    nothing is scanned). The field shows a compact count, "2/5" (VoiceOver: "2 of 5"; the count
+    alone while no match is current after a replacement, "0" for none), with ↑ / ↓
+    (`chevron.up`/`chevron.down`, wrapping; Return in the field is ↓) that move the CURRENT
+    match in the list only. The matches are rows (up to `SearchController.maximumDocumentRows`,
+    500; the count and arrows reach every match), the line with the match in bold on a light blue
+    wash, the current one outlined in Lineform blue. The **replace button** on the field's left
+    (`arrow.left.arrow.right`, tinted blue while open) toggles a second row: "Replace with",
+    **Replace** (the current match, then on to the next: `SearchController.replace`, which
+    re-resolves against the live text) and **All** (blue pill, VoiceOver "Replace All";
+    `replaceAll`, ONE undo step). Both go through `EditorCommands` → `applyRuleEdit`, which
+    refuses while text is marked (IME) or an AI review is up. Leaving the scope closes the row.
+  - A tap on a match (either scope) closes the menu, selects the match and scrolls to it in the
+    mode on screen, then flashes it (`EditorCommands.flashMatch`: the match itself in Write and
+    Preview, its rendered line in Read), because the selection is not drawn while the keyboard
+    is away.
+  - The magnifying glass shows only while the field is empty; typed text takes its place. A long
+    file name never widens the scope pill: one line, cut in the MIDDLE so the extension stays
+    (`.truncationMode(.middle)`), the pill capped to the page width; VoiceOver reads the full
+    name. The native menu cannot cut in the middle, so its item is pre-cut to 24 characters
+    (`FilesSearchScope.middleElided`, by composed characters).
+  - Every control has a label ("Search in" + the scope, Show/Hide Replace, Previous/Next Match,
+    Replace, Replace All), every target is 44 pt, the text follows Dynamic Type (the replace row
+    stacks under the field when it no longer fits), and each change of the current match is
+    announced (`EditorSearchResolver.accessibilitySummary`, only when it changes).
 - **Roots.** "iCloud" (cloud icon; `<container>/Documents`, the folder named Lineform) when the
   container resolves and `Lineform.settings.showICloudInSidebar` is on (followed live), and **On My
   iPhone** (iphone icon), the on-device save folder, ALWAYS, beside iCloud too and even when
@@ -978,7 +1009,7 @@ Scene restoration keeps working: a path outside the save folder is stored absolu
 
 Pages act on the editor only through `EditorCommands`, implemented over the live editor
 (`LiveEditorCommands`): top-aligned scrolling through `ModePositionKeeper` in the current mode, the
-heading flash, selection, Insert and Reformat Table, Check Document Now, and `replace` /
+heading flash, a search match's flash (`flashMatch`), selection, Insert and Reformat Table, Check Document Now, and `replace` /
 `replaceAll`, each ONE undo step through `applyRuleEdit`. `replaceAll` rewrites one span from the
 first range to the last and copies the text between the ranges through unchanged, so line endings
 survive. `DocumentScreen.bottomChromeClearance` uses the tallest bottom-right button: ⋯ is 48 pt

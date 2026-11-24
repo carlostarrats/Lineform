@@ -419,7 +419,10 @@ iPhone only. Details: `docs/architecture/iphone-app.md`.
   Pages reach the editor only through `EditorCommands`, each command ONE undo step. Files rename,
   Trash and moves between iCloud and On My iPhone are coordinated (`.forMoving`), never replacing,
   unlike the Mac (ruling in `docs/architecture/files-sidebar.md`); Trash is `trashItem` only, and
-  nothing is scanned until Files or a file search is on screen. On My iPhone always shows beside
+  nothing is scanned until Files or a file search is on screen. Find & Replace lives in Files'
+  search (never a bar on the page): its scope button picks All documents (cards) or the open
+  document by its file name (count, ↑/↓, matches as rows, Replace / All through `EditorCommands`,
+  Replace All one undo step); replace never reaches another file. On My iPhone always shows beside
   iCloud, and New Document in a folder saves there (`OpenDocument.newDocument(in:)`). Convert to
   Plain Text / Markdown is the Mac's state machine verbatim (`TextFormatConversion`), through the
   editor. Check Document Now (Settings) is the only whole-document spelling pass, and is never

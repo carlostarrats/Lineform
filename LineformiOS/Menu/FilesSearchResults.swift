@@ -48,9 +48,65 @@ struct SearchResultCard: Identifiable, Equatable {
     }
 }
 
-/// The Files search's results: the status ("Searching…", "No matches"), then a card per document.
+/// What the Files search looks through: every document (cards, the default) or the open document
+/// alone (its matches as rows, with the count, the arrows and Replace). The raw value is identity,
+/// never localized.
+enum FilesSearchScope: String, CaseIterable, Identifiable {
+    case allDocuments
+    case openDocument
+
+    var id: Self { self }
+
+    var filter: SearchFilter {
+        switch self {
+        case .allDocuments: .all
+        case .openDocument: .document
+        }
+    }
+
+    static var allDocumentsTitle: String { String(localized: "All documents") }
+
+    /// The scope's name: "All documents", or the open document's FILE name with its extension
+    /// ("Export update.md"; "Untitled" for a document never saved).
+    static func title(for scope: FilesSearchScope, documentURL: URL?) -> String {
+        switch scope {
+        case .allDocuments: allDocumentsTitle
+        case .openDocument: fileName(for: documentURL)
+        }
+    }
+
+    static func fileName(for url: URL?) -> String {
+        guard let url else { return WordMenu.documentTitle(for: nil) }
+        return url.lastPathComponent
+    }
+
+    /// A long name cut in the MIDDLE to `limit` characters, so its extension stays in view
+    /// ("My very long draft…notes.md"). For the native menu item, which cannot truncate in the
+    /// middle by itself; the pill uses `.truncationMode(.middle)` on the full name.
+    static func middleElided(_ name: String, limit: Int = 24) -> String {
+        let characters = Array(name)
+        guard limit > 4, characters.count > limit else { return name }
+        let kept = limit - 1
+        let extensionLength = (name as NSString).pathExtension.count
+        let tailCount = min(max(kept / 2, extensionLength + 4), kept - 3)
+        let headCount = kept - tailCount
+        return String(characters.prefix(headCount)) + "…" + String(characters.suffix(tailCount))
+    }
+
+    /// The prompt in the search field.
+    var prompt: String {
+        switch self {
+        case .allDocuments: String(localized: "Search all documents")
+        case .openDocument: String(localized: "Find in document")
+        }
+    }
+}
+
+/// The Files search's results: the status ("Searching…", "No matches"), then a card per document,
+/// or, with the open document as the scope, its matches as rows.
 struct FilesSearchResults: View {
     @Bindable var controller: SearchController
+    var scope: FilesSearchScope = .allDocuments
     var document: OpenDocument
     var store: FilesStore
     var onDismiss: () -> Void
@@ -64,6 +120,41 @@ struct FilesSearchResults: View {
     }
 
     var body: some View {
+        switch scope {
+        case .allDocuments: cardList
+        case .openDocument: matchList
+        }
+    }
+
+    /// The open document's matches, one row each, the current one outlined in Lineform blue. A
+    /// tap closes the menu and selects the match on the page.
+    @ViewBuilder
+    private var matchList: some View {
+        let rows = controller.rows
+        let count = controller.matches.count
+        VStack(alignment: .leading, spacing: WordMenuMetrics.rowSpacing) {
+            if rows.isEmpty, let status = controller.statusText {
+                Text(status)
+                    .font(.footnote)
+                    .foregroundStyle(palette.color(palette.secondary))
+                    .padding(.horizontal, 4)
+            }
+            LazyVStack(alignment: .leading, spacing: WordMenuMetrics.rowSpacing) {
+                ForEach(Array(rows.enumerated()), id: \.element.id) { index, row in
+                    SearchMatchRowView(
+                        row: row,
+                        isCurrent: controller.activeIndex == index,
+                        position: String(localized: "\(index + 1) of \(count)")
+                    ) {
+                        controller.activate(row, dismiss: onDismiss)
+                    }
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var cardList: some View {
         let cards = SearchResultCard.cards(
             from: controller.rows, currentTitle: WordMenu.documentTitle(for: document.url)
         )
@@ -83,6 +174,61 @@ struct FilesSearchResults: View {
                 .filesSwipeActions(actions)
             }
         }
+    }
+}
+
+/// One match in the open document: its line with the match marked (bold, on a blue wash), on a
+/// card. The current match is outlined in Lineform blue.
+private struct SearchMatchRowView: View {
+    var row: SearchRow
+    var isCurrent: Bool
+    /// "2 of 5", for VoiceOver.
+    var position: String
+    var action: () -> Void
+    @Environment(\.wordMenuPalette) private var palette
+
+    var body: some View {
+        let shape = RoundedRectangle(cornerRadius: 12, style: .continuous)
+        Button(action: action) {
+            Group {
+                if let snippet = row.snippet {
+                    Text(Self.marked(snippet, wash: palette.color(palette.blueFill).opacity(0.18)))
+                } else {
+                    Text(verbatim: "")
+                }
+            }
+            .font(.subheadline)
+            .foregroundStyle(palette.color(palette.ink))
+            .multilineTextAlignment(.leading)
+            .lineLimit(3)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 10)
+            .frame(maxWidth: .infinity, minHeight: WordMenuMetrics.minimumTarget, alignment: .leading)
+            .background(shape.fill(palette.color(palette.card)))
+            .overlay {
+                if isCurrent {
+                    shape.strokeBorder(palette.color(palette.blueMark), lineWidth: 1.5)
+                }
+            }
+            .shadow(color: .black.opacity(palette.cardHasShadow ? 0.07 : 0), radius: 7, x: 0, y: 3)
+            .contentShape(shape)
+        }
+        .buttonStyle(WordMenuPressStyle())
+        .accessibilityElement(children: .combine)
+        .accessibilityValue(Text(position))
+        .accessibilityAddTraits(isCurrent ? .isSelected : [])
+    }
+
+    /// The line with its match in bold on a light blue wash.
+    static func marked(_ snippet: CrossFileSearchSnippet, wash: Color) -> AttributedString {
+        var attributed = SearchResultCardView.emphasized(snippet)
+        let text = snippet.lineText
+        if let range = Range(snippet.matchRange, in: text),
+           let lower = AttributedString.Index(range.lowerBound, within: attributed),
+           let upper = AttributedString.Index(range.upperBound, within: attributed) {
+            attributed[lower..<upper].backgroundColor = wash
+        }
+        return attributed
     }
 }
 

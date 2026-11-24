@@ -156,6 +156,94 @@ final class SearchTests: XCTestCase {
         XCTAssertEqual(controller.replacementInsertions, [])
     }
 
+    // MARK: - The open document as the scope (Files ▸ search, option C)
+
+    func testOpenDocumentScopeListsEveryMatchStepsAndCounts() throws {
+        try skipUnlessEnglishInterface()
+        // pinned-en
+        let text = (1...7).map { "line \($0) has cat" }.joined(separator: "\n")
+        let commands = RecordingEditorCommands(text: text)
+        var announced: [String] = []
+        let controller = makeController(commands, announce: { announced.append($0) })
+        controller.setFilter(FilesSearchScope.openDocument.filter)
+        controller.setQuery("cat")
+
+        XCTAssertEqual(controller.rows.count, 7, "every match is a row, not a card's first three")
+        XCTAssertTrue(controller.rows.allSatisfy { if case .inDocument = $0.kind { true } else { false } },
+                      "only this document's matches: one scope at a time")
+        XCTAssertEqual(controller.positionText, "1/7", "compact in the field")
+        XCTAssertEqual(controller.positionAccessibilityText, "1 of 7", "VoiceOver hears it in words")
+        XCTAssertTrue(controller.canStep)
+
+        // The arrows wrap and announce the new position.
+        controller.selectPrevious()
+        XCTAssertEqual(controller.activeIndex, 6)
+        XCTAssertEqual(controller.positionText, "7/7")
+        controller.selectNext()
+        XCTAssertEqual(controller.activeIndex, 0)
+        controller.selectNext()
+        XCTAssertEqual(controller.activeIndex, 1)
+        XCTAssertEqual(announced.last, "Search for cat. 7 matches. Result 2 of 7.")
+        XCTAssertTrue(commands.selected.isEmpty, "stepping moves the list's current match, not the page")
+
+        // Replace changes the CURRENT match (the second), as one rule edit.
+        controller.replacement = "dog"
+        controller.replace()
+        XCTAssertEqual(commands.replaced.map(\.range), [NSRange(location: 26, length: 3)])
+        XCTAssertEqual(controller.matches.count, 6)
+
+        // A tap makes the row current and selects it on the page.
+        let row = controller.rows[3]
+        controller.activate(row, dismiss: {})
+        XCTAssertEqual(controller.activeIndex, 3)
+        guard case .inDocument(let range) = row.kind else { return XCTFail("an in-document row") }
+        XCTAssertEqual(commands.selected, [range])
+
+        controller.setQuery("zebra")
+        XCTAssertEqual(controller.positionText, "0")
+        XCTAssertEqual(controller.positionAccessibilityText, "No matches")
+        XCTAssertFalse(controller.canStep)
+        controller.selectNext()
+        XCTAssertNil(controller.activeIndex)
+    }
+
+    func testOpenDocumentScopeNeverScansFiles() async throws {
+        let store = makeStore()
+        let controller = makeController(RecordingEditorCommands(text: "alpha"), files: store)
+        controller.setFilter(FilesSearchScope.openDocument.filter)
+        controller.setQuery("alpha")
+        XCTAssertNil(controller.pendingScan, "the open document alone is never a reason to scan")
+        XCTAssertNil(controller.pendingFileSearch)
+
+        // All documents (the default) is the cards' search: no count, no arrows.
+        controller.setFilter(FilesSearchScope.allDocuments.filter)
+        XCTAssertNotNil(controller.pendingScan)
+        XCTAssertEqual(controller.filter, .all)
+        controller.stop()
+    }
+
+    func testScopeNamesAndMiddleElision() throws {
+        try skipUnlessEnglishInterface()
+        // pinned-en
+        XCTAssertEqual(FilesSearchScope.allCases.map(\.rawValue), ["allDocuments", "openDocument"], "identity")
+        XCTAssertEqual(FilesSearchScope.title(for: .allDocuments, documentURL: nil), "All documents")
+        let url = folder.appendingPathComponent("Export update.md")
+        XCTAssertEqual(FilesSearchScope.title(for: .openDocument, documentURL: url), "Export update.md",
+                       "named by its FILE name, extension included")
+        XCTAssertEqual(FilesSearchScope.title(for: .openDocument, documentURL: nil), "Untitled")
+
+        XCTAssertEqual(FilesSearchScope.middleElided("Short.md"), "Short.md")
+        let long = "My very long draft about the spring release notes.md"
+        let elided = FilesSearchScope.middleElided(long)
+        XCTAssertEqual(elided.count, 24)
+        XCTAssertTrue(elided.hasPrefix("My very lon"))
+        XCTAssertTrue(elided.hasSuffix("notes.md"), "the extension stays in view")
+        XCTAssertTrue(elided.contains("…"))
+        // Never splits a composed character.
+        let emoji = String(repeating: "👩‍👩‍👧", count: 40) + ".md"
+        XCTAssertEqual(FilesSearchScope.middleElided(emoji).count, 24)
+    }
+
     // MARK: - Across files
 
     func testFileResultsLatestQueryWins() async throws {

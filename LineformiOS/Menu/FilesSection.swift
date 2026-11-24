@@ -150,7 +150,11 @@ struct FilesSection: View {
     @State private var isChoosingWorkspace = false
     @State private var search: SearchController?
     @State private var query = ""
+    @State private var scope: FilesSearchScope = .allDocuments
+    @State private var isReplaceShown = false
+    @State private var replacement = ""
     @FocusState private var isSearchFocused: Bool
+    @FocusState private var isReplaceFocused: Bool
     @Environment(\.wordMenuPalette) private var palette
 
     init(
@@ -198,6 +202,17 @@ struct FilesSection: View {
     static var openTitle: String { String(localized: "Open from Files…") }
     static var recentTitle: String { String(localized: "Recent") }
     static var searchPrompt: String { String(localized: "Search all documents") }
+    /// The scope button's and its menu's name for VoiceOver.
+    static var scopeLabel: String { String(localized: "Search in") }
+    static var showReplaceTitle: String { String(localized: "Show Replace") }
+    static var hideReplaceTitle: String { String(localized: "Hide Replace") }
+    static var previousMatchTitle: String { String(localized: "Previous Match") }
+    static var nextMatchTitle: String { String(localized: "Next Match") }
+    static var replaceWithPrompt: String { String(localized: "Replace with") }
+    static var replaceTitle: String { String(localized: "Replace") }
+    /// The blue pill's short word; VoiceOver reads `replaceAllTitle`.
+    static var replaceAllShortTitle: String { String(localized: "All") }
+    static var replaceAllTitle: String { String(localized: "Replace All") }
     /// The iCloud root's heading: the place, not the folder's name.
     static var iCloudHeading: String { String(localized: "iCloud") }
 
@@ -237,9 +252,10 @@ struct FilesSection: View {
 
     var body: some View {
         WordMenuPageScaffold(title: WordMenuItem.files.title) {
-            searchField
+            searchBox
+            scopeButton
             if hasQuery, let search {
-                FilesSearchResults(controller: search, document: document, store: store, onDismiss: onDismiss)
+                FilesSearchResults(controller: search, scope: scope, document: document, store: store, onDismiss: onDismiss)
             } else {
                 roots
                 WordMenuRow(title: Self.openTitle, systemImage: "doc.badge.ellipsis", accessory: .none) {
@@ -268,22 +284,224 @@ struct FilesSection: View {
 
     private var hasQuery: Bool { !query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
 
+    private var searchesOpenDocument: Bool { scope == .openDocument }
+
+    /// The search field's row (with the open document as the scope: the replace button on its
+    /// left, the count inside it and the arrows on its right), and the replace row under it.
+    private var searchBox: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 2) {
+                if searchesOpenDocument { replaceToggle }
+                searchField
+                if searchesOpenDocument { stepButtons }
+            }
+            if searchesOpenDocument, isReplaceShown { replaceRow }
+        }
+        .padding(.bottom, 2)
+    }
+
+    private var replaceToggle: some View {
+        Button {
+            isReplaceShown.toggle()
+            if isReplaceShown { isReplaceFocused = true }
+        } label: {
+            Image(systemName: "arrow.left.arrow.right")
+                .font(.body.weight(.medium))
+                .foregroundStyle(palette.color(isReplaceShown ? palette.blueMark : palette.icon))
+                .frame(width: WordMenuMetrics.minimumTarget, height: WordMenuMetrics.minimumTarget)
+                .background(
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .fill(palette.color(palette.blueFill).opacity(isReplaceShown ? 0.14 : 0))
+                )
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(isReplaceShown ? Self.hideReplaceTitle : Self.showReplaceTitle)
+        .accessibilityAddTraits(isReplaceShown ? .isSelected : [])
+        .accessibilityIdentifier("files.search.replaceToggle")
+    }
+
+    private var stepButtons: some View {
+        HStack(spacing: 0) {
+            stepButton(systemImage: "chevron.up", label: Self.previousMatchTitle, identifier: "files.search.previous") {
+                search?.selectPrevious()
+            }
+            stepButton(systemImage: "chevron.down", label: Self.nextMatchTitle, identifier: "files.search.next") {
+                search?.selectNext()
+            }
+        }
+        .disabled(!(search?.canStep ?? false) || !hasQuery)
+    }
+
+    private func stepButton(
+        systemImage: String, label: String, identifier: String, action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            Image(systemName: systemImage)
+                .font(.body.weight(.medium))
+                .foregroundStyle(palette.color(palette.icon))
+                .frame(width: WordMenuMetrics.minimumTarget, height: WordMenuMetrics.minimumTarget)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(WordMenuPressStyle())
+        .accessibilityLabel(label)
+        .accessibilityIdentifier(identifier)
+    }
+
+    /// Replace with, Replace (the current match) and All (every match, one undo step). Side by
+    /// side, or stacked when the text size leaves no room.
+    private var replaceRow: some View {
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: 6) {
+                replaceField
+                replaceButtons
+            }
+            VStack(alignment: .leading, spacing: 6) {
+                replaceField
+                HStack(spacing: 6) { replaceButtons }
+            }
+        }
+    }
+
+    private var replaceField: some View {
+        TextField(
+            text: $replacement,
+            prompt: Text(Self.replaceWithPrompt).foregroundStyle(palette.color(palette.tertiary))
+        ) {
+            Text(Self.replaceWithPrompt)
+        }
+        .focused($isReplaceFocused)
+        .textInputAutocapitalization(.never)
+        .autocorrectionDisabled()
+        .foregroundStyle(palette.color(palette.ink))
+        .wordMenuField()
+        .frame(minWidth: 120)
+        .accessibilityIdentifier("files.search.replacement")
+    }
+
+    @ViewBuilder
+    private var replaceButtons: some View {
+        Button {
+            guard let search else { return }
+            search.replacement = replacement
+            search.replace()
+        } label: {
+            Text(Self.replaceTitle)
+                .font(.subheadline.weight(.medium))
+                .foregroundStyle(palette.color(palette.ink))
+                .lineLimit(1)
+                .padding(.horizontal, 14)
+                .frame(minHeight: WordMenuMetrics.minimumTarget)
+                .background(Capsule().fill(palette.color(palette.field)))
+                .contentShape(Capsule())
+        }
+        .buttonStyle(WordMenuPressStyle())
+        .disabled(!(search?.canReplace ?? false) || !hasQuery)
+        .opacity((search?.canReplace ?? false) && hasQuery ? 1 : 0.5)
+        .fixedSize()
+        .accessibilityIdentifier("files.search.replace")
+        Button {
+            guard let search else { return }
+            search.replacement = replacement
+            search.replaceAll()
+        } label: {
+            Text(Self.replaceAllShortTitle)
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(.white)
+                .lineLimit(1)
+                .padding(.horizontal, 16)
+                .frame(minHeight: WordMenuMetrics.minimumTarget)
+                .background(Capsule().fill(palette.color(palette.blueFill)))
+                .contentShape(Capsule())
+        }
+        .buttonStyle(WordMenuPressStyle())
+        .disabled(!(search?.canReplaceAll ?? false) || !hasQuery)
+        .opacity((search?.canReplaceAll ?? false) && hasQuery ? 1 : 0.5)
+        .fixedSize()
+        .accessibilityLabel(Self.replaceAllTitle)
+        .accessibilityIdentifier("files.search.replaceAll")
+    }
+
+    /// The scope: All documents, or the open document by its file name. A long name stays on one
+    /// line, cut in the middle so its extension shows, and never widens the pill past the page.
+    private var scopeButton: some View {
+        let fileName = FilesSearchScope.fileName(for: document.url)
+        let title = FilesSearchScope.title(for: scope, documentURL: document.url)
+        return Menu {
+            Picker(selection: Binding(get: { scope }, set: { setScope($0) })) {
+                Text(FilesSearchScope.allDocumentsTitle)
+                    .tag(FilesSearchScope.allDocuments)
+                Text(verbatim: FilesSearchScope.middleElided(fileName))
+                    .accessibilityLabel(Text(verbatim: fileName))
+                    .tag(FilesSearchScope.openDocument)
+            } label: {
+                Text(Self.scopeLabel)
+            }
+            .pickerStyle(.inline)
+        } label: {
+            HStack(spacing: 6) {
+                Text(verbatim: title)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                Image(systemName: "chevron.down")
+                    .font(.caption.weight(.semibold))
+                    .accessibilityHidden(true)
+            }
+            .font(.subheadline.weight(.medium))
+            .foregroundStyle(palette.color(palette.ink))
+            .padding(.horizontal, 12)
+            .padding(.vertical, 7)
+            .frame(minHeight: 36)
+            .background(Capsule().fill(palette.color(palette.field)))
+            .contentShape(Capsule())
+            .frame(minHeight: WordMenuMetrics.minimumTarget)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .accessibilityLabel(Self.scopeLabel)
+        .accessibilityValue(Text(verbatim: title))
+        .accessibilityIdentifier("files.search.scope")
+    }
+
+    private func setScope(_ newScope: FilesSearchScope) {
+        guard newScope != scope else { return }
+        scope = newScope
+        // Replace only ever touches the open document: leaving its scope closes the replace row.
+        if newScope == .allDocuments { isReplaceShown = false }
+        search?.setFilter(newScope.filter)
+    }
+
     private var searchField: some View {
         HStack(spacing: 8) {
-            Image(systemName: "magnifyingglass")
-                .foregroundStyle(palette.color(palette.secondary))
-                .accessibilityHidden(true)
+            // The glass shows only while the field is empty; typed text takes its place.
+            if !hasQuery {
+                Image(systemName: "magnifyingglass")
+                    .foregroundStyle(palette.color(palette.secondary))
+                    .accessibilityHidden(true)
+            }
             TextField(
                 text: Binding(get: { query }, set: { setQuery($0) }),
-                prompt: Text(Self.searchPrompt).foregroundStyle(palette.color(palette.tertiary))
+                prompt: Text(scope.prompt).foregroundStyle(palette.color(palette.tertiary))
             ) {
-                Text(Self.searchPrompt)
+                Text(scope.prompt)
             }
             .focused($isSearchFocused)
             .textInputAutocapitalization(.never)
             .autocorrectionDisabled()
             .submitLabel(.search)
+            .onSubmit {
+                if searchesOpenDocument { search?.selectNext() }
+            }
             .foregroundStyle(palette.color(palette.ink))
+            .accessibilityIdentifier("files.search.field")
+            if searchesOpenDocument, let position = search?.positionText {
+                Text(verbatim: position)
+                    .font(.footnote.monospacedDigit())
+                    .foregroundStyle(palette.color(palette.secondary))
+                    .lineLimit(1)
+                    .fixedSize()
+                    .accessibilityLabel(Text(verbatim: search?.positionAccessibilityText ?? position))
+                    .accessibilityIdentifier("files.search.count")
+            }
             if hasQuery {
                 Button {
                     setQuery("")
@@ -298,20 +516,22 @@ struct FilesSection: View {
             }
         }
         .wordMenuField()
-        .padding(.bottom, 4)
     }
 
-    /// The search is made on the first query (never in `init`), and reaches every file and this
-    /// document (`SearchFilter.all`).
+    /// The search is made on the first query (never in `init`). In All documents it reaches every
+    /// file and this document (`SearchFilter.all`); with the open document as the scope, only
+    /// this document (`.document`), and nothing is scanned.
     private func setQuery(_ newQuery: String) {
         query = newQuery
         if search == nil, !newQuery.isEmpty {
-            search = SearchController(
+            let made = SearchController(
                 editor: editor ?? NoEditorCommands(document: document),
                 files: store,
                 currentURL: { [weak document] in document?.url },
                 open: SearchController.opener(for: document)
             )
+            made.setFilter(scope.filter)
+            search = made
         }
         search?.setQuery(newQuery)
     }
