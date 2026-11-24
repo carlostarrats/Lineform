@@ -21,5 +21,8 @@ Optional prototype controls:
 - `?parallax=1` enables the pointer-following depth pass.
 - Press `T` while the prototype is focused to show or hide tuning controls.
 - Press `P` while focused to toggle pointer parallax.
+- `window.lineformIntroColorBoost` (read every frame, 1 when absent) strengthens the colour field
+  away from the letters. The Mac never sets it; the iPhone's first run does
+  (`FirstRunLineView.pageAdjustmentScript`).
 
 The prototype keeps the logo vector-sharp in the DOM and uses WebGL as a glass/effect layer for chromatic dispersion, refraction bands, highlights, and the write-on reveal. The shader is intentionally small enough to map to a Swift/Metal fragment shader later.

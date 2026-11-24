@@ -388,10 +388,13 @@ iPhone only. Details: `docs/architecture/iphone-app.md`.
   `docs/architecture/iphone-app.md`, "Write, Read and Preview".
 - **First run.** On first launch only (`FirstRunGate`, per-device flag
   `LineformiOSFirstRunCompleted.v1`, set when the writer reaches the document), `FirstRunOverlay`
-  plays the Mac's `FirstLaunchIntro/` web animation (referenced, not copied; file URLs only, no
-  network), "What to expect", then the three points (`FirstRunCopy`, the one place the copy lives).
-  Scene-storage recovery wins over it, and the launch call site skips it under XCTest. WebKit
-  stays in the iPhone target, never in the package.
+  shows the Mac's `FirstLaunchIntro/` wordmark writing itself, centred (referenced, not copied; file
+  URLs only, no network), then Get Started; that shrinks the wordmark to the top and brings in the
+  four points and Start Writing (`FirstRunCopy`, the one place the copy lives). Nothing advances by
+  itself. iPhone-only page changes go in through `FirstRunLineView.pageAdjustmentScript` and
+  `window.lineformIntro*` values the intro treats as absent on the Mac, so the Mac's intro is
+  unchanged. Scene-storage recovery wins over it, and the launch call site skips it under XCTest.
+  WebKit stays in the iPhone target, never in the package.
 - **Styling sheet.** The "Aa" button (`StylingButton`, beside Menu) opens `StylingSheet`, the Mac's
   Reading Experience panel with the same controls, order, ranges and wording
   (`ReadingExperienceControls` in the package is the one definition both read). It writes only
