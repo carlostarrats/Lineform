@@ -26,18 +26,12 @@ final class WholeDocumentAITests: XCTestCase {
     func testAskAIRowOnlyWhenConnected() throws {
         try skipUnlessEnglishInterface()
         // The row: connected, and an editor on screen (Write or Preview; Read has none).
-        XCTAssertTrue(DocumentSection.showsAskAI(isConnected: true, mode: .write, hasText: true))
-        XCTAssertTrue(DocumentSection.showsAskAI(isConnected: true, mode: .split, hasText: true))
-        XCTAssertFalse(DocumentSection.showsAskAI(isConnected: false, mode: .write, hasText: true))
-        XCTAssertFalse(DocumentSection.showsAskAI(isConnected: true, mode: .read, hasText: true))
-        XCTAssertEqual(DocumentSection.askAITitle, "Ask AI…")
-
-        // It sits with the document's commands, after Check Document Now.
-        let titles = DocumentSection.rowTitles(for: .markdown, showsAskAI: true)
-        let check = try XCTUnwrap(titles.firstIndex(of: DocumentSection.checkDocumentTitle))
-        XCTAssertEqual(titles[check + 1], DocumentSection.askAITitle)
-        XCTAssertFalse(DocumentSection.rowTitles(for: .markdown).contains(DocumentSection.askAITitle))
-        XCTAssertEqual(DocumentSection.rowTitles(for: .markdown, showsAskAI: false), DocumentSection.rowTitles(for: .markdown))
+        XCTAssertTrue(ConnectAISection.showsAskAI(isConnected: true, mode: .write, hasText: true))
+        XCTAssertTrue(ConnectAISection.showsAskAI(isConnected: true, mode: .split, hasText: true))
+        XCTAssertFalse(ConnectAISection.showsAskAI(isConnected: false, mode: .write, hasText: true))
+        XCTAssertFalse(ConnectAISection.showsAskAI(isConnected: true, mode: .read, hasText: true))
+        // It lives on the Connect Your AI page, under the connection.
+        XCTAssertEqual(ConnectAISection.askAITitle, "Ask AI…")
 
         // Disconnected (or in Read), the controller opens nothing either.
         let (_, offline, _, _) = try makeEditor("A short document.\n", connected: false)
@@ -274,11 +268,11 @@ final class WholeDocumentAITests: XCTestCase {
 
     /// No Ask AI… for an empty document: there is nothing to send.
     func testAskAIRowHiddenForEmptyDocument() throws {
-        XCTAssertFalse(DocumentSection.showsAskAI(isConnected: true, mode: .write, hasText: false))
-        XCTAssertTrue(DocumentSection.showsAskAI(isConnected: true, mode: .write, hasText: true))
-        XCTAssertFalse(DocumentSection.hasText(""))
-        XCTAssertFalse(DocumentSection.hasText(" \n\n\t"))
-        XCTAssertTrue(DocumentSection.hasText("\nA"))
+        XCTAssertFalse(ConnectAISection.showsAskAI(isConnected: true, mode: .write, hasText: false))
+        XCTAssertTrue(ConnectAISection.showsAskAI(isConnected: true, mode: .write, hasText: true))
+        XCTAssertFalse(ConnectAISection.hasText(""))
+        XCTAssertFalse(ConnectAISection.hasText(" \n\n\t"))
+        XCTAssertTrue(ConnectAISection.hasText("\nA"))
         let (_, selection, _, _) = try makeEditor("  \n\n", connected: true)
         XCTAssertFalse(selection.allowsWholeDocumentAI)
         selection.askAIForWholeDocument()

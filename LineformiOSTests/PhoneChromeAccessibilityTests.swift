@@ -100,7 +100,7 @@ final class PhoneChromeAccessibilityTests: XCTestCase {
             let row = HStack(spacing: DocumentScreen.bottomChromeSpacing) {
                 PreviewLinkButton(isLinked: true, profile: .original) {}
                 PreviewLinkButton(isLinked: false, profile: .original) {}
-                StylingButton(profile: .original) {}
+                MoreButton(profile: .original) {}
             }
             let host = try await PhoneAccessibilityHost(row, contentSize: size)
             defer { host.tearDown() }
@@ -110,7 +110,7 @@ final class PhoneChromeAccessibilityTests: XCTestCase {
             XCTAssertEqual(labels, [
                 PreviewLinkButton.accessibilityTitle(isLinked: true),
                 PreviewLinkButton.accessibilityTitle(isLinked: false),
-                StylingButton.accessibilityLabel,
+                MoreButton.accessibilityTitle,
             ])
         }
     }
@@ -119,7 +119,7 @@ final class PhoneChromeAccessibilityTests: XCTestCase {
         XCTAssertEqual(PreviewLinkButton.diameter, 38, "the drawn circle is unchanged")
         XCTAssertEqual(PreviewLinkButton.touchSide, 44)
         XCTAssertEqual(PreviewLinkButton.horizontalTouchOutset, 3)
-        XCTAssertEqual(DocumentScreen.bottomChromeClearance, MarkdownEditor.chromeMargin + 44 + 8)
+        XCTAssertEqual(DocumentScreen.bottomChromeClearance, MarkdownEditor.chromeMargin + MoreButton.diameter + 8)
     }
 
     // MARK: - Notices

@@ -56,7 +56,10 @@ struct BasicsSection: View {
         WordMenuPageScaffold(title: WordMenuItem.basics.title) {
             ForEach(Self.sections) { section in
                 VStack(alignment: .leading, spacing: 8) {
-                    WordMenuGroupLabel(title: section.title)
+                    // A group named like the page would only repeat its title.
+                    if section.title != WordMenuItem.basics.title {
+                        WordMenuGroupLabel(title: section.title)
+                    }
                     VStack(spacing: 0) {
                         ForEach(Array(section.rows.enumerated()), id: \.element.id) { index, row in
                             if index > 0 {

@@ -44,7 +44,7 @@ final class SelectionRowTests: XCTestCase {
         XCTAssertEqual(controller.anchorRange, NSRange(location: 0, length: 11))
         // The row replaces the bottom-right buttons while it shows.
         try await spin { Self.element(SelectionRowItem.bold.title, in: window!) != nil }
-        try await spin { Self.element(MenuButton.accessibilityTitle, in: window!) == nil }
+        try await spin { Self.element(MoreButton.accessibilityTitle, in: window!) == nil }
     }
 
     func testRowHiddenForEmptySelection() async throws {
@@ -59,7 +59,7 @@ final class SelectionRowTests: XCTestCase {
         select(NSRange(location: 5, length: 0), in: editor)
         XCTAssertEqual(controller.phase, .hidden)
         XCTAssertNil(controller.anchorRange)
-        try await spin { Self.element(MenuButton.accessibilityTitle, in: window!) != nil }
+        try await spin { Self.element(MoreButton.accessibilityTitle, in: window!) != nil }
     }
 
     func testOrderMatchesSpec() throws {
@@ -391,8 +391,8 @@ final class SelectionRowTests: XCTestCase {
         controller.aiController.refuseWholeDocument()
         XCTAssertEqual(controller.aiState, .message(WholeDocumentAIPolicy.refusalMessage))
         try await spin { Self.element(WholeDocumentAIPolicy.refusalMessage, in: window) != nil }
-        try await spin { Self.element(MenuButton.accessibilityTitle, in: window) != nil }
-        let menu = try XCTUnwrap(Self.element(MenuButton.accessibilityTitle, in: window)).accessibilityFrame
+        try await spin { Self.element(MoreButton.accessibilityTitle, in: window) != nil }
+        let menu = try XCTUnwrap(Self.element(MoreButton.accessibilityTitle, in: window)).accessibilityFrame
         let message = try XCTUnwrap(Self.element(WholeDocumentAIPolicy.refusalMessage, in: window)).accessibilityFrame
         XCTAssertGreaterThan(menu.minY, message.maxY, "the card sits above the buttons; neither covers the other")
         XCTAssertTrue(SelectionController.showsBottomButtons(phase: .hidden, aiState: .message("x")))

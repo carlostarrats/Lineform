@@ -300,10 +300,6 @@ final class SearchTests: XCTestCase {
         XCTAssertTrue(controller.rows.contains { if case .fileContent = $0.kind { true } else { false } })
         controller.replacement = "dog"
 
-        XCTAssertTrue(SearchSection.showsReplaceRow(for: .all))
-        XCTAssertTrue(SearchSection.showsReplaceRow(for: .document))
-        XCTAssertFalse(SearchSection.showsReplaceRow(for: .files), "Files results offer no replace")
-
         controller.setFilter(.files)
         XCTAssertFalse(controller.canReplace)
         XCTAssertFalse(controller.canReplaceAll)
@@ -318,39 +314,6 @@ final class SearchTests: XCTestCase {
         XCTAssertEqual(commands.text, "a dog here", "Replace All changes this document")
         XCTAssertEqual(commands.replacedAll.map(\.ranges), [[NSRange(location: 2, length: 3)]], "only its own ranges")
         XCTAssertEqual(try String(contentsOf: other, encoding: .utf8), "cat in another file", "other files are never written")
-    }
-
-    // MARK: - Review fixes
-
-    /// What the writer typed reaches the controller as it is typed: a tap on Replace or Replace
-    /// All straight after the last keystroke, with no view update between them, uses the new
-    /// query and replacement. "cats" must never replace the "cat" in "category".
-    func testFieldsReachTheControllerBeforeTheNextViewUpdate() async throws {
-        try skipUnlessEnglishInterface()
-        for button in ["Replace All", "Replace"] {
-            let commands = RecordingEditorCommands(text: "category cats")
-            let folder = self.folder!
-            let document = OpenDocument(folderProvider: { folder }, ubiquitousItems: FakeUbiquitousItems(arrivingText: nil))
-            let window = try hostSearch(document: document, commands: commands)
-            try await settle(window) { !Self.textFields(in: window).isEmpty }
-
-            let query = try XCTUnwrap(Self.textFields(in: window).first, "the search field")
-            query.becomeFirstResponder()
-            query.insertText("cat")
-            try await settle(window) { Self.textFields(in: window).count == 2 && Self.element(button, in: window) != nil }
-            let replacement = try XCTUnwrap(Self.textFields(in: window).last, "the replacement field")
-            let tap = try XCTUnwrap(Self.element(button, in: window), button)
-
-            // The last keystrokes, then the tap, in one main-thread turn.
-            replacement.becomeFirstResponder()
-            replacement.insertText("dogs")
-            query.becomeFirstResponder()
-            query.insertText("s")
-            XCTAssertTrue(tap.accessibilityActivate(), "\(button) was tapped")
-
-            XCTAssertEqual(commands.text, "category dogs", "\(button) used the typed query and replacement")
-            window.isHidden = true
-        }
     }
 
     /// A tap on a file result outlives the sheet: the match is selected once the file opens, even
@@ -413,16 +376,6 @@ final class SearchTests: XCTestCase {
         )
     }
 
-    private func hostSearch(document: OpenDocument, commands: RecordingEditorCommands) throws -> UIWindow {
-        let scene = try XCTUnwrap(UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first)
-        let window = UIWindow(windowScene: scene)
-        window.rootViewController = UIHostingController(
-            rootView: SearchSection(document: document, editor: commands, files: makeStore(), onDismiss: {})
-        )
-        window.makeKeyAndVisible()
-        self.window = window
-        return window
-    }
 
     private func settle(_ window: UIWindow, until condition: () -> Bool) async throws {
         let deadline = Date().addingTimeInterval(5)

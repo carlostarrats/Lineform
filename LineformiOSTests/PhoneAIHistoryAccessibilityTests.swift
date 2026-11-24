@@ -120,32 +120,24 @@ final class PhoneAIHistoryAccessibilityTests: XCTestCase {
 
     // MARK: - Connect Your AI
 
-    func testConnectInksAreReadableAndProviderIsAMenuAtAccessibilitySizes() throws {
-        for dark in [false, true] {
-            let ink = ConnectAISheet.ink(usesDarkChrome: dark)
-            for role in [PhoneInk.Role.formSuccess, .formDestructive, .formSecondary, .formFooter] {
-                let ratio = Theme.contrastRatio(ink.uiColor(role), ink.surface(for: role))
-                XCTAssertGreaterThanOrEqual(ratio, 4.5, "\(role) dark=\(dark)")
-            }
-        }
-        XCTAssertFalse(ConnectAISheet.usesProviderMenu(at: .large))
-        XCTAssertFalse(ConnectAISheet.usesProviderMenu(at: .xxxLarge))
-        XCTAssertTrue(ConnectAISheet.usesProviderMenu(at: .accessibility1))
-        XCTAssertEqual(ConnectAISheet.connectAnnouncement(connected: true, error: nil), ConnectAIPresentation.connectedText)
-        XCTAssertEqual(ConnectAISheet.connectAnnouncement(connected: false, error: .missingKey), AIConnectError.missingKey.message)
+    func testConnectAnnouncements() {
+        XCTAssertEqual(ConnectAISection.connectAnnouncement(connected: true, error: nil), ConnectAIPresentation.connectedText)
+        XCTAssertEqual(ConnectAISection.connectAnnouncement(connected: false, error: .missingKey), AIConnectError.missingKey.message)
     }
 
-    func testConnectSheetAtAccessibilitySize() async throws {
+    /// At AX5 the providers are rows that keep the window's width (no segmented control that would
+    /// truncate four names), and the consent button wraps rather than running off the side.
+    func testConnectPageAtAccessibilitySize() async throws {
         let store = try makeStore(connected: false)
-        let form = ConnectAIFormModel(store: store)
-        let host = try await PhoneAccessibilityHost(ConnectAISheet(form: form, usesDarkChrome: false, onDone: {}),
-                                                    contentSize: .accessibilityExtraExtraExtraLarge)
+        let page = ConnectAISection(store: store)
+            .environment(\.wordMenuPalette, WordMenuPalette(isDark: false))
+        let host = try await PhoneAccessibilityHost(page, contentSize: .accessibilityExtraExtraExtraLarge)
         hosts.append(host)
-        // The Form scrolls, so only the top of it is checked: the provider is a menu button that
-        // fits the window, not a segmented control that would truncate four names.
-        let provider = try XCTUnwrap(host.elements().first { $0.identifier == "connectAI.provider" }, "\(host.elements())")
-        XCTAssertTrue(host.windowFrameOnScreen.contains(provider.frame), "\(provider)")
-        XCTAssertTrue(provider.traits.contains(.button), "a menu, not segments: \(provider)")
+        let provider = try XCTUnwrap(host.elements().first { $0.identifier == "connectAI.provider.claude" }, "\(host.elements())")
+        let window = host.windowFrameOnScreen.insetBy(dx: -0.5, dy: -0.5)
+        XCTAssertTrue(provider.frame.minX >= window.minX && provider.frame.maxX <= window.maxX, "keeps the width: \(provider)")
+        XCTAssertTrue(provider.traits.contains(.button))
+        XCTAssertTrue(provider.traits.contains(.selected), "the picked provider reads as selected")
     }
 
     // MARK: - Editor rotors

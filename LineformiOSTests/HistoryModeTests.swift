@@ -30,25 +30,44 @@ final class HistoryModeTests: XCTestCase {
         try? FileManager.default.removeItem(at: directory)
     }
 
-    // MARK: - Menu ▸ History
+    // MARK: - The word menu's History
 
     func testHistorySectionHiddenWithoutHistoryAndShownWithIt() throws {
-        try skipUnlessEnglishInterface()
-        XCTAssertFalse(MenuSection.visible(hasHistory: false).contains(.history))
-        XCTAssertEqual(MenuSection.visible(hasHistory: true), [.files, .outline, .basics, .search, .history, .document, .settings],
-                       "after Search, before Document")
-        XCTAssertFalse(MenuSection.history.isPage, "choosing it enters History mode; it is never a page")
-        XCTAssertTrue(MenuSection.allCases.filter { $0 != .history }.allSatisfy(\.isPage))
-        // pinned-en: the Mac's string.
-        XCTAssertEqual(MenuSection.history.title, "History")
-
         // The controller says when: only once a version is kept.
         let (controller, textView) = makeEditor(text)
         XCTAssertFalse(controller.hasHistory)
-        XCTAssertFalse(MenuSection.visible(hasHistory: controller.hasHistory).contains(.history))
+        XCTAssertFalse(WordMenuItem.visible(hasHistory: controller.hasHistory).contains(.history))
+        XCTAssertEqual(controller.passageSummaries(text: textView.text), [])
         try keepReplacement(in: textView, controller: controller, of: sentence, with: "Alpha BETA gamma delta.")
         XCTAssertTrue(controller.hasHistory)
-        XCTAssertTrue(MenuSection.visible(hasHistory: controller.hasHistory).contains(.history))
+        XCTAssertTrue(WordMenuItem.visible(hasHistory: controller.hasHistory).contains(.history))
+
+        // The page lists the passages that locate, with their versions, and reads only.
+        let summaries = controller.passageSummaries(text: textView.text)
+        XCTAssertEqual(summaries.count, 1)
+        XCTAssertEqual(summaries.first?.excerpt, "Alpha BETA gamma delta.")
+        XCTAssertEqual(summaries.first?.versionCount, 2)
+        XCTAssertFalse(controller.isHistoryModeActive, "listing never enters History mode")
+    }
+
+    /// Tapping a passage on the History page enters History mode on that passage.
+    func testChoosingAPassageEntersHistoryModeOnIt() throws {
+        let (controller, textView) = makeEditor(text)
+        try keepReplacement(in: textView, controller: controller, of: sentence, with: "Alpha BETA gamma delta.")
+        let id = try XCTUnwrap(controller.passageSummaries(text: textView.text).first?.id)
+        var steps: [String] = []
+        let entered = HistoryEntry.enterFromMenu(
+            history: controller,
+            text: { textView.text },
+            passage: id,
+            dismissMenu: { steps.append("dismiss") },
+            endAI: { steps.append("endAI") },
+            switchToWrite: { steps.append("write") }
+        )
+        XCTAssertTrue(entered)
+        XCTAssertEqual(steps, ["dismiss", "endAI", "write"])
+        XCTAssertTrue(controller.isHistoryModeActive)
+        XCTAssertEqual(controller.selectedPassageID, id)
     }
 
     func testChoosingHistoryForcesWriteAndEntersHistoryMode() throws {
@@ -295,9 +314,10 @@ final class HistoryModeTests: XCTestCase {
         XCTAssertTrue(store.load(for: url).isEmpty, "leaving History mode did not write the old history back")
 
         // pinned-en: the Mac's copy, and the row joins the list.
+        // pinned-en: every row, the switches, Check Document Now, then Clear History (the Mac's copy).
         XCTAssertEqual(SettingsSection.rowTitles, [
-            "Automatic Dark Mode", "Show iCloud in Files", "Check spelling while typing", "In-app notifications", "Clear History",
-            "Check for Updates…",
+            "Automatic Dark Mode", "Show iCloud in Files", "Check spelling while typing", "In-app notifications",
+            "Check Document Now", "Clear History",
         ])
         XCTAssertEqual(SettingsSection.clearHistoryButtonTitle, "Clear…")
         XCTAssertEqual(SettingsSection.clearHistoryConfirmTitle, "Clear all history?")

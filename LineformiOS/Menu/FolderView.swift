@@ -68,9 +68,16 @@ struct DocumentCard: View {
         (item.name as NSString).deletingPathExtension
     }
 
-    /// The folder it is in, then when it changed ("2 min. ago").
-    static func detail(for item: OutlineFileTreeItem, now: Date = Date()) -> String {
-        let folder = item.url.deletingLastPathComponent().lastPathComponent
+    /// The folder it is in (the root's name at the top of iCloud or On My iPhone), then when it
+    /// changed ("2 min. ago").
+    @MainActor
+    static func detail(for item: OutlineFileTreeItem, store: FilesStore? = nil, now: Date = Date()) -> String {
+        let parent = item.url.deletingLastPathComponent()
+        var folder = parent.lastPathComponent
+        if let store, let id = store.rootID(containing: item.url), let root = store.root(id),
+           let rootFolder = root.folderURL, FilesStore.key(rootFolder) == FilesStore.key(parent) {
+            folder = FilesSection.heading(for: root).title
+        }
         guard let date = item.modifiedAt else { return folder }
         let when = date.formatted(.relative(presentation: .named, unitsStyle: .abbreviated))
         return String(localized: "\(folder) · \(when)")
@@ -86,7 +93,7 @@ struct DocumentCard: View {
                         .foregroundStyle(palette.color(palette.ink))
                         .lineLimit(2)
                         .padding(.trailing, 28)
-                    Text(verbatim: Self.detail(for: item))
+                    Text(verbatim: Self.detail(for: item, store: store))
                         .font(.caption)
                         .foregroundStyle(palette.color(palette.secondary))
                         .lineLimit(1)
@@ -109,8 +116,9 @@ struct DocumentCard: View {
             }
             .buttonStyle(WordMenuPressStyle())
             .accessibilityLabel(Text(verbatim: Self.title(for: item)))
-            .accessibilityValue(Text(verbatim: [Self.detail(for: item), FilesRow.accessibilityValue(for: item)]
+            .accessibilityValue(Text(verbatim: [Self.detail(for: item, store: store), FilesRow.accessibilityValue(for: item)]
                 .compactMap { $0 }.joined(separator: ", ")))
+            .filesSwipeAccessibilityActions(FilesSwipeAction.actions(for: item, store: store))
             let menuActions = FilesRowAction.menuActions(for: item)
             if !menuActions.isEmpty {
                 Menu {

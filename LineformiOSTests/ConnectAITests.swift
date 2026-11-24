@@ -37,7 +37,7 @@ final class ConnectAITests: XCTestCase {
 
         // On screen, the button carries the whole label, never a shortened one.
         form.select(.claude)
-        let window = try host(ConnectAISheet(form: form, usesDarkChrome: false, onDone: {}))
+        let window = try host(ConnectAISection(store: form.store))
         try await spin { Self.element("Connect — Lineform will send the text you choose to Anthropic", in: window) != nil }
         let button = try XCTUnwrap(Self.element("Connect — Lineform will send the text you choose to Anthropic", in: window))
         XCTAssertTrue(button.accessibilityTraits.contains(.button))
@@ -172,7 +172,7 @@ final class ConnectAITests: XCTestCase {
     /// language.
     func testSettingsNoteNamesCommentAndFindSentences() throws {
         try skipUnlessEnglishInterface()
-        let note = SettingsSection.connectAINote
+        let note = ConnectAISection.note
         XCTAssertEqual(note, "Rewrite and proofread with an AI account of your own. Only the passage you select is sent, or the whole document when you choose Ask AI for it, with any comment you type. For Find, that is each whole sentence your selection touches, or every sentence of the document. Nothing is sent until you choose an action.")
         for language in ["es", "fr", "de", "ja", "zh-Hans"] {
             let bundle = try XCTUnwrap(Bundle.main.path(forResource: language, ofType: "lproj").flatMap(Bundle.init(path:)))
@@ -182,18 +182,23 @@ final class ConnectAITests: XCTestCase {
         }
     }
 
-    /// Menu ▸ Settings ▸ Connect Your AI… opens the sheet.
-    func testSettingsRowOpensConnectYourAI() async throws {
+    /// The word menu's Connect Your AI page: the providers as rows, the consent button, and once
+    /// connected, Ask AI… for the whole document (only with text, never in Read).
+    func testConnectPageShowsProvidersAndAskAIOnceConnected() async throws {
         let (_, store, _) = makeForm()
-        let suite = "ConnectAITests-settings-\(UUID().uuidString)"
-        suites.append(suite)
-        let settings = AppSettings(defaults: UserDefaults(suiteName: suite)!)
-        let window = try host(SettingsSection(settings: settings, aiStore: store))
-        try await spin { Self.element(SettingsSection.connectAITitle, in: window, containing: true) != nil }
-        let row = try XCTUnwrap(Self.element(SettingsSection.connectAITitle, in: window, containing: true))
-        XCTAssertTrue(row.accessibilityActivate())
-        try await spin { window.rootViewController?.presentedViewController != nil }
-        try await spin { Self.element(ConnectAIPresentation.connectButtonTitle(for: .claude, otherHost: nil), in: window.rootViewController?.presentedViewController?.view ?? window) != nil }
+        var asked = 0
+        let window = try host(ConnectAISection(store: store, mode: .write, hasText: true, onAskAI: { asked += 1 }))
+        try await spin { Self.element(ConnectAIPresentation.connectButtonTitle(for: .claude, otherHost: nil), in: window) != nil }
+        for provider in AIProvider.allCases {
+            XCTAssertNotNil(Self.element(provider.displayName, in: window), provider.displayName)
+        }
+        XCTAssertNil(Self.element(ConnectAISection.askAITitle, in: window, containing: true), "nothing connected: no Ask AI")
+
+        XCTAssertNil(store.connect(.claude, key: "sk-ant-test"))
+        try await spin { Self.element(ConnectAISection.askAITitle, in: window, containing: true) != nil }
+        let ask = try XCTUnwrap(Self.element(ConnectAISection.askAITitle, in: window, containing: true))
+        XCTAssertTrue(ask.accessibilityActivate())
+        XCTAssertEqual(asked, 1)
     }
 
     // MARK: - Helpers

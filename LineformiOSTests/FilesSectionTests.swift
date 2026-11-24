@@ -118,19 +118,25 @@ final class FilesSectionTests: XCTestCase {
         let document = OpenDocument(folderProvider: { [folder] in folder! }, ubiquitousItems: FakeUbiquitousItems(arrivingText: nil))
         let scene = try XCTUnwrap(UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first)
         let window = UIWindow(windowScene: scene)
+        // The word menu holds the store visible while Files is on screen (`WordMenu`).
         window.rootViewController = UIHostingController(
-            rootView: FilesSection(store: store, document: document, onDismiss: {})
+            rootView: WordMenu(
+                document: document, editor: RecordingEditorCommands(text: ""), files: store,
+                settings: AppSettings(defaults: defaults), profile: .original, exportCommands: nil, mode: .write,
+                aiStore: nil, initialPage: .files,
+                onClose: {}, onThemes: {}, onReadAloud: {}, onShowHistoryPassage: { _ in }, onAskAI: {}
+            )
         )
         window.makeKeyAndVisible()
         self.window = window
 
         let deadline = Date().addingTimeInterval(5)
-        while Self.find("Hello.md", in: window) == nil, Date() < deadline {
+        while Self.find("Hello", in: window) == nil, Date() < deadline {
             try await Task.sleep(for: .milliseconds(50))
             window.layoutIfNeeded()
         }
         XCTAssertTrue(store.isVisible, "showing Files makes it visible")
-        XCTAssertNotNil(Self.find("Hello.md", in: window))
+        XCTAssertNotNil(Self.find("Hello", in: window), "a document card")
         // pinned-en: the roots' and buttons' English names.
         if interfaceLanguage == "en" {
             XCTAssertNotNil(Self.find("On My iPhone", in: window))
@@ -142,7 +148,7 @@ final class FilesSectionTests: XCTestCase {
         window.isHidden = true
         window.rootViewController = nil
         try await Task.sleep(for: .milliseconds(200))
-        XCTAssertFalse(store.isVisible, "Files going away stops the scans")
+        XCTAssertFalse(store.isVisible, "the menu going away stops the scans")
     }
 
     // MARK: - Helpers

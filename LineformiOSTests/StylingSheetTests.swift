@@ -4,30 +4,20 @@ import UIKit
 import XCTest
 @testable import LineformiOS
 
-/// The "Aa" button and the Styling sheet's presentation: the Menu button's size, the Mac's label,
-/// the detents and corner radius, and a colour scheme taken from the theme, never the system.
+/// The Styling sheet's presentation (opened by the word menu's Themes): the detents and corner
+/// radius, its surface, and a colour scheme taken from the theme, never the system.
 @MainActor
 final class StylingSheetTests: XCTestCase {
-    func testStylingButtonLabelIsReadingExperience() throws {
-        try skipUnlessEnglishInterface()
-        XCTAssertEqual(StylingButton.accessibilityLabel, String(localized: "Reading Experience"))
-        XCTAssertEqual(StylingButton.accessibilityLabel, "Reading Experience")
-        XCTAssertNotNil(UIImage(systemName: StylingButton.symbolName))
-    }
-
-    func testStylingButtonMatchesMenuButtonDiameter() {
-        XCTAssertEqual(StylingButton.diameter, 44)
-        XCTAssertEqual(StylingButton.diameter, MenuButton.diameter)
-    }
-
-    func testStylingButtonSitsInTheBottomRowClearOfTheNoticeAndReadClearance() {
-        // The Aa button shares the Menu button's row (same height), so the notice, placed above a
-        // Menu-button-high row, and the Read view's bottom clearance stay clear of it too.
-        XCTAssertLessThanOrEqual(StylingButton.diameter, MenuButton.diameter)
-        XCTAssertGreaterThanOrEqual(
-            DocumentScreen.bottomChromeClearance,
-            MarkdownEditor.chromeMargin + StylingButton.diameter
-        )
+    /// In dark, the sheet is a step darker than the Quiet card, so Quiet never blends into it;
+    /// a light theme keeps its page colour; the sheet never gets lighter than a darker page.
+    func testDarkSheetIsDarkerThanTheQuietCard() {
+        let quiet = Theme.quiet
+        XCTAssertLessThan(Theme.relativeLuminance(StylingSheet.surface(for: quiet)), Theme.relativeLuminance(quiet.backgroundColor))
+        XCTAssertEqual(StylingSheet.surface(for: .paper), Theme.paper.backgroundColor)
+        XCTAssertEqual(StylingSheet.surface(for: .night), Theme.night.backgroundColor)
+        // Every preset card has a visible edge on the dark sheet.
+        let edge = StylingPresetCard.unselectedStrokeColor(usesDarkChrome: true)
+        XCTAssertGreaterThan(edge.cgColor.alpha, 0.2)
     }
 
     func testSheetDetentsAreMediumAndLarge() {
@@ -205,7 +195,7 @@ final class StylingSheetTests: XCTestCase {
     func testDarkPresetCardsGetTheDarkStroke() {
         XCTAssertEqual(
             StylingPresetCard.unselectedStrokeColor(usesDarkChrome: true),
-            UIColor.white.withAlphaComponent(0.18)
+            UIColor.white.withAlphaComponent(0.26)
         )
         XCTAssertEqual(
             StylingPresetCard.unselectedStrokeColor(usesDarkChrome: false),

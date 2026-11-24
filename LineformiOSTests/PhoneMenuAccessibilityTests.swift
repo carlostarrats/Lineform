@@ -5,7 +5,7 @@ import XCTest
 @testable import LineformCore
 @testable import LineformiOS
 
-/// The Menu button and the Menu sheet for VoiceOver and Dynamic Type: the header's spoken label,
+/// The ⋯ button and the word menu for VoiceOver and Dynamic Type: the status line's spoken label,
 /// the values rows add (hidden and not-downloaded files, heading levels, the AI connection), the
 /// announcements (Copied, Convert), and every section hosted at the default size and at AX5 with
 /// its targets labelled and at least 44 pt, and nothing running off the side of the screen.
@@ -33,34 +33,20 @@ final class PhoneMenuAccessibilityTests: XCTestCase {
 
     // MARK: - Spoken text
 
-    /// The header reads the save state, then the counts in words, through a localized format: no
-    /// ASCII comma hard-coded in code.
-    func testHeaderLabelIsALocalizedFormat() throws {
+    /// The status line reads the name, the save state, then the counts in words, through a
+    /// localized format: no ASCII comma hard-coded in code.
+    func testStatusLabelIsALocalizedFormat() throws {
         let statistics = DocumentStatistics(text: "one two three")
         let counts = DocumentStatusText.countsAccessibilityText(statistics)
-        let label = MenuSheet.headerAccessibilityLabel(saveState: MenuSheet.notSavedYetText, statistics: statistics)
-        XCTAssertTrue(label.hasPrefix(MenuSheet.notSavedYetText), label)
+        let label = WordMenu.statusAccessibilityLabel(title: "Notes", saveState: WordMenu.notSavedYetText, statistics: statistics)
+        XCTAssertTrue(label.hasPrefix("Notes"), label)
+        XCTAssertTrue(label.contains(WordMenu.notSavedYetText), label)
         XCTAssertTrue(label.hasSuffix(counts), label)
         if interfaceLanguage == "en" {
-            XCTAssertEqual(label, "Not saved yet, \(counts)")
+            XCTAssertEqual(label, "Notes, Not saved yet, \(counts)")
         }
         let japanese = try XCTUnwrap(Bundle.main.path(forResource: "ja", ofType: "lproj").flatMap(Bundle.init(path:)))
-        XCTAssertEqual(japanese.localizedString(forKey: "%@, %@", value: nil, table: nil), "%@、%@", "Japanese joins with its own comma")
-    }
-
-    /// Segments keep their own small height at AX sizes; the filter becomes a menu there.
-    func testSearchFilterIsAMenuAtAccessibilitySizes() {
-        XCTAssertFalse(SearchSection.usesFilterMenu(for: .large))
-        XCTAssertFalse(SearchSection.usesFilterMenu(for: .xxxLarge))
-        XCTAssertTrue(SearchSection.usesFilterMenu(for: .accessibility1))
-        XCTAssertTrue(SearchSection.usesFilterMenu(for: .accessibility5))
-    }
-
-    func testDetentsOpenFullHeightAtAccessibilitySizes() {
-        XCTAssertEqual(MenuSheet.detents(for: .large), [.medium, .large])
-        XCTAssertEqual(MenuSheet.detents(for: .xxxLarge), [.medium, .large])
-        XCTAssertEqual(MenuSheet.detents(for: .accessibility1), [.large])
-        XCTAssertEqual(MenuSheet.detents(for: .accessibility5), [.large])
+        XCTAssertEqual(japanese.localizedString(forKey: "%@, %@, %@", value: nil, table: nil), "%@、%@、%@", "Japanese joins with its own comma")
     }
 
     func testFilesRowSaysHiddenAndNotDownloaded() throws {
@@ -97,6 +83,10 @@ final class PhoneMenuAccessibilityTests: XCTestCase {
         }
         XCTAssertEqual(OutlineSection.lineLimit(for: .large), 2)
         XCTAssertNil(OutlineSection.lineLimit(for: .accessibility3))
+        // The Mac sidebar's level icons.
+        XCTAssertEqual(OutlineSection.iconName(forHeadingLevel: 1), "textformat.size")
+        XCTAssertEqual(OutlineSection.iconName(forHeadingLevel: 2), "list.bullet.indent")
+        XCTAssertEqual(OutlineSection.iconName(forHeadingLevel: 4), "text.alignleft")
     }
 
     /// "Copied" is announced: a value change alone is not re-read by VoiceOver.
@@ -116,56 +106,47 @@ final class PhoneMenuAccessibilityTests: XCTestCase {
         XCTAssertFalse(BasicsSection.copiedText.isEmpty)
     }
 
-    func testConnectAIValueAndConvertAnnouncements() throws {
-        XCTAssertEqual(SettingsSection.connectAIAccessibilityValue(providerName: "Claude"), "Claude")
-        XCTAssertEqual(SettingsSection.connectAIAccessibilityValue(providerName: nil), SettingsSection.notConnectedText)
-        let plain = DocumentSection.conversionAnnouncement(for: .plainText)
-        let markdown = DocumentSection.conversionAnnouncement(for: .markdown)
+    func testConvertAnnouncementsAndLeavingHints() throws {
+        let plain = ExportPrintSection.conversionAnnouncement(for: .plainText)
+        let markdown = ExportPrintSection.conversionAnnouncement(for: .markdown)
         XCTAssertNotEqual(plain, markdown)
-        XCTAssertFalse(MenuSheet.historyHint.isEmpty)
+        XCTAssertFalse(WordMenuItem.themes.accessibilityHint?.isEmpty ?? true)
+        XCTAssertFalse(WordMenuItem.readAloud.accessibilityHint?.isEmpty ?? true)
         if interfaceLanguage == "en" {
-            XCTAssertEqual(SettingsSection.notConnectedText, "Not connected")
             XCTAssertEqual(plain, "Converted to plain text")
             XCTAssertEqual(markdown, "Converted to Markdown")
-            XCTAssertEqual(MenuSheet.historyHint, "Closes the menu and opens History.")
+            XCTAssertEqual(WordMenuItem.themes.accessibilityHint, "Closes the menu and opens the reading themes.")
         }
     }
 
     // MARK: - Hosted
 
-    func testMenuButtonIsLabelledAndLargeEnough() async throws {
+    func testMoreButtonIsLabelledAndLargeEnough() async throws {
         for size in Self.sizes {
-            let host = try await host(MenuButton(profile: .original, action: {}).padding(40), contentSize: size)
+            let host = try await host(MoreButton(profile: .original, action: {}).padding(40), contentSize: size)
             let elements = host.elements()
-            let button = try XCTUnwrap(elements.first { $0.label == MenuButton.accessibilityTitle }, "\(elements)")
+            let button = try XCTUnwrap(elements.first { $0.label == MoreButton.accessibilityTitle }, "\(elements)")
             XCTAssertTrue(button.isInteractive)
             host.assertInteractiveElementsAreLabelledAndLargeEnough()
             host.tearDown()
         }
     }
 
-    /// The header stacks at accessibility sizes (save state, then Done under it) and stays on
-    /// one line at the default size; the section buttons and Done are 44 pt targets.
-    func testSheetHeaderAndSectionBar() async throws {
+    /// The word list: every word a labelled 44 pt button, the status line one element, the
+    /// corner button labelled Close menu, nothing off the side at AX5.
+    func testWordList() async throws {
         for size in Self.sizes {
             let document = try await makeDocument()
-            let host = try await host(
-                MenuSheet(document: document, editor: RecordingEditorCommands(text: ""), files: makeStore(), onDismiss: {}),
-                contentSize: size
-            )
+            let host = try await host(wordMenu(document: document), contentSize: size, tall: true)
             let elements = host.elements()
-            let done = try XCTUnwrap(elements.first { $0.label == String(localized: "Done") }, "\(elements)")
-            let status = try XCTUnwrap(elements.first { $0.label?.hasPrefix(MenuSheet.notSavedYetText) == true }, "\(elements)")
-            if size.isAccessibilityCategory {
-                XCTAssertGreaterThan(done.frame.midY, status.frame.maxY, "Done goes under the save state at \(size.rawValue)")
-            } else {
-                XCTAssertLessThan(done.frame.minY, status.frame.maxY, "Done shares the save state's line at \(size.rawValue)")
-                XCTAssertGreaterThan(done.frame.minX, status.frame.maxX, "Done sits beside the save state")
+            for item in WordMenuItem.visible(hasHistory: false) {
+                let word = try XCTUnwrap(elements.first { $0.label == item.title }, "\(item) in \(elements)")
+                XCTAssertTrue(word.isInteractive, item.title)
             }
-            let files = try XCTUnwrap(elements.first { $0.label == MenuSection.files.title }, "\(elements)")
-            XCTAssertTrue(files.traits.contains(.selected), "the open section reads as selected")
-            host.assertInteractiveElementsAreLabelledAndLargeEnough(allowlist: Self.systemControls)
-            assertNothingRunsOffTheSide(host, scrollsSideways: Set(MenuSection.allCases.map(\.title)))
+            XCTAssertNotNil(elements.first { $0.label == WordMenuCornerButton.Glyph.close.accessibilityLabel }, "\(elements)")
+            XCTAssertNotNil(elements.first { $0.identifier == "wordMenu.status" }, "\(elements)")
+            host.assertInteractiveElementsAreLabelledAndLargeEnough()
+            assertNothingRunsOffTheSide(host)
             host.tearDown()
         }
     }
@@ -173,19 +154,24 @@ final class PhoneMenuAccessibilityTests: XCTestCase {
     func testFilesSection() async throws {
         try Data("hello".utf8).write(to: folder.appendingPathComponent("A rather long file name for a phone.md"))
         try Data("hidden".utf8).write(to: folder.appendingPathComponent(".Secret.md"))
+        try FileManager.default.createDirectory(at: folder.appendingPathComponent("Journal"), withIntermediateDirectories: true)
         let store = makeStore()
         await store.setShowsHidden(true)
+        store.setVisible(true)
+        await store.scanIfVisible()
         for size in Self.sizes {
             let document = try await makeDocument()
-            let host = try await host(FilesSection(store: store, document: document, onDismiss: {}), contentSize: size, tall: true)
-            try await waitFor(host) { $0.contains { $0.label?.contains("Secret.md") == true } }
+            let host = try await host(page(FilesSection(store: store, document: document, onDismiss: {})), contentSize: size, tall: true)
+            try await waitFor(host) { $0.contains { $0.label?.contains("Secret") == true } }
             let elements = host.elements()
-            let hidden = try XCTUnwrap(elements.first { $0.label?.contains("Secret.md") == true }, "\(elements)")
-            let expected = FilesRow.accessibilityValue(for: OutlineFileTreeItem(
+            let hidden = try XCTUnwrap(elements.first { $0.label == ".Secret" }, "\(elements)")
+            XCTAssertTrue((hidden.object.accessibilityValue ?? "").contains(FilesRow.accessibilityValue(for: OutlineFileTreeItem(
                 url: folder.appendingPathComponent(".Secret.md"), name: ".Secret.md", isDirectory: false, children: [], isHidden: true
-            ))
-            XCTAssertEqual(hidden.object.accessibilityValue, expected)
-            host.assertInteractiveElementsAreLabelledAndLargeEnough(allowlist: Self.systemControls)
+            )) ?? "-"))
+            // Swipe actions are custom actions too.
+            XCTAssertTrue((hidden.object.accessibilityCustomActions ?? []).contains { $0.name == FilesRowAction.delete.title })
+            XCTAssertNotNil(elements.first { $0.label?.contains("Journal") == true }, "folders are rows")
+            host.assertInteractiveElementsAreLabelledAndLargeEnough()
             assertNothingRunsOffTheSide(host)
             host.tearDown()
         }
@@ -194,7 +180,7 @@ final class PhoneMenuAccessibilityTests: XCTestCase {
     func testOutlineSection() async throws {
         for size in Self.sizes {
             let host = try await host(
-                OutlineSection(text: "# Alpha\n## Beta\n### Gamma", editor: RecordingEditorCommands(text: ""), onDismiss: {}),
+                page(OutlineSection(text: "# Alpha\n## Beta\n### Gamma", editor: RecordingEditorCommands(text: ""), onDismiss: {})),
                 contentSize: size
             )
             try await waitFor(host) { $0.contains { $0.label == "Gamma" } }
@@ -208,57 +194,25 @@ final class PhoneMenuAccessibilityTests: XCTestCase {
 
     func testBasicsSection() async throws {
         for size in Self.sizes {
-            let host = try await host(BasicsSection(), contentSize: size)
+            let host = try await host(page(BasicsSection()), contentSize: size)
             let elements = host.elements()
-            let firstTitle = try XCTUnwrap(BasicsSection.sections.first?.title)
-            let header = try XCTUnwrap(elements.first { $0.label == firstTitle }, "\(elements)")
-            XCTAssertTrue(header.traits.contains(.header), "section titles are headers")
+            let header = try XCTUnwrap(elements.first { $0.label == WordMenuItem.basics.title }, "\(elements)")
+            XCTAssertTrue(header.traits.contains(.header), "the page title is a header")
             host.assertInteractiveElementsAreLabelledAndLargeEnough()
             assertNothingRunsOffTheSide(host)
             host.tearDown()
         }
     }
 
-    /// At AX5 the replace row goes vertical: the replacement field keeps the line's width.
-    func testSearchSectionReplaceRow() async throws {
-        for size in Self.sizes {
-            let document = try await makeDocument()
-            let commands = RecordingEditorCommands(text: "category cats")
-            let host = try await host(
-                SearchSection(document: document, editor: commands, files: makeStore(), onDismiss: {}),
-                contentSize: size
-            )
-            try await waitFor(host) { _ in !Self.textFields(in: host.window).isEmpty }
-            let query = try XCTUnwrap(Self.textFields(in: host.window).first)
-            query.becomeFirstResponder()
-            query.insertText("cat")
-            let replacementLabel = String(localized: "Replacement text")
-            try await waitFor(host) { $0.contains { $0.label == replacementLabel } }
-            query.resignFirstResponder()
-            await host.settle()
-            let elements = host.elements()
-            let field = try XCTUnwrap(elements.first { $0.label == replacementLabel }, "\(elements)")
-            let replaceAll = try XCTUnwrap(elements.first { $0.label == String(localized: "Replace All") }, "\(elements)")
-            if size.isAccessibilityCategory {
-                XCTAssertGreaterThan(field.frame.width, host.window.bounds.width * 0.6, "the field keeps the line at \(size.rawValue)")
-                XCTAssertGreaterThan(replaceAll.frame.midY, field.frame.maxY, "the buttons go under the field")
-            } else {
-                XCTAssertLessThan(replaceAll.frame.minY, field.frame.maxY, "one line at the default size")
-            }
-            host.assertInteractiveElementsAreLabelledAndLargeEnough(allowlist: Self.systemControls)
-            assertNothingRunsOffTheSide(host)
-            host.tearDown()
-        }
-    }
-
-    func testDocumentSection() async throws {
+    func testExportPrintSection() async throws {
         for size in Self.sizes {
             let document = try await makeDocument()
             let host = try await host(
-                DocumentSection(document: document, editor: RecordingEditorCommands(text: ""), files: makeStore(), onDismiss: {}),
-                contentSize: size
+                page(ExportPrintSection(document: document, exportCommands: ExportCommands(document: document, profile: { .original }), onDismiss: {})),
+                contentSize: size, tall: true
             )
-            host.assertInteractiveElementsAreLabelledAndLargeEnough(allowlist: Self.systemControls)
+            XCTAssertNotNil(host.elements().first { $0.label?.contains(ExportPrintSection.saveAsTitle) == true })
+            host.assertInteractiveElementsAreLabelledAndLargeEnough()
             assertNothingRunsOffTheSide(host)
             host.tearDown()
         }
@@ -266,18 +220,34 @@ final class PhoneMenuAccessibilityTests: XCTestCase {
 
     func testSettingsSection() async throws {
         let settings = AppSettings(defaults: defaults)
-        let aiStore = AIConnectionStore(defaults: defaults, keychain: InMemoryAIKeychain())
         for size in Self.sizes {
-            let host = try await host(SettingsSection(settings: settings, aiStore: aiStore), contentSize: size, tall: true)
+            let host = try await host(
+                page(SettingsSection(settings: settings, files: makeStore(), editor: RecordingEditorCommands(text: ""))),
+                contentSize: size, tall: true
+            )
             let elements = host.elements()
             let darkMode = try XCTUnwrap(elements.first { $0.label == SettingsSection.rows[0].title }, "\(elements)")
             XCTAssertEqual(darkMode.object.accessibilityHint, SettingsSection.rows[0].note, "the note is the hint, not the label")
-            let connect = try XCTUnwrap(elements.first { $0.identifier == "settings.connectAI" }, "\(elements)")
-            XCTAssertEqual(connect.label, SettingsSection.connectAITitle)
-            XCTAssertEqual(connect.object.accessibilityValue, SettingsSection.notConnectedText)
-            host.assertInteractiveElementsAreLabelledAndLargeEnough(allowlist: Self.systemControls)
+            XCTAssertNotNil(elements.first { $0.identifier == "settings.checkDocument" }, "Check Document Now lives here")
+            host.assertInteractiveElementsAreLabelledAndLargeEnough()
             assertNothingRunsOffTheSide(host)
             host.tearDown()
+        }
+    }
+
+    func testAboutAndConnectSections() async throws {
+        let aiStore = AIConnectionStore(defaults: defaults, keychain: InMemoryAIKeychain())
+        for size in Self.sizes {
+            let about = try await host(page(AboutSection(updateCommand: PhoneUpdateCommand.shared)), contentSize: size)
+            XCTAssertNotNil(about.elements().first { $0.label == AboutSection.versionText() })
+            about.assertInteractiveElementsAreLabelledAndLargeEnough()
+            assertNothingRunsOffTheSide(about)
+            about.tearDown()
+
+            let connect = try await host(page(ConnectAISection(store: aiStore)), contentSize: size, tall: true)
+            connect.assertInteractiveElementsAreLabelledAndLargeEnough()
+            assertNothingRunsOffTheSide(connect)
+            connect.tearDown()
         }
     }
 
@@ -285,14 +255,28 @@ final class PhoneMenuAccessibilityTests: XCTestCase {
 
     private static let sizes: [UIContentSizeCategory] = [.large, .accessibilityExtraExtraExtraLarge]
 
-    /// System controls drawn at their own size, which no padding of ours can grow without
-    /// changing how they look: the segmented filter's segments and a bordered button
-    /// (Clear…), both about 32 pt tall at the default size.
-    private static var systemControls: Set<String> {
-        Set(SearchFilter.allCases.map(\.title) + [SettingsSection.clearHistoryTitle])
+    /// A page as the menu draws it: the palette in the environment, on the wash.
+    private func page<Content: View>(_ content: Content) -> some View {
+        content
+            .environment(\.wordMenuPalette, WordMenuPalette(isDark: false))
+            .background(WordMenuPalette(isDark: false).wash)
     }
 
-    /// `tall`: a window several screens high, so a lazy list lays out every row at AX5 (the
+    private func wordMenu(document: OpenDocument) -> some View {
+        WordMenu(
+            document: document,
+            editor: RecordingEditorCommands(text: ""),
+            files: makeStore(),
+            settings: AppSettings(defaults: defaults),
+            profile: .original,
+            exportCommands: nil,
+            mode: .write,
+            aiStore: AIConnectionStore(defaults: defaults, keychain: InMemoryAIKeychain()),
+            onClose: {}, onThemes: {}, onReadAloud: {}, onShowHistoryPassage: { _ in }, onAskAI: {}
+        )
+    }
+
+    /// `tall`: a window several screens high, so a lazy stack lays out every row at AX5 (the
     /// check is about width, not about what one screen shows).
     private func host<Content: View>(
         _ view: Content, contentSize: UIContentSizeCategory, tall: Bool = false

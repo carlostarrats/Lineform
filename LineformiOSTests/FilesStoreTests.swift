@@ -320,14 +320,14 @@ final class FilesStoreTests: XCTestCase {
         let resolved = makeStore(device: device, iCloud: { iCloud }, log: FilesScanLog())
         resolved.setVisible(true)
         await resolved.scanIfVisible()
-        XCTAssertEqual(resolved.roots.map(\.id), [.icloud, .workspace])
+        XCTAssertEqual(resolved.roots.map(\.id), [.icloud, .device, .workspace], "On My iPhone shows beside iCloud")
         XCTAssertEqual(resolved.root(.icloud)?.items.map(\.name), ["Cloud.md"])
 
         defaults.set(false, forKey: LineformSettingKeys.showICloudInSidebar)
         let switchedOff = makeStore(device: device, iCloud: { iCloud }, log: FilesScanLog())
         switchedOff.setVisible(true)
         await switchedOff.scanIfVisible()
-        XCTAssertEqual(switchedOff.roots.map(\.id), [.workspace], "the setting hides iCloud")
+        XCTAssertEqual(switchedOff.roots.map(\.id), [.device, .workspace], "the setting hides iCloud")
     }
 
     // MARK: - Watching
@@ -485,7 +485,7 @@ final class FilesStoreTests: XCTestCase {
         let store = makeStore(device: device, iCloud: { iCloud }, log: FilesScanLog())
         store.setVisible(true)
         await store.scanIfVisible()
-        XCTAssertEqual(store.roots.map(\.id), [.icloud, .workspace])
+        XCTAssertEqual(store.roots.map(\.id), [.icloud, .device, .workspace])
 
         defaults.set(false, forKey: LineformSettingKeys.showICloudInSidebar)
         try await waitUntil { store.root(.icloud) == nil }
@@ -542,6 +542,106 @@ final class FilesStoreTests: XCTestCase {
         await store.setShowsHidden(true)
         XCTAssertEqual(store.root(.device)?.items.map(\.name), ["Both.md", "Kept.md"], "no .Trash even with hidden folders shown")
         XCTAssertEqual(store.root(.device)?.items.first?.isICloudPlaceholder, false, "the real file wins")
+    }
+
+    // MARK: - Moving between iCloud and On My iPhone, New Folder, New Document in a folder
+
+    /// A document moves between the roots with a coordinated move that never replaces (a taken
+    /// name gets a number), and the open document follows it so typing goes on into the moved
+    /// file. iCloud is offered only while it resolves; a folder moves too.
+    func testMoveBetweenICloudAndOnMyIPhone() async throws {
+        let device = try makeFolder("Device")
+        let iCloud = try makeFolder("iCloud/Documents")
+        try write("# Notes\nhere", to: device.appendingPathComponent("Notes.md"))
+        try write("taken", to: iCloud.appendingPathComponent("Notes.md"))
+        try write("chapter", to: device.appendingPathComponent("Book/Chapter.md"))
+        let document = OpenDocument(folderProvider: { device }, ubiquitousItems: FakeUbiquitousItems(arrivingText: nil))
+        await document.prepare()
+        try await document.open(device.appendingPathComponent("Notes.md"))
+
+        let store = makeStore(device: device, iCloud: { iCloud }, log: FilesScanLog(), operations: LiveFilesFileOperations())
+        store.openDocument = document
+        store.setVisible(true)
+        await store.scanIfVisible()
+        let notes = try XCTUnwrap(store.root(.device)?.items.first { $0.name == "Notes.md" })
+        XCTAssertEqual(store.moveTargets(for: notes), [.icloud])
+
+        let moved = try await store.move(notes, to: .icloud)
+        XCTAssertEqual(moved.lastPathComponent, "Notes 2.md", "the taken name is never replaced")
+        XCTAssertEqual(try String(contentsOf: iCloud.appendingPathComponent("Notes.md"), encoding: .utf8), "taken")
+        XCTAssertEqual(document.url?.standardizedFileURL.resolvingSymlinksInPath(), moved.standardizedFileURL.resolvingSymlinksInPath(),
+                       "the open document follows the move")
+        document.edit("# Notes\nhere, and more")
+        await document.flush()
+        XCTAssertEqual(try String(contentsOf: moved, encoding: .utf8), "# Notes\nhere, and more", "typing goes into the moved file")
+
+        let book = try XCTUnwrap(store.root(.device)?.items.first { $0.name == "Book" })
+        XCTAssertEqual(store.moveTargets(for: book), [.icloud], "folders move too")
+        try await store.move(book, to: .icloud)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: iCloud.appendingPathComponent("Book/Chapter.md").path))
+
+        let back = try XCTUnwrap(store.root(.icloud)?.items.first { $0.name == "Book" })
+        XCTAssertEqual(store.moveTargets(for: back), [.device])
+
+        // Without iCloud there is nowhere to move a device document.
+        try write("Left", to: device.appendingPathComponent("Left.md"))
+        let alone = makeStore(device: device, iCloud: { nil }, log: FilesScanLog())
+        alone.setVisible(true)
+        await alone.scanIfVisible()
+        let item = try XCTUnwrap(alone.root(.device)?.items.first)
+        XCTAssertEqual(alone.moveTargets(for: item), [])
+    }
+
+    func testFreeNameNumbersATakenName() throws {
+        let target = try makeFolder("Target")
+        try write("a", to: target.appendingPathComponent("Notes.md"))
+        try write("b", to: target.appendingPathComponent("notes 2.md"))
+        XCTAssertEqual(FilesStore.freeName(for: "Notes.md", isDirectory: false, in: target), "Notes 3.md", "case-blind, as the volume is")
+        XCTAssertEqual(FilesStore.freeName(for: "Fresh.md", isDirectory: false, in: target), "Fresh.md")
+        try makeFolder("Target/Book")
+        XCTAssertEqual(FilesStore.freeName(for: "Book", isDirectory: true, in: target), "Book 2")
+    }
+
+    /// New Folder: the shared name rule, a create that never replaces, and the folder listed.
+    func testNewFolderCreatesWithoutReplacing() async throws {
+        let device = try makeFolder("Device")
+        let store = makeStore(device: device, log: FilesScanLog())
+        store.setVisible(true)
+        await store.scanIfVisible()
+
+        let created = try await store.createFolder(named: "  Drafts ", in: device)
+        XCTAssertEqual(created.lastPathComponent, "Drafts")
+        XCTAssertEqual(store.root(.device)?.items.map(\.name), ["Drafts"], "the new folder shows")
+
+        do {
+            try await store.createFolder(named: "Drafts", in: device)
+            XCTFail("an existing folder was created over")
+        } catch {
+            XCTAssertNotNil(store.notice)
+        }
+        for name in ["", "a/b", "x:y", ".", ".."] {
+            XCTAssertNil(FilesStore.newFolderDestination(named: name, in: device), "“\(name)”")
+        }
+    }
+
+    /// New Document inside a folder saves there, named from its first line; the next New
+    /// Document goes back to the save folder.
+    func testNewDocumentInAFolderSavesThere() async throws {
+        let device = try makeFolder("Device")
+        let journal = try makeFolder("Device/Journal")
+        let document = OpenDocument(folderProvider: { device }, ubiquitousItems: FakeUbiquitousItems(arrivingText: nil))
+        await document.prepare()
+        let madeInJournal = await document.newDocument(in: journal)
+        XCTAssertTrue(madeInJournal)
+        document.edit("Summer notes")
+        await document.flush()
+        XCTAssertEqual(document.url?.standardizedFileURL, journal.appendingPathComponent("Summer notes.md").standardizedFileURL)
+
+        let madeAgain = await document.newDocument()
+        XCTAssertTrue(madeAgain)
+        document.edit("Elsewhere")
+        await document.flush()
+        XCTAssertEqual(document.url?.deletingLastPathComponent().standardizedFileURL, device.standardizedFileURL)
     }
 
     // MARK: - Helpers

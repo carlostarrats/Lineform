@@ -75,10 +75,12 @@ struct FilesSearchResults: View {
                     .padding(.horizontal, 4)
             }
             WordMenuCardGrid(items: cards) { card in
+                let actions = item(for: card).map { FilesSwipeAction.actions(for: $0, store: store) } ?? []
                 SearchResultCardView(card: card) {
                     controller.activate(card.row, dismiss: onDismiss)
                 }
-                .filesSwipeActions(item(for: card).map { FilesSwipeAction.actions(for: $0, store: store) } ?? [])
+                .filesSwipeAccessibilityActions(actions)
+                .filesSwipeActions(actions)
             }
         }
     }

@@ -330,12 +330,16 @@ struct FilesSection: View {
             WordMenuGroupLabel(title: heading.title, systemImage: heading.systemImage)
             Spacer(minLength: 8)
             if root.id == .workspace {
-                Button(root.state == .unassigned ? Self.chooseTitle : Self.changeTitle) {
+                Button {
                     isChoosingWorkspace = true
+                } label: {
+                    Text(root.state == .unassigned ? Self.chooseTitle : Self.changeTitle)
+                        .font(.subheadline)
+                        .foregroundStyle(palette.color(palette.blueText))
+                        .frame(minWidth: WordMenuMetrics.minimumTarget, minHeight: WordMenuMetrics.minimumTarget, alignment: .trailing)
+                        .contentShape(Rectangle())
                 }
-                .font(.subheadline)
-                .foregroundStyle(palette.color(palette.blueMark))
-                .frame(minHeight: WordMenuMetrics.minimumTarget)
+                .buttonStyle(.plain)
                 .padding(.top, 6)
             } else if let folder = root.folderURL, root.state == .available {
                 // New Document and New Folder at the top of iCloud or On My iPhone: a document
@@ -449,6 +453,7 @@ struct FilesFolderRows: View {
                     }
                     .buttonStyle(WordMenuPressStyle())
                     .accessibilityValue(FilesRow.accessibilityValue(for: folder).map { Text($0) } ?? Text(verbatim: ""))
+                    .filesSwipeAccessibilityActions(FilesSwipeAction.actions(for: folder, store: store))
                     .filesSwipeActions(FilesSwipeAction.actions(for: folder, store: store))
                     .contextMenu {
                         ForEach(FilesRowAction.menuActions(for: folder), id: \.self) { action in
@@ -512,9 +517,19 @@ struct FilesSwipeAction: Identifiable {
 }
 
 extension View {
-    /// Swipe left to reveal `actions` at the trailing edge; each is a VoiceOver custom action too.
+    /// Swipe left to reveal `actions` at the trailing edge. The item's own accessibility element
+    /// carries them as custom actions (`filesSwipeAccessibilityActions`).
     func filesSwipeActions(_ actions: [FilesSwipeAction]) -> some View {
         modifier(FilesSwipeActions(actions: actions))
+    }
+
+    /// The swipe actions as VoiceOver custom actions, on the element VoiceOver visits.
+    func filesSwipeAccessibilityActions(_ actions: [FilesSwipeAction]) -> some View {
+        accessibilityActions {
+            ForEach(actions) { action in
+                Button(action.title) { action.perform() }
+            }
+        }
     }
 }
 
@@ -578,34 +593,65 @@ private struct FilesSwipeActions: ViewModifier {
                     }
             }
             .clipped()
-            .simultaneousGesture(
-                DragGesture(minimumDistance: 18)
-                    .onChanged { value in
-                        guard abs(value.translation.width) > abs(value.translation.height) * 1.5 else { return }
+            // A UIKit pan that begins only for a sideways movement, so the page still scrolls
+            // when a vertical drag starts on a card.
+            .gesture(
+                HorizontalPanGesture(
+                    onChange: { translation in
                         let start = dragStart ?? offset
                         dragStart = start
-                        offset = min(0, max(-revealWidth - 24, start + value.translation.width))
-                    }
-                    .onEnded { value in
-                        guard dragStart != nil else { return }
+                        offset = min(0, max(-revealWidth - 24, start + translation))
+                    },
+                    onEnd: { _, velocity in
                         dragStart = nil
-                        let opens = offset < -revealWidth / 2 || value.predictedEndTranslation.width < -revealWidth
+                        let opens = offset < -revealWidth / 2 || velocity < -600
                         withAnimation(EditorMotionPolicy.animation(.easeOut(duration: 0.18), reduceMotion: reduceMotion)) {
                             offset = opens ? -revealWidth : 0
                         }
                     }
+                )
             )
-            .accessibilityActions {
-                ForEach(actions) { action in
-                    Button(action.title) { action.perform() }
-                }
-            }
         }
     }
 
     private func close() {
         withAnimation(EditorMotionPolicy.animation(.easeOut(duration: 0.18), reduceMotion: reduceMotion)) {
             offset = 0
+        }
+    }
+}
+
+/// A pan that begins only when the finger moves sideways (more across than down), so it never
+/// takes a scroll from the page around it.
+private struct HorizontalPanGesture: UIGestureRecognizerRepresentable {
+    var onChange: (CGFloat) -> Void
+    var onEnd: (_ translation: CGFloat, _ velocity: CGFloat) -> Void
+
+    func makeCoordinator(converter: CoordinateSpaceConverter) -> Coordinator { Coordinator() }
+
+    func makeUIGestureRecognizer(context: Context) -> UIPanGestureRecognizer {
+        let recognizer = UIPanGestureRecognizer()
+        recognizer.delegate = context.coordinator
+        return recognizer
+    }
+
+    func handleUIGestureRecognizerAction(_ recognizer: UIPanGestureRecognizer, context: Context) {
+        let translation = recognizer.translation(in: recognizer.view).x
+        switch recognizer.state {
+        case .changed:
+            onChange(translation)
+        case .ended, .cancelled, .failed:
+            onEnd(translation, recognizer.velocity(in: recognizer.view).x)
+        default:
+            break
+        }
+    }
+
+    final class Coordinator: NSObject, UIGestureRecognizerDelegate {
+        func gestureRecognizerShouldBegin(_ recognizer: UIGestureRecognizer) -> Bool {
+            guard let pan = recognizer as? UIPanGestureRecognizer else { return false }
+            let velocity = pan.velocity(in: pan.view)
+            return abs(velocity.x) > abs(velocity.y) * 1.5
         }
     }
 }

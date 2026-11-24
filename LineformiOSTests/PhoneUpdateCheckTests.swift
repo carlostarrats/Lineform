@@ -3,7 +3,7 @@ import UIKit
 import XCTest
 @testable import LineformiOS
 
-/// Menu ▸ Settings ▸ Check for Updates…: the Mac's `AppUpdateCommand` behaviour on iPhone. The
+/// The word menu ▸ About Lineform ▸ Check for Updates…: the Mac's `AppUpdateCommand` behaviour on iPhone. The
 /// checker and the alert are injected, so no test touches the network or presents an alert; the
 /// one test of the real checker runs over `StubURLProtocol`.
 @MainActor
@@ -149,14 +149,14 @@ final class PhoneUpdateCheckTests: XCTestCase {
         }
     }
 
-    /// The Settings row: after Clear History, as on the Mac it sits apart from the switches.
-    func testSettingsOffersCheckForUpdates() {
+    /// The About Lineform row, first, as the Mac keeps it under About.
+    func testAboutOffersCheckForUpdates() {
         if interfaceLanguage == "en" {
-            XCTAssertEqual(SettingsSection.checkForUpdatesTitle, "Check for Updates…") // pinned-en
+            XCTAssertEqual(AboutSection.checkForUpdatesTitle, "Check for Updates…") // pinned-en
         }
-        XCTAssertEqual(SettingsSection.rowTitles.last, SettingsSection.checkForUpdatesTitle)
-        XCTAssertFalse(SettingsSection.checkForUpdatesNote.isEmpty)
-        XCTAssertFalse(SettingsSection.checkForUpdatesNote.localizedCaseInsensitiveContains("mac"))
+        XCTAssertEqual(AboutSection.rowTitles.first, AboutSection.checkForUpdatesTitle)
+        XCTAssertFalse(AboutSection.checkForUpdatesNote.isEmpty)
+        XCTAssertFalse(AboutSection.checkForUpdatesNote.localizedCaseInsensitiveContains("mac"))
     }
 
     // MARK: The result always reaches the writer, and the row never sticks

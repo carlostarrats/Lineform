@@ -26,6 +26,8 @@ struct WordMenu: View {
     var mode: EditorDisplayMode
     var aiStore: AIConnectionStore?
     var updateCommand: PhoneUpdateCommand = .shared
+    /// A page to open on instead of the word list (tests); nil in the app.
+    var initialPage: WordMenuPage? = nil
     var onClose: () -> Void
     /// Themes: the screen closes the menu and opens the Styling sheet.
     var onThemes: () -> Void
@@ -135,6 +137,9 @@ struct WordMenu: View {
             if showsFiles { await files.scanIfVisible() }
         }
         .onDisappear { files.setVisible(false, for: .files) }
+        .onAppear {
+            if let initialPage, navigation.isOnWordList { navigation.push(initialPage) }
+        }
     }
 
     private var showsFiles: Bool { navigation.top?.showsFiles == true }

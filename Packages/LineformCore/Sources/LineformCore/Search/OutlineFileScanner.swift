@@ -20,6 +20,9 @@ import Foundation
 /// `alsoExcluding` adds directory names dropped at every level whatever Show Hidden Folders says
 /// (the iPhone passes `.Trash`, where its Files section moves deleted documents).
 ///
+/// `keepsEmptyFolders` (the iPhone, where New Folder makes a folder before it holds anything)
+/// lists a folder with no supported document too. The Mac leaves it off.
+///
 /// It never writes and never coordinates. Callers decide when and on which thread to run it.
 public enum OutlineFileScanner {
     public static let maximumTreeDepth = 4
@@ -34,6 +37,7 @@ public enum OutlineFileScanner {
         sortOrder: OutlineFileSortOrder = .name,
         includesICloudPlaceholders: Bool = false,
         alsoExcluding extraExcludedDirectoryNames: Set<String> = [],
+        keepsEmptyFolders: Bool = false,
         fileManager: FileManager = .default
     ) -> [OutlineFileTreeItem] {
         items(
@@ -43,7 +47,8 @@ public enum OutlineFileScanner {
             showsHiddenFolders: showsHidden,
             sortOrder: sortOrder,
             includesICloudPlaceholders: includesICloudPlaceholders,
-            excludedNames: excludedDirectoryNames.union(extraExcludedDirectoryNames)
+            excludedNames: excludedDirectoryNames.union(extraExcludedDirectoryNames),
+            keepsEmptyFolders: keepsEmptyFolders
         )
     }
 
@@ -86,7 +91,8 @@ public enum OutlineFileScanner {
         inheritedHidden: Bool = false,
         sortOrder: OutlineFileSortOrder,
         includesICloudPlaceholders: Bool = false,
-        excludedNames: Set<String> = excludedDirectoryNames
+        excludedNames: Set<String> = excludedDirectoryNames,
+        keepsEmptyFolders: Bool = false
     ) -> [OutlineFileTreeItem] {
         guard depth < maximumTreeDepth else {
             return []
@@ -179,9 +185,10 @@ public enum OutlineFileScanner {
                 inheritedHidden: item.isHidden,
                 sortOrder: sortOrder,
                 includesICloudPlaceholders: includesICloudPlaceholders,
-                excludedNames: excludedNames
+                excludedNames: excludedNames,
+                keepsEmptyFolders: keepsEmptyFolders
             )
-            if !populated.children.isEmpty {
+            if keepsEmptyFolders || !populated.children.isEmpty {
                 visible.append(populated)
             }
         }

@@ -230,7 +230,7 @@ final class LinkedScrollTests: XCTestCase {
         let reader = try await waitAsync {
             Self.find(LineformReadView.self, in: window).flatMap { $0.renderedSourceText == nil ? nil : $0 }
         }
-        XCTAssertEqual(DocumentScreen.bottomChromeClearance, MarkdownEditor.chromeMargin + 44 + 8)
+        XCTAssertEqual(DocumentScreen.bottomChromeClearance, MarkdownEditor.chromeMargin + MoreButton.diameter + 8)
         XCTAssertEqual(reader.contentInset.bottom, DocumentScreen.bottomChromeClearance, "Preview's lower pane")
 
         // At the end of the page.
@@ -250,9 +250,9 @@ final class LinkedScrollTests: XCTestCase {
         // The floating buttons: the Menu button and, left of it, the link button, chromeMargin
         // above the safe area's bottom.
         let buttonsBottom = window.bounds.height - window.safeAreaInsets.bottom - MarkdownEditor.chromeMargin
-        let menu = Self.accessibilityFrame(label: MenuButton.accessibilityTitle, in: window)
-            ?? CGRect(x: window.bounds.width - MarkdownEditor.chromeMargin - MenuButton.diameter,
-                      y: buttonsBottom - MenuButton.diameter, width: MenuButton.diameter, height: MenuButton.diameter)
+        let menu = Self.accessibilityFrame(label: MoreButton.accessibilityTitle, in: window)
+            ?? CGRect(x: window.bounds.width - MarkdownEditor.chromeMargin - MoreButton.diameter,
+                      y: buttonsBottom - MoreButton.diameter, width: MoreButton.diameter, height: MoreButton.diameter)
         let link = Self.accessibilityFrame(label: PreviewLinkButton.accessibilityTitle(isLinked: true), in: window)
             ?? CGRect(x: menu.minX - DocumentScreen.bottomChromeSpacing - PreviewLinkButton.diameter,
                       y: menu.midY - PreviewLinkButton.diameter / 2,

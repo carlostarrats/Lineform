@@ -40,6 +40,8 @@ struct WordMenuPalette {
     let blueFill: UIColor
     /// Lineform blue as a mark on the surfaces (the copy tick, the provider tick).
     let blueMark: UIColor
+    /// Lineform blue as text on the surfaces (Choose, Change): 4.5:1.
+    let blueText: UIColor
     /// Move to Trash and other destructive text.
     let destructive: UIColor
     /// "Saved" in the status line: the Mac's green.
@@ -92,6 +94,7 @@ struct WordMenuPalette {
         icon = readable(isDark ? rgb(0x9A9A9A) : rgb(0x7A7C80), 3, on: surfaces, ink: ink)
         blueFill = rgb(0x2F6BDE)
         blueMark = readable(isDark ? rgb(0x7FA6F5) : rgb(0x2F6BDE), 3, on: surfaces, ink: ink)
+        blueText = readable(isDark ? rgb(0x7FA6F5) : rgb(0x2F6BDE), 4.5, on: surfaces, ink: ink)
         destructive = readable(isDark ? rgb(0xFF8A80) : rgb(0xC93A3A), 4.5, on: surfaces, ink: ink)
         saved = readable(
             isDark ? EditorStatusGreen.dark : EditorStatusGreen.light, 4.5, on: [washTop, washBottom], ink: ink
@@ -134,6 +137,7 @@ struct WordMenuPalette {
             entries.append(Entry(name: "tertiary/\(surfaceName)", color: tertiary, surface: surface, minimumRatio: 4.5))
             entries.append(Entry(name: "icon/\(surfaceName)", color: icon, surface: surface, minimumRatio: 3))
             entries.append(Entry(name: "blueMark/\(surfaceName)", color: blueMark, surface: surface, minimumRatio: 3))
+            entries.append(Entry(name: "blueText/\(surfaceName)", color: blueText, surface: surface, minimumRatio: 4.5))
             entries.append(Entry(name: "destructive/\(surfaceName)", color: destructive, surface: surface, minimumRatio: 4.5))
         }
         for (surfaceName, surface) in surfaces.prefix(2) {
@@ -361,16 +365,12 @@ struct WordMenuToggleRow: View {
         Group {
             if dynamicTypeSize.isAccessibilitySize {
                 VStack(alignment: .leading, spacing: 8) {
-                    text.accessibilityHidden(true)
+                    text
                     Toggle(isOn: $isOn) { Text(title) }
                         .labelsHidden()
-                        .accessibilityLabel(Text(title))
-                        .accessibilityHint(note.map { Text($0) } ?? Text(verbatim: ""))
                 }
             } else {
                 Toggle(isOn: $isOn) { text }
-                    .accessibilityLabel(Text(title))
-                    .accessibilityHint(note.map { Text($0) } ?? Text(verbatim: ""))
             }
         }
         .tint(palette.color(palette.blueFill))
@@ -381,6 +381,15 @@ struct WordMenuToggleRow: View {
             RoundedRectangle(cornerRadius: WordMenuMetrics.rowRadius, style: .continuous)
                 .fill(palette.color(palette.soft))
         )
+        // A tap anywhere on the row flips the switch, as the row is one control.
+        .contentShape(Rectangle())
+        .onTapGesture { isOn.toggle() }
+        // One switch for VoiceOver, the size of the whole row: the title is the label, the note
+        // the hint (the drawn switch alone is a 51 × 31 target).
+        .accessibilityRepresentation {
+            Toggle(isOn: $isOn) { Text(title) }
+        }
+        .accessibilityHint(note.map { Text($0) } ?? Text(verbatim: ""))
     }
 }
 

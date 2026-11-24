@@ -15,8 +15,9 @@ struct PhoneAnnouncementSheet: View {
     let profile: ReadingProfile
     var onAction: () -> Void
     var onDismiss: () -> Void
-    /// The content's height, for the sheet's one detent.
-    @Binding var contentHeight: CGFloat
+    /// The content's height, for the sheet's one detent. Kept here, never in the screen: a
+    /// change re-renders only the sheet.
+    @State private var contentHeight: CGFloat = 0
 
     static var notNowTitle: String { String(localized: "Not now") }
     static var guideFootnote: String { String(localized: "You can find the guide anytime in About Lineform.") }
@@ -26,7 +27,11 @@ struct PhoneAnnouncementSheet: View {
 
     /// Whether the action opens the Lineform Guide (the footnote's case).
     static func isGuideAction(_ announcement: Announcement) -> Bool {
-        guard let url = announcement.actionURL, let guide = URL(string: LineformLinks.guideURL) else { return false }
+        isGuideURL(announcement.actionURL)
+    }
+
+    static func isGuideURL(_ url: URL?) -> Bool {
+        guard let url, let guide = URL(string: LineformLinks.guideURL) else { return false }
         return url.host() == guide.host() && url.path().trimmingCharacters(in: ["/"]) == guide.path().trimmingCharacters(in: ["/"])
     }
 
@@ -79,7 +84,9 @@ struct PhoneAnnouncementSheet: View {
             .padding(.horizontal, 24)
             .padding(.top, 28)
             .padding(.bottom, 12)
-            .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { contentHeight = $0 }
+            .onGeometryChange(for: CGFloat.self) { $0.size.height.rounded() } action: { height in
+                if abs(height - contentHeight) > 1 { contentHeight = height }
+            }
             .accessibilityElement(children: .contain)
             .accessibilityLabel(Self.accessibilityTitle(announcement))
         }

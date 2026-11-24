@@ -77,9 +77,8 @@ struct DocumentScreen: View {
     /// The selection row and comment field over the bottom of the page (spec §5.5). While either
     /// shows, it replaces the bottom-right buttons.
     @StateObject private var selection: SelectionController
-    /// The announcement sheet on screen, and its content's height (its one detent).
+    /// The announcement sheet on screen.
     @State private var presentedAnnouncement: Announcement?
-    @State private var announcementHeight: CGFloat = 0
     /// The keyboard is up: no announcement sheet comes up over typing.
     @State private var isKeyboardUp = false
 
@@ -316,8 +315,7 @@ struct DocumentScreen: View {
                 onDismiss: {
                     announcements.dismiss(announcement)
                     presentedAnnouncement = nil
-                },
-                contentHeight: $announcementHeight
+                }
             )
             // Not now, a swipe down and the action all dismiss it for good (idempotent).
             .onDisappear { announcements.dismiss(announcement) }

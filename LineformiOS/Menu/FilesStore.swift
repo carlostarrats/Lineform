@@ -128,7 +128,7 @@ final class FilesStore {
     nonisolated static let liveScanner: Scanner = { url, showsHidden, sortOrder in
         OutlineFileScanner.items(
             in: url, showsHidden: showsHidden, sortOrder: sortOrder,
-            includesICloudPlaceholders: true, alsoExcluding: excludedDirectoryNames
+            includesICloudPlaceholders: true, alsoExcluding: excludedDirectoryNames, keepsEmptyFolders: true
         )
     }
 
