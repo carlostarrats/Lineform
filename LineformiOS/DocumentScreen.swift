@@ -274,6 +274,8 @@ struct DocumentScreen: View {
                 )
                 .padding(.horizontal, MarkdownEditor.chromeMargin)
                 .padding(.bottom, MarkdownEditor.chromeMargin + MenuButton.diameter + 12)
+                // Never over the mode switch: a taller card scrolls inside this room.
+                .padding(.top, ModeSwitch.pageTopClearance)
                 .transition(EditorMotionPolicy.fadeAndMoveTransition(y: 24, reduceMotion: reduceMotion))
             }
         }

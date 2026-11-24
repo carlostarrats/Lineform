@@ -268,8 +268,10 @@ final class PhoneStylingSelectionAccessibilityTests: XCTestCase {
             host.assertInteractiveElementsAreLabelledAndLargeEnough()
             let elements = host.elements()
             let send = try XCTUnwrap(elements.first { $0.label == SelectionToolbarPresentation.sendTitle }, "\(elements)")
-            XCTAssertGreaterThanOrEqual(send.frame.width, 44)
-            XCTAssertGreaterThanOrEqual(send.frame.height, 44)
+            // Half a point of slack, as `assertInteractiveElementsAreLabelledAndLargeEnough`
+            // allows: a 44 pt frame at a fractional origin snaps to 131 px (43.67 pt) at @3x.
+            XCTAssertGreaterThanOrEqual(send.frame.width, 43.5, "\(send) at \(size.rawValue)")
+            XCTAssertGreaterThanOrEqual(send.frame.height, 43.5, "\(send) at \(size.rawValue)")
             let action = try XCTUnwrap(elements.first { $0.label == SelectionToolbarPresentation.actionLabel }, "\(elements)")
             XCTAssertEqual(action.object.accessibilityValue, SelectionToolbarPresentation.menuTitle(for: controller.model.action))
             XCTAssertTrue(elements.contains { $0.label == String(localized: "Cancel") && $0.isInteractive })

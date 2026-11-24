@@ -1171,7 +1171,12 @@ The Mac's in-app announcements (`app-integration.md` ▸ In-app announcements) o
   while those buttons do and nothing else holds the bottom (History's card, the selection row or
   comment field, an AI card, a notice, first run, a download). Its entrance is a fade-and-move that
   Reduce Motion turns into a fade. VoiceOver: "Announcement: %@" for the card, "Dismiss
-  announcement" for the ✕, and the escape gesture dismisses (the Mac's Esc).
+  announcement" for the ✕, and the escape gesture dismisses (the Mac's Esc). Every text wraps,
+  the link label included. The card never reaches above the mode switch
+  (`ModeSwitch.pageTopClearance`): at the accessibility sizes, where it is taller than that room,
+  its content scrolls inside it. It is one `ScrollView` at every size, capped at the content's
+  measured height; a `ViewThatFits` that swapped in a scrolling copy made the accessibility audit
+  report the card's text as not supporting Dynamic Type.
 - **Platform targeting.** A feed entry may carry `platforms` (`["mac"]`, `["ios"]`, both). The
   iPhone shows only entries without the field or naming "ios"; the Mac only those without it or
   naming "mac" (`Announcement.appliesTo(appVersion:platform:)`, `.current` by default). An entry
@@ -1351,10 +1356,13 @@ material.
   VoiceOver orders them and asserts that they sit inside the window, that every interactive
   element has a label and a 44 × 44 pt target (an allowlist names exceptions, each with a reason),
   and that no reachable label is truncated. There is no snapshot library: these are layout
-  assertions on the live hierarchy. SwiftUI only builds that tree when the simulator's
-  accessibility is on (`com.apple.Accessibility` `AccessibilityEnabled` and
-  `ApplicationAccessibilityEnabled`). Rebooting or erasing a simulator can turn it off, and the
-  hosted tests that walk SwiftUI elements then fail for that reason alone.
+  assertions on the live hierarchy. SwiftUI only builds that tree while accessibility is on, and
+  it is off on a fresh simulator. So the test bundle's principal class
+  (`LineformiOSTestsPrincipal`, `INFOPLIST_KEY_NSPrincipalClass`) turns application
+  accessibility and automation on for the test process before the first test
+  (`TestProcessAccessibility`, through `libAccessibility`'s `_AXS…` functions) and restores both
+  after the last. Test code only; the app never calls it. Every test that finds a SwiftUI control
+  by its label depends on it, not only the accessibility suites.
 - **German.** `LineformiOS.xctestplan` has two configurations: Default (English) and `de`. The
   same tests run in both, so every hosted layout check also covers German, the longest of the six
   languages. A test that pins English copy calls `skipUnlessEnglishInterface()` and is skipped in

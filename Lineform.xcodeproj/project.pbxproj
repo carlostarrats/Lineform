@@ -2006,6 +2006,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				DEVELOPMENT_TEAM = "";
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_NSPrincipalClass = LineformiOSTestsPrincipal;
 				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.lineform.app.ios-tests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -2027,6 +2028,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				DEVELOPMENT_TEAM = TV4QZT7A7X;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_NSPrincipalClass = LineformiOSTestsPrincipal;
 				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.lineform.app.ios-tests;
 				PRODUCT_NAME = "$(TARGET_NAME)";

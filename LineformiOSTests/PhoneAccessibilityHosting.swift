@@ -258,3 +258,64 @@ extension XCTestCase {
         guard language == "en" else { throw XCTSkip("\(reason); the interface language is \(language)") }
     }
 }
+
+/// Turns accessibility on for the test process, so SwiftUI builds the accessibility elements the
+/// hosted tests walk. SwiftUI vends no elements while the device's accessibility is off — the
+/// default on any fresh simulator — and every test that finds a control by its label then times
+/// out or passes vacuously. A UI-test runner gets this from XCUITest's automation session; unit
+/// tests have to ask. Test code only: the app never calls this.
+///
+/// The bundle's principal class (`INFOPLIST_KEY_NSPrincipalClass`) calls `enable()` before the
+/// first test and `restore()` after the last, so the simulator's own setting is left as found.
+enum TestProcessAccessibility {
+    private typealias Getter = @convention(c) () -> Bool
+    private typealias Setter = @convention(c) (Bool) -> Void
+
+    nonisolated(unsafe) private static let library = dlopen("/usr/lib/libAccessibility.dylib", RTLD_NOW)
+    nonisolated(unsafe) private static var saved: (application: Bool, automation: Bool)?
+
+    private static func function<T>(_ name: String, as: T.Type) -> T? {
+        guard let library, let symbol = dlsym(library, name) else { return nil }
+        return unsafeBitCast(symbol, to: T.self)
+    }
+
+    /// Enables application accessibility and automation for this process; returns false when
+    /// the library or its functions are missing.
+    @discardableResult
+    static func enable() -> Bool {
+        guard let applicationEnabled = function("_AXSApplicationAccessibilityEnabled", as: Getter.self),
+              let setApplication = function("_AXSApplicationAccessibilitySetEnabled", as: Setter.self),
+              let automationEnabled = function("_AXSAutomationEnabled", as: Getter.self),
+              let setAutomation = function("_AXSSetAutomationEnabled", as: Setter.self)
+        else { return false }
+        if saved == nil { saved = (applicationEnabled(), automationEnabled()) }
+        setApplication(true)
+        setAutomation(true)
+        return true
+    }
+
+    /// Puts both settings back to what `enable()` found.
+    static func restore() {
+        guard let saved,
+              let setApplication = function("_AXSApplicationAccessibilitySetEnabled", as: Setter.self),
+              let setAutomation = function("_AXSSetAutomationEnabled", as: Setter.self)
+        else { return }
+        setApplication(saved.application)
+        setAutomation(saved.automation)
+        Self.saved = nil
+    }
+}
+
+/// `LineformiOSTests`' principal class: XCTest makes one before the first test runs.
+@objc(LineformiOSTestsPrincipal)
+final class LineformiOSTestsPrincipal: NSObject, XCTestObservation {
+    override init() {
+        super.init()
+        TestProcessAccessibility.enable()
+        XCTestObservationCenter.shared.addTestObserver(self)
+    }
+
+    func testBundleDidFinish(_ testBundle: Bundle) {
+        TestProcessAccessibility.restore()
+    }
+}
