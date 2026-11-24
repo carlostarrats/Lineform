@@ -51,6 +51,12 @@ struct AIConversationView: View {
             }
             .modifier(AIChoosingBackdrop(isChoosing: isChoosing, reduceMotion: reduceMotion))
 
+            if isChoosing {
+                AIProgressiveBlur()
+                    .transition(.opacity)
+                    .zIndex(1)
+            }
+
             if let card = conversation.card {
                 AIOptionsCard(card: card, initialSelection: conversation.cardSelection, style: style,
                               onApply: { selection in withMotion { conversation.applyCard(selection) } },
@@ -229,7 +235,6 @@ private struct AIChoosingBackdrop: ViewModifier {
 
     func body(content: Content) -> some View {
         content
-            .modifier(AIProgressiveBlur(strength: isChoosing ? 1 : 0))
             .grayscale(isChoosing ? 1 : 0)
             .opacity(isChoosing ? 0.45 : 1)
             .allowsHitTesting(!isChoosing)
@@ -237,29 +242,34 @@ private struct AIChoosingBackdrop: ViewModifier {
     }
 }
 
-/// Clear at the top, blurrier toward the bottom (the mockup's 0.8 → 7.2 pt bands, as one smooth
-/// ramp): two one-dimensional Gaussian passes whose radius depends on the height. `strength`
-/// animates the whole effect in and out.
-struct AIProgressiveBlur: ViewModifier, Animatable {
-    var strength: CGFloat
+/// Clear at the top, blurrier toward the bottom, over everything behind the options card: four
+/// stacked bands of the system's backdrop blur, each faded in further down (the mockup's four
+/// `backdrop-filter` bands, 0.8 → 7.2 pt). A backdrop blur, not a layer effect: the thread's
+/// scroll view and the input's text view are platform views, which a layer effect cannot draw.
+struct AIProgressiveBlur: View {
+    private static let bands: [(material: Material, from: CGFloat, to: CGFloat)] = [
+        (.ultraThinMaterial, 0.10, 0.45),
+        (.ultraThinMaterial, 0.30, 0.60),
+        (.thinMaterial, 0.45, 0.80),
+        (.regularMaterial, 0.60, 0.95),
+    ]
 
-    nonisolated var animatableData: CGFloat {
-        get { strength }
-        set { strength = newValue }
-    }
-
-    static let maxRadius: CGFloat = 7.2
-
-    func body(content: Content) -> some View {
-        let radius = Float(Self.maxRadius * strength)
-        return content.visualEffect { effect, proxy in
-            let height = Float(proxy.size.height)
-            return effect
-                .layerEffect(ShaderLibrary.lineformProgressiveBlur(.float(height), .float(radius), .float2(1, 0)),
-                             maxSampleOffset: CGSize(width: 22, height: 0), isEnabled: radius > 0.05)
-                .layerEffect(ShaderLibrary.lineformProgressiveBlur(.float(height), .float(radius), .float2(0, 1)),
-                             maxSampleOffset: CGSize(width: 0, height: 22), isEnabled: radius > 0.05)
+    var body: some View {
+        ZStack {
+            ForEach(Self.bands.indices, id: \.self) { index in
+                let band = Self.bands[index]
+                Rectangle()
+                    .fill(band.material)
+                    .mask(LinearGradient(stops: [
+                        .init(color: .clear, location: band.from),
+                        .init(color: .black, location: band.to),
+                    ], startPoint: .top, endPoint: .bottom))
+                    .opacity(0.4)
+            }
         }
+        .ignoresSafeArea()
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
     }
 }
 
@@ -863,10 +873,10 @@ private struct AIFlowLayout: Layout {
 enum AIPromptTextMetrics {
     #if os(macOS)
     static let inset = CGSize(width: 10, height: 9)
-    static let placeholderNudge: CGFloat = 5
+    static let placeholderNudge: CGFloat = 0
     #else
     static let inset = CGSize(width: 10, height: 10)
-    static let placeholderNudge: CGFloat = 5
+    static let placeholderNudge: CGFloat = 0
     #endif
     /// Room kept for the send button at the trailing edge.
     static let trailingRoom: CGFloat = 42
@@ -991,11 +1001,14 @@ struct AIPromptTextView: NSViewRepresentable {
             }
         }
 
-        /// A click (not a drag) that leaves the caret inside a curated word.
-        func clicked(at index: Int) {
-            guard let match = parent.conversation.matches.first(where: {
-                index >= $0.range.location && index <= NSMaxRange($0.range)
-            }) else { return }
+        /// A click (not a drag) ON a curated word's glyphs (`point` in the text container).
+        func clicked(at point: NSPoint) {
+            guard let textView, let manager = textView.layoutManager, let container = textView.textContainer,
+                  let match = parent.conversation.matches.first(where: { match in
+                      let glyphs = manager.glyphRange(forCharacterRange: match.range, actualCharacterRange: nil)
+                      return manager.boundingRect(forGlyphRange: glyphs, in: container)
+                          .insetBy(dx: -2, dy: -3).contains(point)
+                  }) else { return }
             parent.conversation.openWord(match)
         }
     }
@@ -1008,9 +1021,10 @@ struct AIPromptTextView: NSViewRepresentable {
             super.mouseDown(with: event) // tracks until the mouse goes up
             let end = window?.mouseLocationOutsideOfEventStream ?? start
             guard hypot(end.x - start.x, end.y - start.y) < 4, selectedRange().length == 0 else { return }
-            let point = convert(start, from: nil)
-            let index = characterIndexForInsertion(at: point)
-            MainActor.assumeIsolated { coordinator?.clicked(at: index) }
+            var point = convert(start, from: nil)
+            point.x -= textContainerOrigin.x
+            point.y -= textContainerOrigin.y
+            MainActor.assumeIsolated { coordinator?.clicked(at: point) }
         }
     }
 }
@@ -1089,10 +1103,13 @@ struct AIPromptTextView: UIViewRepresentable {
             var point = recognizer.location(in: textView)
             point.x -= textView.textContainerInset.left
             point.y -= textView.textContainerInset.top
-            let index = textView.layoutManager.characterIndex(for: point, in: textView.textContainer,
-                                                              fractionOfDistanceBetweenInsertionPoints: nil)
-            guard let match = parent.conversation.matches.first(where: {
-                index >= $0.range.location && index < NSMaxRange($0.range)
+            // Only a tap ON a word's glyphs: the nearest character to a tap in empty space is the
+            // last one, and a caret placed after the text must not open a card.
+            let manager = textView.layoutManager
+            guard let match = parent.conversation.matches.first(where: { match in
+                let glyphs = manager.glyphRange(forCharacterRange: match.range, actualCharacterRange: nil)
+                return manager.boundingRect(forGlyphRange: glyphs, in: textView.textContainer)
+                    .insetBy(dx: -2, dy: -4).contains(point)
             }) else { return }
             parent.conversation.openWord(match)
         }

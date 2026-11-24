@@ -104,6 +104,9 @@ public final class AIConversation: ObservableObject {
     /// Asks the writer before a whole document over `WholeDocumentAIPolicy.confirmWordCount`
     /// words is sent; calls `proceed` only on Send.
     public var confirmWholeDocument: (_ words: Int, _ proceed: @escaping () -> Void) -> Void = { _, _ in }
+    /// The whole-document word count the writer already confirmed before the conversation opened;
+    /// a request of at most that many words is not confirmed again.
+    public var confirmedWholeDocumentWords: Int?
 
     private weak var controller: AIActionController?
     private var observation: AnyCancellable?
@@ -151,6 +154,7 @@ public final class AIConversation: ObservableObject {
 
     /// The document closed: the conversation is gone.
     public func reset() {
+        confirmedWholeDocumentWords = nil
         messages = []
         draft = ""
         choices = [:]
@@ -272,6 +276,9 @@ public final class AIConversation: ObservableObject {
             // The controller refuses past the limit itself, on a notice.
             return start()
         case .confirm(let count):
+            // Already confirmed for at least this many words (the iPhone's Menu ▸ Ask AI… asks
+            // before the sheet opens): not asked again.
+            if let confirmed = confirmedWholeDocumentWords, count <= confirmed { return start() }
             confirmWholeDocument(count) { _ = start() }
             return true
         }

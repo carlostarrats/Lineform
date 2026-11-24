@@ -7,9 +7,8 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		5A839C22877B7EB4411DE850 /* AISheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A47F9DC751DD1320BB3F7EB /* AISheet.swift */; };
 		5A887F12973FB166ADCF34B3 /* AIDrawer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5ABCCAA792D6F63D9C08158D /* AIDrawer.swift */; };
-		5A10B2E49C9236AD14B3731B /* AIProgressiveBlur.metal in Sources */ = {isa = PBXBuildFile; fileRef = 5A6B5CC162D492ADE3665548 /* AIProgressiveBlur.metal */; };
-		5A5FEB3F3E93854DFA071C98 /* AIProgressiveBlur.metal in Sources */ = {isa = PBXBuildFile; fileRef = 5A6B5CC162D492ADE3665548 /* AIProgressiveBlur.metal */; };
 		5A598B2A6129D1AFF88833F2 /* AIConversationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A3AADDC9DDDE4D1390D60CF /* AIConversationView.swift */; };
 		5AF8D81A289939FBFB2AB3EA /* AIConversationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A3AADDC9DDDE4D1390D60CF /* AIConversationView.swift */; };
 		1F0001C10000000000000202 /* AppShortcuts.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = 1F0000310000000000000003 /* AppShortcuts.xcstrings */; };
@@ -316,8 +315,8 @@
  /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		5A47F9DC751DD1320BB3F7EB /* AISheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AISheet.swift; sourceTree = "<group>"; };
 		5ABCCAA792D6F63D9C08158D /* AIDrawer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIDrawer.swift; sourceTree = "<group>"; };
-		5A6B5CC162D492ADE3665548 /* AIProgressiveBlur.metal */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.metal; path = AIProgressiveBlur.metal; sourceTree = "<group>"; };
 		5A3AADDC9DDDE4D1390D60CF /* AIConversationView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIConversationView.swift; sourceTree = "<group>"; };
 		1F0001C00000000000000104 /* PhoneAppIntentsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhoneAppIntentsTests.swift; sourceTree = "<group>"; };
 		1F0001C00000000000000005 /* PhoneAppIntents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhoneAppIntents.swift; sourceTree = "<group>"; };
@@ -694,7 +693,6 @@
 				1F00000200000000000004E8 /* ConnectAIView.swift */,
 				1F000002000000000000F801 /* AskAICommand.swift */,
 				5ABCCAA792D6F63D9C08158D /* AIDrawer.swift */,
-				5A6B5CC162D492ADE3665548 /* AIProgressiveBlur.metal */,
 				5A3AADDC9DDDE4D1390D60CF /* AIConversationView.swift */,
 				1F00000200000000000004FE /* AIReviewTextView.swift */,
 				1F0000020000000000000500 /* AIReviewSurfaceRepresentable.swift */,
@@ -1113,6 +1111,7 @@
 			isa = PBXGroup;
 			children = (
 				1F0000F00000000000000002 /* ConnectAISheet.swift */,
+				5A47F9DC751DD1320BB3F7EB /* AISheet.swift */,
 				1F0000D00000000000000001 /* LineformiOSTextView+AI.swift */,
 				1F0000D00000000000000002 /* AIReviewOverlay.swift */,
 				1F0000D00000000000000003 /* AIReviewCardsView.swift */,
@@ -1427,7 +1426,6 @@
 				1F00000100000000000004E8 /* ConnectAIView.swift in Sources */,
 				1F000001000000000000F801 /* AskAICommand.swift in Sources */,
 				5A887F12973FB166ADCF34B3 /* AIDrawer.swift in Sources */,
-				5A5FEB3F3E93854DFA071C98 /* AIProgressiveBlur.metal in Sources */,
 				5AF8D81A289939FBFB2AB3EA /* AIConversationView.swift in Sources */,
 				1F00000100000000000004FE /* AIReviewTextView.swift in Sources */,
 				1F0000010000000000000500 /* AIReviewSurfaceRepresentable.swift in Sources */,
@@ -1601,7 +1599,7 @@
 				1F000041000000000000003E /* DocumentSection.swift in Sources */,
 				1F00004100000000000000A2 /* SaveAsPicker.swift in Sources */,
 				1F0000F10000000000000003 /* ConnectAISheet.swift in Sources */,
-				5A10B2E49C9236AD14B3731B /* AIProgressiveBlur.metal in Sources */,
+				5A839C22877B7EB4411DE850 /* AISheet.swift in Sources */,
 				5A598B2A6129D1AFF88833F2 /* AIConversationView.swift in Sources */,
 				1F0000F10000000000000005 /* SelectionController.swift in Sources */,
 				1F0000F10000000000000006 /* SelectionRow.swift in Sources */,
