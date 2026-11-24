@@ -136,6 +136,7 @@ file named after it carries the full story and the reasoning.
 - Table Reformat pads by APPENDING spaces, never `String.padding(toLength:)` — that measures in UTF-16 while the widths measure in Characters, so it silently truncated emoji and decomposed-accent cells and wrote the loss to disk.
 - `MarkdownHeadingEditing.classify` and `MarkdownHeadingParser` must accept the SAME heading shape (≤3 columns of indent; space, tab, or end of line after the hashes). A disagreement is the stacking bug from the other side.
 - Ordered-list continuation must cap the marker at NINE ASCII digits, matching `MarkdownBlockGrouping`'s `[0-9]{1,9}`. Unbounded, `Int.max` overflowed `number + 1` and Return on that line CRASHED the app, and a 10-digit marker drew as a paragraph while Return continued it as a list.
+- The selection is a highlighter stroke DRAWN behind the text (Mac `drawBackground`, iPhone a layer under the text with the system fill replaced through `UITextSelectionDisplayInteraction.highlightView`), never a text-storage or temporary attribute, and measured over the VISIBLE lines only — Select All on 1 MB must cost one screenful (`HighlighterSelection`, `editor-behavior.md` § Highlighter selection).
 - Table Reformat must REFUSE on `\|` and on backticks. It rewrites the file through `MarkdownTableParser.cells(in:)`, which splits on every pipe — harmless while rendering, permanent data loss when written back. It must also re-emit delimiter colons read from the ORIGINAL row, not from `table.alignments`, which collapses `:--` into `---`.
 
 **History** (`editor-behavior.md` § History)
@@ -422,9 +423,10 @@ iPhone only. Details: `docs/architecture/iphone-app.md`.
   `PhonePrintRenderer`'s `numberOfPages`/`drawPage` OFF main: never hop to main there; render on
   main beforehand. `OpenDocument.onDocumentSwap` is the only place read aloud stops on a swap.
 - **Selection row, comment field and AI.** A settled selection raises `SelectionRow` above the
-  keyboard or home indicator (`SelectionController`, 0.35 s): Ask AI (connected only), Heading,
-  Bold, Italic, Strikethrough, Code, List, Link, Blockquote, Replace With… (History's, where it
-  can keep the selection) and Another Word. It
+  keyboard or home indicator (`SelectionController`, 0.35 s): Ask (connected only, Lineform blue),
+  Heading (its levels open in place, ‹ back), Bold, Italic, Strikethrough, Code, List, Link,
+  Blockquote, Image (Photos or Files, through the paste path), Insert Table, Reformat Table (on a
+  table row), Replace With… (History's, where it can keep the selection) and Another Word. It
   never changes the system edit menu, and the app's own selections never raise it. Ask AI opens
   the comment field (note, Action menu, Send; nothing is sent while marked text is composing).
   The review is `AIReviewOverlayTextView`, a read-only overlay with an EMPTY undo manager, and the

@@ -2,7 +2,7 @@ import LineformCore
 import SwiftUI
 
 /// The selection row (spec §5.5): a floating card at the bottom of the page that scrolls sideways,
-/// in the spec's order. Heading and List open menus; every other formatting button runs its
+/// in the spec's order. Heading opens its levels in place (‹ back); List opens a menu; every other button runs its
 /// command at once. It sits at the bottom, so it never fights the system edit menu, which floats at
 /// the selection; it never changes that menu either.
 ///
@@ -36,18 +36,30 @@ struct SelectionRow: View {
         let theme = Theme.theme(for: profile)
         let ink = Color(uiColor: theme.textColor)
         // The row's card draws in the page colour; its scheme follows the theme's chrome.
-        let chevron = PhoneInk(theme: theme, userInterfaceStyle: theme.usesDarkChrome ? .dark : .light).color(.chevron)
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 2) {
-                ForEach(controller.items, id: \.self) { item in
-                    button(for: item, chevron: chevron)
-                        .accessibilityShowsLargeContentViewer {
-                            if let symbol = item.systemImage { Image(systemName: symbol) }
-                            Text(item.title(aiName: controller.model.aiName))
+        let inks = PhoneInk(theme: theme, userInterfaceStyle: theme.usesDarkChrome ? .dark : .light)
+        let chevron = inks.color(.chevron)
+        ScrollViewReader { scroller in
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 2) {
+                    if controller.showsHeadingLevels {
+                        headingLevels
+                    } else {
+                        ForEach(controller.items, id: \.self) { item in
+                            button(for: item, chevron: chevron, blue: inks.color(.lineformBlue))
+                                .accessibilityShowsLargeContentViewer {
+                                    if let symbol = item.systemImage { Image(systemName: symbol) }
+                                    Text(item.title(aiName: controller.model.aiName))
+                                }
                         }
+                    }
                 }
+                .padding(.horizontal, 8)
+                .id(controller.showsHeadingLevels)
             }
-            .padding(.horizontal, 8)
+            .onChange(of: controller.showsHeadingLevels) { _, _ in
+                // Each row starts at its leading edge.
+                scroller.scrollTo(controller.showsHeadingLevels, anchor: .leading)
+            }
         }
         .frame(height: Self.height)
         .foregroundStyle(ink)
@@ -81,47 +93,92 @@ struct SelectionRow: View {
         return true
     }
 
+    /// Heading's second row, in place of the buttons: ‹ back, then the Mac's Format ▸ Heading
+    /// levels. A level applies (one undo step) and the buttons come back.
     @ViewBuilder
-    private func button(for item: SelectionRowItem, chevron: Color) -> some View {
+    private var headingLevels: some View {
+        let back = String(localized: "Back")
+        Button {
+            controller.showHeadingLevels(false)
+        } label: {
+            Image(systemName: "chevron.left")
+                .font(.system(size: 16, weight: .medium))
+                .frame(minWidth: Self.itemDrawnSide, minHeight: Self.itemDrawnSide)
+                .padding(hitOutset)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .padding(-hitOutset)
+        .accessibilityLabel(back)
+        .accessibilityShowsLargeContentViewer {
+            Image(systemName: "chevron.left")
+            Text(back)
+        }
+        ForEach(SelectionController.headingLevels, id: \.title) { entry in
+            Button {
+                controller.setHeading(entry.level)
+            } label: {
+                Text(entry.title)
+                    .font(.subheadline.weight(.medium))
+                    .lineLimit(1)
+                    .dynamicTypeSize(...Self.maximumDynamicTypeSize)
+                    .padding(.horizontal, 10)
+                    .frame(minHeight: Self.itemDrawnSide)
+                    .padding(hitOutset)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .padding(-hitOutset)
+            .accessibilityShowsLargeContentViewer { Text(entry.title) }
+        }
+    }
+
+    @ViewBuilder
+    private func button(for item: SelectionRowItem, chevron: Color, blue: Color) -> some View {
         let title = item.title(aiName: controller.model.aiName)
         switch item {
-        case .heading:
-            Menu {
-                Section {
-                    Button(String(localized: "Title")) { controller.setHeading(1) }
-                    Button(String(localized: "Section")) { controller.setHeading(2) }
-                }
-                Section {
-                    Button(String(localized: "Heading 3")) { controller.setHeading(3) }
-                    Button(String(localized: "Heading 4")) { controller.setHeading(4) }
-                    Button(String(localized: "Heading 5")) { controller.setHeading(5) }
-                    Button(String(localized: "Heading 6")) { controller.setHeading(6) }
-                }
-                Section {
-                    Button(String(localized: "Body")) { controller.setHeading(nil) }
-                }
-            } label: {
-                icon(item, title: title, chevron: chevron)
-            }
-            .padding(-hitOutset)
-            .accessibilityLabel(title)
         case .list:
             Menu {
                 Button(String(localized: "Bulleted List")) { controller.applyList(ordered: false) }
                 Button(String(localized: "Numbered List")) { controller.applyList(ordered: true) }
             } label: {
-                icon(item, title: title, chevron: chevron)
+                icon(item, chevron: chevron, chevronSymbol: "chevron.down")
             }
+            .padding(-hitOutset)
+            .accessibilityLabel(title)
+        case .image:
+            // Add a picture without pasting: Photos (no library permission: the system picker) or
+            // Files, both through the paste path.
+            Menu {
+                Button(String(localized: "Photos"), systemImage: "photo.on.rectangle") { controller.pickImage(from: .photos) }
+                Button(String(localized: "Files"), systemImage: "folder") { controller.pickImage(from: .files) }
+            } label: {
+                icon(item, chevron: chevron, chevronSymbol: "chevron.down")
+            }
+            .padding(-hitOutset)
+            .accessibilityLabel(title)
+        case .askAI:
+            // Ask, in Lineform blue (§21 "A · Native row"); VoiceOver hears the AI's name.
+            Button {
+                controller.perform(item)
+            } label: {
+                textLabel(item, title: SelectionRowItem.askShortTitle)
+                    .foregroundStyle(blue)
+            }
+            .buttonStyle(.plain)
             .padding(-hitOutset)
             .accessibilityLabel(title)
         default:
             Button {
                 controller.perform(item)
             } label: {
-                if item.systemImage == nil || item == .askAI {
+                if item.systemImage == nil {
                     textLabel(item, title: title)
+                } else if item == .heading {
+                    // Opens the levels in place: a drill-in chevron, never a menu.
+                    icon(item, chevron: chevron, chevronSymbol: "chevron.right")
                 } else {
-                    icon(item, title: title, chevron: nil)
+                    icon(item, chevron: nil, chevronSymbol: nil)
                 }
             }
             .buttonStyle(.plain)
@@ -131,12 +188,12 @@ struct SelectionRow: View {
     }
 
     /// A glyph (fixed size, like a toolbar's) drawn in 40 pt and padded out to a 44 pt target.
-    private func icon(_ item: SelectionRowItem, title: String, chevron: Color?) -> some View {
+    private func icon(_ item: SelectionRowItem, chevron: Color?, chevronSymbol: String?) -> some View {
         HStack(spacing: 2) {
             Image(systemName: item.systemImage ?? "questionmark")
                 .font(.system(size: 16, weight: .medium))
-            if let chevron {
-                Image(systemName: "chevron.down")
+            if let chevron, let chevronSymbol {
+                Image(systemName: chevronSymbol)
                     .font(.system(size: 9, weight: .semibold))
                     // A non-text mark, measured by `PhoneInkContrastTests` (3:1).
                     .foregroundStyle(chevron)
