@@ -252,7 +252,9 @@ final class PhoneStylingSelectionAccessibilityTests: XCTestCase {
 
     private func openComment() throws -> (SelectionController, LineformTextView) {
         let (controller, editor) = try makeController("Hello there world\n", connected: true)
-        controller.perform(.askAI)
+        // The row's Ask AI opens the AI sheet now (2026-11-24); the comment field is opened
+        // directly while its code remains.
+        controller.openComment()
         XCTAssertEqual(controller.phase, .comment)
         return (controller, editor)
     }

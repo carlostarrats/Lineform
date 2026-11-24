@@ -89,7 +89,10 @@ final class AIReviewTests: XCTestCase {
         let rig = try makeRig(text, client: FakeAIClient(FakeAIClient.revising { _, _ in "# Hello world." }))
         rig.editor.selectedRange = NSRange(location: 0, length: 12)
         rig.ai.run(.rephrase, range: NSRange(location: 0, length: 12), text: rig.editor.string)
-        try await spin { if case .message = rig.ai.state { return true }; return false }
+        // The refusal is a notice in the AI sheet's conversation (which then dismisses the message).
+        try await spin {
+            rig.selection.conversation.messages.contains { $0.content == .notice(AIClientError.unusableResponse.message) }
+        }
         XCTAssertEqual(rig.editor.text, text)
 
         // A review whose passage changed underneath (outside the review's locks) is re-verified on
@@ -335,24 +338,8 @@ final class AIReviewTests: XCTestCase {
         XCTAssertTrue(overlay.undoManager !== editor.undoManager)
         XCTAssertNotNil(overlay.accessibilityCustomActions?.first { $0.name == AIReviewCardsPresentation.accessibilityActionTitles()[0] })
 
-        // The card: Accept, Reject and Done, no key hints, above the keyboard.
-        let titles = AIReviewCardPresentation.buttonTitles
-        try await spin { Self.element(titles.accept, in: window) != nil }
-        XCTAssertNotNil(Self.element(titles.reject, in: window))
-        XCTAssertNotNil(Self.element(AIReviewCardsPresentation.doneTitle, in: window))
-        XCTAssertNil(Self.element(AIReviewCardPresentation.reviewHint, in: window), "no Esc / Return hints")
-        let keyboardHeight: CGFloat = 336
-        let keyboard = CGRect(x: 0, y: window.bounds.maxY - keyboardHeight, width: window.bounds.width, height: keyboardHeight)
-        keyboardNotifications.post(name: UIResponder.keyboardWillChangeFrameNotification, object: nil, userInfo: [
-            UIResponder.keyboardFrameEndUserInfoKey: NSValue(cgRect: window.convert(keyboard, to: window.screen.coordinateSpace)),
-            UIResponder.keyboardAnimationDurationUserInfoKey: 0.0,
-        ])
-        XCTAssertEqual(selection.keyboardOverlap, keyboardHeight)
-        try await spin {
-            let accept = Self.element(titles.accept, in: window)?.accessibilityFrame ?? .zero
-            return accept.maxY <= keyboard.minY && accept.maxY > keyboard.minY - 160
-        }
-        XCTAssertEqual(selection.keyboardOverlap, keyboardHeight, "nothing but the posted frame moved the cards")
+        // The decisions are the AI sheet's (2026-11-24): no card is drawn over the page.
+        XCTAssertNil(Self.element(AIReviewCardPresentation.buttonTitles.accept, in: window))
         XCTAssertEqual(selection.phase, .hidden)
 
         // Hardware keys: Return accepts.
@@ -383,10 +370,8 @@ final class AIReviewTests: XCTestCase {
         editor.setContentOffset(CGPoint(x: 0, y: -editor.adjustedContentInset.top), animated: false)
         let top = editor.contentOffset.y
 
-        selection.askAIForWholeDocument()
-        XCTAssertEqual(selection.phase, .comment)
-        selection.model.action = .rephrase
-        XCTAssertTrue(selection.send())
+        // The whole document, as the AI sheet sends it with nothing selected.
+        ai.runWholeDocument(.rephrase, text: editor.textStorage.string, note: nil)
         try await spin { if case .reviewing = ai.state { return true }; return false }
         try await spin { Self.find(AIReviewOverlayTextView.self, in: window) != nil }
         let overlay = try XCTUnwrap(Self.find(AIReviewOverlayTextView.self, in: window))

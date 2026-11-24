@@ -211,19 +211,21 @@ struct AIConversationMetrics {
     let closeSide: CGFloat
     let versionButtonSide: CGFloat
     let cardInset: CGFloat
+    /// The smallest tappable height (44 pt on iPhone).
+    let minimumTarget: CGFloat
 
     #if os(macOS)
     static let current = AIConversationMetrics(
         bodySize: 13, noteSize: 11.5, noteWidth: 240, startSpacing: 14, sidePadding: 14, quickSize: 13,
         quickPadding: 9, pillSize: 12, pillPadding: 6, inputSize: 13, inputMinHeight: 62, inputMaxHeight: 180,
         inputInset: 10, inputBottom: 10, sendSide: 28, chipSize: 12.5, chipPaddingV: 6, chipPaddingH: 12,
-        applyHeight: 30, applyFullWidth: false, closeSide: 24, versionButtonSide: 18, cardInset: 10)
+        applyHeight: 30, applyFullWidth: false, closeSide: 24, versionButtonSide: 18, cardInset: 10, minimumTarget: 0)
     #else
     static let current = AIConversationMetrics(
         bodySize: 15, noteSize: 13, noteWidth: 280, startSpacing: 18, sidePadding: 16, quickSize: 15,
         quickPadding: 12, pillSize: 14, pillPadding: 10, inputSize: 16, inputMinHeight: 64, inputMaxHeight: 160,
         inputInset: 12, inputBottom: 12, sendSide: 32, chipSize: 14, chipPaddingV: 9, chipPaddingH: 14,
-        applyHeight: 44, applyFullWidth: true, closeSide: 36, versionButtonSide: 28, cardInset: 10)
+        applyHeight: 44, applyFullWidth: true, closeSide: 36, versionButtonSide: 28, cardInset: 10, minimumTarget: 44)
     #endif
 }
 
@@ -289,6 +291,7 @@ private struct AIQuickActionButton: View {
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, metrics.quickPadding)
                 .padding(.horizontal, 12)
+                .frame(minHeight: metrics.minimumTarget)
                 .contentShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
         }
         .buttonStyle(AIFillButtonStyle(fill: style.field, hoverFill: style.blue, ink: style.ink, hoverInk: .white,
@@ -313,6 +316,7 @@ struct AIPillButton: View {
                 .minimumScaleFactor(0.8)
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, metrics.pillPadding)
+                .frame(minHeight: metrics.minimumTarget)
                 .contentShape(Capsule())
         }
         .buttonStyle(AIFillButtonStyle(fill: isPrimary ? style.blue : style.field,
@@ -358,11 +362,24 @@ struct AIIconButton: View {
                 .foregroundStyle(isHovering ? style.ink : style.secondaryInk)
                 .frame(width: side, height: side)
                 .background(Circle().fill(isHovering ? style.field : Color.clear))
-                .contentShape(Circle())
+                // Drawn at `side`, tapped at least at the platform's minimum.
+                .frame(width: max(side, AIConversationMetrics.current.minimumTarget),
+                       height: max(side, AIConversationMetrics.current.minimumTarget))
+                .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .onHover { isHovering = $0 }
         .accessibilityLabel(label)
+    }
+}
+
+/// Tapped at least at the platform's minimum (44 pt on iPhone), whatever is drawn.
+private struct AIMinimumTarget: ViewModifier {
+    func body(content: Content) -> some View {
+        let minimum = AIConversationMetrics.current.minimumTarget
+        content
+            .frame(minWidth: minimum, minHeight: minimum)
+            .contentShape(Rectangle())
     }
 }
 
@@ -635,7 +652,8 @@ private struct AIInputBox: View {
                     }
                 }
             sendButton(canSend: canSend, side: metrics.sendSide)
-                .padding(7)
+                // Drawn 7 pt in from the corner, tapped at least at the platform's minimum.
+                .padding(7 - max(0, metrics.minimumTarget - metrics.sendSide) / 2)
         }
         .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(style.page))
         .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).strokeBorder(style.line))
@@ -664,6 +682,7 @@ private struct AIInputBox: View {
                     .foregroundStyle(.white)
                     .frame(width: side, height: side)
                     .background(Circle().fill(style.blue))
+                    .modifier(AIMinimumTarget())
             }
             .buttonStyle(.plain)
             .accessibilityLabel(AIConversationPresentation.stopTitle)
@@ -675,6 +694,7 @@ private struct AIInputBox: View {
                     .frame(width: side, height: side)
                     .background(Circle().fill(style.blue))
                     .opacity(canSend ? 1 : 0.35)
+                    .modifier(AIMinimumTarget())
             }
             .buttonStyle(.plain)
             .disabled(!canSend)
