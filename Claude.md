@@ -436,7 +436,14 @@ iPhone only. Details: `docs/architecture/iphone-app.md`.
   `PhonePrintRenderer`'s `numberOfPages`/`drawPage` OFF main: never hop to main there; render on
   main beforehand. `OpenDocument.onDocumentSwap` is the only place read aloud stops on a swap.
 - **Selection row, the AI sheet and AI.** A settled selection raises `SelectionRow` above the
-  keyboard or home indicator (`SelectionController`, 0.35 s): Ask (connected only, Lineform blue),
+  keyboard or home indicator (`SelectionController`, 0.35 s), and while the editor has the
+  SOFTWARE keyboard up the row shows for a caret too (it goes with the keyboard; a hardware keyboard
+  alone raises none; nothing about it changes while an input method composes). With a caret, Bold,
+  Italic, Strikethrough and Code act on the word at the caret (else the Mac's paired markers, caret
+  between), List, Blockquote and Heading on its line, Link, Image and Insert Table at the caret, Ask
+  opens the AI sheet for the whole document (`askAIForWholeDocument`, `WholeDocumentAIPolicy`), and
+  Replace With… and Another Word are hidden; each is still ONE undo step. The ⋯ button and the Read
+  Aloud pill float just above the row. Its buttons: Ask (connected only, Lineform blue),
   Heading (its levels open in place, ‹ back), Bold, Italic, Strikethrough, Code, List, Link,
   Blockquote, Image (Photos or Files, through the paste path), Insert Table, Reformat Table (on a
   table row), Replace With… (History's, where it can keep the selection) and Another Word. It

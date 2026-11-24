@@ -15,8 +15,12 @@ final class SelectionRowTests: XCTestCase {
     private var folder: URL!
     private var window: UIWindow?
     private var suites: [String] = []
+    /// The controllers' keyboard notifications: the test posts every frame, so the simulator's
+    /// real keyboard never raises (or lowers) the caret's row behind a test's back.
+    private var keyboardCenter = NotificationCenter()
 
     override func setUpWithError() throws {
+        keyboardCenter = NotificationCenter()
         folder = FileManager.default.temporaryDirectory
             .appendingPathComponent("selection-\(UUID().uuidString)", isDirectory: true)
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
@@ -42,16 +46,33 @@ final class SelectionRowTests: XCTestCase {
         XCTAssertEqual(controller.phase, .hidden, "0.45 s after the first change but only 0.25 s after the last")
         try await spin { controller.phase == .row }
         XCTAssertEqual(controller.anchorRange, NSRange(location: 0, length: 11))
-        // The row replaces the bottom-right buttons while it shows.
+        // ⋯ stays reachable while the row shows: it floats just above the row (2026-11-24).
+        // Measured with the simulator's real keyboard down (the selection's row stays without it).
+        editor.resignFirstResponder()
         try await spin { Self.element(SelectionRowItem.bold.title, in: window!) != nil }
-        try await spin { Self.element(MoreButton.accessibilityTitle, in: window!) == nil }
+        try await spin {
+            guard let more = Self.element(MoreButton.accessibilityTitle, in: window!)?.accessibilityFrame,
+                  let row = Self.element(SelectionRowItem.bold.title, in: window!)?.accessibilityFrame else { return false }
+            // The item is 44 pt inside the 48 pt card: the card's top is 2 pt above it.
+            let gap = row.minY - 2 - more.maxY
+            return abs(gap - DocumentScreen.bottomChromeSpacing) < 4
+        }
+        XCTAssertEqual(controller.phase, .row)
     }
 
+    /// Without the software keyboard (keyboard down, or a hardware keyboard alone) a caret raises
+    /// no row, and collapsing a selection hides it at once.
     func testRowHiddenForEmptySelection() async throws {
         let (_, editor, controller) = try await hostScreen(text: "Hello world\n")
         select(NSRange(location: 3, length: 0), in: editor)
         try await Task.sleep(for: .seconds(SelectionController.settleDelay + 0.2))
-        XCTAssertEqual(controller.phase, .hidden, "a caret is not a selection")
+        XCTAssertEqual(controller.phase, .hidden, "a caret without the software keyboard raises no row")
+
+        // A hardware keyboard leaves at most the shortcuts bar: still no row.
+        postKeyboard(height: 72, in: try XCTUnwrap(window))
+        try await spin { controller.keyboardOverlap == 72 }
+        try await Task.sleep(for: .milliseconds(100))
+        XCTAssertEqual(controller.phase, .hidden, "a hardware keyboard alone raises no row")
 
         select(NSRange(location: 0, length: 5), in: editor)
         try await spin { controller.phase == .row }
@@ -286,11 +307,7 @@ final class SelectionRowTests: XCTestCase {
 
         // Keyboard up: the row sits above it.
         let keyboardHeight: CGFloat = 336
-        let keyboard = CGRect(x: 0, y: window.bounds.maxY - keyboardHeight, width: window.bounds.width, height: keyboardHeight)
-        NotificationCenter.default.post(name: UIResponder.keyboardWillChangeFrameNotification, object: nil, userInfo: [
-            UIResponder.keyboardFrameEndUserInfoKey: NSValue(cgRect: window.convert(keyboard, to: window.screen.coordinateSpace)),
-            UIResponder.keyboardAnimationDurationUserInfoKey: 0.0,
-        ])
+        let keyboard = postKeyboard(height: keyboardHeight, in: window)
         try await spin { controller.keyboardOverlap == keyboardHeight }
         try await spin {
             let row = Self.element(SelectionRowItem.bold.title, in: window)?.accessibilityFrame ?? .zero
@@ -310,9 +327,7 @@ final class SelectionRowTests: XCTestCase {
         XCTAssertNil(coordinator.textView(editor, editMenuForTextIn: selection, suggestedActions: []))
 
         // Keyboard down: above the home indicator.
-        NotificationCenter.default.post(name: UIResponder.keyboardWillHideNotification, object: nil, userInfo: [
-            UIResponder.keyboardAnimationDurationUserInfoKey: 0.0,
-        ])
+        postKeyboardHidden()
         try await spin { controller.keyboardOverlap == 0 }
         let bottomInset = window.safeAreaInsets.bottom
         try await spin {
@@ -470,11 +485,231 @@ final class SelectionRowTests: XCTestCase {
         let session = AIReviewSession(action: .rephrase, changes: [], selectionRange: NSRange(location: 0, length: 1),
                                       originalSelection: "a")
         XCTAssertFalse(SelectionController.showsBottomButtons(phase: .hidden, aiState: .reviewing(session)))
-        XCTAssertFalse(SelectionController.showsBottomButtons(phase: .row, aiState: .idle))
+        XCTAssertTrue(SelectionController.showsBottomButtons(phase: .row, aiState: .idle), "⋯ floats above the row")
         XCTAssertFalse(SelectionController.showsBottomButtons(phase: .comment, aiState: .idle))
     }
 
+    // MARK: - The caret's row (2026-11-24: whenever the software keyboard is up)
+
+    /// A caret with the software keyboard up raises the row (no settle wait); it goes with the
+    /// keyboard. ⋯ floats above it. A selection then gets its own row once it settles, and
+    /// collapsing it returns to the caret's row, not to nothing.
+    func testCaretRowFollowsSoftwareKeyboard() async throws {
+        try skipUnlessEnglishInterface()
+        let (_, editor, controller) = try await hostScreen(text: "Hello world, this is a test.\n")
+        let window = try XCTUnwrap(self.window)
+        select(NSRange(location: 3, length: 0), in: editor)
+        XCTAssertEqual(controller.phase, .hidden)
+
+        postKeyboard(height: 336, in: window)
+        try await spin { controller.phase == .row }
+        XCTAssertEqual(controller.anchorRange, NSRange(location: 3, length: 0))
+        XCTAssertTrue(controller.items.contains(.image), "Image works at a caret")
+        XCTAssertFalse(controller.items.contains(.replaceWith), "Replace With… needs a selection")
+        XCTAssertFalse(controller.items.contains(.anotherWord))
+        try await spin { Self.element(SelectionRowItem.bold.title, in: window) != nil }
+        // ⋯ stays reachable. (Its height above the row is measured with the keyboard down, in
+        // `testRowAppearsAfterSelectionSettles`: here the posted frame and the simulator's real
+        // keyboard, which SwiftUI's keyboard avoidance follows, can differ.)
+        try await spin { Self.element(MoreButton.accessibilityTitle, in: window) != nil }
+        try await spin {
+            let row = Self.element(SelectionRowItem.bold.title, in: window)?.accessibilityFrame ?? .null
+            return row.maxY <= window.bounds.maxY - 336
+        }
+
+        // Moving the caret keeps the row; a selection gets its own row after the settle.
+        select(NSRange(location: 8, length: 0), in: editor)
+        try await spin { controller.anchorRange == NSRange(location: 8, length: 0) }
+        XCTAssertEqual(controller.phase, .row)
+        select(NSRange(location: 6, length: 5), in: editor)
+        try await spin { controller.anchorRange == NSRange(location: 6, length: 5) }
+        select(NSRange(location: 11, length: 0), in: editor)
+        XCTAssertEqual(controller.phase, .row, "collapsing turns it into the caret's row at once")
+        XCTAssertEqual(controller.anchorRange, NSRange(location: 11, length: 0))
+
+        // The keyboard goes: so does the caret's row.
+        postKeyboardHidden()
+        try await spin { controller.phase == .hidden }
+        try await spin { Self.element(MoreButton.accessibilityTitle, in: window) != nil }
+
+        // Back up, then the editor resigns: no row (it is the editor's keyboard only).
+        postKeyboard(height: 336, in: window)
+        try await spin { controller.phase == .row }
+        editor.resignFirstResponder()
+        controller.editorFocusDidChange()
+        try await spin { controller.phase == .hidden }
+    }
+
+    /// The caret's commands: each is ONE undo step and the row stays for the caret.
+    func testCaretCommandsAreOneUndoEach() async throws {
+        let (editor, controller, _) = try makeEditor("Hello world\n", connected: false)
+        let window = try XCTUnwrap(self.window)
+        postKeyboard(height: 336, in: window)
+        try await spin { controller.keyboardOverlap == 336 }
+        let undo = try XCTUnwrap(editor.undoManager)
+
+        func check(_ caret: Int, _ command: () -> Void, _ expected: String, caretAfter: Int,
+                   file: StaticString = #filePath, line: UInt = #line) {
+            editor.setDocumentText("Hello world\n")
+            undo.removeAllActions()
+            editor.selectedRange = NSRange(location: caret, length: 0)
+            controller.showRowNow()
+            XCTAssertEqual(controller.phase, .row, file: file, line: line)
+            command()
+            XCTAssertEqual(editor.text, expected, file: file, line: line)
+            XCTAssertEqual(editor.selectedRange, NSRange(location: caretAfter, length: 0), file: file, line: line)
+            XCTAssertEqual(controller.phase, .row, "the row stays for the caret", file: file, line: line)
+            undo.undo()
+            XCTAssertEqual(editor.text, "Hello world\n", file: file, line: line)
+            XCTAssertFalse(undo.canUndo, "one button, one undo step", file: file, line: line)
+        }
+
+        // In a word: the word, the caret kept in it.
+        check(8, { controller.perform(.bold) }, "Hello **world**\n", caretAfter: 10)
+        check(2, { controller.perform(.italic) }, "_Hello_ world\n", caretAfter: 3)
+        check(11, { controller.perform(.strikethrough) }, "Hello ~~world~~\n", caretAfter: 13)
+        check(6, { controller.perform(.code) }, "Hello `world`\n", caretAfter: 7)
+        // Not in a word: the Mac's paired markers, the caret between.
+        check(12, { controller.perform(.bold) }, "Hello world\n****", caretAfter: 14)
+        // The line: List, Blockquote, Heading.
+        check(8, { controller.applyList(ordered: false) }, "- Hello world\n", caretAfter: 10)
+        check(8, { controller.applyList(ordered: true) }, "1. Hello world\n", caretAfter: 11)
+        check(8, { controller.perform(.blockquote) }, "> Hello world\n", caretAfter: 10)
+        check(0, { controller.perform(.blockquote) }, "> Hello world\n", caretAfter: 2)
+
+        // A second Bold in the same word removes the markers again.
+        editor.setDocumentText("Hello **world**\n")
+        editor.selectedRange = NSRange(location: 10, length: 0)
+        controller.showRowNow()
+        controller.perform(.bold)
+        XCTAssertEqual(editor.text, "Hello world\n")
+        XCTAssertEqual(editor.selectedRange, NSRange(location: 8, length: 0))
+
+        // Heading applies to the caret's line.
+        editor.setDocumentText("Hello world\n")
+        undo.removeAllActions()
+        editor.selectedRange = NSRange(location: 8, length: 0)
+        controller.showRowNow()
+        controller.setHeading(2)
+        XCTAssertEqual(editor.text, "## Hello world\n")
+        XCTAssertEqual(controller.phase, .row)
+        undo.undo()
+        XCTAssertFalse(undo.canUndo)
+
+        // Insert Table at the caret.
+        editor.setDocumentText("Hello world\n")
+        undo.removeAllActions()
+        editor.selectedRange = NSRange(location: 12, length: 0)
+        controller.showRowNow()
+        controller.perform(.insertTable)
+        XCTAssertTrue(editor.text.contains("| --- |"), editor.text)
+        undo.undo()
+        XCTAssertEqual(editor.text, "Hello world\n")
+        XCTAssertFalse(undo.canUndo)
+
+        // Link is the Mac's: `[](https://example.com)` at the caret, the address selected.
+        editor.setDocumentText("Hello world\n")
+        undo.removeAllActions()
+        editor.selectedRange = NSRange(location: 12, length: 0)
+        controller.showRowNow()
+        controller.perform(.link)
+        XCTAssertEqual(editor.text, "Hello world\n[](https://example.com)")
+        XCTAssertEqual(editor.selectedRange, NSRange(location: 15, length: 19))
+        undo.undo()
+        XCTAssertFalse(undo.canUndo)
+
+        // Reformat Table only on a table row.
+        editor.setDocumentText("| a | bb |\n|---|---|\n| ccc | d |\n")
+        editor.selectedRange = NSRange(location: 2, length: 0)
+        controller.showRowNow()
+        XCTAssertTrue(controller.items.contains(.reformatTable))
+        editor.selectedRange = NSRange(location: (editor.text as NSString).length, length: 0)
+        controller.showRowNow()
+        XCTAssertFalse(controller.items.contains(.reformatTable))
+    }
+
+    func testWordAndLineRanges() {
+        let text = "Don't stop\r\nnow, 日本語です\n" as NSString
+        XCTAssertEqual(SelectionController.wordRange(at: 2, in: text), NSRange(location: 0, length: 5), "an apostrophe stays in the word")
+        XCTAssertEqual(SelectionController.wordRange(at: 5, in: text), NSRange(location: 0, length: 5), "the caret at a word's end")
+        XCTAssertEqual(SelectionController.wordRange(at: 6, in: text), NSRange(location: 6, length: 4))
+        XCTAssertNil(SelectionController.wordRange(at: 16, in: text), "between words")
+        XCTAssertEqual(SelectionController.lineContentRange(at: 3, in: text), NSRange(location: 0, length: 10), "without its CRLF")
+        XCTAssertEqual(SelectionController.lineContentRange(at: 12, in: text), NSRange(location: 12, length: 10))
+        XCTAssertEqual(SelectionController.lineContentRange(at: text.length, in: text), NSRange(location: text.length, length: 0))
+    }
+
+    /// Ask with a caret opens the AI sheet for the whole document, through the shared policy;
+    /// with no text there is no Ask. Replace With… and Another Word never show for a caret.
+    func testCaretAskIsForTheWholeDocument() async throws {
+        XCTAssertEqual(SelectionController.rowItems(aiConnected: true, selectedText: "", offersReplaceWith: true,
+                                                    hasSelection: false),
+                       [.askAI, .heading, .bold, .italic, .strikethrough, .code, .list, .link, .blockquote, .image, .insertTable])
+        let (editor, controller, _) = try makeEditor("Hello world\n", connected: true)
+        postKeyboard(height: 336, in: try XCTUnwrap(window))
+        try await spin { controller.keyboardOverlap == 336 }
+        editor.selectedRange = NSRange(location: 3, length: 0)
+        controller.showRowNow()
+        XCTAssertEqual(controller.items.first, .askAI)
+        controller.perform(.askAI)
+        XCTAssertTrue(controller.isShowingAISheet)
+        XCTAssertEqual(controller.phase, .hidden)
+        XCTAssertEqual(editor.selectedRange.length, 0, "the sheet's requests go to the whole text")
+
+        controller.isShowingAISheet = false
+        editor.setDocumentText("   \n")
+        editor.selectedRange = NSRange(location: 1, length: 0)
+        controller.showRowNow()
+        XCTAssertEqual(controller.phase, .row)
+        XCTAssertFalse(controller.items.contains(.askAI), "nothing to send")
+    }
+
+    /// While an input method composes, the caret's row is left exactly as it is: a keyboard frame
+    /// change (the candidate bar) or a selection change moves nothing, and its buttons do nothing.
+    func testCaretRowStillWhileComposing() async throws {
+        let (editor, controller, _) = try makeEditor("Hello world\n", connected: false)
+        let window = try XCTUnwrap(self.window)
+        postKeyboard(height: 336, in: window)
+        try await spin { controller.keyboardOverlap == 336 }
+        editor.selectedRange = NSRange(location: 12, length: 0)
+        controller.showRowNow()
+        XCTAssertEqual(controller.phase, .row)
+        let items = controller.items
+
+        editor.setMarkedText("にほん", selectedRange: NSRange(location: 3, length: 0))
+        XCTAssertNotNil(editor.markedTextRange)
+        controller.editorSelectionDidChange()
+        controller.editorTextDidChange()
+        postKeyboard(height: 380, in: window)
+        try await spin { controller.keyboardOverlap == 380 }
+        try await Task.sleep(for: .milliseconds(100))
+        XCTAssertEqual(controller.phase, .row, "the row stays as it was")
+        XCTAssertEqual(controller.items, items)
+        let composing = editor.text
+        controller.perform(.bold)
+        XCTAssertEqual(editor.text, composing, "no command runs mid-composition")
+        XCTAssertNotNil(editor.markedTextRange, "the composition is not disturbed")
+        editor.unmarkText()
+    }
+
     // MARK: - Helpers
+
+    /// A keyboard `height` pt tall at the bottom of `window`, posted where the controllers listen.
+    @discardableResult
+    private func postKeyboard(height: CGFloat, in window: UIWindow) -> CGRect {
+        let keyboard = CGRect(x: 0, y: window.bounds.maxY - height, width: window.bounds.width, height: height)
+        keyboardCenter.post(name: UIResponder.keyboardWillChangeFrameNotification, object: nil, userInfo: [
+            UIResponder.keyboardFrameEndUserInfoKey: NSValue(cgRect: window.convert(keyboard, to: window.screen.coordinateSpace)),
+            UIResponder.keyboardAnimationDurationUserInfoKey: 0.0,
+        ])
+        return keyboard
+    }
+
+    private func postKeyboardHidden() {
+        keyboardCenter.post(name: UIResponder.keyboardWillHideNotification, object: nil, userInfo: [
+            UIResponder.keyboardAnimationDurationUserInfoKey: 0.0,
+        ])
+    }
 
     /// What UIKit does for a writer's selection: set it, then tell the delegate.
     private func select(_ range: NSRange, in editor: LineformTextView) {
@@ -495,7 +730,7 @@ final class SelectionRowTests: XCTestCase {
         -> (LineformTextView, SelectionController, AIConnectionStore) {
         let store = try makeStore(connected: connected)
         let ai = AIActionController(connectionStore: store, clientFactory: { _ in client })
-        let controller = SelectionController(connectionStore: { store }, aiController: ai)
+        let controller = SelectionController(connectionStore: { store }, aiController: ai, keyboardNotifications: keyboardCenter)
         let editor = LineformTextView.make(profile: .original)
         editor.setDocumentText(text)
         let scene = try XCTUnwrap(UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first)
@@ -531,7 +766,8 @@ final class SelectionRowTests: XCTestCase {
         let store = try makeStore(connected: connected)
         let controller = SelectionController(
             connectionStore: { store },
-            aiController: AIActionController(connectionStore: store, clientFactory: { _ in client })
+            aiController: AIActionController(connectionStore: store, clientFactory: { _ in client }),
+            keyboardNotifications: keyboardCenter
         )
         let screen = DocumentScreen(document: document, profileStore: profiles, settings: settings, selection: controller)
         let scene = try XCTUnwrap(UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first)

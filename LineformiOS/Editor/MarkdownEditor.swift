@@ -116,11 +116,22 @@ struct MarkdownEditor: UIViewRepresentable {
         }
 
         /// The Reading Ruler follows the caret, and Typewriter Mode re-centres it. The selection row
-        /// rises once a non-empty selection settles, and goes when it collapses.
+        /// rises once a non-empty selection settles; when it collapses the row becomes the caret's
+        /// (software keyboard up) or goes.
         func textViewDidChangeSelection(_ textView: UITextView) {
             (textView as? LineformTextView)?.refreshReadingAssists()
             (textView as? LineformTextView)?.highlighterSelectionDidChange()
             parent.selectionController?.editorSelectionDidChange()
+        }
+
+        /// The caret's row shows only while the editor has the software keyboard: it follows
+        /// the focus (on the next turn).
+        func textViewDidBeginEditing(_ textView: UITextView) {
+            parent.selectionController?.editorFocusDidChange()
+        }
+
+        func textViewDidEndEditing(_ textView: UITextView) {
+            parent.selectionController?.editorFocusDidChange()
         }
 
         func scrollViewDidScroll(_ scrollView: UIScrollView) {

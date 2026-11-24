@@ -1113,10 +1113,31 @@ History is local to this iPhone. History never writes into the document file.
 `SelectionBottomChrome`, an overlay on `DocumentScreen`. The spec is §5.5.
 
 - **When it shows.** `SelectionController.settleDelay` (0.35 s) after a non-empty selection stops
-  changing; it hides at once when the selection collapses. It needs an editable editor in a
-  window, no marked text, and no AI request or review in progress. The app's own selections
-  (`selectProgrammatically`: Search, Check Document Now, a position restore, the AI's collapse)
-  never raise it. It hides on a switch to Read.
+  changing. It needs an editable editor in a window, no marked text, and no AI request or review
+  in progress. The app's own selections (`selectProgrammatically`: Search, Check Document Now, a
+  position restore, the AI's collapse) never raise a selection's row. It hides on a switch to Read.
+- **The caret's row** (2026-11-24, owner decision). While the editor is first responder and the
+  SOFTWARE keyboard is up (`keyboard.overlap ≥ minimumSoftwareKeyboardOverlap`, 150 pt; a hardware
+  keyboard leaves at most the shortcuts bar), the row also shows for a caret, with no settle wait,
+  and goes with the keyboard (keyboard frame notifications, and `textViewDidBeginEditing` /
+  `textViewDidEndEditing`). A collapsing selection turns into the caret's row at once (without the
+  software keyboard it hides at once, as before); a new selection keeps the caret's row up until it
+  settles, then its own buttons replace it. Its published values change on the next main-actor turn
+  (`scheduleCaretRefresh`), never inside an edit, an undo or a resign. While an input method
+  composes, the caret's row is left exactly as it is (no item, phase or anchor change, even when the
+  candidate bar changes the keyboard's height), and its buttons do nothing until the composition
+  ends. Not in Read, and not under the AI sheet.
+- **A caret's commands** (still one undo step each, through `applyMarkdownEdit`): Bold, Italic,
+  Strikethrough and Code act on the word at the caret (`wordRange(at:in:)`, the system's word
+  boundaries on the caret's line) and keep the caret in the word, so a second tap removes the
+  markers; outside a word they are the Mac's `MarkdownFormattingCommand` empty-selection edit (the
+  paired markers, caret between). List and Blockquote prefix or un-prefix the caret's whole line
+  (`lineContentRange(at:in:)`, split on `\n`, a CRLF's `\r` left out), the caret moving with its
+  text; Heading's levels apply to the caret's line; Link is the Mac's `[](https://example.com)` with
+  the address selected; Image and Insert Table insert at the caret; Reformat Table only on a table
+  row. Ask opens the AI sheet for the whole document through `askAIForWholeDocument`
+  (`WholeDocumentAIPolicy`: confirm above 1,500 words, refuse past `AILimits`), and shows only when
+  the document has text. Replace With… and Another Word need a selection and are hidden.
 - **Order** ("A · Native row", feedback §21), scrolling sideways: **Ask** (only while connected; a
   sparkle and the word "Ask" in Lineform blue, `PhoneInk.lineformBlue` — #2F6BDE, #5B8DEF on a dark
   page, made AA by `readableInk`; VoiceOver still hears the AI's name, "Ask Claude"), Heading ›,
@@ -1138,8 +1159,8 @@ History is local to this iPhone. History never writes into the document file.
   paste path (`insertImages(from:at:)`), so a picked image is exactly a pasted one (PNG, `images/`
   beside the document, `ImageFileNaming`, its own line, unsaved document saved first, the notice on
   failure, one undo step). The picker is presented 0.4 s after the menu closes: UIKit refuses a
-  presentation while the menu's own dismissal runs. It lives in the row, so it needs a selection;
-  a caret alone does not raise the row.
+  presentation while the menu's own dismissal runs. With a caret (the software keyboard up) the
+  picture goes in at the caret.
 - **One button, one undo step.** Each formatting button calls the editor's own command, which goes
   through `applyRuleEdit`. The row then adopts the resulting selection instead of hiding.
 - **Placement.** Above the keyboard, or above the home indicator when it is down: bottom padding
@@ -1149,8 +1170,12 @@ History is local to this iPhone. History never writes into the document file.
   undo and broke the editor's undo grouping. The notifications come from the default center;
   hosted tests pass their own (`SelectionController(keyboardNotifications:)`) and post frames
   there, so the simulator's real keyboard (it goes down when the review overlay takes the focus)
-  cannot race a frame the test posted. The editor's insets are never touched. The row
-  replaces the ⋯ and link buttons (and the Read Aloud pill) while it shows. The system edit menu is not changed: it
+  cannot race a frame the test posted (the caret's row depends on the keyboard, so
+  `SelectionRowTests` and `AIReviewTests` always pass their own center). The editor's insets are
+  never touched. While the row shows, the ⋯ and link buttons (and the Read Aloud pill) float just
+  above it (`DocumentScreen.selectionRowClearance`: row height + gap + 12 pt, less the margin they
+  keep), so the menu stays reachable whenever the keyboard is up; only the comment field and a
+  running request or review take their place. The system edit menu is not changed: it
   floats at the selection, and the row sits at the bottom.
 - **The comment field.** Ask AI swaps the row for a full-width card with no drag handle: the
   title and Cancel, the note (a plain `UITextView`, where Return inserts a newline; it grows to

@@ -181,7 +181,8 @@ final class AIReviewTests: XCTestCase {
             XCTAssertFalse(rig.editor.isAIReviewActive, name)
         }
 
-        // The collapse is the app's own selection: the row does not rise for it.
+        // The collapse is the app's own selection: the row does not rise for it (with the keyboard
+        // down; with the software keyboard up it would be the caret's row, never a selection's).
         let rig = try makeRig(text, client: FakeAIClient(FakeAIClient.revising { _, segment in segment.uppercased() }))
         try await review(rig, .rephrase, range: NSRange(location: 0, length: 5))
         rig.ai.handle(.end)
@@ -443,7 +444,10 @@ final class AIReviewTests: XCTestCase {
     /// controller's surface) attached.
     private func makeRig(_ text: String, store: AIConnectionStore, keychain: InMemoryAIKeychain,
                          ai: AIActionController) throws -> Rig {
-        let selection = SelectionController(connectionStore: { store }, aiController: ai)
+        // Its own keyboard notifications: the simulator's real keyboard would otherwise raise the
+        // caret's row (shown whenever the software keyboard is up) behind the test's back.
+        let selection = SelectionController(connectionStore: { store }, aiController: ai,
+                                            keyboardNotifications: NotificationCenter())
         let editor = LineformTextView.make(profile: .original)
         editor.setDocumentText(text)
         let scene = try XCTUnwrap(UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first)
