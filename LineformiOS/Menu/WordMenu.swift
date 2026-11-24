@@ -2,6 +2,7 @@ import os
 import QuartzCore
 import LineformCore
 import SwiftUI
+import UIKit
 
 /// The word menu: the iPhone's one place for files, the outline, Markdown Basics, themes,
 /// settings, export, read aloud, history, the AI connection and About. The ⋯ button opens it over
@@ -94,6 +95,9 @@ struct WordMenu: View {
 
     // MARK: - Body
 
+    /// The software keyboard is up (a search field is being typed in).
+    @State private var isKeyboardUp = false
+
     var body: some View {
         let palette = palette
         ZStack(alignment: .bottomTrailing) {
@@ -108,6 +112,24 @@ struct WordMenu: View {
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            // Rows scrolling up pass under the status bar and Dynamic Island: the wash's top colour
+            // covers that band and fades out just below it, as iOS's own scroll edges do.
+            GeometryReader { geometry in
+                VStack(spacing: 0) {
+                    Rectangle()
+                        .fill(palette.color(palette.washTop))
+                        .frame(height: geometry.safeAreaInsets.top)
+                    LinearGradient(
+                        colors: [palette.color(palette.washTop), palette.color(palette.washTop).opacity(0)],
+                        startPoint: .top, endPoint: .bottom
+                    )
+                    .frame(height: 18)
+                }
+                .ignoresSafeArea(edges: .top)
+                .frame(maxHeight: .infinity, alignment: .top)
+            }
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)
             WordMenuCornerButton(
                 glyph: navigation.isOnWordList ? .close : .back,
                 fill: palette.card,
@@ -117,6 +139,17 @@ struct WordMenu: View {
             )
             .accessibilityIdentifier("wordMenu.corner")
             .padding(MarkdownEditor.chromeMargin)
+            // While typing in a search field the keyboard (and iOS's suggestion bar above it) would
+            // half-cover the corner button: it steps aside until the keyboard goes; Esc still goes back.
+            .opacity(isKeyboardUp ? 0 : 1)
+            .allowsHitTesting(!isKeyboardUp)
+            .accessibilityHidden(isKeyboardUp)
+        }
+        .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillShowNotification)) { _ in
+            isKeyboardUp = true
+        }
+        .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillHideNotification)) { _ in
+            isKeyboardUp = false
         }
         .environment(\.wordMenuPalette, palette)
         .environment(\.colorScheme, palette.colorScheme)

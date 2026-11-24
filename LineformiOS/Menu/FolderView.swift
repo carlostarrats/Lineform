@@ -189,6 +189,9 @@ enum DocumentCardPreview {
             if trimmed.isEmpty || trimmed.hasPrefix("```") || trimmed.hasPrefix("---") || trimmed.hasPrefix("|") { return nil }
             return trimmed
         }
-        return String(cleaned.joined(separator: " ").prefix(characterLimit))
+        // A preview reads as prose: inline marks (**bold**, _italic_, `code`, ~~strike~~) go.
+        var joined = cleaned.joined(separator: " ")
+        for mark in ["**", "__", "~~", "`"] { joined = joined.replacingOccurrences(of: mark, with: "") }
+        return String(joined.prefix(characterLimit))
     }
 }

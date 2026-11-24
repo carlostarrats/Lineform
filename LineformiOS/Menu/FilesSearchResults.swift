@@ -15,7 +15,9 @@ struct SearchResultCard: Identifiable, Equatable {
 
     /// The controller's rows grouped into one card per document, in the controller's order (this
     /// document's matches first, then file names, then file contents).
-    static func cards(from rows: [SearchRow], currentTitle: String) -> [SearchResultCard] {
+    /// `rootNames` names a root's top-level folder the way Files' headings do ("On My iPhone",
+    /// "iCloud"), so a card never shows the container's folder name ("Documents").
+    static func cards(from rows: [SearchRow], currentTitle: String, rootNames: [String: String] = [:]) -> [SearchResultCard] {
         var cards: [SearchResultCard] = []
         var indexByKey: [String: Int] = [:]
         for row in rows {
@@ -31,7 +33,8 @@ struct SearchResultCard: Identifiable, Equatable {
                 guard let url = row.url else { continue }
                 key = url.standardizedFileURL.path
                 title = url.deletingPathExtension().lastPathComponent
-                detail = url.deletingLastPathComponent().lastPathComponent
+                let parent = url.deletingLastPathComponent().standardizedFileURL
+                detail = rootNames[parent.path] ?? parent.lastPathComponent
             }
             if let index = indexByKey[key] {
                 // A file-name card picks up the first matching line when one arrives.
@@ -154,10 +157,25 @@ struct FilesSearchResults: View {
         }
     }
 
+    /// Each root folder's path → its heading in Files.
+    static func rootNames(_ store: FilesStore) -> [String: String] {
+        var names: [String: String] = [:]
+        for root in store.roots {
+            guard let folder = root.folderURL?.standardizedFileURL else { continue }
+            switch root.id {
+            case .icloud: names[folder.path] = FilesSection.iCloudHeading
+            case .device: names[folder.path] = FilesStore.deviceTitle
+            case .workspace: break
+            }
+        }
+        return names
+    }
+
     @ViewBuilder
     private var cardList: some View {
         let cards = SearchResultCard.cards(
-            from: controller.rows, currentTitle: WordMenu.documentTitle(for: document.url)
+            from: controller.rows, currentTitle: WordMenu.documentTitle(for: document.url),
+            rootNames: Self.rootNames(store)
         )
         VStack(alignment: .leading, spacing: WordMenuMetrics.rowSpacing) {
             if let status = controller.statusText {
