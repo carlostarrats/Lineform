@@ -1373,7 +1373,8 @@ material.
 - **The UI audit, `LineformiOSUITests`.** `PhoneAccessibilityAuditUITests` launches the app and
   runs `performAccessibilityAudit()` on Write, Read, each Menu section, the Styling sheet and
   first run, at the default text size and at AX5, in both test plan configurations. It is a local
-  gate: CI builds it (`build-for-testing`) but never runs it. Every ignored issue matches one rule
+  gate: CI builds it (`build-for-testing`) but never runs it. It launches the app with In-app
+  notifications off, so a test run never requests the live announcement feed. Every ignored issue matches one rule
   in `AuditExceptions`, with its reason:
   - the document text views' Dynamic Type (above) and the preset cards' `@ScaledMetric` text;
   - the section bar's one-line titles, and a title scrolled partly off the sheet;

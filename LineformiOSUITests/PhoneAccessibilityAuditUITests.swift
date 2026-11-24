@@ -90,6 +90,11 @@ final class PhoneAccessibilityAuditUITests: XCTestCase {
         app.launchArguments += ["-AppleLanguages", "(\(language))", "-AppleLocale", language == "de" ? "de_DE" : "en_US"]
         // `FirstRunGate.completedKey`, through the arguments domain of `UserDefaults.standard`.
         app.launchArguments += ["-LineformiOSFirstRunCompleted.v1", firstRunCompleted ? "YES" : "NO"]
+        // `LineformSettingKeys.checksForAnnouncements` off: the audit must never make the app
+        // request the live announcement feed (a test run is not a reader), and a remote card would
+        // make the audited screens depend on what the feed says that day. The card has its own
+        // hosted tests.
+        app.launchArguments += ["-Lineform.settings.checksForAnnouncements", "NO"]
         if forceFirstRun {
             // `FirstRunGate.forceEnvironmentKey`.
             app.launchEnvironment["LINEFORM_SHOW_FIRST_RUN"] = "1"
