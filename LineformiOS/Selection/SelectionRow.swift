@@ -61,7 +61,8 @@ struct SelectionRow: View {
     /// The heading levels the row offers: the mockup's five (Heading 5 and 6 stay on the
     /// keyboard shortcuts).
     static var rowHeadingLevels: [(level: Int?, title: String)] {
-        SelectionController.headingLevels.filter { $0.level.map { $0 <= 4 } ?? true }
+        // Every level the Mac's Format ▸ Heading offers (Title … Heading 6, Body), as chips.
+        SelectionController.headingLevels
     }
 
     /// What a change of the row's contents is keyed on: a new value rebuilds the scroll view at
