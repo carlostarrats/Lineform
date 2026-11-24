@@ -1385,7 +1385,8 @@ action does to the document. The two sections after it cover the text-view and o
   an inactive selection OVER layout-manager temporary attributes, so a held highlight alone stayed
   faint grey. The live selection is collapsed while the card is open (guarded by
   `isAdjustingSelection` so the toolbar does not react to its own change) and the passage carries
-  the ACTIVE selection colour as a temporary `.backgroundColor`; Esc restores the selection.
+  the highlighter stroke through `heldHighlightRange` (drawn behind the text like the selection,
+  never a text or layout attribute; see "Highlighter selection"); Esc restores the selection.
 - **Cursor.** The bar and the card's button row carry `CursorRectView(cursor: .arrow)` (the same
   fix as the floating cards and Settings); the note field keeps its I-beam. Synthetic pointer moves
   in automation do not produce cursor updates, so this is verified by hand, not by a test.
@@ -1604,6 +1605,45 @@ the app's one `AIConnectionStore.shared`).
 - **ATS.** Plain `http` to `127.0.0.1` and `localhost` (the "Other" provider) works with no ATS key:
   checked from the test host against the stub. `ReleaseResourceTests.testATSAllowsAtMostLocalNetworking`
   permits at most `NSAllowsLocalNetworking`, never arbitrary loads.
+
+## Highlighter selection (2026-11-24)
+
+The editors' selection is a calm marker stroke instead of the system's flat fill (iPhone TestFlight
+feedback §21; mockup `Lineform-mobile/docs/mockups/selection.html`). Both apps share the shape and
+colour (`Packages/LineformCore/.../Editor/HighlighterSelection.swift`) and the line measuring
+(`.../Markdown/Rendering/HighlighterSelectionLayout.swift`, TextKit 1 on both platforms).
+
+- **Shape.** One straight stroke per line fragment the selection touches. Its box is the selected
+  glyphs' extent (a line break is never painted; a selected empty line gets a 4 pt nib) and the
+  line's pitch + 2 pt, centred on the glyphs and capped at 1.45 × the text height, so consecutive
+  lines just touch with about 2 pt of overlap and a loose line height leaves a calm gap. The ends
+  overshoot by 2–8 pt (left) and 1–10 pt (right), lean a little, and have a slightly rounded nib;
+  top and bottom edges are only very slightly soft. Every varying value is a hash of the line
+  fragment's first character index (the mockup's `rnd`), so a stroke never shimmers while a drag
+  extends the selection.
+- **Colour.** Lineform blue #2F6BDE at 19 % on light pages; #6F9BFF at 30 % on dark ones
+  (`usesDarkChrome`). Each line is its own fill, so the overlap darkens like ink laid twice.
+  **Increase Contrast** (Mac: `accessibilityDisplayShouldIncreaseContrast`, observed; iPhone:
+  `accessibilityContrast == .high` or Darker System Colors) raises it to 34 % / 38 % and fills all
+  lines as ONE shape, so overlaps never double. On a dark page a stronger blue LIGHTENS the ground
+  under light ink, which is why the dark step is small. `HighlighterSelectionTests` asserts body
+  ink on one fill is AA (4.5:1) in every theme at both strengths, and ≥ 3:1 on the calm overlap
+  sliver.
+- **Never stored.** Strokes are drawn behind the glyphs and never written to the text storage
+  (nor as layout-manager temporary attributes), so copy, undo, autosave and the file never see them.
+- **Mac** (`Lineform/Editor/HighlighterSelectionDrawing.swift`, `LineformTextView`).
+  `selectedTextAttributes` is `[.backgroundColor: .clear]`; `drawBackground(in:)` paints the strokes
+  after History's fills and Find's matches and before the Reading Ruler, so they sit under the
+  glyphs. `setSelectedRanges` re-measures the VISIBLE lines only and invalidates just the lines
+  whose stroke changed (old and new paint bounds, which include the overshoot AppKit's own
+  selection invalidation would miss); typing with a caret costs one empty check. AppKit selection
+  behaviour, Find, History's receded ink and the AI review overlay are unchanged. The comment
+  card's held passage (`heldHighlightRange`) is stroked the same way. Tests:
+  `HighlighterSelectionDrawingTests` (rendered pixels, no storage change, determinism).
+- **Read/Split preview is unchanged** (system selection). Its code blocks, tables and callouts
+  paint opaque backgrounds after `drawBackground`, which would hide a stroke drawn there; doing it
+  properly needs a different drawing hook, so it was left out.
+- **iPhone**: `iphone-app.md`, "Highlighter selection".
 
 ## Open bug: "Edited" stays in the title bar after a live reload (found 2026-11-06, not fixed)
 

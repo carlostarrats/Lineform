@@ -65,21 +65,32 @@ final class SelectionRowTests: XCTestCase {
     func testOrderMatchesSpec() throws {
         try skipUnlessEnglishInterface()
         XCTAssertEqual(SelectionController.rowItems(aiConnected: true, selectedText: "word", offersReplaceWith: true), [
-            .askAI, .heading, .bold, .italic, .strikethrough, .code, .list, .link, .blockquote, .replaceWith, .anotherWord,
+            .askAI, .heading, .bold, .italic, .strikethrough, .code, .list, .link, .blockquote, .image, .insertTable, .replaceWith,
+            .anotherWord,
         ])
         XCTAssertEqual(SelectionController.rowItems(aiConnected: true, selectedText: "two words", offersReplaceWith: true), [
-            .askAI, .heading, .bold, .italic, .strikethrough, .code, .list, .link, .blockquote, .replaceWith,
+            .askAI, .heading, .bold, .italic, .strikethrough, .code, .list, .link, .blockquote, .image, .insertTable, .replaceWith,
         ])
         // Replace With… only where History can keep the selection (`offersReplaceWith`).
         XCTAssertEqual(SelectionController.rowItems(aiConnected: false, selectedText: "two words", offersReplaceWith: false), [
-            .heading, .bold, .italic, .strikethrough, .code, .list, .link, .blockquote,
+            .heading, .bold, .italic, .strikethrough, .code, .list, .link, .blockquote, .image, .insertTable,
         ])
+        // Reformat Table only when the selection starts on a table row.
+        XCTAssertEqual(SelectionController.rowItems(aiConnected: false, selectedText: "a", offersReplaceWith: false,
+                                                    startsOnTableRow: true).suffix(2), [.insertTable, .reformatTable])
         // pinned-en: the titles each button carries.
         XCTAssertEqual(
-            [SelectionRowItem.heading, .bold, .italic, .strikethrough, .code, .list, .link, .blockquote, .replaceWith, .anotherWord]
+            [SelectionRowItem.heading, .bold, .italic, .strikethrough, .code, .list, .link, .blockquote, .image, .insertTable,
+             .reformatTable, .replaceWith, .anotherWord]
                 .map(\.title),
-            ["Heading", "Bold", "Italic", "Strikethrough", "Code", "List", "Link", "Blockquote", "Replace With…", "Another Word"]
+            ["Heading", "Bold", "Italic", "Strikethrough", "Code", "List", "Link", "Blockquote", "Image", "Insert Table",
+             "Reformat Table", "Replace With…", "Another Word"]
         )
+        // Ask shows the short word beside the sparkle; VoiceOver still hears the AI's name.
+        XCTAssertEqual(SelectionRowItem.askShortTitle, "Ask")
+        XCTAssertEqual(SelectionRowItem.askAI.systemImage, "sparkles")
+        XCTAssertEqual(SelectionController.headingLevels.map(\.title),
+                       ["Title", "Section", "Heading 3", "Heading 4", "Heading 5", "Heading 6", "Body"])
 
         // An editor without History offers no Replace With… (it opens History: `PhoneAIHistoryTests`).
         let (editor, controller, _) = try makeEditor("Find this phrase here\n", connected: false)
@@ -154,6 +165,66 @@ final class SelectionRowTests: XCTestCase {
         XCTAssertEqual(editor.text, "> Hello world\n")
         undo.undo()
         XCTAssertEqual(editor.text, "Hello world\n")
+        XCTAssertFalse(undo.canUndo)
+    }
+
+    /// Heading opens the levels IN PLACE (the row swaps to ‹ and the levels); a level applies as
+    /// one undo step and the buttons come back; ‹ returns without a change; a new row always opens
+    /// on the buttons.
+    func testHeadingOpensLevelsInPlace() throws {
+        let (editor, controller, _) = try makeEditor("Hello world\n", connected: false)
+        let undo = try XCTUnwrap(editor.undoManager)
+        undo.removeAllActions()
+        editor.selectedRange = NSRange(location: 0, length: 5)
+        controller.showRowNow()
+        XCTAssertFalse(controller.showsHeadingLevels)
+
+        controller.perform(.heading)
+        XCTAssertTrue(controller.showsHeadingLevels)
+        XCTAssertEqual(editor.text, "Hello world\n", "opening the levels changes nothing")
+        controller.showHeadingLevels(false)
+        XCTAssertFalse(controller.showsHeadingLevels, "‹ goes back")
+        XCTAssertFalse(undo.canUndo)
+
+        controller.perform(.heading)
+        controller.setHeading(3)
+        XCTAssertEqual(editor.text, "### Hello world\n")
+        XCTAssertFalse(controller.showsHeadingLevels, "picking a level returns to the buttons")
+        XCTAssertEqual(controller.phase, .row)
+        undo.undo()
+        XCTAssertEqual(editor.text, "Hello world\n")
+        XCTAssertFalse(undo.canUndo, "one level, one undo step")
+
+        controller.perform(.heading)
+        controller.hide()
+        editor.selectedRange = NSRange(location: 0, length: 5)
+        controller.showRowNow()
+        XCTAssertFalse(controller.showsHeadingLevels, "a new row opens on the buttons")
+    }
+
+    /// Insert Table and Reformat Table moved to the row: one undo step each, through the editor.
+    func testTableButtonsAreOneUndoEach() throws {
+        let (editor, controller, _) = try makeEditor("Hello world\n", connected: false)
+        let undo = try XCTUnwrap(editor.undoManager)
+        undo.removeAllActions()
+        editor.selectedRange = NSRange(location: 0, length: 5)
+        controller.showRowNow()
+        XCTAssertFalse(controller.items.contains(.reformatTable), "not on a table row")
+        controller.perform(.insertTable)
+        XCTAssertTrue(editor.text.contains("| --- |"), editor.text)
+        undo.undo()
+        XCTAssertEqual(editor.text, "Hello world\n")
+        XCTAssertFalse(undo.canUndo)
+
+        editor.setDocumentText("| a | bb |\n|---|---|\n| ccc | d |\n")
+        undo.removeAllActions()
+        editor.selectedRange = NSRange(location: 2, length: 1)
+        controller.showRowNow()
+        XCTAssertTrue(controller.items.contains(.reformatTable))
+        controller.perform(.reformatTable)
+        XCTAssertNotEqual(editor.text, "| a | bb |\n|---|---|\n| ccc | d |\n")
+        undo.undo()
+        XCTAssertEqual(editor.text, "| a | bb |\n|---|---|\n| ccc | d |\n")
         XCTAssertFalse(undo.canUndo)
     }
 

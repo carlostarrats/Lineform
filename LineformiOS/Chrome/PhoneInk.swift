@@ -34,6 +34,9 @@ struct PhoneInk {
         case linkGlyph
         /// System blue as TEXT on the page: the announcement card's link.
         case accent
+        /// Lineform blue (#2F6BDE; #5B8DEF on a dark page) as TEXT on the page: the selection
+        /// row's Ask.
+        case lineformBlue
         /// The History card's Add glyph (ink at 0.85) on its circle (ink at
         /// `historyAddWashAlpha`), while it can be used. Disabled, it is exempt.
         case historyAddGlyph
@@ -138,7 +141,7 @@ struct PhoneInk {
     /// The surface `role` is measured against.
     func surface(for role: Role) -> UIColor {
         switch role {
-        case .secondary, .tertiary, .icon, .controlEdge, .chevron, .linkGlyph, .accent: page
+        case .secondary, .tertiary, .icon, .controlEdge, .chevron, .linkGlyph, .accent, .lineformBlue: page
         case .historyAddGlyph: historyAddWash
         case .onReadPill: readPill
         case .tertiaryOnCommentField: commentFieldWash
@@ -167,6 +170,11 @@ struct PhoneInk {
             return theme.readableInk(ink.withAlphaComponent(0.6), minimumRatio: minimum)
         case .linkGlyph, .accent:
             return theme.readableInk(systemColor(.systemBlue), minimumRatio: minimum)
+        case .lineformBlue:
+            let blue = isDark
+                ? UIColor(red: 0x5B / 255, green: 0x8D / 255, blue: 0xEF / 255, alpha: 1)
+                : UIColor(red: 0x2F / 255, green: 0x6B / 255, blue: 0xDE / 255, alpha: 1)
+            return theme.readableInk(blue, minimumRatio: minimum)
         case .historyAddGlyph:
             return theme.readableInk(ink.withAlphaComponent(0.85), minimumRatio: minimum, on: surface(for: role))
         case .onReadPill:

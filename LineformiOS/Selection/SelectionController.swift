@@ -5,7 +5,8 @@ import UIKit
 
 /// One button of the selection row, in the spec's order (§5.5).
 enum SelectionRowItem: Equatable, CaseIterable {
-    case askAI, heading, bold, italic, strikethrough, code, list, link, blockquote, replaceWith, anotherWord
+    case askAI, heading, bold, italic, strikethrough, code, list, link, blockquote, image, insertTable, reformatTable
+    case replaceWith, anotherWord
 
     /// The button's name (its accessibility label; the text for the text buttons). Ask AI names the
     /// connected AI ("Ask Claude"), as the Mac's toolbar does.
@@ -20,6 +21,9 @@ enum SelectionRowItem: Equatable, CaseIterable {
         case .list: return SelectionToolbarPresentation.listTitle
         case .link: return String(localized: "Link")
         case .blockquote: return String(localized: "Blockquote")
+        case .image: return String(localized: "Image")
+        case .insertTable: return String(localized: "Insert Table")
+        case .reformatTable: return String(localized: "Reformat Table")
         case .replaceWith: return String(localized: "Replace With…")
         case .anotherWord: return AIAction.anotherWord.title
         }
@@ -27,10 +31,18 @@ enum SelectionRowItem: Equatable, CaseIterable {
 
     var title: String { title() }
 
-    /// The Mac toolbar's symbols where it has the button.
+    /// What the row SHOWS for Ask: the short "Ask" beside the sparkle (§21, "A · Native row").
+    /// `title` (its VoiceOver label) still names the AI: "Ask Claude".
+    static var askShortTitle: String { String(localized: "Ask") }
+
+    /// The Mac toolbar's symbols where it has the button; the tables use the Mac's Format-menu
+    /// symbols (`MainMenuIconDecorator`).
     var systemImage: String? {
         switch self {
-        case .askAI: return "text.bubble"
+        case .askAI: return "sparkles"
+        case .image: return "photo"
+        case .insertTable: return "tablecells"
+        case .reformatTable: return "tablecells.badge.ellipsis"
         case .bold: return "bold"
         case .italic: return "italic"
         case .strikethrough: return "strikethrough"
@@ -94,6 +106,9 @@ final class SelectionController: NSObject, ObservableObject {
 
     @Published private(set) var phase: Phase = .hidden
     @Published private(set) var items: [SelectionRowItem] = []
+    /// The row shows the heading levels in place of its buttons (Heading's second row, with ‹ to
+    /// go back). Picking a level applies it and returns to the buttons.
+    @Published private(set) var showsHeadingLevels = false
     /// How much of the window's bottom the keyboard covers (0 when it is down). Its own object,
     /// observed only by the bottom chrome: a keyboard frame change must not re-render the whole
     /// screen (it arrives while the editor resigns, and a screen update there broke the editor's
@@ -225,13 +240,17 @@ final class SelectionController: NSObject, ObservableObject {
     // MARK: - Which buttons
 
     /// The row's buttons, in order: Ask AI (only while connected), Heading, Bold, Italic,
-    /// Strikethrough, Code, List, Link, Blockquote, Replace With… (only where History can keep the
-    /// selection: `offersReplaceWith`), and Another Word (one word only, and only while connected:
-    /// it is an AI action).
-    static func rowItems(aiConnected: Bool, selectedText: String, offersReplaceWith: Bool) -> [SelectionRowItem] {
+    /// Strikethrough, Code, List, Link, Blockquote, Insert Table, Reformat Table (only when the
+    /// selection starts on a table row: elsewhere it would do nothing), Replace With… (only where
+    /// History can keep the selection: `offersReplaceWith`), and Another Word (one word only, and
+    /// only while connected: it is an AI action). Insert and Reformat Table moved here from the
+    /// Menu; on the Mac they live in Format.
+    static func rowItems(aiConnected: Bool, selectedText: String, offersReplaceWith: Bool,
+                         startsOnTableRow: Bool = false) -> [SelectionRowItem] {
         var items: [SelectionRowItem] = aiConnected ? [.askAI] : []
         // (Read mode passes `aiConnected: false`: Read allows no AI.)
-        items += [.heading, .bold, .italic, .strikethrough, .code, .list, .link, .blockquote]
+        items += [.heading, .bold, .italic, .strikethrough, .code, .list, .link, .blockquote, .image, .insertTable]
+        if startsOnTableRow { items.append(.reformatTable) }
         if offersReplaceWith { items.append(.replaceWith) }
         if aiConnected, AIMenuPresentation.isSingleWord(selectedText) { items.append(.anotherWord) }
         return items
@@ -307,10 +326,26 @@ final class SelectionController: NSObject, ObservableObject {
         let dark = Theme.theme(for: editor.profile).usesDarkChrome
         if model.usesDarkChrome != dark { model.usesDarkChrome = dark }
         let newItems = Self.rowItems(aiConnected: provider != nil && !isReadMode, selectedText: selectedText(in: range),
-                                     offersReplaceWith: editor.offersReplaceWith(for: range))
+                                     offersReplaceWith: editor.offersReplaceWith(for: range),
+                                     startsOnTableRow: startsOnTableRow(range))
         if items != newItems { items = newItems }
         anchorRange = range
-        if phase != .row { phase = .row }
+        if phase != .row {
+            // A new row always opens on the formatting buttons, never on the heading levels.
+            if showsHeadingLevels { showsHeadingLevels = false }
+            phase = .row
+        }
+    }
+
+    /// Whether the line `range` starts on is a table row (it starts with `|`): line-local, so it
+    /// costs nothing on a large document.
+    private func startsOnTableRow(_ range: NSRange) -> Bool {
+        guard let editor else { return false }
+        let text = editor.textStorage.string as NSString
+        guard range.location <= text.length else { return false }
+        let line = text.lineRange(for: NSRange(location: range.location, length: 0))
+        let content = text.substring(with: line).trimmingCharacters(in: markdownLineTrimCharacters)
+        return content.hasPrefix("|")
     }
 
     /// No row while composing, outside an editable editor on screen, or while an AI request or
@@ -335,6 +370,7 @@ final class SelectionController: NSObject, ObservableObject {
         if isNoteComposing { isNoteComposing = false }
         if isWholeDocument { isWholeDocument = false }
         if model.isWholeDocument { model.isWholeDocument = false }
+        if showsHeadingLevels { showsHeadingLevels = false }
         if phase != .hidden { phase = .hidden }
     }
 
@@ -349,8 +385,13 @@ final class SelectionController: NSObject, ObservableObject {
     func perform(_ item: SelectionRowItem) {
         switch item {
         case .askAI: openComment()
-        // Heading and List are menus (`setHeading`, `applyList`).
-        case .heading, .list: break
+        // Heading opens the levels in place (`setHeading`); List is a menu (`applyList`).
+        case .heading: showHeadingLevels(true)
+        // Image is a menu (`pickImage`).
+        case .image: break
+        case .list: break
+        case .insertTable: runCommand { $0.insertTable() }
+        case .reformatTable: runCommand { $0.reformatTable() }
         case .bold: runCommand { $0.apply(.bold) }
         case .italic: runCommand { $0.apply(.italic) }
         case .strikethrough: runCommand { $0.apply(.strikethrough) }
@@ -374,10 +415,46 @@ final class SelectionController: NSObject, ObservableObject {
         }
     }
 
-    /// Heading's menu: Title, Section, Heading 3–6, or Body (`nil`).
+    /// Heading's second row: Title, Section, Heading 3–6, or Body (`nil`), the Mac's Format ▸
+    /// Heading items. Applies the level (one undo step), then the row returns to its buttons.
     func setHeading(_ level: Int?) {
         runCommand { $0.setHeadingLevel(level) }
+        showHeadingLevels(false)
     }
+
+    /// Swaps the row between its buttons and the heading levels (Heading, and ‹).
+    func showHeadingLevels(_ shows: Bool) {
+        guard phase == .row || !shows else { return }
+        if showsHeadingLevels != shows { showsHeadingLevels = shows }
+    }
+
+    /// The heading levels, in the Mac's order, with Body (`nil`) last.
+    static var headingLevels: [(level: Int?, title: String)] {
+        [
+            (1, String(localized: "Title")),
+            (2, String(localized: "Section")),
+            (3, String(localized: "Heading 3")),
+            (4, String(localized: "Heading 4")),
+            (5, String(localized: "Heading 5")),
+            (6, String(localized: "Heading 6")),
+            (nil, String(localized: "Body")),
+        ]
+    }
+
+    /// Image's menu: Photos or Files. The row goes while the picker is up; the picked image goes
+    /// in through the editor's paste path (one undo step).
+    func pickImage(from source: LineformTextView.ImagePickerSource) {
+        guard let editor, phase == .row else { return }
+        hide()
+        // After the menu has finished closing: UIKit refuses a presentation while the menu's own
+        // dismissal is still running.
+        Task { @MainActor [weak editor] in
+            try? await Task.sleep(for: .seconds(Self.menuDismissalDelay))
+            editor?.presentImagePicker(source)
+        }
+    }
+
+    static let menuDismissalDelay: TimeInterval = 0.4
 
     /// List's menu: Bulleted or Numbered.
     func applyList(ordered: Bool) {
@@ -394,7 +471,8 @@ final class SelectionController: NSObject, ObservableObject {
         guard range.length > 0 else { return hide() }
         anchorRange = range
         let newItems = Self.rowItems(aiConnected: model.aiName != nil, selectedText: selectedText(in: range),
-                                     offersReplaceWith: editor.offersReplaceWith(for: range))
+                                     offersReplaceWith: editor.offersReplaceWith(for: range),
+                                     startsOnTableRow: startsOnTableRow(range))
         if items != newItems { items = newItems }
     }
 
