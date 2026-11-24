@@ -195,7 +195,10 @@ struct DocumentScreen: View {
     var body: some View {
         page
         .ignoresSafeArea(.container)
-        .background(Color(uiColor: Theme.theme(for: profile).backgroundColor))
+        // The page colour reaches under the keyboard too: without `ignoresSafeArea()` here the
+        // background stopped at the keyboard's edge and the window's black showed through the
+        // translucent keyboard (and in screenshots).
+        .background(Color(uiColor: Theme.theme(for: profile).backgroundColor).ignoresSafeArea())
         .overlay {
             if document.downloadingName != nil {
                 DownloadingView(profile: profile)
@@ -248,7 +251,12 @@ struct DocumentScreen: View {
                         }
                         MenuButton(profile: profile) { isShowingMenu = true }
                     }
-                    StylingButton(profile: profile) { isShowingStyling = true }
+                    StylingButton(profile: profile) {
+                        // The sheet and the keyboard never share the screen: the keyboard goes
+                        // first, or the sheet opens behind it.
+                        positionKeeper.editor?.resignFirstResponder()
+                        isShowingStyling = true
+                    }
                 }
                 .padding(MarkdownEditor.chromeMargin)
                 .transition(.opacity)
@@ -322,6 +330,11 @@ struct DocumentScreen: View {
                 onAskAI: { asksAIForWholeDocument = true },
                 onDismiss: { isShowingMenu = false }
             )
+        }
+        // Typing means styling is done: the sheet leaves when the keyboard comes up, rather than
+        // staying half-hidden behind it.
+        .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillShowNotification)) { _ in
+            if isShowingStyling { isShowingStyling = false }
         }
         .sheet(isPresented: $isShowingStyling, onDismiss: {
             // A Reconnect tapped on the page beside the open sheet waits for it to close: a view

@@ -174,6 +174,11 @@ for line alike. Do not switch it to TextKit 2.
   `init(frame:textContainer:)`, `init?(coder:)` and `make(profile:)`.
 - Chrome floats over the text. No bar spans the top of the page; the page colour runs edge to
   edge, and only the container safe area is ignored so the editor still resizes for the keyboard.
+- The page colour is drawn under the keyboard too (`.background(... .ignoresSafeArea())`). Without
+  it the background stopped at the keyboard's edge and the window's black showed through the
+  translucent keyboard and in screenshots. The Styling sheet closes when the keyboard comes up
+  (`keyboardWillShowNotification`), and Aa puts the keyboard away before it opens the sheet, so
+  the two never share the screen.
 - Text set from code keeps the selection, clamped to the new text, so a live reload does not move
   the caret.
 
@@ -491,6 +496,14 @@ exists. A file with a full local copy that is not current (`.downloaded`, for ex
 opens that copy at once; the download request keeps running, and the live-reload watcher plus
 `DocumentReloadPolicy` apply the current version when it arrives. A later open or New Document
 supersedes a pending one. A placeholder URL always maps to the real file.
+
+A file with a local copy (the usual case, iCloud or not) is read and shown **before** iCloud is
+asked about it: `downloadState` runs only after the swap and the watch, and if the copy turns out
+outdated the download starts then and the reload brings the current version in. Asking first put
+the status lookup in front of every switch: measured in the simulator, a session's first switch
+took 296 ms, 287 of them in that lookup; with the read first it takes 8 ms
+(`OpenDocumentTests.testLocalCopyOpensWithoutWaitingForTheICloudStatus`). Only a file with no
+local copy still waits on iCloud.
 
 ## Moves
 

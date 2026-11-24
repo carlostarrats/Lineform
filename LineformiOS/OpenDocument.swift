@@ -304,48 +304,60 @@ final class OpenDocument: ImageInsertionHost {
             onlyIntoUntouchedDocument && (self.url != nil || !text.isEmpty)
         }
         var startsDownloadAfterWatching = false
+        var checksCurrencyAfterWatching = false
         let didAccess = url.startAccessingSecurityScopedResource()
         var keepsScope = false
         defer { if didAccess, !keepsScope { url.stopAccessingSecurityScopedResource() } }
 
         let items = ubiquitousItems
-        switch await Task.detached(operation: { items.downloadState(url) }).value {
-        case .current:
-            break
-        case .localCopyNotCurrent:
-            // A full local copy is here (offline, or a newer version is on its way): open it at
-            // once. The download starts once the file is watched, so the current version is
-            // brought in by the watcher and `DocumentReloadPolicy` like any external change.
-            startsDownloadAfterWatching = true
-        case .notDownloaded:
-            guard generation == openGeneration else { throw OpenError.superseded }
-            // A restore never puts away a document the writer has typed into.
-            if restoreMustYield() { throw OpenError.superseded }
-            // The download can take a while: save and put away the current document first, so
-            // nothing typed meanwhile can be lost, and show the downloading state in its place.
-            guard await flush() else { throw OpenError.currentDocumentNotSaved }
-            guard generation == openGeneration else { throw OpenError.superseded }
-            if restoreMustYield() { throw OpenError.superseded }
-            closeCurrentDocument()
-            downloadingName = url.lastPathComponent
-            do {
-                try await Task.detached(operation: { try items.startDownloading(url) }).value
-            } catch {
-                // A failure after a newer action took over is that action's business.
-                guard generation == openGeneration else { throw OpenError.superseded }
-                downloadingName = nil
-                throw OpenError.unreadable(url)
-            }
-            // Wait only until a local copy exists; a newer version then arrives as a reload.
-            while await Task.detached(operation: { items.downloadState(url) }).value == .notDownloaded {
-                guard generation == openGeneration else { throw OpenError.superseded }
-                try? await Task.sleep(for: Self.downloadPollInterval)
-                guard generation == openGeneration else { throw OpenError.superseded }
-            }
-        }
-
         let reader = self.reader
-        let diskText = await Task.detached(operation: { reader.readText(at: url) }).value
+        // Fast path, the usual case: a local copy is here (iCloud or not). Read it and show it at
+        // once; whether iCloud has a newer version is asked AFTER the swap. Asking first put the
+        // iCloud status lookup (about 0.3 s on a session's first open) in front of every switch.
+        let localText: String? = await Task.detached(operation: {
+            FileManager.default.fileExists(atPath: url.path) ? reader.readText(at: url) : nil
+        }).value
+        let diskText: String?
+        if let localText {
+            diskText = localText
+            checksCurrencyAfterWatching = true
+        } else {
+            switch await Task.detached(operation: { items.downloadState(url) }).value {
+            case .current:
+                break
+            case .localCopyNotCurrent:
+                // A full local copy is here (offline, or a newer version is on its way): open it at
+                // once. The download starts once the file is watched, so the current version is
+                // brought in by the watcher and `DocumentReloadPolicy` like any external change.
+                startsDownloadAfterWatching = true
+            case .notDownloaded:
+                guard generation == openGeneration else { throw OpenError.superseded }
+                // A restore never puts away a document the writer has typed into.
+                if restoreMustYield() { throw OpenError.superseded }
+                // The download can take a while: save and put away the current document first, so
+                // nothing typed meanwhile can be lost, and show the downloading state in its place.
+                guard await flush() else { throw OpenError.currentDocumentNotSaved }
+                guard generation == openGeneration else { throw OpenError.superseded }
+                if restoreMustYield() { throw OpenError.superseded }
+                closeCurrentDocument()
+                downloadingName = url.lastPathComponent
+                do {
+                    try await Task.detached(operation: { try items.startDownloading(url) }).value
+                } catch {
+                    // A failure after a newer action took over is that action's business.
+                    guard generation == openGeneration else { throw OpenError.superseded }
+                    downloadingName = nil
+                    throw OpenError.unreadable(url)
+                }
+                // Wait only until a local copy exists; a newer version then arrives as a reload.
+                while await Task.detached(operation: { items.downloadState(url) }).value == .notDownloaded {
+                    guard generation == openGeneration else { throw OpenError.superseded }
+                    try? await Task.sleep(for: Self.downloadPollInterval)
+                    guard generation == openGeneration else { throw OpenError.superseded }
+                }
+            }
+            diskText = await Task.detached(operation: { reader.readText(at: url) }).value
+        }
         guard generation == openGeneration else { throw OpenError.superseded }
         guard let diskText else {
             downloadingName = nil
@@ -371,6 +383,16 @@ final class OpenDocument: ImageInsertionHost {
         planner = AutosavePlanner(existingFileName: url.lastPathComponent, isNamedFromFirstLine: false)
         history?.open(url: url, text: diskText)
         startWatching(url)
+        if checksCurrencyAfterWatching {
+            // The file is watched now, so a version that lands from here on is announced.
+            let opened = documentGeneration
+            Task { [weak self] in
+                let state = await Task.detached(operation: { items.downloadState(url) }).value
+                guard let self, self.documentGeneration == opened, state == .localCopyNotCurrent else { return }
+                Task.detached { try? items.startDownloading(url) }
+                self.scheduleReload()
+            }
+        }
         if startsDownloadAfterWatching {
             Task.detached { try? items.startDownloading(url) }
             // A version that landed between the read and the watch is not announced to the new
