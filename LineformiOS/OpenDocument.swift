@@ -99,6 +99,10 @@ final class OpenDocument: ImageInsertionHost {
     /// Where new documents save. Resolved off the main thread by `prepare`, because the live
     /// folder asks for the iCloud container.
     private(set) var saveFolder: URL?
+    /// The folder THIS new document saves into instead of the save folder: Files ▸ New Document
+    /// inside a folder (iCloud's or On My iPhone's). Nil for an ordinary new document; spent once
+    /// the document has a file, and cleared by the next New Document or open.
+    private(set) var newDocumentFolder: URL?
 
     @ObservationIgnored private let folderProvider: @Sendable () -> URL
     @ObservationIgnored private let reader: any DocumentDiskReading
@@ -415,6 +419,16 @@ final class OpenDocument: ImageInsertionHost {
         return true
     }
 
+    /// New Document inside `folder`: like `newDocument()`, but its file is created in `folder`
+    /// (named from its first line, never replacing anything there). Nil `folder` is the save
+    /// folder.
+    @discardableResult
+    func newDocument(in folder: URL?) async -> Bool {
+        guard await newDocument() else { return false }
+        newDocumentFolder = folder
+        return true
+    }
+
     /// Puts the current document away (after it was saved): stops watching, releases its scope,
     /// and leaves a blank, untouched new document.
     private func closeCurrentDocument() {
@@ -427,6 +441,7 @@ final class OpenDocument: ImageInsertionHost {
         stopWatching()
         releaseSecurityScope()
         url = nil
+        newDocumentFolder = nil
         text = ""
         setLastSyncedText("")
         textFormat = .markdown
@@ -581,7 +596,7 @@ final class OpenDocument: ImageInsertionHost {
         autosaveTask?.cancel()
         autosaveTask = nil
         guard text != lastSyncedText else { return true }
-        if url == nil, saveFolder == nil {
+        if url == nil, newDocumentFolder == nil, saveFolder == nil {
             await resolveSaveFolder()
         }
         return saveNow()
@@ -593,7 +608,7 @@ final class OpenDocument: ImageInsertionHost {
         autosaveTask?.cancel()
         autosaveTask = nil
         guard text != lastSyncedText else { return true }
-        guard let folder = url?.deletingLastPathComponent() ?? saveFolder else { return false }
+        guard let folder = url?.deletingLastPathComponent() ?? newDocumentFolder ?? saveFolder else { return false }
         let saved = save(text, in: folder)
         saveFailed = !saved
         if saved { history?.persist(text: text) }
@@ -615,6 +630,7 @@ final class OpenDocument: ImageInsertionHost {
                 switch coordinatedWrite(textToSave, to: newURL, replaceExisting: false) {
                 case .written:
                     url = newURL
+                    newDocumentFolder = nil
                     startWatching(newURL)
                     setLastSyncedText(textToSave)
                     history?.documentGotFile(newURL, text: textToSave)
@@ -764,6 +780,7 @@ final class OpenDocument: ImageInsertionHost {
         if let url { return url.deletingLastPathComponent() }
         guard await flush() else { return nil }
         if let url { return url.deletingLastPathComponent() }
+        if let newDocumentFolder { return newDocumentFolder }
         return await resolveSaveFolder()
     }
 
@@ -803,7 +820,7 @@ final class OpenDocument: ImageInsertionHost {
         assertion.identifier = tasks.beginAssertion(name: "Save document") {
             assertion.end(using: tasks)
         }
-        if text == lastSyncedText || url != nil || saveFolder != nil {
+        if text == lastSyncedText || url != nil || newDocumentFolder != nil || saveFolder != nil {
             saveNow()
             history?.persist(text: text)
             // Shared History is written on a queue: on disk before the assertion ends.

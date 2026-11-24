@@ -492,10 +492,10 @@ final class SelectionController: NSObject, ObservableObject {
     var aiConnectionStore: AIConnectionStore { connectionStore() }
 
     /// The Menu's Ask AI… row: connected, an editor on screen (Read allows no AI), and text to
-    /// send (`DocumentSection.hasText`).
+    /// send (`ExportPrintSection.hasText`).
     var allowsWholeDocumentAI: Bool {
         guard connectionStore().isConnected, !isReadMode, let editor, editor.isEditable,
-              DocumentSection.hasText(editor.textStorage.string) else { return false }
+              ExportPrintSection.hasText(editor.textStorage.string) else { return false }
         switch aiControllerStorage?.state {
         case .running, .reviewing: return false
         default: return true

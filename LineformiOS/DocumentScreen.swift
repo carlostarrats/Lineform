@@ -25,7 +25,7 @@ struct DocumentScreen: View {
     var document: OpenDocument
     @ObservedObject var profileStore: ReadingProfileStore
     /// The Files section's store. One for the app's lifetime, so a Workspace folder's access
-    /// outlives the Menu sheet.
+    /// outlives the word menu.
     var files: FilesStore
     /// The Settings section's values: Automatic Dark Mode and the spelling switch apply here.
     @ObservedObject var settings: AppSettings
@@ -77,9 +77,11 @@ struct DocumentScreen: View {
     /// The selection row and comment field over the bottom of the page (spec §5.5). While either
     /// shows, it replaces the bottom-right buttons.
     @StateObject private var selection: SelectionController
-    /// The Menu's Ask AI… was tapped: once the sheet has closed, the whole-document policy runs
-    /// (a confirmation cannot be presented over the closing sheet).
-    @State private var asksAIForWholeDocument = false
+    /// The announcement sheet on screen, and its content's height (its one detent).
+    @State private var presentedAnnouncement: Announcement?
+    @State private var announcementHeight: CGFloat = 0
+    /// The keyboard is up: no announcement sheet comes up over typing.
+    @State private var isKeyboardUp = false
 
     /// The quiet notice over the bottom of the page, if any: a failed save, else an image that
     /// could not be written beside the document, else a Check for Updates result whose alert
@@ -208,7 +210,7 @@ struct DocumentScreen: View {
             // A failed save matters more than a failed image, and stays until a save succeeds.
             if let message = noticeMessage {
                 QuietNotice(message: message, profile: profile)
-                    .padding(.bottom, MarkdownEditor.chromeMargin + MenuButton.diameter + 12)
+                    .padding(.bottom, MarkdownEditor.chromeMargin + MoreButton.diameter + 12)
                     .padding(.horizontal, MarkdownEditor.chromeMargin)
                     .transition(.opacity)
             }
@@ -236,27 +238,25 @@ struct DocumentScreen: View {
         .overlay(alignment: .bottomTrailing) {
             // The selection row, the comment field and a running request or review take the
             // bottom in turn. A message or Find's marks leave these reachable: that card sits
-            // above them (`SelectionBottomChrome`). History's card replaces them all.
+            // above them (`SelectionBottomChrome`). History's card replaces them all, the ⋯
+            // button included, so nothing sits behind its Done.
             if !isHistoryModeActive,
                SelectionController.showsBottomButtons(phase: selection.phase, aiState: selection.aiState) {
-                HStack(spacing: Self.bottomChromeSpacing) {
-                    // The link button's touch square is wider than its circle: the gap to Menu
-                    // shrinks by the difference, so the circles stay `bottomChromeSpacing` apart.
-                    HStack(spacing: Self.bottomChromeSpacing - PreviewLinkButton.horizontalTouchOutset) {
-                        if displayMode == .split {
-                            PreviewLinkButton(isLinked: arePanesLinked, profile: profile) {
-                                linkedScroll.toggleLink()
-                                arePanesLinked = linkedScroll.isLinked
-                            }
+                // The link button's touch square is wider than its circle: the gap to ⋯ shrinks
+                // by the difference, so the circles stay `bottomChromeSpacing` apart.
+                HStack(spacing: Self.bottomChromeSpacing - PreviewLinkButton.horizontalTouchOutset) {
+                    // Read aloud's pill: on the ⋯ button's line, from the left margin up to it.
+                    if let exportCommands, exportCommands.speechState != .idle {
+                        ReadAloudPill(commands: exportCommands, profile: profile)
+                            .padding(.trailing, PreviewLinkButton.horizontalTouchOutset)
+                    }
+                    if displayMode == .split {
+                        PreviewLinkButton(isLinked: arePanesLinked, profile: profile) {
+                            linkedScroll.toggleLink()
+                            arePanesLinked = linkedScroll.isLinked
                         }
-                        MenuButton(profile: profile) { isShowingMenu = true }
                     }
-                    StylingButton(profile: profile) {
-                        // The sheet and the keyboard never share the screen: the keyboard goes
-                        // first, or the sheet opens behind it.
-                        positionKeeper.editor?.resignFirstResponder()
-                        isShowingStyling = true
-                    }
+                    MoreButton(profile: profile) { openWordMenu() }
                 }
                 .padding(MarkdownEditor.chromeMargin)
                 .transition(.opacity)
@@ -270,29 +270,15 @@ struct DocumentScreen: View {
             EditorMotionPolicy.animation(.easeOut(duration: LineformDesign.Motion.standard), reduceMotion: reduceMotion),
             value: SelectionController.showsBottomButtons(phase: selection.phase, aiState: selection.aiState)
         )
-        .overlay(alignment: .bottomTrailing) {
-            // The announcement floats above the Menu and Aa buttons, only while they show and
-            // nothing else holds the bottom (the Mac hides it under its AI card too).
-            if let announcement = shownAnnouncement {
-                PhoneAnnouncementCard(
-                    announcement: announcement,
-                    profile: profile,
-                    onAction: { announcements.performAction(for: announcement) },
-                    onDismiss: { announcements.dismiss(announcement) }
-                )
-                .padding(.horizontal, MarkdownEditor.chromeMargin)
-                .padding(.bottom, MarkdownEditor.chromeMargin + MenuButton.diameter + 12)
-                // Never over the mode switch: a taller card scrolls inside this room.
-                .padding(.top, ModeSwitch.pageTopClearance)
-                .transition(EditorMotionPolicy.fadeAndMoveTransition(y: 24, reduceMotion: reduceMotion))
-            }
-        }
-        .animation(
-            EditorMotionPolicy.animation(.easeOut(duration: LineformDesign.Motion.standard), reduceMotion: reduceMotion),
-            value: shownAnnouncement?.id
-        )
         .overlay {
             SelectionBottomChrome(controller: selection, profile: profile)
+        }
+        .overlay(alignment: .bottomTrailing) {
+            // The word menu covers the whole screen, at once (no motion), over every other chrome
+            // but first run.
+            if isShowingMenu {
+                wordMenu
+            }
         }
         .overlay {
             // Above all the other chrome, so nothing of the document shows through or takes taps.
@@ -307,29 +293,40 @@ struct DocumentScreen: View {
                 switchMode(to: displayMode.toggledWriteRead)
             }
             .keyboardShortcut(Self.toggleWriteReadShortcut)
-            .disabled(presentsFirstRun)
+            .disabled(presentsFirstRun || isShowingMenu)
             .hidden()
         }
-        .sheet(isPresented: $isShowingMenu, onDismiss: {
-            if asksAIForWholeDocument {
-                asksAIForWholeDocument = false
-                selection.askAIForWholeDocument()
-            }
-        }) {
-            MenuSheet(
-                document: document,
-                editor: LiveEditorCommands(positionKeeper: positionKeeper, document: document, mode: displayMode),
-                files: files,
-                settings: settings,
+        // An announcement is a small one-time sheet, shown only when the page is idle (never over
+        // first run, the menu, History, an AI review or the keyboard); it waits until then.
+        .onChange(of: canPresentAnnouncement, initial: true) { _, can in
+            if can, presentedAnnouncement == nil { presentedAnnouncement = shownAnnouncement }
+        }
+        .onChange(of: shownAnnouncement?.id) {
+            // Switched off (or dismissed elsewhere): the sheet goes too.
+            if shownAnnouncement == nil { presentedAnnouncement = nil }
+        }
+        .sheet(item: $presentedAnnouncement) { announcement in
+            PhoneAnnouncementSheet(
+                announcement: announcement,
                 profile: profile,
-                exportCommands: exportCommands,
-                selection: { [positionKeeper] in positionKeeper.editor?.selectedRange },
-                mode: displayMode,
-                onShowHistory: { showHistoryFromMenu() },
-                aiStore: selection.aiConnectionStore,
-                onAskAI: { asksAIForWholeDocument = true },
-                onDismiss: { isShowingMenu = false }
+                onAction: {
+                    announcements.performAction(for: announcement)
+                    presentedAnnouncement = nil
+                },
+                onDismiss: {
+                    announcements.dismiss(announcement)
+                    presentedAnnouncement = nil
+                },
+                contentHeight: $announcementHeight
             )
+            // Not now, a swipe down and the action all dismiss it for good (idempotent).
+            .onDisappear { announcements.dismiss(announcement) }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillShowNotification)) { _ in
+            isKeyboardUp = true
+        }
+        .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillHideNotification)) { _ in
+            isKeyboardUp = false
         }
         // Typing means styling is done: the sheet leaves when the keyboard comes up, rather than
         // staying half-hidden behind it.
@@ -460,29 +457,82 @@ struct DocumentScreen: View {
             .first { $0.activationState == .foregroundActive }
     }
 
-    /// The announcement on screen: the store's, while the Menu and Aa buttons show and nothing
-    /// else holds the bottom of the page (History's card, the selection row or comment field, an
-    /// AI card, a notice, first run, a download).
+    /// The announcement the store holds, while In-app notifications is on.
     private var shownAnnouncement: Announcement? {
-        guard let visible = announcements.visible, settings.checksForAnnouncements,
-              !isHistoryModeActive, !presentsFirstRun,
-              noticeMessage == nil, document.downloadingName == nil,
-              selection.aiState == .idle,
-              SelectionController.showsBottomButtons(phase: selection.phase, aiState: selection.aiState)
-        else { return nil }
+        guard let visible = announcements.visible, settings.checksForAnnouncements else { return nil }
         return visible
+    }
+
+    /// The announcement sheet may come up: the page is idle. Never over first run, the word menu,
+    /// the Styling sheet, History mode, the selection row or comment field, an AI request or
+    /// review, a notice, a download, or the keyboard; it waits for the next idle moment instead.
+    private var canPresentAnnouncement: Bool {
+        shownAnnouncement != nil
+            && !presentsFirstRun && !isShowingMenu && !isShowingStyling && !isHistoryModeActive
+            && !isKeyboardUp && !isPickingReconnectImage && reconnectRange == nil
+            && selection.phase == .hidden && selection.aiState == .idle
+            && noticeMessage == nil && document.downloadingName == nil && document.failedOpenURL == nil
     }
 
     /// The editor's text now (the document's before the editor exists).
     private var editorText: String { positionKeeper.editor?.textStorage.string ?? document.text }
 
-    /// Menu ▸ History (D10): the sheet closes, Write comes up, and History mode opens.
-    private func showHistoryFromMenu() {
+    // MARK: - The word menu
+
+    /// The ⋯ button: the keyboard goes first (the menu covers the screen), then the menu opens.
+    private func openWordMenu() {
+        positionKeeper.editor?.resignFirstResponder()
+        isShowingMenu = true
+    }
+
+    private func closeWordMenu() {
+        isShowingMenu = false
+    }
+
+    private var wordMenu: some View {
+        WordMenu(
+            document: document,
+            editor: LiveEditorCommands(positionKeeper: positionKeeper, document: document, mode: displayMode),
+            files: files,
+            settings: settings,
+            profile: profile,
+            exportCommands: exportCommands,
+            mode: displayMode,
+            aiStore: selection.aiConnectionStore,
+            updateCommand: updateCommand,
+            onClose: { closeWordMenu() },
+            onThemes: {
+                closeWordMenu()
+                isShowingStyling = true
+            },
+            onReadAloud: { readAloudFromMenu() },
+            onShowHistoryPassage: { id in showHistoryFromMenu(passage: id) },
+            onAskAI: {
+                closeWordMenu()
+                // Once the menu is gone: the policy may ask for a confirmation.
+                Task { @MainActor in selection.askAIForWholeDocument() }
+            }
+        )
+    }
+
+    /// Read Aloud: the menu closes and reading starts (the selection in Write and Preview, the
+    /// whole document in Read); its pill shows beside the ⋯ button. Already reading, the pill is
+    /// already there.
+    private func readAloudFromMenu() {
+        closeWordMenu()
+        guard let exportCommands, exportCommands.speechState == .idle else { return }
+        ExportRows.perform(.start, commands: exportCommands, selection: positionKeeper.editor?.selectedRange, mode: displayMode)
+    }
+
+    /// The word menu's History (D10): the menu closes, Write comes up, and History mode opens on
+    /// the passage.
+    private func showHistoryFromMenu(passage: UUID?) {
         guard let history = document.history else { return }
         HistoryEntry.enterFromMenu(
             history: history,
             text: { editorText },
-            dismissMenu: { isShowingMenu = false },
+            passage: passage,
+            dismissMenu: { closeWordMenu() },
             endAI: { selection.endAIForHistory() },
             switchToWrite: { switchMode(to: .write, announces: false) }
         )
@@ -507,15 +557,17 @@ struct DocumentScreen: View {
     }
 }
 
-/// Entering History mode from the Menu sheet (D10), apart from the screen so it can be tested:
-/// the sheet closes, the screen switches to Write, then History mode opens (selecting a passage
-/// an AI accept left remembered). False when there was nothing to show.
+/// Entering History mode from the word menu (D10), apart from the screen so it can be tested: the
+/// menu closes, the screen switches to Write, then History mode opens — on `passage` when one was
+/// tapped, else selecting a passage an AI accept left remembered. False when there was nothing to
+/// show.
 @MainActor
 enum HistoryEntry {
     @discardableResult
     static func enterFromMenu(
         history: PhoneHistoryController,
         text: () -> String,
+        passage: UUID? = nil,
         dismissMenu: () -> Void,
         endAI: () -> Void,
         switchToWrite: () -> Void
@@ -523,18 +575,20 @@ enum HistoryEntry {
         dismissMenu()
         endAI()
         switchToWrite()
+        if let passage { return history.showPassage(passage, text: text()) }
         return history.enterHistoryModeFromMenu(text: text())
     }
 }
 
 extension DocumentScreen {
-    /// The gap between the bottom-trailing buttons: Preview's link, Menu, and Aa.
+    /// The gap between the bottom-trailing controls: Read aloud's pill, Preview's link, and ⋯.
     static let bottomChromeSpacing: CGFloat = 12
     /// The room the Read view (and Preview's lower pane) keeps below its last line, so it scrolls
-    /// clear of the floating buttons: the tallest of Menu, Aa and the link button.
+    /// clear of the floating buttons: the taller of ⋯ and the link button.
     static var bottomChromeClearance: CGFloat {
-        MarkdownEditor.chromeMargin + max(MenuButton.diameter, StylingButton.diameter, PreviewLinkButton.diameter) + 8
+        MarkdownEditor.chromeMargin + max(MoreButton.diameter, PreviewLinkButton.diameter) + 8
     }
+
     /// ⌘E, the Mac's Toggle Write / Read.
     static let toggleWriteReadShortcut = KeyboardShortcut("e", modifiers: .command)
 

@@ -40,88 +40,79 @@ final class BasicsCopyState {
     }
 }
 
-/// The Menu sheet's Markdown Basics: the package's `MarkdownReference` sections, with the Mac
-/// view's section headers and row layout (the syntax, monospaced for a code row, over its
-/// explanation), as a List. Tapping a code row copies its Markdown and shows "Copied" for 1 s.
+/// The word menu's Markdown Basics: the package's `MarkdownReference` sections, each a grey card
+/// under its group label. A row shows the syntax (monospaced for a code row) over its
+/// explanation, and a code row has a copy button on the right that turns into a blue check for a
+/// moment after copying its Markdown.
 struct BasicsSection: View {
     @State private var state = BasicsCopyState()
-    @Environment(\.menuTheme) private var theme
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.wordMenuPalette) private var palette
 
     static var sections: [MarkdownReference.Section] { MarkdownReference.sections }
     static let copiedDuration: Duration = .seconds(1)
     static var copiedText: String { String(localized: "Copied") }
 
     var body: some View {
-        List {
+        WordMenuPageScaffold(title: WordMenuItem.basics.title) {
             ForEach(Self.sections) { section in
-                Section {
-                    ForEach(section.rows) { row in
-                        rowView(row)
-                            .listRowBackground(Color.clear)
+                VStack(alignment: .leading, spacing: 8) {
+                    WordMenuGroupLabel(title: section.title)
+                    VStack(spacing: 0) {
+                        ForEach(Array(section.rows.enumerated()), id: \.element.id) { index, row in
+                            if index > 0 {
+                                Rectangle()
+                                    .fill(palette.color(palette.hair))
+                                    .frame(height: 0.5)
+                                    .padding(.leading, 14)
+                            }
+                            rowView(row)
+                        }
                     }
-                } header: {
-                    Text(section.title)
-                        .font(.footnote.weight(.medium))
-                        .textCase(nil)
-                        .accessibilityAddTraits(.isHeader)
+                    .background(
+                        RoundedRectangle(cornerRadius: WordMenuMetrics.rowRadius, style: .continuous)
+                            .fill(palette.color(palette.soft))
+                    )
                 }
+                .padding(.top, 4)
             }
         }
-        .listStyle(.plain)
-        .scrollContentBackground(.hidden)
     }
 
     @ViewBuilder
     private func rowView(_ row: MarkdownReference.Row) -> some View {
-        let ink = PhoneInk.menu(theme)
-        let content = HStack(alignment: .firstTextBaseline, spacing: 8) {
+        let isCopied = state.copiedRowID == row.id
+        HStack(alignment: .center, spacing: 8) {
             VStack(alignment: .leading, spacing: 3) {
                 Text(verbatim: row.syntax)
                     .font(row.rendersSyntaxAsCode ? .system(.callout, design: .monospaced) : .callout)
+                    .foregroundStyle(palette.color(palette.ink))
                 Text(verbatim: row.explanation)
                     .font(.footnote)
-                    .foregroundStyle(ink.secondary)
+                    .foregroundStyle(palette.color(palette.secondary))
                     .fixedSize(horizontal: false, vertical: true)
             }
-            Spacer(minLength: 8)
-            if row.copyAffordance() != nil {
-                if state.copiedRowID == row.id {
-                    Text(Self.copiedText)
-                        .font(.caption.weight(.medium))
-                        .foregroundStyle(ink.secondary)
-                        .transition(.opacity)
-                } else {
-                    Image(systemName: "doc.on.doc")
-                        .font(.caption)
-                        .foregroundStyle(ink.icon)
-                        .accessibilityHidden(true)
-                }
-            }
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .contentShape(Rectangle())
-        .animation(EditorMotionPolicy.animation(.easeOut(duration: 0.15), reduceMotion: reduceMotion), value: state.copiedRowID)
-
-        // Only a code row is a button: a label row has nothing to copy. One element for
-        // VoiceOver: the explanation, then the syntax; the copy is its action, named by the
-        // affordance's own localized label.
-        if let copy = row.copyAffordance() {
-            Button {
-                state.copy(row)
-            } label: {
-                content
-            }
-            .buttonStyle(.plain)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            // One element for VoiceOver: the explanation, then the syntax.
             .accessibilityElement(children: .ignore)
             .accessibilityLabel(Text(verbatim: row.accessibilityLabel()))
-            .accessibilityValue(state.copiedRowID == row.id ? Text(Self.copiedText) : Text(verbatim: ""))
-            .accessibilityHint(Text(verbatim: copy.label))
-            .accessibilityAddTraits(.isButton)
-        } else {
-            content
-                .accessibilityElement(children: .ignore)
-                .accessibilityLabel(Text(verbatim: row.accessibilityLabel()))
+            if let copy = row.copyAffordance() {
+                Button {
+                    state.copy(row)
+                } label: {
+                    Image(systemName: isCopied ? "checkmark" : "doc.on.doc")
+                        .font(.subheadline.weight(.medium))
+                        .foregroundStyle(palette.color(isCopied ? palette.blueMark : palette.icon))
+                        .frame(width: WordMenuMetrics.minimumTarget, height: WordMenuMetrics.minimumTarget)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(Text(verbatim: copy.label))
+                .accessibilityValue(isCopied ? Text(Self.copiedText) : Text(verbatim: ""))
+            }
         }
+        .padding(.leading, 14)
+        .padding(.trailing, 2)
+        .padding(.vertical, 6)
+        .frame(minHeight: WordMenuMetrics.minimumTarget)
     }
 }

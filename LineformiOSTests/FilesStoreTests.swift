@@ -512,7 +512,7 @@ final class FilesStoreTests: XCTestCase {
         let empty = makeStore(device: device, iCloud: { iCloud }, log: FilesScanLog())
         empty.setVisible(true)
         await empty.scanIfVisible()
-        XCTAssertEqual(empty.roots.map(\.id), [.icloud, .workspace], "an empty device folder stays out of the way")
+        XCTAssertEqual(empty.roots.map(\.id), [.icloud, .device, .workspace], "On My iPhone shows even when empty, so documents can be kept on the device")
 
         try write("Old", to: device.appendingPathComponent("Old.md"))
         let store = makeStore(device: device, iCloud: { iCloud }, log: FilesScanLog())

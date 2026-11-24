@@ -1,8 +1,8 @@
 import LineformCore
 import SwiftUI
 
-/// The Styling sheet: the Mac's Reading Experience panel in a bottom sheet, opened by the "Aa"
-/// button (`StylingButton`). Every control writes through `ReadingProfileStore`, which
+/// The Styling sheet: the Mac’s Reading Experience panel in a bottom sheet, opened by the word
+/// menu’s Themes. Every control writes through `ReadingProfileStore`, which
 /// `DocumentScreen` observes, so the editor and the Read view restyle live.
 ///
 /// `DocumentScreen` presents it with `stylingSheetChrome(theme:)` for the live profile's theme:
@@ -12,6 +12,16 @@ struct StylingSheet: View {
     @ObservedObject var store: ReadingProfileStore
 
     static let detents: Set<PresentationDetent> = [.medium, .large]
+
+    /// The sheet's surface: the page colour on a light theme; on a dark one, a step darker than
+    /// the page (#1F1F1F), so the Quiet card (the page's own colour) never blends into the sheet.
+    /// Every ink on it is the page's readable ink, which only gains contrast on the darker ground.
+    static func surface(for theme: Theme) -> UIColor {
+        guard theme.usesDarkChrome else { return theme.backgroundColor }
+        let darker = UIColor(white: 0x1F / 255, alpha: 1)
+        // A page darker still (Low Light) keeps its own colour: the sheet never gets lighter.
+        return Theme.relativeLuminance(theme.backgroundColor) < Theme.relativeLuminance(darker) ? theme.backgroundColor : darker
+    }
     static let cornerRadius: CGFloat = LineformDesign.Radius.modal
     /// 15 pt at the default text size, scaled like `.subheadline` (also 15 pt).
     static let headerTitleFontSize: CGFloat = 15
@@ -293,7 +303,7 @@ extension View {
     /// modal corner radius, a visible drag indicator, and the theme's own colour scheme.
     func stylingSheetChrome(theme: Theme) -> some View {
         presentationDetents(StylingSheet.detents)
-            .presentationBackground(Color(uiColor: theme.backgroundColor))
+            .presentationBackground(Color(uiColor: StylingSheet.surface(for: theme)))
             .presentationCornerRadius(StylingSheet.cornerRadius)
             .presentationDragIndicator(.visible)
             .presentationBackgroundInteraction(StylingSheet.backgroundInteraction)

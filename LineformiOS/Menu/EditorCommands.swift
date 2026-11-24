@@ -26,10 +26,13 @@ protocol EditorCommands {
     /// Check Document Now: one spelling pass over the whole document; the first misspelling after
     /// the selection is selected and brought into view. False when there is none.
     @discardableResult func checkDocumentNow() -> Bool
+    /// Flashes the line at `range` briefly on the surface on screen (an Outline jump).
+    func flashCharacterRange(_ range: NSRange)
 }
 
 extension EditorCommands {
     @discardableResult func checkDocumentNow() -> Bool { false }
+    func flashCharacterRange(_ range: NSRange) {}
 }
 
 /// The screen's commands over the live editor, which stays mounted in every mode.
@@ -54,6 +57,15 @@ struct LiveEditorCommands: EditorCommands {
         let location = min(max(0, range.location), length)
         // The app's own selection (a Search or Outline jump): it never raises the selection row.
         editor.selectProgrammatically(NSRange(location: location, length: min(max(0, range.length), length - location)))
+    }
+
+    func flashCharacterRange(_ range: NSRange) {
+        switch mode {
+        case .write, .split:
+            if let editor { HeadingFlash.flash(sourceRange: range, in: editor) }
+        case .read:
+            if let reader = positionKeeper.reader { HeadingFlash.flash(sourceRange: range, inReader: reader) }
+        }
     }
 
     func insertTable() { editor?.insertTable() }

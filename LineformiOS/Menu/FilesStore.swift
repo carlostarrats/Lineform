@@ -57,6 +57,8 @@ enum FilesStoreError: Error, Equatable {
     /// An iCloud placeholder (a file not downloaded yet) is never renamed or trashed: on disk it is
     /// only the `.Name.md.icloud` stub. It can be once it has downloaded.
     case notDownloaded
+    /// The item cannot move there (a Workspace item, iCloud not available, already there).
+    case cannotMove
 }
 
 /// Who has the Files store on screen. Each one shows and hides it on its own, so one going away
@@ -258,10 +260,10 @@ final class FilesStore {
         )
     }
 
-    /// On My iPhone shows when iCloud does not resolve (new documents save there), and otherwise
-    /// once its scan found documents in it.
+    /// On My iPhone always shows, beside iCloud too (even empty), so a writer can choose to keep
+    /// documents on the device. Only when iCloud resolves to the very same folder is it one root.
     private var showsDeviceRoot: Bool {
-        iCloudURL == nil || !(itemsByRoot[.device] ?? []).isEmpty
+        iCloudURL.map { Self.key($0) != Self.key(deviceFolder) } ?? true
     }
 
     /// The defaults changed: pick up Show iCloud in Files. Turning it off drops the iCloud list
@@ -561,6 +563,147 @@ final class FilesStore {
         }
         openDocument?.fileWasTrashed(at: item.url)
         await scanIfVisible()
+    }
+
+    // MARK: - Moving between iCloud and On My iPhone
+
+    /// The root `url` is in: iCloud, On My iPhone or the Workspace (nil when none).
+    func rootID(containing url: URL) -> FilesRootID? {
+        let path = Self.key(url)
+        let folders: [(FilesRootID, URL?)] = [(.icloud, iCloudURL), (.device, deviceFolder), (.workspace, workspaceURL)]
+        for (id, folder) in folders {
+            guard let folder else { continue }
+            let folderPath = Self.key(folder)
+            if path.hasPrefix(folderPath + "/") { return id }
+        }
+        return nil
+    }
+
+    /// Where `item` can move: a document or folder On My iPhone to iCloud (only while the iCloud
+    /// container resolves and Files shows it), one in iCloud to On My iPhone. A Workspace item, or
+    /// a file not downloaded yet, has nowhere to go.
+    func moveTargets(for item: OutlineFileTreeItem) -> [FilesRootID] {
+        guard !Self.isPlaceholder(item) else { return [] }
+        switch rootID(containing: item.url) {
+        case .device:
+            return iCloudURL != nil && showsICloud && showsDeviceRoot ? [.icloud] : []
+        case .icloud:
+            return showsDeviceRoot ? [.device] : []
+        case .workspace, nil:
+            return []
+        }
+    }
+
+    /// The top folder of a movable root.
+    private func folder(of root: FilesRootID) -> URL? {
+        switch root {
+        case .icloud: iCloudURL
+        case .device: deviceFolder
+        case .workspace: workspaceURL
+        }
+    }
+
+    /// Moves `item` to the top of `target` with a coordinated move that never replaces: a name
+    /// already taken there gets a number ("Notes 2.md"). When it is (or holds) the open document,
+    /// the document follows it, so typing goes on into the moved file. Returns where it went.
+    @discardableResult
+    func move(_ item: OutlineFileTreeItem, to target: FilesRootID) async throws -> URL {
+        guard moveTargets(for: item).contains(target), let destinationFolder = folder(of: target) else {
+            throw FilesStoreError.cannotMove
+        }
+        if let document = openDocument, let before = document.url,
+           Self.relocated(before, from: item.url, to: item.url) != nil {
+            // Disk has everything before the file moves.
+            await document.flush()
+        }
+        // The open file may have been renamed by that save (its first line): move it where it is now.
+        var source = item.url
+        if !item.isDirectory, let document = openDocument, let now = document.url,
+           Self.key(now) != Self.key(item.url),
+           Self.key(now.deletingLastPathComponent()) == Self.key(item.url.deletingLastPathComponent()),
+           !FileManager.default.fileExists(atPath: item.url.path) {
+            source = now
+        }
+        let destination = destinationFolder.appendingPathComponent(
+            Self.freeName(for: source.lastPathComponent, isDirectory: item.isDirectory, in: destinationFolder),
+            isDirectory: item.isDirectory
+        )
+        do {
+            try Self.coordinatedMove(from: source, to: destination, using: fileOperations)
+        } catch {
+            log.error("Move failed: \(error.localizedDescription, privacy: .public)")
+            notice = String(localized: "Couldn’t move “\(item.name)”.")
+            throw error
+        }
+        if let document = openDocument, let url = document.url,
+           let followed = Self.relocated(url, from: source, to: destination) {
+            document.userRenamed(to: followed)
+        }
+        await scanIfVisible()
+        return destination
+    }
+
+    /// `name`, or "Name 2.ext", "Name 3.ext"… — the first not taken in `folder` (case- and
+    /// normalisation-blind, as the volume is).
+    nonisolated static func freeName(for name: String, isDirectory: Bool, in folder: URL) -> String {
+        let entries = (try? FileManager.default.contentsOfDirectory(atPath: folder.path)) ?? []
+        let taken = Set(entries.compactMap(OutlineFileScanner.realName(ofEntry:)).map {
+            $0.precomposedStringWithCanonicalMapping.lowercased()
+        })
+        let ext = isDirectory ? "" : (name as NSString).pathExtension
+        let base = isDirectory || ext.isEmpty ? name : (name as NSString).deletingPathExtension
+        var candidate = name
+        var number = 2
+        while taken.contains(candidate.precomposedStringWithCanonicalMapping.lowercased()) {
+            candidate = ext.isEmpty ? "\(base) \(number)" : "\(base) \(number).\(ext)"
+            number += 1
+        }
+        return candidate
+    }
+
+    /// New Folder: creates `name` inside `parent` with a coordinated, non-replacing create (a
+    /// folder or file already there by that name is never touched), then scans so it shows.
+    /// Returns the new folder. Throws `FilesStoreError.invalidName` for a name the shared rule
+    /// refuses (nothing touches the disk), or the create's own error, which also sets `notice`.
+    @discardableResult
+    func createFolder(named name: String, in parent: URL) async throws -> URL {
+        guard let folder = Self.newFolderDestination(named: name, in: parent) else {
+            throw FilesStoreError.invalidName
+        }
+        do {
+            try Self.coordinatedCreateFolder(at: folder)
+        } catch {
+            log.error("New Folder failed: \(error.localizedDescription, privacy: .public)")
+            notice = String(localized: "Couldn’t create “\(folder.lastPathComponent)”.")
+            throw error
+        }
+        await scanIfVisible()
+        return folder
+    }
+
+    /// Where New Folder would create `name` in `parent`: the shared rename rule's name check
+    /// (no "/", no ":", not empty, not "." or ".."). Nil when the name is refused.
+    nonisolated static func newFolderDestination(named name: String, in parent: URL) -> URL? {
+        // The rule compares against an existing name; a placeholder child stands in for it.
+        let placeholder = parent.appendingPathComponent(".lineform-new-folder", isDirectory: true)
+        return FileRenaming.validatedDestination(for: placeholder, isDirectory: true, newDisplayName: name)
+    }
+
+    /// A folder create, coordinated as a write of the new path. Never replaces: the create fails
+    /// when anything already exists there.
+    nonisolated static func coordinatedCreateFolder(at folder: URL) throws {
+        var coordinationError: NSError?
+        var createError: Error?
+        NSFileCoordinator(filePresenter: nil).coordinate(
+            writingItemAt: folder, options: [], error: &coordinationError
+        ) { url in
+            do {
+                try FileManager.default.createDirectory(at: url, withIntermediateDirectories: false)
+            } catch {
+                createError = error
+            }
+        }
+        if let error = coordinationError ?? createError { throw error }
     }
 
     /// Only files can be deleted, and only to the Trash.
