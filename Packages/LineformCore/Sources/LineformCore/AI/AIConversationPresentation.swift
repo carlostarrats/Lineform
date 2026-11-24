@@ -17,6 +17,7 @@ public enum AIConversationPresentation {
     public static var tryAgainTitle: String { String(localized: "Try Again", bundle: .module) }
     public static var applyTitle: String { String(localized: "Apply", bundle: .module) }
     public static var cancelTitle: String { String(localized: "Cancel", bundle: .module) }
+    public static var closeTitle: String { String(localized: "Close", bundle: .module) }
     public static var sendTitle: String { String(localized: "Send", bundle: .module) }
     public static var stopTitle: String { String(localized: "Stop", bundle: .module) }
     public static var somethingElsePlaceholder: String { String(localized: "Something else…", bundle: .module) }

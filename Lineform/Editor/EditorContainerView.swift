@@ -21,7 +21,10 @@ struct EditorContainerView: View {
     // Final-tab closure is an approved scene dismissal after any close alert has ended.
     @Environment(\.dismissWindow) private var dismissWindow
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    /// The right-side inspector is open. It shows `inspectorContent`: the Reading Experience
+    /// panel or the AI drawer, one at a time in the same slot (`EditorInspectorContent`).
     @State private var isShowingReadingInspector = false
+    @State private var inspectorContent = EditorInspectorContent.readingExperience
     /// Settings or Connect Your AI — one value, so the two in-window modals can never stack.
     @State private var presentedAppModal: EditorAppModal?
     @State private var displayMode = EditorDisplayMode.write
@@ -75,8 +78,10 @@ struct EditorContainerView: View {
     @StateObject private var aiController = AIActionController(connectionStore: .shared)
     /// The review overlay's composition, rebuilt only when the session or the text changes.
     @State private var aiCompositionCache = AIReviewCompositionCache()
-    /// The review card's height (measured), so the overlay keeps the current change above it.
-    @State private var aiReviewCardHeight: CGFloat = 0
+    /// This window's AI conversations, one per open document (memory only).
+    @StateObject private var aiConversations = AIConversationStore()
+    /// Whether an AI is connected: the toolbar's AI button exists only then.
+    @ObservedObject private var aiConnection = AIConnectionStore.shared
     @StateObject private var speechController = SpeechController()
     @State private var statusFlash: EditorStatusFlash?
     @State private var updatedIndicatorWorkItem: DispatchWorkItem?
@@ -340,6 +345,9 @@ struct EditorContainerView: View {
                     ForEach(EditorToolbarAction.primaryActions(in: displayMode)) { action in
                         toolbarControl(for: action)
                     }
+                    if aiConnection.isConnected {
+                        aiToolbarControl
+                    }
                 }
             }
         }
@@ -522,6 +530,7 @@ struct EditorContainerView: View {
         .modifier(AIActionModeHandlers(aiController: aiController, displayMode: $displayMode))
         .modifier(AskAIMenuHandlers(
             windowNumber: windowNumber,
+            openDrawer: showAIDrawer,
             aiController: aiController,
             historyController: historyController,
             connectionStore: .shared,
@@ -532,6 +541,18 @@ struct EditorContainerView: View {
         .onChange(of: tabStore.selectedTabID) { _, newID in
             guard newID != nil else { return }
             activateSelectedTab()
+            syncAIConversation()
+        }
+        // A replaced or closed document's conversation goes with it.
+        .onChange(of: tabStore.tabs.map { "\($0.id)|\($0.document.id)" }) { _, _ in syncAIConversation() }
+        .onAppear { syncAIConversation() }
+        // An AI action started anywhere (the context menu, Another Word) is part of the
+        // conversation: the drawer opens on it. A disconnect closes the drawer.
+        .onChange(of: aiController.state) { _, state in
+            if case .running = state, !(isShowingReadingInspector && inspectorContent == .ai) { showAIDrawer() }
+        }
+        .onChange(of: aiConnection.isConnected) { _, connected in
+            if !connected, inspectorContent == .ai, isShowingReadingInspector { isShowingReadingInspector = false }
         }
         // Both chrome-rebuild appearance re-asserts bundled as a modifier (same
         // type-checker-budget rationale as SpeechNotificationHandlers below).
@@ -945,19 +966,33 @@ struct EditorContainerView: View {
         // 2026-07-18). The themed band with tabs comes from the WINDOW's backgroundColor,
         // set to the theme page color in EditorWindowChrome.apply.
         .inspector(isPresented: $isShowingReadingInspector) {
-            ReadingExperienceInspector(
-                store: readingProfileStore,
-                usesDarkChrome: theme.usesDarkChrome,
-                pageBackground: theme.backgroundColor,
-                onClose: { setReadingInspectorVisible(false) }
-            )
+            Group {
+                switch inspectorContent {
+                case .readingExperience:
+                    ReadingExperienceInspector(
+                        store: readingProfileStore,
+                        usesDarkChrome: theme.usesDarkChrome,
+                        pageBackground: theme.backgroundColor,
+                        onClose: { setReadingInspectorVisible(false) }
+                    )
+                case .ai:
+                    AIDrawerView(
+                        conversation: activeConversation,
+                        theme: theme,
+                        pageBackground: Color(nsColor: theme.backgroundColor),
+                        onClose: { setReadingInspectorVisible(false) }
+                    )
+                }
+            }
                 .inspectorColumnWidth(
                     min: EditorAuxiliaryPresentation.readingExperience.minimumWidth ?? 280,
                     ideal: EditorAuxiliaryPresentation.readingExperience.idealWidth ?? 320,
                     max: EditorAuxiliaryPresentation.readingExperience.maximumWidth ?? 380
                 )
                 .id(theme.usesDarkChrome)
-                .accessibilityLabel(EditorAuxiliaryPresentation.readingExperience.accessibilityLabel)
+                .accessibilityLabel(inspectorContent == .ai
+                    ? AIConversationPresentation.conversationLabel
+                    : EditorAuxiliaryPresentation.readingExperience.accessibilityLabel)
         }
         .animation(
             EditorMotionPolicy.animation(.easeOut(duration: SettingsModal.animationDuration), reduceMotion: reduceMotion),
@@ -1031,10 +1066,7 @@ struct EditorContainerView: View {
                     // than a laid-out row, so the top edge of the shell — what the
                     // translucent toolbar samples — is unchanged whether it is up or not.
                     .overlay(alignment: .bottomTrailing) {
-                        // One bottom card at a time: the AI's card, while up, hides these.
-                        if showsAICard {
-                            EmptyView()
-                        } else if defaultMarkdownApp.isPromptVisible {
+                        if defaultMarkdownApp.isPromptVisible {
                             DefaultMarkdownAppCard(
                                 status: defaultMarkdownApp.status,
                                 usesDarkChrome: currentTheme.usesDarkChrome,
@@ -1065,14 +1097,6 @@ struct EditorContainerView: View {
                                     : .opacity.combined(with: .offset(y: 8))
                             )
                         }
-                    }
-                    // The AI's progress, message, Mark and review cards take the same
-                    // bottom-trailing corner and inset as the default-app card (which steps aside
-                    // while one is up) — never a laid-out bar, never at the top (the toolbar
-                    // samples the top edge). A persistent overlay of its own, so its card's
-                    // arrival and departure animate on `aiCardKind`.
-                    .overlay(alignment: .bottomTrailing) {
-                        aiCard
                     }
 
                 if EditorStatusBar.isVisible(in: displayMode) {
@@ -2504,8 +2528,8 @@ struct EditorContainerView: View {
                                                             session: session),
                 currentID: session.currentID,
                 pendingCount: session.pending.count,
-                // Card + its inset + a little air: the current change is revealed above it.
-                bottomObscured: aiReviewCardHeight > 0 ? aiReviewCardHeight + AnnouncementCard.edgeInset + 8 : 0,
+                // The decision lives in the AI drawer now; nothing covers the editor's bottom.
+                bottomObscured: 0,
                 profile: displayProfile,
                 editor: aiController.editor as? NSTextView,
                 onCommand: { command in aiController.handle(command) }
@@ -2513,89 +2537,71 @@ struct EditorContainerView: View {
         }
     }
 
-    /// Whether an AI card is up (it hides the announcement and default-app cards meanwhile).
-    private var showsAICard: Bool {
-        switch aiController.state {
-        case .idle:
-            return false
-        case .running, .reviewing, .marking, .message:
-            return true
-        }
+    /// The conversation for the document on screen (one per tab and document).
+    private var activeConversation: AIConversation {
+        aiConversations.conversation(for: activeConversationKey ?? AIConversationStore.Key(tab: UUID(), document: document.id))
     }
 
-    /// The AI's one floating card, in the editor's bottom-trailing corner: progress (Esc cancels),
-    /// a message, Mark's count (Esc clears), or the review's one decision (Reject / Accept).
-    /// Which AI card is up, so its arrival and departure animate (a change of text within one
-    /// card does not).
-    private var aiCardKind: Int {
-        guard showsAICard else { return 0 }
-        switch aiController.state {
-        case .idle: return 0
-        case .running: return 1
-        case .message: return 2
-        case .marking: return 3
-        case .reviewing: return 4
-        }
+    private var activeConversationKey: AIConversationStore.Key? {
+        guard let tab = tabStore.selectedTab else { return nil }
+        return AIConversationStore.Key(tab: tab.id, document: tab.document.id)
     }
 
-    private var aiCard: some View {
-        // A persistent container, so the animation keyed on `aiCardKind` drives the insertion
-        // and removal transitions of the card inside it.
-        ZStack(alignment: .bottomTrailing) {
-            aiCardContent
-                .padding(AnnouncementCard.edgeInset)
-                .transition(reduceMotion ? .opacity : .opacity.combined(with: .offset(y: 8)))
+    /// Wires the document's conversation to this window's controller and editor, and drops the
+    /// conversations of documents no longer open here (closed tabs, replaced documents).
+    private func syncAIConversation() {
+        let live = Set(tabStore.tabs.map { AIConversationStore.Key(tab: $0.id, document: $0.document.id) })
+        aiConversations.keepOnly(live)
+        guard activeConversationKey != nil else { return }
+        let conversation = activeConversation
+        conversation.attach(aiController)
+        conversation.target = { [weak aiController] in
+            guard let textView = aiController?.editor as? LineformTextView, textView.isEditable else { return nil }
+            return AIConversation.Target(range: textView.selectedRange(), text: textView.string)
         }
-        .onPreferenceChange(AIReviewCardHeightKey.self) { aiReviewCardHeight = $0 }
-        .animation(
-            EditorMotionPolicy.animation(.easeOut(duration: 0.24), reduceMotion: reduceMotion),
-            value: aiCardKind
-        )
-    }
-
-    @ViewBuilder
-    private var aiCardContent: some View {
-        let usesDarkChrome = currentTheme.usesDarkChrome
-        Group {
-            switch aiController.state {
-            case .idle:
-                EmptyView()
-            case let .running(action, provider):
-                AIStatusCard(
-                    text: AIReviewCardPresentation.progressText(for: action, provider: provider),
-                    hint: AIReviewCardPresentation.cancelHint,
-                    showsProgress: true,
-                    usesDarkChrome: usesDarkChrome,
-                    onClose: { aiController.cancel() }
-                )
-            case .message(let message):
-                AIStatusCard(text: message, hint: nil, showsProgress: false, usesDarkChrome: usesDarkChrome,
-                             onClose: { aiController.dismissMessage() })
-                    .task(id: message) {
-                        // A message steps aside on its own; it was also spoken when it arrived.
-                        guard (try? await Task.sleep(for: .seconds(8))) != nil else { return }
-                        aiController.dismissMessage()
-                    }
-            case .marking(let ranges):
-                AIStatusCard(text: AIActionController.markedMessage(ranges.count),
-                             hint: AIReviewCardPresentation.markHint, showsProgress: false,
-                             usesDarkChrome: usesDarkChrome, onClose: { aiController.dismissMarks() })
-            case .reviewing(let session):
-                // A Rewrite-family action is one decision; Proofread one per correction, with
-                // "2 of 4", ← / → and Accept All (2+ left). ✕ ends, keeping what was decided.
-                AIReviewCard(
-                    title: AIReviewCardPresentation.title(for: session),
-                    hint: AIReviewCardPresentation.reviewHint(for: session),
-                    usesDarkChrome: usesDarkChrome,
-                    onAccept: { aiController.handle(.acceptCurrent) },
-                    onReject: { aiController.handle(.rejectCurrent) },
-                    onAcceptAll: AIReviewCardPresentation.offersAcceptAll(session)
-                        ? { aiController.handle(.acceptAll) } : nil,
-                    onRetry: { aiController.handle(.retry) },
-                    onClose: { aiController.handle(.end) }
-                )
+        conversation.confirmWholeDocument = { [weak aiController] words, proceed in
+            guard let provider = AIConnectionStore.shared.connectedProvider else { return }
+            let alert = AskAICommand.confirmationAlert(
+                words: words,
+                recipient: WholeDocumentAIPolicy.recipient(for: provider, otherEndpoint: AIConnectionStore.shared.otherEndpoint)
+            )
+            let window = (aiController?.editor as? NSView)?.window
+            if let window {
+                alert.beginSheetModal(for: window) { response in
+                    if response == .alertFirstButtonReturn { proceed() }
+                }
+            } else if alert.runModal() == .alertFirstButtonReturn {
+                proceed()
             }
         }
+    }
+
+    /// Opens the right-side inspector on the AI drawer (Edit ▸ Ask AI…, the toolbar's AI
+    /// button, the selection toolbar's Ask, or an AI action started from the context menu).
+    private func showAIDrawer() {
+        syncAIConversation()
+        inspectorContent = .ai
+        if !isShowingReadingInspector { isShowingReadingInspector = true }
+    }
+
+    /// The toolbar's AI button: an icon only (its title is for VoiceOver, help and the overflow menu).
+    private var aiToolbarControl: some View {
+        let isActive = isShowingReadingInspector && inspectorContent == .ai
+        return Button {
+            let next = EditorInspectorContent.toggled(.ai, isOpen: isShowingReadingInspector, showing: inspectorContent)
+            if next.isOpen { syncAIConversation() }
+            inspectorContent = next.content
+            isShowingReadingInspector = next.isOpen
+        } label: {
+            Label {
+                Text(AIConversationPresentation.toolbarTitle)
+            } icon: {
+                EditorToolbarIcon(systemImage: "sparkle", usesDarkChrome: currentTheme.usesDarkChrome)
+            }
+        }
+        .help(AIConversationPresentation.toolbarTitle)
+        .accessibilityLabel(AIConversationPresentation.toolbarTitle)
+        .accessibilityAddTraits(isActive ? .isSelected : [])
     }
 
     // MARK: - History
@@ -3167,11 +3173,16 @@ struct EditorContainerView: View {
     private func handleToolbarAction(_ action: EditorToolbarAction) {
         switch action {
         case .readingExperience:
-            setReadingInspectorVisible(!isShowingReadingInspector)
+            let next = EditorInspectorContent.toggled(.readingExperience, isOpen: isShowingReadingInspector,
+                                                      showing: inspectorContent)
+            inspectorContent = next.content
+            isShowingReadingInspector = next.isOpen
         }
     }
 
     private func setReadingInspectorVisible(_ isVisible: Bool) {
+        // Opening it (the menu, the mode control) shows the Reading Experience panel.
+        if isVisible { inspectorContent = .readingExperience }
         guard isShowingReadingInspector != isVisible else {
             return
         }
@@ -3183,7 +3194,7 @@ struct EditorContainerView: View {
     private func toolbarActionIsActive(_ action: EditorToolbarAction) -> Bool {
         EditorToolbarPressedState.isActive(
             action,
-            isShowingReadingInspector: isShowingReadingInspector
+            isShowingReadingInspector: isShowingReadingInspector && inspectorContent == .readingExperience
         )
     }
 
@@ -3246,7 +3257,7 @@ private struct AIActionModeHandlers: ViewModifier {
                 switch state {
                 case .running, .reviewing, .marking:
                     if displayMode == .split { displayMode = .write }
-                case .idle, .message:
+                case .idle, .message, .answer:
                     break
                 }
             }
@@ -3260,6 +3271,8 @@ private struct AIActionModeHandlers: ViewModifier {
 /// a modifier for the same type-checker-budget reason as `HistoryMenuHandlers`.
 struct AskAIMenuHandlers: ViewModifier {
     let windowNumber: Int?
+    /// Opens the AI drawer (Edit ▸ Ask AI…, the selection toolbar's Ask).
+    let openDrawer: () -> Void
     @ObservedObject var aiController: AIActionController
     @ObservedObject var historyController: DocumentHistoryController
     @ObservedObject var connectionStore: AIConnectionStore
@@ -3284,9 +3297,8 @@ struct AskAIMenuHandlers: ViewModifier {
         content
             .onReceive(NotificationCenter.default.publisher(for: LineformAppNotification.askAI.name)) { notification in
                 guard let payload = notification.object as? LineformAppNotification.Payload,
-                      payload.matches(windowNumber: windowNumber), isEnabled,
-                      let textView = aiController.editor as? LineformTextView else { return }
-                AskAICommand.perform(in: textView, controller: aiController, connectionStore: connectionStore)
+                      payload.matches(windowNumber: windowNumber), isEnabled else { return }
+                openDrawer()
             }
             .onAppear {
                 publish()
