@@ -1,3 +1,5 @@
+import os
+import QuartzCore
 import LineformCore
 import SwiftUI
 
@@ -40,6 +42,8 @@ struct WordMenu: View {
 
     @State private var navigation = WordMenuNavigation()
     @State private var fileActions = FilesItemActions()
+    /// Bumped when a background count lands, so the status line shows it.
+    @State private var countsGeneration = 0
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     private var palette: WordMenuPalette { WordMenuPalette.forTheme(Theme.theme(for: profile)) }
@@ -171,26 +175,42 @@ struct WordMenu: View {
             .defaultScrollAnchor(.bottom)
             .scrollBounceBehavior(.basedOnSize)
         }
+        .onAppear { WordMenuTiming.wordListAppeared() }
     }
 
+    /// The status line. The counts walk the whole text (about 70 ms for 1 MB in the simulator,
+    /// several times that on a phone), so they are never counted while the menu opens: the last
+    /// count for the same text is reused (`WordMenuStatusCounts`), and otherwise the line shows
+    /// the name and save state at once and the counts follow from a background count.
     private var statusLine: some View {
+        _ = countsGeneration
         let title = Self.documentTitle(for: document.url)
         let saveState = Self.saveStateText(for: document)
-        let statistics = DocumentStatistics(text: document.text)
+        let text = document.text
+        let statistics = WordMenuStatusCounts.cached(for: text)
         var line = AttributedString(title + " · ")
         line.foregroundColor = palette.color(palette.secondary)
         var state = AttributedString(saveState)
         state.foregroundColor = Self.isSaved(document) ? palette.color(palette.saved) : palette.color(palette.secondary)
-        var counts = AttributedString(" · " + Self.countText(statistics))
-        counts.foregroundColor = palette.color(palette.secondary)
         line += state
-        line += counts
+        if let statistics {
+            var counts = AttributedString(" · " + Self.countText(statistics))
+            counts.foregroundColor = palette.color(palette.secondary)
+            line += counts
+        }
+        let label = statistics.map { Self.statusAccessibilityLabel(title: title, saveState: saveState, statistics: $0) }
+            ?? "\(title), \(saveState)"
         return Text(line)
             .font(.subheadline)
             .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 2)
             .accessibilityElement(children: .ignore)
-            .accessibilityLabel(Text(verbatim: Self.statusAccessibilityLabel(title: title, saveState: saveState, statistics: statistics)))
+            .accessibilityLabel(Text(verbatim: label))
             .accessibilityIdentifier("wordMenu.status")
+            .task(id: statistics == nil) {
+                guard statistics == nil else { return }
+                await WordMenuStatusCounts.count(text)
+                countsGeneration += 1
+            }
     }
 
     private var words: some View {
@@ -234,7 +254,7 @@ struct WordMenu: View {
         case .basics:
             BasicsSection()
         case .settings:
-            SettingsSection(settings: settings, files: files, editor: editor, onDismiss: onClose)
+            SettingsSection(settings: settings, files: files)
         case .exportPrint:
             ExportPrintSection(document: document, exportCommands: exportCommands, onDismiss: onClose)
         case .history:
@@ -287,5 +307,59 @@ struct WordMenuWordButton: View {
         case .largeGrey: palette.largeGrey
         case .small: palette.secondary
         }
+    }
+}
+
+/// How long the word menu takes to open: from the ⋯ tap to the word list's first frame on screen.
+/// A signpost interval ("Open word menu", visible in Instruments' Points of Interest) and one log
+/// line with the milliseconds (`log stream --predicate 'category == "WordMenuTiming"'`). Costs a
+/// clock read; nothing is kept.
+@MainActor
+enum WordMenuTiming {
+    private static let logger = Logger(subsystem: "com.lineform.app", category: "WordMenuTiming")
+    private static let signposter = OSSignposter(subsystem: "com.lineform.app", category: .pointsOfInterest)
+    private static var start: CFTimeInterval?
+    private static var interval: OSSignpostIntervalState?
+
+    /// The ⋯ button was tapped.
+    static func tapped() {
+        start = CACurrentMediaTime()
+        interval = signposter.beginInterval("Open word menu")
+    }
+
+    /// The word list appeared: the interval ends once this frame is committed to the screen.
+    static func wordListAppeared() {
+        guard start != nil else { return }
+        CATransaction.setCompletionBlock {
+            MainActor.assumeIsolated { finish() }
+        }
+    }
+
+    private static func finish() {
+        guard let start, let interval else { return }
+        let milliseconds = (CACurrentMediaTime() - start) * 1000
+        signposter.endInterval("Open word menu", interval)
+        logger.log("Word menu open: \(milliseconds, format: .fixed(precision: 1), privacy: .public) ms")
+        self.start = nil
+        self.interval = nil
+    }
+}
+
+/// The status line's counts, kept for the last text counted: opening the menu again on the same
+/// text costs one string comparison, never a walk of the text. Counted off the main thread.
+@MainActor
+enum WordMenuStatusCounts {
+    private static var last: (text: String, statistics: DocumentStatistics)?
+
+    /// The counts for `text` when they are already known.
+    static func cached(for text: String) -> DocumentStatistics? {
+        guard let last, last.text == text else { return nil }
+        return last.statistics
+    }
+
+    /// Counts `text` in the background and keeps the result.
+    static func count(_ text: String) async {
+        let statistics = await Task.detached(priority: .userInitiated) { DocumentStatistics(text: text) }.value
+        last = (text, statistics)
     }
 }

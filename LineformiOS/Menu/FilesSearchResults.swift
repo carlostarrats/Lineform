@@ -112,6 +112,7 @@ struct FilesSearchResults: View {
     var onDismiss: () -> Void
 
     @Environment(\.wordMenuPalette) private var palette
+    @Environment(\.cardOpenTransition) private var cardTransition
 
     /// The file a card stands for, for its swipe actions: another document's, or this one's.
     private func item(for card: SearchResultCard) -> OutlineFileTreeItem? {
@@ -167,7 +168,8 @@ struct FilesSearchResults: View {
             }
             WordMenuCardGrid(items: cards) { card in
                 let actions = item(for: card).map { FilesSwipeAction.actions(for: $0, store: store) } ?? []
-                SearchResultCardView(card: card) {
+                SearchResultCardView(card: card) { frame in
+                    cardTransition?.record(url: card.row.url, frame: frame)
                     controller.activate(card.row, dismiss: onDismiss)
                 }
                 .filesSwipeAccessibilityActions(actions)
@@ -234,12 +236,16 @@ private struct SearchMatchRowView: View {
 
 private struct SearchResultCardView: View {
     var card: SearchResultCard
-    var action: () -> Void
+    /// Opens the card's document; given the card's frame on screen.
+    var action: (CGRect) -> Void
+    @State private var frameBox = CardFrameBox()
     @Environment(\.wordMenuPalette) private var palette
 
     var body: some View {
         let shape = RoundedRectangle(cornerRadius: WordMenuMetrics.rowRadius, style: .continuous)
-        Button(action: action) {
+        Button {
+            action(frameBox.frame)
+        } label: {
             VStack(alignment: .leading, spacing: 2) {
                 Text(verbatim: card.title)
                     .font(.subheadline.weight(.semibold))
@@ -268,6 +274,7 @@ private struct SearchResultCardView: View {
         }
         .buttonStyle(WordMenuPressStyle())
         .accessibilityElement(children: .combine)
+        .recordsCardFrame(frameBox)
     }
 
     /// The snippet with its match in bold, in the ink.

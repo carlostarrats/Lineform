@@ -314,10 +314,10 @@ final class HistoryModeTests: XCTestCase {
         XCTAssertTrue(store.load(for: url).isEmpty, "leaving History mode did not write the old history back")
 
         // pinned-en: the Mac's copy, and the row joins the list.
-        // pinned-en: every row, the switches, Check Document Now, then Clear History (the Mac's copy).
+        // pinned-en: every row, the switches, then Clear History (the Mac's copy).
         XCTAssertEqual(SettingsSection.rowTitles, [
             "Automatic Dark Mode", "Show iCloud in Files", "Check spelling while typing", "In-app notifications",
-            "Check Document Now", "Clear History",
+            "Clear History",
         ])
         XCTAssertEqual(SettingsSection.clearHistoryButtonTitle, "Clear…")
         XCTAssertEqual(SettingsSection.clearHistoryConfirmTitle, "Clear all history?")

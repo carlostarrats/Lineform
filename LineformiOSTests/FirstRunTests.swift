@@ -181,9 +181,15 @@ final class FirstRunTests: XCTestCase {
             size: CGSize(width: 402, height: 874 - 62 - 34),
             safeArea: EdgeInsets(top: 62, leading: 0, bottom: 34, trailing: 0)
         )
-        XCTAssertEqual(layout.centerY + 62, 874 / 2, accuracy: 0.001, "centred on the screen")
+        XCTAssertEqual(layout.centerY + 62, 874 / 2, accuracy: 0.001, "the screen's centre")
+        // Lifted 5 % of the screen above the centre, so the group with Get Started reads centred.
+        XCTAssertEqual(layout.wordmarkCenterY + 62, 874 / 2 - 874 * 0.05, accuracy: 0.001)
+        XCTAssertTrue(FirstRunLineView.pageAdjustmentScript.contains("translate3d(0, -5vh, 0)"),
+                      "the page lifts the wordmark by the same amount")
         XCTAssertEqual(layout.wordmarkSize.width, 402 * 0.78, accuracy: 0.001)
-        XCTAssertEqual(layout.centerY + layout.topOffset, layout.topWordmarkCenterY, accuracy: 0.001)
+        // The web view scales about its centre: the lifted wordmark lands on the top position.
+        XCTAssertEqual(layout.centerY - layout.welcomeLift * FirstRunLayout.topScale + layout.topOffset,
+                       layout.topWordmarkCenterY, accuracy: 0.001)
         XCTAssertLessThan(layout.topWordmarkCenterY, layout.pointsTop, "the points start below the small wordmark")
         XCTAssertGreaterThan(
             layout.pointsTop,

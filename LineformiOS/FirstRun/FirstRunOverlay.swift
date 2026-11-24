@@ -10,7 +10,8 @@ import UIKit
 ///    (`FirstRunTiming.shrinkSeconds`, ease-in-out) while the shader quietens; the four points
 ///    arrive one after another, then Start Writing.
 /// 3. Start Writing finishes (`FirstRunFlow`: the completed flag, then `onFinish`), which opens the
-///    blank document ready to type.
+///    blank document WITHOUT the keyboard (and so without the format row): a tap on the page
+///    raises them as usual.
 ///
 /// Each button also answers Return on a hardware keyboard while it is on screen. It always draws
 /// on the intro's paper, in a fixed light look (status bar included), whatever the reading theme.
@@ -114,7 +115,7 @@ struct FirstRunOverlay: View {
             .accessibilityElement()
             .accessibilityLabel(Text(String(localized: "Welcome to Lineform")))
             .accessibilityAddTraits(.isHeader)
-            .position(x: layout.size.width / 2, y: wordmarkAtTop ? layout.topWordmarkCenterY : layout.centerY)
+            .position(x: layout.size.width / 2, y: wordmarkAtTop ? layout.topWordmarkCenterY : layout.wordmarkCenterY)
             .allowsHitTesting(false)
     }
 
@@ -127,7 +128,7 @@ struct FirstRunOverlay: View {
         if flow.stage == .welcome {
             let written = flow.isWordmarkWritten
             VStack(spacing: 0) {
-                Color.clear.frame(height: layout.centerY + layout.wordmarkSize.height / 2 + 16)
+                Color.clear.frame(height: layout.wordmarkCenterY + layout.wordmarkSize.height / 2 + 16)
                 if written {
                     Text(FirstRunCopy.tagline)
                         .font(.callout)
@@ -301,7 +302,9 @@ private struct FirstRunPointsView: View {
 }
 
 /// Where first run's pieces sit, in the overlay's safe-area coordinates. The web view fills the
-/// whole screen and centres the wordmark on it at 78 % of the width (`pageAdjustmentScript`).
+/// whole screen and draws the wordmark at 78 % of the width, `welcomeLiftFraction` of the screen
+/// height above its centre (`pageAdjustmentScript`): with Get Started below, a group at the true
+/// centre reads low, so it sits a little higher to read optically centred.
 struct FirstRunLayout {
     /// The wordmark's size on the points screen, relative to the welcome.
     static let topScale: CGFloat = 0.5
@@ -309,6 +312,9 @@ struct FirstRunLayout {
     static let wordmarkAspect: CGFloat = 639 / 255
     /// Gap from the safe area's top to the small wordmark.
     static let topMargin: CGFloat = 20
+    /// How far above the screen's centre the welcome wordmark sits, as a share of the screen's
+    /// height (the page's `vh`).
+    static let welcomeLiftFraction: CGFloat = 0.05
 
     var size: CGSize
     var safeArea: EdgeInsets
@@ -324,13 +330,24 @@ struct FirstRunLayout {
         (size.height + safeArea.top + safeArea.bottom) / 2 - safeArea.top
     }
 
+    /// The welcome wordmark's lift above the screen's centre, in points.
+    var welcomeLift: CGFloat {
+        (size.height + safeArea.top + safeArea.bottom) * Self.welcomeLiftFraction
+    }
+
+    /// Where the welcome wordmark's centre sits: `welcomeLift` above the screen's centre.
+    var wordmarkCenterY: CGFloat {
+        centerY - welcomeLift
+    }
+
     var topWordmarkCenterY: CGFloat {
         Self.topMargin + wordmarkSize.height * Self.topScale / 2
     }
 
-    /// The web view's offset that brings the scaled wordmark to the top.
+    /// The web view's offset that brings the scaled wordmark to the top. The web view scales
+    /// about its centre, so the lifted wordmark ends `welcomeLift × topScale` above it.
     var topOffset: CGFloat {
-        topWordmarkCenterY - centerY
+        topWordmarkCenterY - (centerY - welcomeLift * Self.topScale)
     }
 
     /// Where the points begin, below the small wordmark.

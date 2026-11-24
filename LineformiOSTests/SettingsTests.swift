@@ -57,10 +57,11 @@ final class SettingsTests: XCTestCase {
             "Automatic Dark Mode", "Show iCloud in Files", "Check spelling while typing", "In-app notifications",
         ])
         XCTAssertTrue(SettingsSection.rows.allSatisfy { !$0.note.isEmpty }, "every row explains itself")
-        // pinned-en: every row, the switches, Check Document Now, then Clear History (the Mac's copy).
+        // pinned-en: every row, the switches, then Clear History (the Mac's copy). Check Document
+        // Now left Settings for the format row's Check Spelling (2026-11-24).
         XCTAssertEqual(SettingsSection.rowTitles, [
             "Automatic Dark Mode", "Show iCloud in Files", "Check spelling while typing", "In-app notifications",
-            "Check Document Now", "Clear History",
+            "Clear History",
         ])
         XCTAssertFalse(SettingsSection.clearHistoryNote.isEmpty)
     }

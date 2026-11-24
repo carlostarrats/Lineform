@@ -361,7 +361,8 @@ final class SearchController {
 
     private func searchFiles() {
         guard let files else { return }
-        let entries = Self.entries(from: files.roots, excluding: currentURL())
+        // Only the roots Files shows (iCloud, On My iPhone): the dormant Workspace never shows.
+        let entries = Self.entries(from: FilesSection.phoneRoots(files.roots), excluding: currentURL())
         nameRows = QuickOpenIndex.search(entries, query: query).map { entry in
             SearchRow(id: "name-\(entry.id)", kind: .fileName, url: entry.url, detail: entry.directoryDisplayPath, indicator: entry.name)
         }

@@ -44,14 +44,6 @@ final class FilesItemActions {
     var renaming: OutlineFileTreeItem?
     var newName = ""
     var deleting: OutlineFileTreeItem?
-    /// New Folder asked for a name to create inside this folder.
-    var creatingFolderIn: URL?
-    var newFolderName = ""
-
-    func newFolder(in parent: URL) {
-        newFolderName = ""
-        creatingFolderIn = parent
-    }
 
     func perform(_ action: FilesRowAction, on item: OutlineFileTreeItem) {
         switch action {
@@ -108,21 +100,6 @@ private struct FilesItemAlerts: ViewModifier {
                 Text(FilesSection.deleteMessage)
             }
             .alert(
-                FilesSection.newFolderTitle,
-                isPresented: Binding(get: { actions.creatingFolderIn != nil }, set: { if !$0 { actions.creatingFolderIn = nil } }),
-                presenting: actions.creatingFolderIn
-            ) { parent in
-                TextField(String(localized: "Name"), text: $actions.newFolderName)
-                Button(String(localized: "Cancel"), role: .cancel) {}
-                Button(String(localized: "Create")) {
-                    let name = actions.newFolderName
-                    Task { try? await store.createFolder(named: name, in: parent) }
-                }
-                .disabled(FilesStore.newFolderDestination(named: actions.newFolderName, in: parent) == nil)
-            } message: { _ in
-                Text(FilesSection.newFolderMessage)
-            }
-            .alert(
                 store.notice ?? "",
                 isPresented: Binding(get: { store.notice != nil }, set: { if !$0 { store.dismissNotice() } })
             ) {
@@ -131,11 +108,17 @@ private struct FilesItemAlerts: ViewModifier {
     }
 }
 
-/// The word menu's Files: the search field at the top (results are document cards with the
-/// matching line), then each root — "iCloud" (or On My iPhone when iCloud does not resolve, and
-/// the Workspace) — with its folders as plain rows (icon, name, count, chevron) and its own
-/// documents as cards under "Recent", newest first. A folder opens its page of cards; a card
-/// opens its document and the menu closes. Open from Files… and New Document close the page.
+/// The word menu's Files, as in the owner's mockup (2026-11-24): the search field at the top
+/// (with its scope button; results are document cards with the matching line), then the "iCloud"
+/// heading (cloud icon) with its folders as plain rows (icon, name, count, chevron), the "On My
+/// iPhone" heading (phone icon) with its folders, then "Recent": both roots' own documents as
+/// cards, newest first. Each root's heading has a "+" on a grey round background that makes a new
+/// document in that root. A folder opens its page of cards; a card opens its document and the
+/// menu closes.
+///
+/// Nothing else: no Open from Files…, no New Document row, no New Folder (the Mac has none), and
+/// no Workspace. The store still models a Workspace root (`FilesStore.roots`), dormant: the iPhone
+/// shows only `phoneRoots` and searches nothing else.
 ///
 /// The menu keeps the store visible (scanning and watching) while Files or a folder is on screen.
 struct FilesSection: View {
@@ -146,8 +129,6 @@ struct FilesSection: View {
     var onOpenFolder: (FilesFolderRoute) -> Void
     var onDismiss: () -> Void
 
-    @State private var isImportingDocument = false
-    @State private var isChoosingWorkspace = false
     @State private var search: SearchController?
     @State private var query = ""
     @State private var scope: FilesSearchScope = .allDocuments
@@ -181,11 +162,7 @@ struct FilesSection: View {
         String(localized: "Sort folders by: \(order.title)")
     }
     static var hiddenFoldersTitle: String { String(localized: "Show Hidden Folders") }
-    static var unavailableText: String { String(localized: "Workspace folder unavailable") }
-    static var chooseTitle: String { String(localized: "Choose") }
-    static var changeTitle: String { String(localized: "Change") }
     static var deleteMessage: String { String(localized: "It will be moved to the Trash.") }
-    static func scannedFolderText(_ path: String) -> String { String(localized: "Scanned folder: \(path)") }
     static func deleteTitle(for name: String) -> String { String(localized: "Delete “\(name)”?") }
     static func renameTitle(isDirectory: Bool) -> String {
         isDirectory ? String(localized: "Rename Folder") : String(localized: "Rename File")
@@ -196,10 +173,8 @@ struct FilesSection: View {
             : String(localized: "Renames the file. Its contents are kept.")
     }
     static var newDocumentTitle: String { String(localized: "New Document") }
-    static var newFolderTitle: String { String(localized: "New Folder") }
-    static var newFolderMessage: String { String(localized: "Name the new folder.") }
-    static func addMenuLabel(for place: String) -> String { String(localized: "Add to \(place)") }
-    static var openTitle: String { String(localized: "Open from Files…") }
+    /// A root's "+" for VoiceOver: "New Document in iCloud".
+    static func newDocumentLabel(in place: String) -> String { String(localized: "New Document in \(place)") }
     static var recentTitle: String { String(localized: "Recent") }
     static var searchPrompt: String { String(localized: "Search all documents") }
     /// The scope button's and its menu's name for VoiceOver.
@@ -216,18 +191,24 @@ struct FilesSection: View {
     /// The iCloud root's heading: the place, not the folder's name.
     static var iCloudHeading: String { String(localized: "iCloud") }
 
-    /// The documents Open from Files… offers: Markdown and plain text.
-    static var importableTypes: [UTType] {
-        [UTType("net.daringfireball.markdown"), .plainText].compactMap { $0 }
-    }
-
-    /// A root's heading and its icon: iCloud with a cloud, On My iPhone, the Workspace.
+    /// A root's heading and its icon: iCloud with a cloud, On My iPhone with a phone. (The dormant
+    /// Workspace root never shows on iPhone: `phoneRoots`.)
     static func heading(for root: FilesRoot) -> (title: String, systemImage: String) {
         switch root.id {
         case .icloud: (iCloudHeading, "icloud")
         case .device: (root.title, "iphone")
-        case .workspace: (root.title, root.state == .unavailable ? "folder.badge.questionmark" : root.systemImage)
+        case .workspace: (root.title, root.systemImage)
         }
+    }
+
+    /// The roots the iPhone shows, in order: iCloud, then On My iPhone. Never the Workspace.
+    static func phoneRoots(_ roots: [FilesRoot]) -> [FilesRoot] {
+        roots.filter { $0.id != .workspace }
+    }
+
+    /// Recent: every shown root's own documents (not those in its folders), newest first.
+    static func recentDocuments(acrossRoots roots: [FilesRoot]) -> [OutlineFileTreeItem] {
+        recentDocuments(in: phoneRoots(roots).filter(\.hasScanned).flatMap(\.items))
     }
 
     /// A root's or folder's documents for its cards: files only, newest first (a file with no date
@@ -258,24 +239,8 @@ struct FilesSection: View {
                 FilesSearchResults(controller: search, scope: scope, document: document, store: store, onDismiss: onDismiss)
             } else {
                 roots
-                WordMenuRow(title: Self.openTitle, systemImage: "doc.badge.ellipsis", accessory: .none) {
-                    isImportingDocument = true
-                }
-                .padding(.top, 14)
-                WordMenuPrimaryButton(title: Self.newDocumentTitle, systemImage: "plus") {
-                    newDocument()
-                }
+                recent
             }
-        }
-        .fileImporter(isPresented: $isImportingDocument, allowedContentTypes: Self.importableTypes) { result in
-            if case .success(let url) = result { open(url) }
-        }
-        .background {
-            // The folder picker sits on another view: two importers on one view shadow each other.
-            Color.clear
-                .fileImporter(isPresented: $isChoosingWorkspace, allowedContentTypes: [.folder]) { result in
-                    if case .success(let url) = result { store.chooseWorkspace(url) }
-                }
         }
         .onChange(of: document.text) { search?.textChanged() }
         .onChange(of: store.roots) { search?.rootsChanged() }
@@ -538,8 +503,20 @@ struct FilesSection: View {
 
     @ViewBuilder
     private var roots: some View {
-        ForEach(store.roots) { root in
+        ForEach(Self.phoneRoots(store.roots)) { root in
             rootSection(root)
+        }
+    }
+
+    /// Recent: both roots' own documents as cards, newest first.
+    @ViewBuilder
+    private var recent: some View {
+        let documents = Self.recentDocuments(acrossRoots: store.roots)
+        if !documents.isEmpty {
+            WordMenuGroupLabel(title: Self.recentTitle)
+            WordMenuCardGrid(items: documents) { item in
+                DocumentCard(item: item, document: document, store: store, actions: actions) { open(item.url) }
+            }
         }
     }
 
@@ -549,80 +526,26 @@ struct FilesSection: View {
         HStack(alignment: .center) {
             WordMenuGroupLabel(title: heading.title, systemImage: heading.systemImage)
             Spacer(minLength: 8)
-            if root.id == .workspace {
-                Button {
-                    isChoosingWorkspace = true
-                } label: {
-                    Text(root.state == .unassigned ? Self.chooseTitle : Self.changeTitle)
-                        .font(.subheadline)
-                        .foregroundStyle(palette.color(palette.blueText))
-                        .frame(minWidth: WordMenuMetrics.minimumTarget, minHeight: WordMenuMetrics.minimumTarget, alignment: .trailing)
-                        .contentShape(Rectangle())
+            if let folder = root.folderURL, root.state == .available {
+                // A document made here saves here.
+                WordMenuRoundButton(systemImage: "plus", label: Self.newDocumentLabel(in: heading.title)) {
+                    newDocument(in: folder)
                 }
-                .buttonStyle(.plain)
-                .padding(.top, 6)
-            } else if let folder = root.folderURL, root.state == .available {
-                // New Document and New Folder at the top of iCloud or On My iPhone: a document
-                // made here saves here.
-                Menu {
-                    Button {
-                        newDocument(in: folder)
-                    } label: {
-                        Label(Self.newDocumentTitle, systemImage: "square.and.pencil")
-                    }
-                    Button {
-                        actions.newFolder(in: folder)
-                    } label: {
-                        Label(Self.newFolderTitle, systemImage: "folder.badge.plus")
-                    }
-                } label: {
-                    Image(systemName: "plus")
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(palette.color(palette.blueMark))
-                        .frame(width: WordMenuMetrics.minimumTarget, height: WordMenuMetrics.minimumTarget)
-                        .contentShape(Rectangle())
-                }
-                .accessibilityLabel(Self.addMenuLabel(for: heading.title))
                 .accessibilityIdentifier("files.add.\(root.id.rawValue)")
                 .padding(.top, 6)
             }
         }
-        switch root.state {
-        case .unassigned:
-            EmptyView()
-        case .unavailable:
-            WordMenuNote(text: Self.unavailableText)
-        case .available, .disconnected:
-            if !root.hasScanned {
-                ProgressView()
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.horizontal, 4)
-            } else if root.items.isEmpty {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(String(localized: "No Markdown files"))
-                    // Naming the scanned folder is what tells "this folder is empty" apart from
-                    // "this is not the folder you think it is" (files-sidebar.md).
-                    if root.id == .workspace, let path = root.folderURL?.path {
-                        Text(Self.scannedFolderText(path))
-                            .font(.footnote)
-                            .lineLimit(2)
-                            .truncationMode(.head)
-                            .textSelection(.enabled)
-                    }
-                }
+        if !root.hasScanned {
+            ProgressView()
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, 4)
+        } else if root.items.isEmpty {
+            Text(String(localized: "No Markdown files"))
                 .font(.subheadline)
                 .foregroundStyle(palette.color(palette.secondary))
                 .padding(.horizontal, 4)
-            } else {
-                FilesFolderRows(items: root.items, store: store, actions: actions, onOpenFolder: onOpenFolder)
-                let documents = Self.recentDocuments(in: root.items)
-                if !documents.isEmpty {
-                    WordMenuGroupLabel(title: Self.recentTitle)
-                    WordMenuCardGrid(items: documents) { item in
-                        DocumentCard(item: item, document: document, store: store, actions: actions) { open(item.url) }
-                    }
-                }
-            }
+        } else {
+            FilesFolderRows(items: root.items, store: store, actions: actions, onOpenFolder: onOpenFolder)
         }
     }
 

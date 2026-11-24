@@ -3,10 +3,10 @@ import LineformCore
 import SwiftUI
 import UIKit
 
-/// One button of the selection row, in the spec's order (§5.5).
+/// One button of the format row, in the order of the owner's mockup A (§5.5, 2026-11-24).
 enum SelectionRowItem: Equatable, CaseIterable {
     case askAI, heading, bold, italic, strikethrough, code, list, link, blockquote, image, insertTable, reformatTable
-    case replaceWith, anotherWord
+    case replaceWith, anotherWord, checkSpelling
 
     /// The button's name (its accessibility label; the text for the text buttons). Ask AI names the
     /// connected AI ("Ask Claude"), as the Mac's toolbar does.
@@ -26,10 +26,28 @@ enum SelectionRowItem: Equatable, CaseIterable {
         case .reformatTable: return String(localized: "Reformat Table")
         case .replaceWith: return String(localized: "Replace With…")
         case .anotherWord: return AIAction.anotherWord.title
+        case .checkSpelling: return String(localized: "Check Spelling")
         }
     }
 
     var title: String { title() }
+
+    /// The word on the key, as in the mockup: short words ("Quote", "Table"). B, I and S draw
+    /// their letters in their own style.
+    var keyText: String {
+        switch self {
+        case .askAI: return Self.askShortTitle
+        case .bold: return "B"
+        case .italic: return "I"
+        case .strikethrough: return "S"
+        case .blockquote: return String(localized: "Quote")
+        case .insertTable: return String(localized: "Table")
+        default: return title
+        }
+    }
+
+    /// The Large Content Viewer's symbol for the key (the row itself draws words).
+    var largeContentSymbol: String? { systemImage }
 
     /// What the row SHOWS for Ask: the short "Ask" beside the sparkle (§21, "A · Native row").
     /// `title` (its VoiceOver label) still names the AI: "Ask Claude".
@@ -51,6 +69,7 @@ enum SelectionRowItem: Equatable, CaseIterable {
         case .list: return "list.bullet"
         case .link: return "link"
         case .blockquote: return "text.quote"
+        case .checkSpelling: return "textformat.abc.dottedunderline"
         case .replaceWith, .anotherWord: return nil
         }
     }
@@ -270,10 +289,30 @@ final class SelectionController: NSObject, ObservableObject {
         presentAlert(Self.wholeDocumentConfirmation(words: words, recipient: recipient, onSend: proceed, onCancel: {}))
     }
 
-    /// The editor whose selection the row follows (`MarkdownEditor` calls it).
+    /// The format row's home on the keyboard (`FormatBarAccessoryView`), made with the first editor.
+    private(set) lazy var formatBar = FormatBarAccessoryView(controller: self)
+
+    /// The editor's display profile changed (a theme, Automatic Dark Mode): the bar follows it
+    /// (its keyboard colour and ink), also while it shows.
+    func editorProfileDidChange(_ profile: ReadingProfile) {
+        let old = formatBar.style.profile
+        guard old != profile else { return }
+        formatBar.style.profile = profile
+        // The keyboard takes a new appearance only when its input views reload: without this, a
+        // switch to dark while typing kept a light keyboard under a dark bar (and the mirror).
+        if Theme.theme(for: old).usesDarkChrome != Theme.theme(for: profile).usesDarkChrome,
+           let editor, editor.isFirstResponder {
+            editor.reloadInputViews()
+        }
+    }
+
+    /// The editor whose selection the row follows (`MarkdownEditor` calls it). The row becomes
+    /// the editor's input accessory, so it rides on the keyboard.
     func attach(_ editor: LineformTextView) {
         guard self.editor !== editor else { return }
         self.editor = editor
+        editor.inputAccessoryView = formatBar
+        if editor.isFirstResponder { editor.reloadInputViews() }
         hide()
         editor.aiRefusalHandler = { [weak self] in self?.editRefusedDuringReview() }
         editor.aiDismissMarksHandler = { [weak self] in self?.aiControllerStorage?.dismissMarks() }
@@ -294,11 +333,12 @@ final class SelectionController: NSObject, ObservableObject {
     // MARK: - Which buttons
 
     /// The row's buttons, in order: Ask AI (only while connected), Heading, Bold, Italic,
-    /// Strikethrough, Code, List, Link, Blockquote, Insert Table, Reformat Table (only when the
-    /// selection starts on a table row: elsewhere it would do nothing), Replace With… (only where
-    /// History can keep the selection: `offersReplaceWith`), and Another Word (one word only, and
-    /// only while connected: it is an AI action). Insert and Reformat Table moved here from the
-    /// Menu; on the Mac they live in Format.
+    /// Strikethrough, Code, List, Link, Blockquote, Image, Insert Table, Reformat Table (only when
+    /// the selection starts on a table row: elsewhere it would do nothing), Replace With… (only
+    /// where History can keep the selection: `offersReplaceWith`), Another Word (one word only,
+    /// and only while connected: it is an AI action), and Check Spelling, always last (the one
+    /// whole-document spelling pass; it left Settings on 2026-11-24). Insert and Reformat Table
+    /// moved here from the Menu; on the Mac they live in Format.
     ///
     /// For a caret (`hasSelection: false`) Replace With… and Another Word never show: both need a
     /// selection. Ask then asks about the whole document (the caller passes `aiConnected` only when
@@ -309,9 +349,11 @@ final class SelectionController: NSObject, ObservableObject {
         // (Read mode passes `aiConnected: false`: Read allows no AI.)
         items += [.heading, .bold, .italic, .strikethrough, .code, .list, .link, .blockquote, .image, .insertTable]
         if startsOnTableRow { items.append(.reformatTable) }
-        guard hasSelection else { return items }
-        if offersReplaceWith { items.append(.replaceWith) }
-        if aiConnected, AIMenuPresentation.isSingleWord(selectedText) { items.append(.anotherWord) }
+        if hasSelection {
+            if offersReplaceWith { items.append(.replaceWith) }
+            if aiConnected, AIMenuPresentation.isSingleWord(selectedText) { items.append(.anotherWord) }
+        }
+        items.append(.checkSpelling)
         return items
     }
 
@@ -463,6 +505,7 @@ final class SelectionController: NSObject, ObservableObject {
         if model.aiName != aiName { model.aiName = aiName }
         let dark = Theme.theme(for: editor.profile).usesDarkChrome
         if model.usesDarkChrome != dark { model.usesDarkChrome = dark }
+        if formatBar.style.profile != editor.profile { formatBar.style.profile = editor.profile }
         let newItems = currentItems(for: range, aiConnected: provider != nil && !isReadMode)
         if items != newItems { items = newItems }
         anchorRange = range
@@ -540,6 +583,9 @@ final class SelectionController: NSObject, ObservableObject {
         // Link with a caret is the Mac's: `[](https://example.com)`, the address selected.
         case .link: runCommand { $0.apply(.link) }
         case .blockquote: runCommand { Self.applyToLine(.blockquote, in: $0) }
+        // Check Document Now: the first misspelling after the selection is selected (the row
+        // stays, for that selection); no edit, so no undo step.
+        case .checkSpelling: runCommand { _ = $0.checkDocumentNow() }
         case .replaceWith:
             // History's Replace With… (the Mac's meaning): the selection becomes a passage and
             // History mode opens on it with "Type a replacement". History and AI never overlap:

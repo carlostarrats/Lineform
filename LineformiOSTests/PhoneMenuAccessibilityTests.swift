@@ -222,13 +222,13 @@ final class PhoneMenuAccessibilityTests: XCTestCase {
         let settings = AppSettings(defaults: defaults)
         for size in Self.sizes {
             let host = try await host(
-                page(SettingsSection(settings: settings, files: makeStore(), editor: RecordingEditorCommands(text: ""))),
+                page(SettingsSection(settings: settings, files: makeStore())),
                 contentSize: size, tall: true
             )
             let elements = host.elements()
             let darkMode = try XCTUnwrap(elements.first { $0.label == SettingsSection.rows[0].title }, "\(elements)")
             XCTAssertEqual(darkMode.object.accessibilityHint, SettingsSection.rows[0].note, "the note is the hint, not the label")
-            XCTAssertNotNil(elements.first { $0.identifier == "settings.checkDocument" }, "Check Document Now lives here")
+            XCTAssertNil(elements.first { $0.identifier == "settings.checkDocument" }, "Check Document Now moved to the format row")
             host.assertInteractiveElementsAreLabelledAndLargeEnough()
             assertNothingRunsOffTheSide(host)
             host.tearDown()

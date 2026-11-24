@@ -41,6 +41,15 @@ struct DocumentScreen: View {
         settings.displayProfile(profileStore.activeProfile, userInterfaceStyle: UIUserInterfaceStyle(colorScheme))
     }
     @State private var isShowingMenu = false
+    /// Where the menu's cards record themselves before opening a document.
+    @State private var cardTransition = CardOpenTransition()
+    /// The card expanding into the page while the menu fades (nil otherwise).
+    @State private var cardZoom: CardZoom?
+    @State private var cardZoomProgress: CGFloat = 0
+    /// The menu's opacity: 1, except while it fades for a card's expansion.
+    @State private var menuOpacity: Double = 1
+    /// The menu is on its way out (a card is opening): it takes no more taps.
+    @State private var isMenuClosing = false
     @State private var isShowingStyling = false
     /// Write, Read or Preview. Kept with the scene, so a Preview restored after iOS ended the app
     /// opens in Preview; a new scene starts in Write.
@@ -135,19 +144,14 @@ struct DocumentScreen: View {
         EditorMotionPolicy.animation(.easeInOut(duration: 0.32), reduceMotion: reduceMotion)
     }
 
-    /// First run is over: fade it out, switch to Write if another mode was left on, then put the
-    /// caret in the blank document.
+    /// First run is over: fade it out and switch to Write if another mode was left on. The blank
+    /// document opens WITHOUT the keyboard (and so without the format row, the owner's decision
+    /// of 2026-11-24): a tap on the page raises them as usual.
     private func finishFirstRun() {
         withAnimation(firstRunFade) {
             firstRun.finished()
         }
-        let needsSwitch = displayMode != .write
-        // The editor takes the focus below; naming the mode too would only talk over it.
-        if needsSwitch { switchMode(to: .write, announces: false) }
-        Task { @MainActor in
-            if needsSwitch { await Task.yield() }
-            positionKeeper.editor?.becomeFirstResponder()
-        }
+        if displayMode != .write { switchMode(to: .write, announces: false) }
     }
 
     /// A document reached the screen some other way (restored, or opened): first run ends for
@@ -284,6 +288,15 @@ struct DocumentScreen: View {
             // but first run.
             if isShowingMenu {
                 wordMenu
+                    .environment(\.cardOpenTransition, cardTransition)
+                    .opacity(menuOpacity)
+                    .allowsHitTesting(!isMenuClosing)
+            }
+        }
+        .overlay {
+            // A card expanding into the page, over the fading menu.
+            if let cardZoom {
+                CardZoomView(image: cardZoom.image, from: cardZoom.from, to: cardZoom.to, progress: cardZoomProgress)
             }
         }
         .overlay {
@@ -491,12 +504,85 @@ struct DocumentScreen: View {
 
     /// The ⋯ button: the keyboard goes first (the menu covers the screen), then the menu opens.
     private func openWordMenu() {
+        WordMenuTiming.tapped()
         positionKeeper.editor?.resignFirstResponder()
         isShowingMenu = true
     }
 
+    /// Closes the menu at once, or, when a card just opened a document, expands the card into the
+    /// page (`expandFromCard`).
     private func closeWordMenu() {
+        guard let card = cardTransition.take() else {
+            isShowingMenu = false
+            return
+        }
+        isMenuClosing = true
+        Task { @MainActor in await expandFromCard(card) }
+    }
+
+    /// The menu leaves for good, with nothing left of a card's expansion.
+    private func finishClosingMenu() {
         isShowingMenu = false
+        isMenuClosing = false
+        menuOpacity = 1
+        cardZoom = nil
+        cardZoomProgress = 0
+    }
+
+    /// The card expands into the page (0.3 s, ease-in-out) while the menu fades; under Reduce
+    /// Motion the menu only crossfades to the page. The document opens as before (its open is
+    /// already running); only the picture waits, for the page to show the opened text (at most
+    /// `cardWaitLimit`, then the menu simply closes).
+    private func expandFromCard(_ card: CardOpenTransition.Card) async {
+        let deadline = Date().addingTimeInterval(Self.cardWaitLimit)
+        while !pageShows(card.url), Date() < deadline {
+            try? await Task.sleep(for: .milliseconds(8))
+        }
+        guard pageShows(card.url) else { return finishClosingMenu() }
+        // One more turn: the editor (and the Read view) take the new text.
+        await Task.yield()
+        if reduceMotion {
+            withAnimation(.easeInOut(duration: CardZoomView.duration)) {
+                menuOpacity = 0
+            } completion: {
+                finishClosingMenu()
+            }
+            return
+        }
+        let shown: UIView? = displayMode == .read ? positionKeeper.reader : positionKeeper.editor
+        guard let view = shown, view.window != nil, let image = Self.picture(of: view) else { return finishClosingMenu() }
+        cardZoom = CardZoom(image: image, from: card.frame, to: view.convert(view.bounds, to: nil))
+        cardZoomProgress = 0
+        // The picture sits on the card for one frame before it grows.
+        try? await Task.sleep(for: .milliseconds(16))
+        withAnimation(CardZoomView.animation) {
+            cardZoomProgress = 1
+            menuOpacity = 0
+        } completion: {
+            finishClosingMenu()
+        }
+    }
+
+    /// The longest the expansion waits for the opened text; a slower open closes the menu plainly.
+    static let cardWaitLimit: TimeInterval = 0.6
+
+    /// The page shows the document `url` (nil: the open one): the document has opened it and the
+    /// editor holds its text.
+    private func pageShows(_ url: URL?) -> Bool {
+        if let url {
+            let wanted = OpenDocument.realURL(for: url).resolvingSymlinksInPath().path
+            guard document.url?.resolvingSymlinksInPath().path == wanted else { return false }
+        }
+        return positionKeeper.editor.map { $0.textStorage.string == document.text } ?? true
+    }
+
+    /// A picture of the page view as it is now.
+    private static func picture(of view: UIView) -> UIImage? {
+        guard view.bounds.width > 0, view.bounds.height > 0 else { return nil }
+        let renderer = UIGraphicsImageRenderer(bounds: view.bounds)
+        return renderer.image { _ in
+            _ = view.drawHierarchy(in: view.bounds, afterScreenUpdates: true)
+        }
     }
 
     private var wordMenu: some View {
@@ -593,11 +679,11 @@ enum HistoryEntry {
 extension DocumentScreen {
     /// The gap between the bottom-trailing controls: Read aloud's pill, Preview's link, and ⋯.
     static let bottomChromeSpacing: CGFloat = 12
-    /// How far the bottom-trailing controls rise while the selection row shows, so they sit
-    /// `bottomChromeSpacing` above it: the row's height and its gap to the keyboard (or the home
-    /// indicator), less the margin they already keep.
+    /// The bottom-trailing controls' bottom padding change while the format row shows. The row is
+    /// the keyboard's accessory, so the keyboard's safe area already lifts them above it; this
+    /// only brings them to `bottomChromeSpacing` above the row instead of the usual margin.
     static var selectionRowClearance: CGFloat {
-        SelectionRow.height + SelectionRowPlacement.gap + bottomChromeSpacing - MarkdownEditor.chromeMargin
+        bottomChromeSpacing - MarkdownEditor.chromeMargin
     }
     /// The room the Read view (and Preview's lower pane) keeps below its last line, so it scrolls
     /// clear of the floating buttons: the taller of ⋯ and the link button.
@@ -780,4 +866,11 @@ enum ChromeAnnouncer {
     static func modeChangeNotification(from old: EditorDisplayMode, to new: EditorDisplayMode) -> UIAccessibility.Notification {
         (old == .read) != (new == .read) ? .layoutChanged : .announcement
     }
+}
+
+/// A card's expansion into the page: the page's picture, the card's frame and the page's.
+struct CardZoom {
+    var image: UIImage
+    var from: CGRect
+    var to: CGRect
 }

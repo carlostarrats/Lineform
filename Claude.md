@@ -390,10 +390,11 @@ iPhone only. Details: `docs/architecture/iphone-app.md`.
   `docs/architecture/iphone-app.md`, "Write, Read and Preview".
 - **First run.** On first launch only (`FirstRunGate`, per-device flag
   `LineformiOSFirstRunCompleted.v1`, set when the writer reaches the document), `FirstRunOverlay`
-  shows the Mac's `FirstLaunchIntro/` wordmark writing itself, centred (referenced, not copied; file
-  URLs only, no network), then Get Started; that shrinks the wordmark to the top and brings in the
-  four points and Start Writing (`FirstRunCopy`, the one place the copy lives). Nothing advances by
-  itself. iPhone-only page changes go in through `FirstRunLineView.pageAdjustmentScript` and
+  shows the Mac's `FirstLaunchIntro/` wordmark writing itself, a little above centre
+  (`FirstRunLayout.welcomeLiftFraction`, 5 %; referenced, not copied; file URLs only, no network),
+  then Get Started; that shrinks the wordmark to the top and brings in the four points and Start
+  Writing (`FirstRunCopy`, the one place the copy lives), which opens the blank page WITHOUT the
+  keyboard. Nothing advances by itself. iPhone-only page changes go in through `FirstRunLineView.pageAdjustmentScript` and
   `window.lineformIntro*` values the intro treats as absent on the Mac, so the Mac's intro is
   unchanged. Scene-storage recovery wins over it, and the launch call site skips it under XCTest.
   WebKit stays in the iPhone target, never in the package.
@@ -415,18 +416,26 @@ iPhone only. Details: `docs/architecture/iphone-app.md`.
   sheet) on the Mac Settings wash (`WordMenuPalette`: white → #F1F1F1, or #2A2A2A → #1C1C1C for
   every dark theme; never on the document screen): Files, Outline, Markdown Basics, Themes,
   Settings, Export & Print, Read Aloud, History (only with history), Connect Your AI, About
-  Lineform. Navigation is INSTANT (no motion); the corner button is ✕ on the words and ← in a page.
+  Lineform. Opening it and navigation are INSTANT (no motion; `WordMenuTiming` measures the open,
+  and nothing on that path may walk the document text — `WordMenuStatusCounts`,
+  `MarkdownEditor.Coordinator.knownText`); the corner button is ✕ on the words and ← in a page, and
+  every page keeps `WordMenuMetrics.bottomClearance` below its last item. A card (Recent, folder,
+  search) opens its document by expanding into the page (`CardZoomView`, 0.3 s; a crossfade under
+  Reduce Motion), never delaying the open.
   Pages reach the editor only through `EditorCommands`, each command ONE undo step. Files rename,
   Trash and moves between iCloud and On My iPhone are coordinated (`.forMoving`), never replacing,
   unlike the Mac (ruling in `docs/architecture/files-sidebar.md`); Trash is `trashItem` only, and
   nothing is scanned until Files or a file search is on screen. Find & Replace lives in Files'
   search (never a bar on the page): its scope button picks All documents (cards) or the open
   document by its file name (count, ↑/↓, matches as rows, Replace / All through `EditorCommands`,
-  Replace All one undo step); replace never reaches another file. On My iPhone always shows beside
-  iCloud, and New Document in a folder saves there (`OpenDocument.newDocument(in:)`). Convert to
+  Replace All one undo step); replace never reaches another file. Files shows only the search, "iCloud" and "On My iPhone"
+  (each with its folders and a grey "+" making a document there), then Recent — no Workspace (the
+  store's root stays dormant, `FilesSection.phoneRoots`), no Open from Files…, no New Folder. On My
+  iPhone always shows beside iCloud, and New Document in a folder saves there
+  (`OpenDocument.newDocument(in:)`). Convert to
   Plain Text / Markdown is the Mac's state machine verbatim (`TextFormatConversion`), through the
-  editor. Check Document Now (Settings) is the only whole-document spelling pass, and is never
-  scheduled. Settings are per device under the Mac's `Lineform.settings.*` keys (`AppSettings`);
+  editor. Check Document Now (the format row's Check Spelling, no longer in Settings) is the only
+  whole-document spelling pass, and is never scheduled. Settings are per device under the Mac's `Lineform.settings.*` keys (`AppSettings`);
   Automatic Dark Mode applies the Mac's Quiet mapping from the trait collection's
   `userInterfaceStyle`. Every menu ink is measured (`WordMenuTests.testPaletteContrast`). Details:
   `docs/architecture/iphone-app.md`, "The word menu".
@@ -435,8 +444,10 @@ iPhone only. Details: `docs/architecture/iphone-app.md`.
   scaled to the page; any other tall line gets its own scaled page). UIKit calls
   `PhonePrintRenderer`'s `numberOfPages`/`drawPage` OFF main: never hop to main there; render on
   main beforehand. `OpenDocument.onDocumentSwap` is the only place read aloud stops on a swap.
-- **Selection row, the AI sheet and AI.** A settled selection raises `SelectionRow` above the
-  keyboard or home indicator (`SelectionController`, 0.35 s), and while the editor has the
+- **Selection row, the AI sheet and AI.** The format row is mockup A exactly: a full-width 48 pt
+  bar in the keyboard's colour docked on the keyboard as the editor's `inputAccessoryView`
+  (`FormatBarAccessoryView`; never a floating capsule). A settled selection raises `SelectionRow`
+  (`SelectionController`, 0.35 s), and while the editor has the
   SOFTWARE keyboard up the row shows for a caret too (it goes with the keyboard; a hardware keyboard
   alone raises none; nothing about it changes while an input method composes). With a caret, Bold,
   Italic, Strikethrough and Code act on the word at the caret (else the Mac's paired markers, caret
@@ -445,8 +456,9 @@ iPhone only. Details: `docs/architecture/iphone-app.md`.
   Replace With… and Another Word are hidden; each is still ONE undo step. The ⋯ button and the Read
   Aloud pill float just above the row. Its buttons: Ask (connected only, Lineform blue),
   Heading (its levels open in place, ‹ back), Bold, Italic, Strikethrough, Code, List, Link,
-  Blockquote, Image (Photos or Files, through the paste path), Insert Table, Reformat Table (on a
-  table row), Replace With… (History's, where it can keep the selection) and Another Word. It
+  Blockquote ("Quote"), Image (Photos or Files, through the paste path), Insert Table ("Table"),
+  Reformat Table (on a table row), Replace With… (History's, where it can keep the selection),
+  Another Word, and Check Spelling last. It
   never changes the system edit menu, and the app's own selections never raise it. Ask AI opens
   the AI sheet (`AISheetView`: three-quarters, drags to half or a quarter, no ✕), the Mac drawer's
   conversation; the comment field is no longer opened.

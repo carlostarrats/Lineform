@@ -87,16 +87,12 @@ final class FilesSectionTests: XCTestCase {
     func testStatesUseTheMacWording() throws {
         try skipUnlessEnglishInterface()
         // pinned-en
-        let path = "/var/mobile/Notes"
-        XCTAssertEqual(FilesSection.scannedFolderText(path), "Scanned folder: /var/mobile/Notes")
-        XCTAssertEqual(FilesSection.unavailableText, "Workspace folder unavailable")
-        XCTAssertEqual(FilesSection.chooseTitle, "Choose")
-        XCTAssertEqual(FilesSection.changeTitle, "Change")
         XCTAssertEqual(FilesSection.deleteTitle(for: "Notes.md"), "Delete “Notes.md”?")
         XCTAssertEqual(FilesSection.deleteMessage, "It will be moved to the Trash.")
         XCTAssertEqual(FilesSection.renameTitle(isDirectory: false), "Rename File")
         XCTAssertEqual(FilesSection.renameTitle(isDirectory: true), "Rename Folder")
-        for text in [FilesSection.unavailableText, FilesSection.scannedFolderText(path), FilesSection.deleteMessage] {
+        XCTAssertEqual(FilesSection.newDocumentLabel(in: "iCloud"), "New Document in iCloud")
+        for text in [FilesSection.deleteMessage, FilesSection.newDocumentLabel(in: "iCloud")] {
             XCTAssertFalse(text.contains("Mac"), text)
             XCTAssertFalse(text.localizedCaseInsensitiveContains("sidebar"), text)
         }
@@ -137,12 +133,16 @@ final class FilesSectionTests: XCTestCase {
         }
         XCTAssertTrue(store.isVisible, "showing Files makes it visible")
         XCTAssertNotNil(Self.find("Hello", in: window), "a document card")
-        // pinned-en: the roots' and buttons' English names.
+        // pinned-en: the roots' and buttons' English names. Only the mockup's rows (2026-11-24):
+        // no Workspace, no Open from Files…, no New Document or New Folder rows; each root's "+".
         if interfaceLanguage == "en" {
             XCTAssertNotNil(Self.find("On My iPhone", in: window))
-            XCTAssertNotNil(Self.find("Workspace", in: window))
-            XCTAssertNotNil(Self.find("Choose", in: window), "an unassigned Workspace offers Choose")
-            XCTAssertNotNil(Self.find("New Document", in: window))
+            XCTAssertNotNil(Self.find("Recent", in: window))
+            XCTAssertNotNil(Self.find("New Document in On My iPhone", in: window), "the root's + makes a document there")
+            XCTAssertNil(Self.find("Workspace", in: window), "the Workspace never shows on iPhone")
+            XCTAssertNil(Self.find("Choose", in: window))
+            XCTAssertNil(Self.find("Open from Files…", in: window))
+            XCTAssertNil(Self.find("New Folder", in: window))
         }
 
         window.isHidden = true

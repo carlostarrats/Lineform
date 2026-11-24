@@ -46,17 +46,13 @@ final class SelectionRowTests: XCTestCase {
         XCTAssertEqual(controller.phase, .hidden, "0.45 s after the first change but only 0.25 s after the last")
         try await spin { controller.phase == .row }
         XCTAssertEqual(controller.anchorRange, NSRange(location: 0, length: 11))
-        // ⋯ stays reachable while the row shows: it floats just above the row (2026-11-24).
-        // Measured with the simulator's real keyboard down (the selection's row stays without it).
-        editor.resignFirstResponder()
-        try await spin { Self.element(SelectionRowItem.bold.title, in: window!) != nil }
-        try await spin {
-            guard let more = Self.element(MoreButton.accessibilityTitle, in: window!)?.accessibilityFrame,
-                  let row = Self.element(SelectionRowItem.bold.title, in: window!)?.accessibilityFrame else { return false }
-            // The item is 44 pt inside the 48 pt card: the card's top is 2 pt above it.
-            let gap = row.minY - 2 - more.maxY
-            return abs(gap - DocumentScreen.bottomChromeSpacing) < 4
-        }
+        // The row rides on the keyboard as the editor's input accessory (mockup A, 2026-11-24):
+        // 48 pt tall while it shows. ⋯ stays reachable: the keyboard's safe area (which holds
+        // the accessory) lifts it above the row.
+        XCTAssertTrue(editor.inputAccessoryView === controller.formatBar)
+        try await spin { controller.formatBar.isShowing }
+        XCTAssertEqual(controller.formatBar.intrinsicContentSize.height, SelectionRow.height)
+        try await spin { Self.element(MoreButton.accessibilityTitle, in: window!) != nil }
         XCTAssertEqual(controller.phase, .row)
     }
 
@@ -87,25 +83,32 @@ final class SelectionRowTests: XCTestCase {
         try skipUnlessEnglishInterface()
         XCTAssertEqual(SelectionController.rowItems(aiConnected: true, selectedText: "word", offersReplaceWith: true), [
             .askAI, .heading, .bold, .italic, .strikethrough, .code, .list, .link, .blockquote, .image, .insertTable, .replaceWith,
-            .anotherWord,
+            .anotherWord, .checkSpelling,
         ])
         XCTAssertEqual(SelectionController.rowItems(aiConnected: true, selectedText: "two words", offersReplaceWith: true), [
             .askAI, .heading, .bold, .italic, .strikethrough, .code, .list, .link, .blockquote, .image, .insertTable, .replaceWith,
+            .checkSpelling,
         ])
         // Replace With… only where History can keep the selection (`offersReplaceWith`).
         XCTAssertEqual(SelectionController.rowItems(aiConnected: false, selectedText: "two words", offersReplaceWith: false), [
-            .heading, .bold, .italic, .strikethrough, .code, .list, .link, .blockquote, .image, .insertTable,
+            .heading, .bold, .italic, .strikethrough, .code, .list, .link, .blockquote, .image, .insertTable, .checkSpelling,
         ])
         // Reformat Table only when the selection starts on a table row.
         XCTAssertEqual(SelectionController.rowItems(aiConnected: false, selectedText: "a", offersReplaceWith: false,
-                                                    startsOnTableRow: true).suffix(2), [.insertTable, .reformatTable])
-        // pinned-en: the titles each button carries.
+                                                    startsOnTableRow: true).suffix(3), [.insertTable, .reformatTable, .checkSpelling])
+        // pinned-en: the titles each button carries (its VoiceOver label).
         XCTAssertEqual(
             [SelectionRowItem.heading, .bold, .italic, .strikethrough, .code, .list, .link, .blockquote, .image, .insertTable,
-             .reformatTable, .replaceWith, .anotherWord]
+             .reformatTable, .replaceWith, .anotherWord, .checkSpelling]
                 .map(\.title),
             ["Heading", "Bold", "Italic", "Strikethrough", "Code", "List", "Link", "Blockquote", "Image", "Insert Table",
-             "Reformat Table", "Replace With…", "Another Word"]
+             "Reformat Table", "Replace With…", "Another Word", "Check Spelling"]
+        )
+        // pinned-en: the words on the keys, as in mockup A.
+        XCTAssertEqual(
+            [SelectionRowItem.askAI, .heading, .bold, .italic, .strikethrough, .code, .list, .link, .blockquote, .image,
+             .insertTable, .checkSpelling].map(\.keyText),
+            ["Ask", "Heading", "B", "I", "S", "Code", "List", "Link", "Quote", "Image", "Table", "Check Spelling"]
         )
         // Ask shows the short word beside the sparkle; VoiceOver still hears the AI's name.
         XCTAssertEqual(SelectionRowItem.askShortTitle, "Ask")
@@ -147,8 +150,11 @@ final class SelectionRowTests: XCTestCase {
     }
 
     func testAnotherWordOnlyForSingleWord() throws {
-        XCTAssertEqual(SelectionController.rowItems(aiConnected: true, selectedText: "word", offersReplaceWith: true).last, .anotherWord)
-        XCTAssertEqual(SelectionController.rowItems(aiConnected: true, selectedText: "don't", offersReplaceWith: true).last, .anotherWord)
+        // Another Word is the last button before Check Spelling, which always ends the row.
+        XCTAssertEqual(SelectionController.rowItems(aiConnected: true, selectedText: "word", offersReplaceWith: true).suffix(2),
+                       [.anotherWord, .checkSpelling])
+        XCTAssertEqual(SelectionController.rowItems(aiConnected: true, selectedText: "don't", offersReplaceWith: true).suffix(2),
+                       [.anotherWord, .checkSpelling])
         XCTAssertFalse(SelectionController.rowItems(aiConnected: true, selectedText: "two words", offersReplaceWith: true).contains(.anotherWord))
         XCTAssertFalse(SelectionController.rowItems(aiConnected: true, selectedText: "42", offersReplaceWith: true).contains(.anotherWord))
         XCTAssertFalse(SelectionController.rowItems(aiConnected: false, selectedText: "word", offersReplaceWith: true).contains(.anotherWord),
@@ -296,46 +302,56 @@ final class SelectionRowTests: XCTestCase {
         controller.aiController.cancel()
     }
 
-    func testRowSitsAboveKeyboardAndClearOfEditMenu() async throws {
+    /// The row is docked on the keyboard (mockup A, 2026-11-24): the editor's input accessory,
+    /// 48 pt tall while it shows and 0 otherwise, never a card floating over the page. It never
+    /// changes the system edit menu.
+    func testRowIsTheKeyboardsAccessory() async throws {
         try skipUnlessEnglishInterface("needs prose the keyboard language’s dictionary accepts, so no spelling items join the edit menu")
         let (_, editor, controller) = try await hostScreen(text: "Hello world, a short line.\n\nMore text below.\n")
-        let window = try XCTUnwrap(self.window)
+        XCTAssertTrue(editor.inputAccessoryView === controller.formatBar, "the row rides on the keyboard")
+        XCTAssertFalse(controller.formatBar.isShowing)
+        XCTAssertEqual(controller.formatBar.intrinsicContentSize.height, 0, "nothing on the keyboard without the row")
+
         let selection = NSRange(location: 0, length: 5)
         select(selection, in: editor)
         try await spin { controller.phase == .row }
-        try await spin { Self.element(SelectionRowItem.bold.title, in: window) != nil }
+        try await spin { controller.formatBar.isShowing }
+        XCTAssertEqual(controller.formatBar.intrinsicContentSize.height, SelectionRow.height)
+        XCTAssertEqual(SelectionRow.height, 48, "the mockup's bar")
 
-        // Keyboard up: the row sits above it.
-        let keyboardHeight: CGFloat = 336
-        let keyboard = postKeyboard(height: keyboardHeight, in: window)
-        try await spin { controller.keyboardOverlap == keyboardHeight }
-        try await spin {
-            let row = Self.element(SelectionRowItem.bold.title, in: window)?.accessibilityFrame ?? .zero
-            return row.maxY <= keyboard.minY && row.maxY > keyboard.minY - 80
-        }
-
-        // Clear of the system edit menu, which floats at the selection (above or below it).
-        let glyphs = editor.layoutManager.glyphRange(forCharacterRange: selection, actualCharacterRange: nil)
-        let selectionRect = editor.layoutManager.boundingRect(forGlyphRange: glyphs, in: editor.textContainer)
-            .offsetBy(dx: editor.textContainerInset.left, dy: editor.textContainerInset.top)
-        let onScreen = editor.convert(selectionRect, to: nil)
-        let editMenuZone = onScreen.insetBy(dx: -40, dy: -60)
-        let rowFrame = try XCTUnwrap(Self.element(SelectionRowItem.bold.title, in: window)).accessibilityFrame
-        XCTAssertFalse(rowFrame.intersects(editMenuZone), "the row never covers the edit menu's place")
         // The edit menu is the system's (spelling items only on a misspelling).
         let coordinator = try XCTUnwrap(editor.delegate as? MarkdownEditor.Coordinator)
         XCTAssertNil(coordinator.textView(editor, editMenuForTextIn: selection, suggestedActions: []))
 
-        // Keyboard down: above the home indicator.
-        postKeyboardHidden()
-        try await spin { controller.keyboardOverlap == 0 }
-        let bottomInset = window.safeAreaInsets.bottom
-        try await spin {
-            let row = Self.element(SelectionRowItem.bold.title, in: window)?.accessibilityFrame ?? .zero
-            return row.maxY <= window.bounds.maxY - bottomInset && row.maxY > window.bounds.maxY - bottomInset - 80
-        }
+        // The row goes: the accessory folds away.
+        select(NSRange(location: 5, length: 0), in: editor)
+        try await spin { !controller.formatBar.isShowing }
+        XCTAssertEqual(controller.formatBar.intrinsicContentSize.height, 0)
+        // The comment field still places itself above the keyboard.
         XCTAssertEqual(SelectionRowPlacement.bottomPadding(keyboardOverlap: 0, safeAreaBottom: 34), SelectionRowPlacement.gap)
         XCTAssertEqual(SelectionRowPlacement.bottomPadding(keyboardOverlap: 336, safeAreaBottom: 34), 302 + SelectionRowPlacement.gap)
+    }
+
+    /// Check Spelling, last on the row: the Check Document Now pass (it left Settings). The first
+    /// misspelling after the caret is selected and the row stays, now for that selection; no edit.
+    func testCheckSpellingSelectsTheFirstMisspelling() async throws {
+        guard SpellCheckPass.language(primary: "en-US") != nil else { throw XCTSkip("no English dictionary") }
+        let (editor, controller, _) = try makeEditor("The weathr was kind.\n", connected: false)
+        postKeyboard(height: 336, in: try XCTUnwrap(window))
+        try await spin { controller.keyboardOverlap == 336 }
+        editor.selectedRange = NSRange(location: 0, length: 0)
+        controller.showRowNow()
+        XCTAssertEqual(controller.items.last, .checkSpelling)
+        // The pass checks in the keyboard's language: the English sentence needs an English one.
+        guard editor.spellCheckLanguage?.hasPrefix("en") == true else { throw XCTSkip("the keyboard's language is not English") }
+        let undo = try XCTUnwrap(editor.undoManager)
+        undo.removeAllActions()
+        controller.perform(.checkSpelling)
+        XCTAssertEqual(editor.selectedRange, NSRange(location: 4, length: 6), "“weathr” is selected")
+        XCTAssertEqual(controller.phase, .row, "the row stays, for the misspelling")
+        XCTAssertEqual(controller.anchorRange, NSRange(location: 4, length: 6))
+        XCTAssertFalse(undo.canUndo, "no edit, so no undo step")
+        XCTAssertEqual(editor.text, "The weathr was kind.\n")
     }
 
     // MARK: - The comment field closes on any change (fix after the step 8 review)
@@ -507,15 +523,9 @@ final class SelectionRowTests: XCTestCase {
         XCTAssertTrue(controller.items.contains(.image), "Image works at a caret")
         XCTAssertFalse(controller.items.contains(.replaceWith), "Replace With… needs a selection")
         XCTAssertFalse(controller.items.contains(.anotherWord))
-        try await spin { Self.element(SelectionRowItem.bold.title, in: window) != nil }
-        // ⋯ stays reachable. (Its height above the row is measured with the keyboard down, in
-        // `testRowAppearsAfterSelectionSettles`: here the posted frame and the simulator's real
-        // keyboard, which SwiftUI's keyboard avoidance follows, can differ.)
+        // The row is the keyboard's accessory: it shows on the keyboard. ⋯ stays reachable.
+        try await spin { controller.formatBar.isShowing }
         try await spin { Self.element(MoreButton.accessibilityTitle, in: window) != nil }
-        try await spin {
-            let row = Self.element(SelectionRowItem.bold.title, in: window)?.accessibilityFrame ?? .null
-            return row.maxY <= window.bounds.maxY - 336
-        }
 
         // Moving the caret keeps the row; a selection gets its own row after the settle.
         select(NSRange(location: 8, length: 0), in: editor)
@@ -644,7 +654,8 @@ final class SelectionRowTests: XCTestCase {
     func testCaretAskIsForTheWholeDocument() async throws {
         XCTAssertEqual(SelectionController.rowItems(aiConnected: true, selectedText: "", offersReplaceWith: true,
                                                     hasSelection: false),
-                       [.askAI, .heading, .bold, .italic, .strikethrough, .code, .list, .link, .blockquote, .image, .insertTable])
+                       [.askAI, .heading, .bold, .italic, .strikethrough, .code, .list, .link, .blockquote, .image, .insertTable,
+                        .checkSpelling])
         let (editor, controller, _) = try makeEditor("Hello world\n", connected: true)
         postKeyboard(height: 336, in: try XCTUnwrap(window))
         try await spin { controller.keyboardOverlap == 336 }

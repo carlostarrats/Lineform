@@ -2,19 +2,16 @@ import LineformCore
 import SwiftUI
 
 /// The word menu's Settings: four switches (tinted Lineform blue), each with a short note worded
-/// for iPhone (the Mac's notes name a Mac and a sidebar), then Check Document Now, the Files
-/// settings (Show Hidden Folders and the sort) and Clear History. The values are `AppSettings`,
-/// per device, under the Mac's keys.
+/// for iPhone (the Mac's notes name a Mac and a sidebar), then the Files settings (Show Hidden
+/// Folders and the sort) and Clear History. The values are `AppSettings`, per device, under the
+/// Mac's keys. (Check Document Now is the format row's Check Spelling, 2026-11-24.)
 ///
-/// Check Document Now is the one whole-document spelling pass: it closes the menu so the first
-/// misspelling shows, selected. Clear History (the Mac's row, note and confirmation) removes every
+/// Clear History (the Mac's row, note and confirmation) removes every
 /// document's saved versions — on this iPhone and, for documents in the Lineform iCloud folder,
 /// everywhere they sync — and leaves the files alone.
 struct SettingsSection: View {
     @ObservedObject var settings: AppSettings
     var files: FilesStore?
-    var editor: (any EditorCommands)?
-    var onDismiss: () -> Void
     /// The store Clear History empties: the app's one History store.
     var historyStore: PassageHistoryPersisting
     @State private var isConfirmingClearHistory = false
@@ -22,21 +19,15 @@ struct SettingsSection: View {
     init(
         settings: AppSettings,
         files: FilesStore? = nil,
-        editor: (any EditorCommands)? = nil,
-        historyStore: PassageHistoryPersisting = PhoneHistoryController.sharedStore,
-        onDismiss: @escaping () -> Void = {}
+        historyStore: PassageHistoryPersisting = PhoneHistoryController.sharedStore
     ) {
         self.settings = settings
         self.files = files
-        self.editor = editor
         self.historyStore = historyStore
-        self.onDismiss = onDismiss
     }
 
     // MARK: Copy (the Mac's strings where the English matches)
 
-    static var checkDocumentTitle: String { String(localized: "Check Document Now") }
-    static var checkDocumentNote: String { String(localized: "Finds the first misspelling in the whole document.") }
     static var filesGroupTitle: String { WordMenuItem.files.title }
     static var historyGroupTitle: String { WordMenuItem.history.title }
     static var clearHistoryTitle: String { String(localized: "Clear History") }
@@ -48,8 +39,8 @@ struct SettingsSection: View {
     }
     static var cancelTitle: String { String(localized: "Cancel") }
 
-    /// Every switch's title, in order, then Check Document Now and Clear History.
-    static var rowTitles: [String] { rows.map(\.title) + [checkDocumentTitle, clearHistoryTitle] }
+    /// Every switch's title, in order, then Clear History.
+    static var rowTitles: [String] { rows.map(\.title) + [clearHistoryTitle] }
 
     /// The confirmed Clear History: empties the store, and every History controller on it
     /// re-reads it (leaving History mode first), so nothing open writes the cleared history back.
@@ -105,18 +96,6 @@ struct SettingsSection: View {
                         set: { settings[keyPath: row.value] = $0 }
                     )
                 )
-            }
-            if let editor {
-                WordMenuRow(
-                    title: Self.checkDocumentTitle,
-                    note: Self.checkDocumentNote,
-                    systemImage: "textformat.abc.dottedunderline",
-                    accessory: .none
-                ) {
-                    onDismiss()
-                    editor.checkDocumentNow()
-                }
-                .accessibilityIdentifier("settings.checkDocument")
             }
             if let files {
                 WordMenuGroupLabel(title: Self.filesGroupTitle)

@@ -101,6 +101,7 @@ struct FirstRunLineView: UIViewRepresentable {
     static let pageAdjustmentScript: String = {
         let write = FirstRunTiming.writeSeconds
         let quietMilliseconds = Int(FirstRunTiming.shrinkSeconds * 1000)
+        let liftVH = Int((FirstRunLayout.welcomeLiftFraction * 100).rounded())
         return """
         (function () {
           var style = document.createElement('style');
@@ -108,7 +109,7 @@ struct FirstRunLineView: UIViewRepresentable {
             'html, body { background: transparent !important; }',
             '.intro-shell { min-height: 0 !important; -webkit-backdrop-filter: none !important; backdrop-filter: none !important; }',
             '.wordmark-stage { padding: 0 !important; }',
-            '.wordmark-wrap { width: 78vw !important; transform: none !important; }',
+            '.wordmark-wrap { width: 78vw !important; transform: translate3d(0, -\(liftVH)vh, 0) !important; }',
             '.intro-tagline, .start-button, .tuning-panel { display: none !important; }'
           ].join('\\n');
           document.head.appendChild(style);

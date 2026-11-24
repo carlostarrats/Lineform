@@ -560,8 +560,10 @@ later launch opens straight into a fresh Untitled document, as on the Mac.
   so a double tap never skips the points.
   - `.welcome`: `FirstRunLineView`, a `WKWebView` loading the Mac's bundled `FirstLaunchIntro/`
     folder (the same folder reference in both targets' Resources phases, never a copy), writes the
-    wordmark in `FirstRunTiming.writeSeconds` (3.5 s; the Mac takes 1 s), centred both ways at 78 %
-    of the width, over the shader's colour field at `colorBoost` (1.8×). When the page marks itself
+    wordmark in `FirstRunTiming.writeSeconds` (3.5 s; the Mac takes 1 s), centred across at 78 %
+    of the width and lifted 5 % of the screen height above the centre
+    (`FirstRunLayout.welcomeLiftFraction`, owner review 2026-11-24: with Get Started below, the
+    true centre read low), over the shader's colour field at `colorBoost` (1.8×). When the page marks itself
     complete it posts "written" once, and the native tagline ("Simple markdown editing", SF Pro
     regular) and Get Started (SF Pro medium, ink capsule, `arrow.right`) fade in below it. If the
     page never says so (no WebGL, a crashed web process) they show after `getStartedCap` (7 s);
@@ -572,15 +574,18 @@ later launch opens straight into a fresh Untitled document, as on the Mac.
     the same time. The four points (`FirstRunPointsView`: SF Symbol in a soft rounded square,
     title, words) arrive one after another (`pointDelay`), then the full-width Lineform-blue
     Start Writing. The points scroll at the largest Dynamic Type sizes; Start Writing stays pinned.
-  - Start Writing reaches `.done`: it marks the flag once, fades the overlay out and focuses the
-    editor (the blank document, ready to type).
+  - Start Writing reaches `.done`: it marks the flag once and fades the overlay out onto the blank
+    document WITHOUT the keyboard (and so without the format row; owner review 2026-11-24). A tap on
+    the page raises them as usual.
   - Each button answers Return on a hardware keyboard while it is on screen. Pieces not yet shown
     are absent from the hierarchy, not transparent, so VoiceOver meets only what is on screen; the
     wordmark is one header element ("Welcome to Lineform") standing in for the hidden web view.
 - **The web view** uses a non-persistent data store, allows only file URLs and cancels every other
   navigation without opening it, and takes no touches. Everything iPhone-only goes in through
   `pageAdjustmentScript` (document end): a transparent page; the page's own tagline, button and
-  tuning panel hidden; the wordmark un-lifted and 78 % wide; the intro's `writeTime`/`finalDelay`
+  tuning panel hidden; the wordmark 78 % wide and lifted by `welcomeLiftFraction` (`-5vh`, the
+  shader follows the wordmark's box; `FirstRunLayout.topOffset` allows for the lift when the
+  page shrinks to the top); the intro's `writeTime`/`finalDelay`
   controls widened and set for the slower write; `window.lineformIntroColorBoost`; and the
   "written" observer. `intro.js` reads `lineformIntroColorBoost` each frame and treats it as 1 when
   absent (the Mac), and at 1 its alpha sum is unchanged. Near the letters the boost fades back to
@@ -733,7 +738,26 @@ path; copy it into `LineformiOSTests/Fixtures/export-parity/` in its own commit.
 One quiet ⋯ button (`MoreButton`, bottom right, 48 pt, the floating-card chrome, accessibility
 label "Menu") replaced the Menu and Aa buttons. It opens `WordMenu` over the whole screen, AT ONCE:
 an overlay on `DocumentScreen` (not a sheet), above every other chrome but first run. Opening it
-puts the keyboard away first. Design source: the owner's TestFlight review, §14–§20 of
+puts the keyboard away first.
+
+- **Opening is instant** (owner review 2026-11-24). `WordMenuTiming` measures it: a signpost
+  interval "Open word menu" (Points of Interest) and one `WordMenuTiming` log line from the ⋯ tap
+  to the word list's first committed frame. Two whole-text walks ran on every open and are gone:
+  the status line's counts (`DocumentStatistics`, now counted off the main thread and kept for the
+  same text, `WordMenuStatusCounts`; the line shows name and save state at once and the count a
+  moment later on a first open), and `MarkdownEditor.configure`'s `textView.text != text`, a
+  bridged, Unicode-normalising compare that ran on EVERY screen update (now skipped when the
+  binding still holds the string the editor last reported, `Coordinator.knownText`, and the
+  lengths agree). Simulator, 1 MB document: about 75 ms before, 7–9 ms after (keyboard down) and
+  about 18 ms with the keyboard up; the first open after launch is about 55 ms (SwiftUI building
+  the menu once).
+- **Opening a document from a card** (Recent, a folder or search results) expands the card into
+  the page (`CardOpenTransition`, `CardZoomView`): the card records its frame before it opens the
+  document; the menu stays until the editor holds the opened text (at most 0.6 s, else it simply
+  closes), then a picture of the page grows from the card's frame to the page's (0.3 s,
+  ease-in-out, corners easing square) while the menu fades underneath. The document opens exactly
+  as before; only the picture waits. Under Reduce Motion the menu crossfades to the page. An
+  iCloud placeholder (downloads first) and the in-document match rows close the menu plainly. Design source: the owner's TestFlight review, §14–§20 of
 `Lineform-mobile/docs/2026-11-23-iphone-testflight-feedback.md`, and `mockups/word-menu.html`.
 
 - **Surface.** The Mac Settings window's wash (`EditorChromeAndControls.cardGradient…`): white →
@@ -820,13 +844,23 @@ puts the keyboard away first. Design source: the owner's TestFlight review, §14
   container resolves and `Lineform.settings.showICloudInSidebar` is on (followed live), and **On My
   iPhone** (iphone icon), the on-device save folder, ALWAYS, beside iCloud too and even when
   empty, so a writer can keep documents on the device (it is one root only if iCloud resolves to
-  the same folder). Debug never resolves iCloud. Then the Workspace (Choose / Change).
-- **Each root**: its folders as plain rows (folder icon close to the name, the count of its
-  documents on the right, a chevron), then its own documents as cards under **Recent**, newest
-  first. A **+** beside the root's heading offers New Document (saved in that root:
-  `OpenDocument.newDocument(in:)`) and New Folder. A folder's page shows its subfolders as rows,
-  its documents as cards, **New Folder**, and **New Document** as the blue pill, which saves in
-  that folder. The Files page ends with Open from Files… and New Document (the save folder).
+  the same folder). Debug never resolves iCloud. Nothing else: the iPhone shows no Workspace
+  (`FilesSection.phoneRoots`; the store still models one, dormant, and Files' search skips it), no
+  Open from Files…, no New Document row and no New Folder (the Mac has none) — owner review
+  2026-11-24, matching `mockups/word-menu.html`.
+- **Each root**: its heading (cloud or phone icon) with a **+** on the field's grey round
+  background (`WordMenuRoundButton`, 30 pt drawn, a 44 pt target, "New Document in iCloud") that
+  makes a new document in that root (`OpenDocument.newDocument(in:)`), then its folders as plain
+  rows (folder icon close to the name, the count of its documents on the right, a chevron). After
+  both roots, **Recent**: both roots' own documents as cards, newest first
+  (`recentDocuments(acrossRoots:)`). A folder's page shows its subfolders as rows, its documents
+  as cards, and **New Document** as the blue pill, which saves in that folder.
+- **Room for the corner button.** Every page and list keeps `WordMenuMetrics.bottomClearance`
+  (110 pt) below its last item inside the safe area (which holds the home indicator), more than the
+  button's 48 pt plus its 20 pt margin, so the last card or row always scrolls fully clear of ✕/←,
+  Files' search results and folder pages included. Known: with a text field's keyboard up, iOS 26
+  draws its predictions bar above the frame SwiftUI's keyboard safe area reports, so the ← button
+  sits partly under that bar (content still clears it).
 - **Cards** (`DocumentCard`): two across, all 150 pt tall, text clipped; a lone card spans the
   width, two or more are always half width (`WordMenuCardGrid`). White with a soft shadow on light,
   a lighter grey (#3E3E3E) with no shadow on dark, clearly apart from the darker search field. The
@@ -844,8 +878,8 @@ puts the keyboard away first. Design source: the owner's TestFlight review, §14
   replacing (a taken name gets a number, "Notes 2.md", `freeName`, case- and normalisation-blind).
   The open document is saved first and follows the move (`userRenamed(to:)`), so typing continues
   into the moved file. Workspace items and placeholders do not move.
-- **New Folder** (`FilesStore.createFolder(named:in:)`): the shared `FileRenaming` name rule, then a
-  coordinated create that never replaces (`createDirectory(withIntermediateDirectories: false)`), then
+- **New Folder** (dormant: no iPhone UI since 2026-11-24; `FilesStore.createFolder(named:in:)`):
+  the shared `FileRenaming` name rule, then a coordinated create that never replaces (`createDirectory(withIntermediateDirectories: false)`), then
   a scan. The iPhone's scan lists a folder with nothing in it (`OutlineFileScanner.items(…,
   keepsEmptyFolders: true)`; a folder of other files such as `images/` stays out; the Mac's scan is
   unchanged).
@@ -858,7 +892,8 @@ puts the keyboard away first. Design source: the owner's TestFlight review, §14
   main actor like OpenDocument's own writes. The open document follows a rename or move and lets go
   of a trashed file (`fileWasTrashed(at:)`). Trash is `FileManager.trashItem` only: a refusal shows
   "Couldn’t move “%@” to the Trash." and the file stays. There is no `removeItem` path.
-- **Workspace:** chosen with `.fileImporter(allowedContentTypes: [.folder])`; a plain bookmark under
+- **Workspace** (dormant: never shown on iPhone since 2026-11-24; the store code stays):
+  chosen with `.fileImporter(allowedContentTypes: [.folder])`; a plain bookmark under
   `Lineform.outline.workspaceBookmark`, re-resolved at launch and refreshed when stale; "Workspace
   folder unavailable" with Change when it is gone. The security scope is held for the store's
   lifetime (`FilesStore.shared` lives as long as the app). An empty Workspace names the scanned
@@ -914,11 +949,8 @@ Mac or a sidebar (`SettingsTests.testNoMacOrSidebarWordingInIPhoneStrings`).
 - **Show iCloud in Files** (`showICloudInSidebar`, the Mac's key). New documents still save there.
 - **Check spelling while typing** (`checksSpellingWhileTyping`).
 - **In-app notifications** (`checksForAnnouncements`): it gates the announcement request itself.
-- **Check Document Now** (moved here from the old Document section) closes the menu and runs
-  `SpellCheckPass` once over the prose of the whole document (`misspelledRangesInWholeDocument`),
-  whether or not Check spelling while typing is on. Every misspelling is underlined, and the first
-  one after the selection (wrapping) is selected and brought to the top of the surface on screen.
-  It is the only whole-document spelling pass, and it is never scheduled.
+- **Check Document Now** left Settings (owner review 2026-11-24): it is the format row's **Check
+  Spelling** (see "The selection row and comment field").
 - **Files:** Show Hidden Folders (`FilesStore.setShowsHidden`, `Lineform.outline.showsHiddenFolders`)
   and Sort folders by (Name, Date Created, Date Modified; one sort for every root, under both Mac
   keys).
@@ -1109,8 +1141,29 @@ History is local to this iPhone. History never writes into the document file.
 > `editor-behavior.md` § The AI drawer and sheet). The comment field is no longer opened; its code
 > remains until the selection row's redesign removes it.
 
-`LineformiOS/Selection/` (`SelectionController`, `SelectionRow`, `CommentField`), drawn by
-`SelectionBottomChrome`, an overlay on `DocumentScreen`. The spec is §5.5.
+`LineformiOS/Selection/` (`SelectionController`, `SelectionRow`, `CommentField`). The spec is
+§5.5; the look is the owner's mockup "A · Native row" (`mockups/selection.html`, its `.bar` CSS and
+`rowMain()` / `rowHeading()`), rebuilt to match exactly after the 2026-11-24 review.
+
+- **Docked on the keyboard.** The row is the editor's `inputAccessoryView`
+  (`FormatBarAccessoryView`, attached in `SelectionController.attach`), so UIKit keeps it directly
+  on top of the software keyboard through every keyboard motion, the interactive swipe-down
+  included: a full-width bar, 48 pt, no capsule, no rounded corners, no shadow, no gap, scrolling
+  sideways. Its height is 48 pt while `phase == .row` and 0 otherwise. iOS 26's keyboard is a
+  floating glass panel with rounded top corners, and a `.keyboard` `UIInputView` no longer draws
+  its colour, so the bar fills itself with the keyboard's colour over a Lineform page
+  (`keyboardColor`: #E2E4E8 light, #212122 dark, sampled from the simulator) and the fill runs on
+  44 pt under the keyboard's top edge (`fillOverlap`), filling the corners it rounds off; the
+  keyboard's glass rim stays faintly visible. A theme change while typing re-renders the bar
+  (`editorProfileDidChange`) and reloads the input views when the darkness changes, so the
+  keyboard follows. With a hardware keyboard UIKit puts the bar above the home indicator. The
+  comment field (no longer opened) is still drawn by `SelectionBottomChrome`.
+- **Keys** (`SelectionRow`): each key draws 36 pt tall (8 pt rounded, the keyboard's key colour
+  only while pressed) and is a 44 pt target; the words are the mockup's (`SelectionRowItem.keyText`:
+  "Ask", "Heading", B, I, S, "Code" in monospace, "List", "Link", "Quote", "Image", "Table", …),
+  15 pt (subheadline) capped at xxxLarge with the Large Content Viewer beyond. VoiceOver hears the
+  command ("Bold", "Insert Table", "Ask Claude"); Voice Control also takes the key's word
+  (`accessibilityInputLabels`).
 
 - **When it shows.** `SelectionController.settleDelay` (0.35 s) after a non-empty selection stops
   changing. It needs an editable editor in a window, no marked text, and no AI request or review
@@ -1138,15 +1191,19 @@ History is local to this iPhone. History never writes into the document file.
   row. Ask opens the AI sheet for the whole document through `askAIForWholeDocument`
   (`WholeDocumentAIPolicy`: confirm above 1,500 words, refuse past `AILimits`), and shows only when
   the document has text. Replace With… and Another Word need a selection and are hidden.
-- **Order** ("A · Native row", feedback §21), scrolling sideways: **Ask** (only while connected; a
-  sparkle and the word "Ask" in Lineform blue, `PhoneInk.lineformBlue` — #2F6BDE, #5B8DEF on a dark
-  page, made AA by `readableInk`; VoiceOver still hears the AI's name, "Ask Claude"), Heading ›,
-  Bold, Italic, Strikethrough, Code, List ▾ (Bulleted, Numbered), Link, Blockquote, Image ▾ (Photos,
-  Files), Insert Table, Reformat Table (only when the selection starts on a table row, `|`),
-  Replace With… (History's, the Mac's meaning: the selection becomes a passage and History mode
-  opens on it with "Type a replacement"; only where History can keep the selection — see
-  "History", Entry points), and Another Word (one word only, and only while connected). Everything
-  but Ask is in the theme's ink; every glyph is an SF Symbol.
+- **Order** ("A · Native row", feedback §21 and §27), scrolling sideways: **Ask** (only while
+  connected; a sparkle and the word "Ask" in Lineform blue, `PhoneInk.lineformBlue`; VoiceOver
+  still hears the AI's name, "Ask Claude") and a thin separator, Heading ›, B, I, S, Code, List
+  (a menu: Bulleted, Numbered), Link, Quote, Image (a menu: Photos, Files), Table, Reformat Table
+  (only when the selection starts on a table row, `|`), Replace With… (History's, the Mac's
+  meaning: the selection becomes a passage and History mode opens on it with "Type a
+  replacement"; only where History can keep the selection — see "History", Entry points), Another
+  Word (one word only, and only while connected), and **Check Spelling** last, always (Check
+  Document Now, which left Settings: `SpellCheckPass` once over the prose of the whole document,
+  `misspelledRangesInWholeDocument`, whether or not Check spelling while typing is on, in the
+  keyboard's language; every misspelling is underlined and the first one after the selection
+  (wrapping) is selected, the row staying for it; no edit, so no undo step; never scheduled).
+  Everything but Ask is in the system label colour for the keyboard's appearance.
 - **Heading's levels open in place** (`SelectionController.showsHeadingLevels`): the row swaps its
   buttons for ‹ (Back) and the Mac's Format ▸ Heading items — Title, Section, Heading 3–6, Body.
   A level applies (one undo step) and the buttons come back; ‹ returns with no change; a new row
@@ -1163,9 +1220,10 @@ History is local to this iPhone. History never writes into the document file.
   picture goes in at the caret.
 - **One button, one undo step.** Each formatting button calls the editor's own command, which goes
   through `applyRuleEdit`. The row then adopts the resulting selection instead of hiding.
-- **Placement.** Above the keyboard, or above the home indicator when it is down: bottom padding
+- **Placement.** The row is on the keyboard (above). The comment field is placed above the
+  keyboard, or above the home indicator when it is down: bottom padding
   = `max(0, keyboard overlap − safe-area bottom) + 12` (`SelectionRowPlacement`), from the keyboard
-  frame notifications. The overlap lives in its own `SelectionKeyboardTracker`, observed only by
+  frame notifications (which include the bar while it shows). The overlap lives in its own `SelectionKeyboardTracker`, observed only by
   the bottom chrome: publishing it from the controller re-rendered the screen in the middle of an
   undo and broke the editor's undo grouping. The notifications come from the default center;
   hosted tests pass their own (`SelectionController(keyboardNotifications:)`) and post frames
@@ -1173,10 +1231,10 @@ History is local to this iPhone. History never writes into the document file.
   cannot race a frame the test posted (the caret's row depends on the keyboard, so
   `SelectionRowTests` and `AIReviewTests` always pass their own center). The editor's insets are
   never touched. While the row shows, the ⋯ and link buttons (and the Read Aloud pill) float just
-  above it (`DocumentScreen.selectionRowClearance`: row height + gap + 12 pt, less the margin they
-  keep), so the menu stays reachable whenever the keyboard is up; only the comment field and a
-  running request or review take their place. The system edit menu is not changed: it
-  floats at the selection, and the row sits at the bottom.
+  above it: the keyboard's safe area already holds the bar, and
+  `DocumentScreen.selectionRowClearance` brings them to 12 pt above it instead of the usual 20 pt
+  margin. Only the comment field and a running request or review take their place. The system edit
+  menu is not changed: it floats at the selection, and the row sits on the keyboard.
 - **The comment field.** Ask AI swaps the row for a full-width card with no drag handle: the
   title and Cancel, the note (a plain `UITextView`, where Return inserts a newline; it grows to
   120 pt, then scrolls), the Action menu (`SelectionToolbarPresentation.actionGroups`, Custom
@@ -1251,7 +1309,7 @@ is ONE assignment, `aiHistory`: the document's `PhoneHistoryController`, set by 
   filled with `HistoryPalette.markWash` (resolved for the view's traits), the editor's LOWEST
   sublayer (behind the text), from the layout manager's enclosing rects, redrawn in
   `layoutSubviews` like the spelling underlines. A real edit dismisses the marks.
-- **The app's own selections.** `selectProgrammatically` (Search and Check Document Now via
+- **The app's own selections.** `selectProgrammatically` (Search and Check Document Now — the row's Check Spelling, which keeps the row because it runs as the row's own command — via
   `LiveEditorCommands.selectRange`, `setDocumentText`'s restore, the AI collapse) marks the
   selection as the app's; `SelectionController.editorSelectionDidChange` never raises the row for
   it (`isSelectionProgrammatic`), and forgets it at the writer's next selection. The writer's own
