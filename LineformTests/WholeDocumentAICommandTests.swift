@@ -113,6 +113,36 @@ final class WholeDocumentAICommandTests: XCTestCase {
         XCTAssertFalse(enabled(mode: .read))
     }
 
+    /// The AI drawer and Reading Experience share the inspector slot, one at a time: a button opens
+    /// its content, switches to it, or closes it when it is already showing.
+    func testInspectorSlotIsSharedOneAtATime() {
+        let closed = EditorInspectorContent.toggled(.ai, isOpen: false, showing: .readingExperience)
+        XCTAssertEqual(closed.isOpen, true)
+        XCTAssertEqual(closed.content, .ai)
+        let switched = EditorInspectorContent.toggled(.ai, isOpen: true, showing: .readingExperience)
+        XCTAssertEqual(switched.isOpen, true)
+        XCTAssertEqual(switched.content, .ai)
+        let shut = EditorInspectorContent.toggled(.ai, isOpen: true, showing: .ai)
+        XCTAssertEqual(shut.isOpen, false)
+        let back = EditorInspectorContent.toggled(.readingExperience, isOpen: true, showing: .ai)
+        XCTAssertEqual(back.isOpen, true)
+        XCTAssertEqual(back.content, .readingExperience)
+    }
+
+    /// One conversation per open document: a closed tab or a replaced document drops it.
+    func testConversationsLiveWithTheirDocument() {
+        let store = AIConversationStore()
+        let a = AIConversationStore.Key(tab: UUID(), document: UUID())
+        let b = AIConversationStore.Key(tab: UUID(), document: UUID())
+        let first = store.conversation(for: a)
+        XCTAssertTrue(store.conversation(for: a) === first)
+        _ = store.conversation(for: b)
+        XCTAssertEqual(store.count, 2)
+        store.keepOnly([a])
+        XCTAssertEqual(store.count, 1)
+        XCTAssertTrue(store.conversation(for: a) === first)
+    }
+
     /// The confirmation: Send and Cancel, Cancel the default (Return), Send never on Return.
     func testConfirmationAlert() {
         let alert = AskAICommand.confirmationAlert(words: 1_600, recipient: "Claude")
