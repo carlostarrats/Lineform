@@ -444,9 +444,11 @@ iPhone only. Details: `docs/architecture/iphone-app.md`.
   scaled to the page; any other tall line gets its own scaled page). UIKit calls
   `PhonePrintRenderer`'s `numberOfPages`/`drawPage` OFF main: never hop to main there; render on
   main beforehand. `OpenDocument.onDocumentSwap` is the only place read aloud stops on a swap.
-- **Selection row, the AI sheet and AI.** The format row is mockup A exactly: a full-width 48 pt
-  bar in the keyboard's colour docked on the keyboard as the editor's `inputAccessoryView`
-  (`FormatBarAccessoryView`; never a floating capsule). A settled selection raises `SelectionRow`
+- **Selection row, the AI sheet and AI.** The format row is the owner's format-row option 1
+  exactly (`format-row-options.html`, `.b1`): a full-width 50 pt bar in the keyboard's colour docked
+  on the keyboard as the editor's `inputAccessoryView` (`FormatBarAccessoryView`; never a floating
+  capsule), every command its own light chip (36 pt, 8 pt corners, 4 pt apart, 44 pt targets), always
+  shown scrolled to its start. A settled selection raises `SelectionRow`
   (`SelectionController`, 0.35 s), and while the editor has the
   SOFTWARE keyboard up the row shows for a caret too (it goes with the keyboard; a hardware keyboard
   alone raises none; nothing about it changes while an input method composes). With a caret, Bold,
@@ -455,7 +457,7 @@ iPhone only. Details: `docs/architecture/iphone-app.md`.
   opens the AI sheet for the whole document (`askAIForWholeDocument`, `WholeDocumentAIPolicy`), and
   Replace With… and Another Word are hidden; each is still ONE undo step. The ⋯ button and the Read
   Aloud pill float just above the row. Its buttons: Ask (connected only, Lineform blue),
-  Heading (its levels open in place, ‹ back), Bold, Italic, Strikethrough, Code, List, Link,
+  Heading (its levels open in place: ‹ back, Title, Section, Heading 3, Heading 4, Body), Bold, Italic, Strikethrough, Code, List, Link,
   Blockquote ("Quote"), Image (Photos or Files, through the paste path), Insert Table ("Table"),
   Reformat Table (on a table row), Replace With… (History's, where it can keep the selection),
   Another Word, and Check Spelling last. It

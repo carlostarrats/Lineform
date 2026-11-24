@@ -3,28 +3,34 @@ import LineformCore
 import SwiftUI
 import UIKit
 
-/// The format row (spec §5.5; the owner's mockup "A · Native row", `selection.html`, 2026-11-24):
-/// a full-width bar docked DIRECTLY on top of the software keyboard, in the keyboard's own
-/// colour, 48 pt tall, scrolling sideways. No capsule, no rounded pill, no shadow, no gap.
+/// The format row (spec §5.5; the owner's chosen mockup, option 1 "Native bar, done right",
+/// `Lineform-mobile/docs/mockups/format-row-options.html`, its `.b1` CSS, 2026-11-24): a
+/// full-width bar docked DIRECTLY on top of the software keyboard, in the keyboard's own colour,
+/// 50 pt tall, scrolling sideways, with a 1 pt hairline along its bottom edge.
 ///
 /// It is the editor's `inputAccessoryView` (`FormatBarAccessoryView`, a `.keyboard` `UIInputView`),
 /// so UIKit keeps it on the keyboard through every keyboard motion, the interactive swipe-down
-/// included, and draws it in the keyboard's colour in light and dark. Its height is 48 pt while
-/// the row shows (`SelectionController.phase == .row`) and 0 otherwise. With a hardware keyboard
-/// UIKit puts it above the home indicator, where a selection's row always sat.
+/// included. Its height is 50 pt while the row shows (`SelectionController.phase == .row`) and 0
+/// otherwise. With a hardware keyboard UIKit puts it above the home indicator.
 ///
-/// Contents, in order: Ask (sparkle, Lineform blue; only while an AI is connected) and a thin
-/// separator; Heading ›; B, I, S; Code, List, Link, Quote; Image, Table, Reformat Table (a table
-/// row only), Replace With… and Another Word (a selection only); Check Spelling last (the one
-/// whole-document spelling pass, `checkDocumentNow`). Heading opens its levels in place (‹ back);
-/// List and Image open a menu; every other button runs its command at once (one undo step).
+/// The look, value for value from the mockup: 8 pt side padding, 4 pt between items. Every command
+/// is its own light chip (36 pt tall, 8 pt corners, white at 55% on the light keyboard and 12% on
+/// the dark one, 12 pt side padding, 15 pt text), so the commands never run together. Ask
+/// (sparkle and "Ask" in Lineform blue, semibold, no chip; only while an AI is connected), then a
+/// 1 × 24 pt divider (18% ink), then Heading ›, B, I (serif italic), S (struck), Code, List, Link,
+/// Quote, Image, Table, Reformat Table (a table row only), Replace With… and Another Word (a
+/// selection only), and Check Spelling last. Without an AI the row starts with Heading. Heading
+/// opens its levels in place: a ‹ back button (no chip), then Title, Section, Heading 3,
+/// Heading 4, Body as the same chips. Whenever the row appears or its items change it starts
+/// scrolled to its leading edge.
 ///
 /// Accessibility:
 /// - **Text size.** The row is chrome of a fixed height, like a toolbar: its text stops growing at
 ///   `maximumDynamicTypeSize` and, as in the system's bars, every item shows the Large Content
 ///   Viewer at the accessibility sizes (touch and hold).
-/// - **Targets.** Each item draws 36 pt tall (the mockup's key) but is a 44 pt target: the extra
-///   is taken back with negative padding, so the row looks as drawn.
+/// - **Targets.** Each chip draws 36 pt tall but its button is at least 44 × 44 pt: the button
+///   is laid out at the chip's size and overflows it evenly (`ChipTargetLayout`), so the row looks
+///   as drawn.
 /// - **VoiceOver and Voice Control.** Each item's label names the command ("Insert Table", "Ask
 ///   Claude"); its input labels include the word on the key ("Table", "Ask"). The first time the
 ///   row appears in a session (with VoiceOver on), a low-priority announcement says so.
@@ -32,35 +38,61 @@ struct SelectionRow: View {
     @ObservedObject var controller: SelectionController
     var profile: ReadingProfile
 
-    static let height: CGFloat = 48
-    /// What each item draws (the mockup's 36 pt key; at least 40 pt wide), and the target it is.
+    /// The mockup's `.b1` bar: 50 pt, 8 pt side padding, 4 pt between items.
+    static let height: CGFloat = 50
+    static let horizontalPadding: CGFloat = 8
+    static let itemSpacing: CGFloat = 4
+    /// The mockup's `.t` chip: 36 pt tall, 8 pt corners, 12 pt side padding, 15 pt text.
     static let itemDrawnHeight: CGFloat = 36
-    static let itemDrawnSide: CGFloat = 40
+    static let chipCornerRadius: CGFloat = 8
+    static let chipHorizontalPadding: CGFloat = 12
+    static let fontSize: CGFloat = 15
+    /// The chip's fill: white at 55% (light keyboard) or 12% (dark keyboard).
+    static let chipOpacityLight: CGFloat = 0.55
+    static let chipOpacityDark: CGFloat = 0.12
+    /// The divider after Ask: 1 × 24 pt, ink at 18%, 4 pt either side (plus the item spacing).
+    static let dividerSize = CGSize(width: 1, height: 24)
+    static let dividerOpacity: CGFloat = 0.18
+    /// The least each item's target is, whatever its chip draws.
     static let itemTargetSide: CGFloat = 44
     /// The row's text grows to here and no further; past it the Large Content Viewer takes over.
     static let maximumDynamicTypeSize: DynamicTypeSize = .xxxLarge
 
-    private var verticalOutset: CGFloat { (Self.itemTargetSide - Self.itemDrawnHeight) / 2 }
-    private var horizontalOutset: CGFloat { (Self.itemTargetSide - Self.itemDrawnSide) / 2 }
+    /// The heading levels the row offers: the mockup's five (Heading 5 and 6 stay on the
+    /// keyboard shortcuts).
+    static var rowHeadingLevels: [(level: Int?, title: String)] {
+        SelectionController.headingLevels.filter { $0.level.map { $0 <= 4 } ?? true }
+    }
+
+    /// What a change of the row's contents is keyed on: a new value rebuilds the scroll view at
+    /// its leading edge.
+    private struct Contents: Hashable {
+        var items: [SelectionRowItem]
+        var showsHeadingLevels: Bool
+    }
+
+    private static let leadingEdge = "selection.row.leading"
 
     var body: some View {
         let theme = Theme.theme(for: profile)
         let isDark = theme.usesDarkChrome
-        // The row sits on the keyboard (system-coloured), so its ink is the system's label colour
-        // for the keyboard's appearance; Ask keeps Lineform blue.
+        // The row sits on the keyboard (system-coloured): the mockup's ink (#1F1F1F) on the light
+        // keyboard, white on the dark one; Ask keeps Lineform blue.
         let inks = PhoneInk(theme: theme, userInterfaceStyle: isDark ? .dark : .light)
         let blue = inks.color(.lineformBlue)
+        let ink = isDark ? Color.white : Color(red: 0x1F / 255, green: 0x1F / 255, blue: 0x1F / 255)
+        let contents = Contents(items: controller.items, showsHeadingLevels: controller.showsHeadingLevels)
         ScrollViewReader { scroller in
             ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 2) {
+                HStack(spacing: Self.itemSpacing) {
                     if controller.showsHeadingLevels {
-                        headingLevels
+                        headingLevels(isDark: isDark)
                     } else {
                         ForEach(controller.items, id: \.self) { item in
                             if item == .heading, controller.items.first == .askAI {
-                                separator(isDark: isDark)
+                                divider(isDark: isDark)
                             }
-                            button(for: item, blue: blue)
+                            button(for: item, blue: blue, isDark: isDark)
                                 .accessibilityShowsLargeContentViewer {
                                     if let symbol = item.largeContentSymbol { Image(systemName: symbol) }
                                     Text(item.title(aiName: controller.model.aiName))
@@ -68,19 +100,27 @@ struct SelectionRow: View {
                         }
                     }
                 }
-                .padding(.horizontal, 6)
+                .padding(.horizontal, Self.horizontalPadding)
                 .frame(maxHeight: .infinity)
-                .id(controller.showsHeadingLevels)
+                .id(Self.leadingEdge)
             }
-            .onChange(of: controller.showsHeadingLevels) { _, _ in
-                // Each row starts at its leading edge.
-                scroller.scrollTo(controller.showsHeadingLevels, anchor: .leading)
-            }
+            .defaultScrollAnchor(.leading)
+            // A new set of items (or the heading levels) is a fresh scroll view, at its start.
+            .id(contents)
+            .onAppear { scrollToStart(scroller) }
+            .onChange(of: contents) { _, _ in scrollToStart(scroller) }
         }
         .frame(height: Self.height)
         .frame(maxWidth: .infinity)
-        .buttonStyle(FormatKeyStyle(isDark: isDark))
-        .foregroundStyle(Color(uiColor: .label))
+        .overlay(alignment: .bottom) {
+            // The mockup's `border-bottom: 1px solid rgba(0,0,0,.08)`.
+            Rectangle()
+                .fill(Color.black.opacity(0.08))
+                .frame(height: 1)
+                .accessibilityHidden(true)
+        }
+        .buttonStyle(FormatChipStyle())
+        .foregroundStyle(ink)
         .environment(\.colorScheme, isDark ? .dark : .light)
         .accessibilityElement(children: .contain)
         .accessibilityLabel(String(localized: "Format"))
@@ -88,12 +128,18 @@ struct SelectionRow: View {
         .onAppear { Self.announceAppearance() }
     }
 
-    /// The thin line after Ask.
-    private func separator(isDark: Bool) -> some View {
+    /// Puts the row's leading edge at the bar's leading edge, now and once layout has settled.
+    private func scrollToStart(_ scroller: ScrollViewProxy) {
+        scroller.scrollTo(Self.leadingEdge, anchor: .leading)
+        Task { @MainActor in scroller.scrollTo(Self.leadingEdge, anchor: .leading) }
+    }
+
+    /// The thin divider after Ask.
+    private func divider(isDark: Bool) -> some View {
         Rectangle()
-            .fill(isDark ? Color.white.opacity(0.14) : Color.black.opacity(0.12))
-            .frame(width: 1, height: 22)
-            .padding(.horizontal, 2)
+            .fill(isDark ? Color.white.opacity(Self.dividerOpacity) : Color.black.opacity(Self.dividerOpacity))
+            .frame(width: Self.dividerSize.width, height: Self.dividerSize.height)
+            .padding(.horizontal, 4)
             .accessibilityHidden(true)
     }
 
@@ -121,49 +167,51 @@ struct SelectionRow: View {
         return true
     }
 
-    /// Heading's second row, in place of the buttons: ‹ back, then the Mac's Format ▸ Heading
-    /// levels. A level applies (one undo step) and the buttons come back.
+    /// Heading's second row, in place of the buttons: ‹ back (no chip, the mockup's 36 pt
+    /// `.back`), then the levels as chips. A level applies (one undo step) and the buttons come back.
     @ViewBuilder
-    private var headingLevels: some View {
+    private func headingLevels(isDark: Bool) -> some View {
         let back = String(localized: "Back")
-        Button {
-            controller.showHeadingLevels(false)
-        } label: {
-            key {
+        ChipTargetLayout {
+            Button {
+                controller.showHeadingLevels(false)
+            } label: {
                 Image(systemName: "chevron.left")
-                    .font(.system(size: 16, weight: .medium))
+                    // The mockup's 16 pt back glyph (an 8 pt tall chevron) in a 36 pt square.
+                    .font(.system(size: 11, weight: .semibold))
+                    .frame(width: Self.itemDrawnHeight, height: Self.itemDrawnHeight)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .contentShape(Rectangle())
             }
         }
-        .padding(.vertical, -verticalOutset)
-        .padding(.horizontal, -horizontalOutset)
         .accessibilityLabel(back)
         .accessibilityShowsLargeContentViewer {
             Image(systemName: "chevron.left")
             Text(back)
         }
-        ForEach(SelectionController.headingLevels, id: \.title) { entry in
-            Button {
-                controller.setHeading(entry.level)
-            } label: {
-                key { word(entry.title) }
+        ForEach(Self.rowHeadingLevels, id: \.title) { entry in
+            ChipTargetLayout {
+                Button {
+                    controller.setHeading(entry.level)
+                } label: {
+                    chip(isDark: isDark) { word(entry.title) }
+                }
             }
-            .padding(.vertical, -verticalOutset)
-            .padding(.horizontal, -horizontalOutset)
             .accessibilityShowsLargeContentViewer { Text(entry.title) }
         }
     }
 
     @ViewBuilder
-    private func button(for item: SelectionRowItem, blue: Color) -> some View {
+    private func button(for item: SelectionRowItem, blue: Color, isDark: Bool) -> some View {
         let title = item.title(aiName: controller.model.aiName)
-        Group {
+        ChipTargetLayout {
             switch item {
             case .list:
                 Menu {
                     Button(String(localized: "Bulleted List")) { controller.applyList(ordered: false) }
                     Button(String(localized: "Numbered List")) { controller.applyList(ordered: true) }
                 } label: {
-                    key { label(for: item, blue: blue) }
+                    chip(isDark: isDark) { label(for: item, blue: blue) }
                 }
                 .menuStyle(.button)
             case .image:
@@ -173,51 +221,67 @@ struct SelectionRow: View {
                     Button(String(localized: "Photos"), systemImage: "photo.on.rectangle") { controller.pickImage(from: .photos) }
                     Button(String(localized: "Files"), systemImage: "folder") { controller.pickImage(from: .files) }
                 } label: {
-                    key { label(for: item, blue: blue) }
+                    chip(isDark: isDark) { label(for: item, blue: blue) }
                 }
                 .menuStyle(.button)
+            case .askAI:
+                // Ask has no chip (the mockup's `.t.ask`: transparent, 6 pt on its leading side).
+                Button {
+                    controller.perform(item)
+                } label: {
+                    chip(isDark: isDark, filled: false, leading: 6) { label(for: item, blue: blue) }
+                }
             default:
                 Button {
                     controller.perform(item)
                 } label: {
-                    key { label(for: item, blue: blue) }
+                    chip(isDark: isDark) { label(for: item, blue: blue) }
                 }
             }
         }
-        .padding(.vertical, -verticalOutset)
-        .padding(.horizontal, -horizontalOutset)
         .accessibilityLabel(title)
         .accessibilityInputLabels([Text(title), Text(item.keyText)])
     }
 
-    /// One key: drawn 36 pt tall and at least 40 wide, padded out to a 44 pt target.
-    private func key<Content: View>(@ViewBuilder _ content: () -> Content) -> some View {
+    /// One chip: 36 pt tall, 12 pt side padding, on an 8 pt rounded fill. The flexible frame
+    /// around it takes the larger target `ChipTargetLayout` proposes, the chip centred in it.
+    private func chip<Content: View>(isDark: Bool, filled: Bool = true, leading: CGFloat = chipHorizontalPadding,
+                                     @ViewBuilder _ content: () -> Content) -> some View {
         content()
-            .padding(.horizontal, 10)
-            .frame(minWidth: Self.itemDrawnSide, minHeight: Self.itemDrawnHeight)
-            .contentShape(Rectangle())
-            .padding(.vertical, verticalOutset)
-            .padding(.horizontal, horizontalOutset)
+            .padding(.leading, leading)
+            .padding(.trailing, Self.chipHorizontalPadding)
+            .frame(minHeight: Self.itemDrawnHeight)
+            .background {
+                if filled {
+                    RoundedRectangle(cornerRadius: Self.chipCornerRadius, style: .continuous)
+                        .fill(Color.white.opacity(isDark ? Self.chipOpacityDark : Self.chipOpacityLight))
+                }
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
             .contentShape(Rectangle())
     }
 
-    /// The key's face, as in the mockup: Ask with its sparkle in blue, Heading with a small
-    /// chevron, B I S drawn as their styles, Code in monospace, the rest as words.
+    /// The chip's face, as in the mockup: Ask with its sparkle in blue, Heading with a small
+    /// chevron, B bold, I serif italic, S struck, the rest as words.
     @ViewBuilder
     private func label(for item: SelectionRowItem, blue: Color) -> some View {
         switch item {
         case .askAI:
-            HStack(spacing: 6) {
+            HStack(spacing: 5) {
+                // The mockup's 15 pt sparkle box holds a 9 pt star.
                 Image(systemName: "sparkle")
-                    .font(.system(size: 14, weight: .semibold))
+                    .font(.system(size: 9, weight: .medium))
+                    .frame(width: 15, height: 15)
                 word(SelectionRowItem.askShortTitle, weight: .semibold)
             }
             .foregroundStyle(blue)
         case .heading:
-            HStack(spacing: 6) {
+            HStack(spacing: 5) {
                 word(item.keyText)
+                // The mockup's 11 pt chevron box.
                 Image(systemName: "chevron.right")
-                    .font(.system(size: 11, weight: .semibold))
+                    .font(.system(size: 9, weight: .semibold))
+                    .frame(width: 11, height: 11)
             }
         case .bold:
             word("B", weight: .bold)
@@ -229,11 +293,6 @@ struct SelectionRow: View {
             Text(verbatim: "S")
                 .font(.subheadline)
                 .strikethrough()
-                .dynamicTypeSize(...Self.maximumDynamicTypeSize)
-        case .code:
-            Text(item.keyText)
-                .font(.system(.footnote, design: .monospaced))
-                .lineLimit(1)
                 .dynamicTypeSize(...Self.maximumDynamicTypeSize)
         default:
             word(item.keyText)
@@ -251,25 +310,33 @@ struct SelectionRow: View {
     }
 }
 
-/// A key of the format row: no fill at rest; while pressed, the keyboard's key colour on an 8 pt
-/// rounded rectangle (the mockup's `.bar button:active`).
-private struct FormatKeyStyle: ButtonStyle {
-    var isDark: Bool
+/// Lays its one subview (an item's button) out at the size its chip draws, so the row's spacing
+/// is the mockup's, but gives the button at least `SelectionRow.itemTargetSide` square, centred on
+/// the chip: the target overflows the chip evenly and never moves it.
+private struct ChipTargetLayout: Layout {
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        subviews.first?.sizeThatFits(.unspecified) ?? .zero
+    }
 
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        guard let subview = subviews.first else { return }
+        let drawn = subview.sizeThatFits(.unspecified)
+        let side = SelectionRow.itemTargetSide
+        subview.place(at: CGPoint(x: bounds.midX, y: bounds.midY), anchor: .center,
+                      proposal: ProposedViewSize(width: max(drawn.width, side), height: max(drawn.height, side)))
+    }
+}
+
+/// A chip of the format row while pressed: dimmed, as the system's bar buttons do.
+private struct FormatChipStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .background {
-                RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .fill(isDark ? Color(white: 0.353) : Color.white)
-                    .padding(.vertical, (SelectionRow.itemTargetSide - SelectionRow.itemDrawnHeight) / 2)
-                    .padding(.horizontal, (SelectionRow.itemTargetSide - SelectionRow.itemDrawnSide) / 2)
-                    .opacity(configuration.isPressed ? 1 : 0)
-            }
+            .opacity(configuration.isPressed ? 0.45 : 1)
     }
 }
 
 /// The format row's home: the editor's input accessory view, so it moves with the keyboard, the
-/// interactive swipe-down included. 48 pt tall while the row shows, 0 otherwise (nothing is drawn,
+/// interactive swipe-down included. 50 pt tall while the row shows, 0 otherwise (nothing is drawn,
 /// and the keyboard's frame is the keyboard's alone).
 ///
 /// iOS 26's keyboard is a floating panel with rounded top corners, and a `.keyboard` input view

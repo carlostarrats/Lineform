@@ -302,8 +302,8 @@ final class SelectionRowTests: XCTestCase {
         controller.aiController.cancel()
     }
 
-    /// The row is docked on the keyboard (mockup A, 2026-11-24): the editor's input accessory,
-    /// 48 pt tall while it shows and 0 otherwise, never a card floating over the page. It never
+    /// The row is docked on the keyboard (format-row option 1, 2026-11-24): the editor's input accessory,
+    /// 50 pt tall while it shows and 0 otherwise, never a card floating over the page. It never
     /// changes the system edit menu.
     func testRowIsTheKeyboardsAccessory() async throws {
         try skipUnlessEnglishInterface("needs prose the keyboard language’s dictionary accepts, so no spelling items join the edit menu")
@@ -317,7 +317,7 @@ final class SelectionRowTests: XCTestCase {
         try await spin { controller.phase == .row }
         try await spin { controller.formatBar.isShowing }
         XCTAssertEqual(controller.formatBar.intrinsicContentSize.height, SelectionRow.height)
-        XCTAssertEqual(SelectionRow.height, 48, "the mockup's bar")
+        XCTAssertEqual(SelectionRow.height, 50, "the mockup's bar (option 1, `.b1`)")
 
         // The edit menu is the system's (spelling items only on a misspelling).
         let coordinator = try XCTUnwrap(editor.delegate as? MarkdownEditor.Coordinator)

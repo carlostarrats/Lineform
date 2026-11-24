@@ -1142,14 +1142,16 @@ History is local to this iPhone. History never writes into the document file.
 > remains until the selection row's redesign removes it.
 
 `LineformiOS/Selection/` (`SelectionController`, `SelectionRow`, `CommentField`). The spec is
-§5.5; the look is the owner's mockup "A · Native row" (`mockups/selection.html`, its `.bar` CSS and
-`rowMain()` / `rowHeading()`), rebuilt to match exactly after the 2026-11-24 review.
+§5.5; the look is the owner's chosen mockup, option 1 "Native bar, done right"
+(`Lineform-mobile/docs/mockups/format-row-options.html`, its `.b1` CSS and the `opt==="1"` branch
+of `render()`), rebuilt value for value on 2026-11-24 and checked side by side in the simulator.
 
 - **Docked on the keyboard.** The row is the editor's `inputAccessoryView`
   (`FormatBarAccessoryView`, attached in `SelectionController.attach`), so UIKit keeps it directly
   on top of the software keyboard through every keyboard motion, the interactive swipe-down
-  included: a full-width bar, 48 pt, no capsule, no rounded corners, no shadow, no gap, scrolling
-  sideways. Its height is 48 pt while `phase == .row` and 0 otherwise. iOS 26's keyboard is a
+  included: a full-width bar, 50 pt, with a 1 pt hairline (black at 8%) along its bottom edge, no
+  capsule, no shadow, no gap, scrolling sideways. Its height is 50 pt while `phase == .row` and 0
+  otherwise. iOS 26's keyboard is a
   floating glass panel with rounded top corners, and a `.keyboard` `UIInputView` no longer draws
   its colour, so the bar fills itself with the keyboard's colour over a Lineform page
   (`keyboardColor`: #E2E4E8 light, #212122 dark, sampled from the simulator) and the fill runs on
@@ -1158,10 +1160,22 @@ History is local to this iPhone. History never writes into the document file.
   (`editorProfileDidChange`) and reloads the input views when the darkness changes, so the
   keyboard follows. With a hardware keyboard UIKit puts the bar above the home indicator. The
   comment field (no longer opened) is still drawn by `SelectionBottomChrome`.
-- **Keys** (`SelectionRow`): each key draws 36 pt tall (8 pt rounded, the keyboard's key colour
-  only while pressed) and is a 44 pt target; the words are the mockup's (`SelectionRowItem.keyText`:
-  "Ask", "Heading", B, I, S, "Code" in monospace, "List", "Link", "Quote", "Image", "Table", …),
-  15 pt (subheadline) capped at xxxLarge with the Large Content Viewer beyond. VoiceOver hears the
+- **Chips** (`SelectionRow`, the mockup's `.b1 .t`): 8 pt side padding, 4 pt between items. Every
+  command is its OWN light chip so they never run together: 36 pt tall, 8 pt corners, white at 55%
+  on the light keyboard (12% on the dark one), 12 pt side padding, 15 pt text (subheadline, capped at
+  xxxLarge with the Large Content Viewer beyond), dimmed while pressed. Ask has no chip (sparkle in
+  a 15 pt box and "Ask", semibold, Lineform blue, 6 pt leading padding), then a 1 × 24 pt divider
+  (ink at 18%, 4 pt either side); without an AI the row starts with Heading at the far left. The
+  words are the mockup's (`SelectionRowItem.keyText`: "Heading" with an 11 pt chevron box, B bold,
+  I serif italic, S struck, "Code", "List", "Link", "Quote", "Image", "Table", …). The ink is the
+  mockup's #1F1F1F on the light keyboard, white on the dark one. Each chip's button is at least
+  44 × 44 pt: `ChipTargetLayout` lays it out at the chip's size (so the spacing is the mockup's) and
+  lets the target overflow the chip evenly.
+- **Always from the start.** The scroll view is keyed on the row's items and the heading-levels
+  flag: when the row appears, its items change (a selection adds Replace With… / Another Word, a
+  table row adds Reformat Table) or Heading opens or closes, it is a fresh scroll view at its
+  leading edge (plus `scrollTo` on appear and change). Moving the caret with the same items keeps
+  the writer's scroll position. VoiceOver hears the
   command ("Bold", "Insert Table", "Ask Claude"); Voice Control also takes the key's word
   (`accessibilityInputLabels`).
 
@@ -1203,9 +1217,10 @@ History is local to this iPhone. History never writes into the document file.
   `misspelledRangesInWholeDocument`, whether or not Check spelling while typing is on, in the
   keyboard's language; every misspelling is underlined and the first one after the selection
   (wrapping) is selected, the row staying for it; no edit, so no undo step; never scheduled).
-  Everything but Ask is in the system label colour for the keyboard's appearance.
 - **Heading's levels open in place** (`SelectionController.showsHeadingLevels`): the row swaps its
-  buttons for ‹ (Back) and the Mac's Format ▸ Heading items — Title, Section, Heading 3–6, Body.
+  buttons for ‹ (Back; the mockup's 36 pt `.back`, no chip) and the mockup's five levels as chips —
+  Title, Section, Heading 3, Heading 4, Body (`SelectionRow.rowHeadingLevels`; Heading 5 and 6
+  stay on ⌘5 / ⌘6).
   A level applies (one undo step) and the buttons come back; ‹ returns with no change; a new row
   always opens on the buttons.
 - **Insert Table and Reformat Table** moved here from the Menu (on the Mac they are in Format);
