@@ -157,7 +157,7 @@ file named after it carries the full story and the reasoning.
 - Leaving `.reviewing` by ANY path collapses the editor's selection to the reviewed passage's TEXT end, before a trailing line ending (`AIActionController.state` didSet → `collapseSelectionForAI(at: caretEnd)`); Mark collapses it too, or the selection hides the wash. The passage stays selected under the overlay; without the collapse, the next keystroke, Delete, Tab or dictation replaced the whole passage. The overlay's ⌫ ends the review and is not re-sent.
 - One AI action records History once, when the review ends: one passage per CHANGED paragraph. Abandon (reload, whole-text writers, disconnect) applies and records nothing; a tab or document swap ENDS the review and records what was accepted; a reply that arrives after the text changed is discarded (exact UTF-16 compare).
 - API keys live ONLY in the Keychain (`SystemAIKeychain`, service `<bundle id>.ai`, not synchronizable). Never UserDefaults, never files, never logged (`AIConnection.description` redacts).
-- Whole-document AI (the Mac's Edit ▸ Ask AI… with nothing selected, the iPhone's Menu ▸ Document ▸ Ask AI…) goes through ONE policy, `WholeDocumentAIPolicy`, measured on the prose that would be sent: up to 1,500 words it runs, above that the writer confirms (Cancel the default), past `AILimits` it is refused before the Keychain is read. `runWholeDocument` re-checks it before `resolvedConnection()`. Any wording about what is sent names both cases: the passage you select, or the whole document when you choose Ask AI for it.
+- Whole-document AI (the Mac's Edit ▸ Ask AI… with nothing selected, the iPhone's word menu ▸ Connect Your AI ▸ Ask AI…) goes through ONE policy, `WholeDocumentAIPolicy`, measured on the prose that would be sent: up to 1,500 words it runs, above that the writer confirms (Cancel the default), past `AILimits` it is refused before the Keychain is read. `runWholeDocument` re-checks it before `resolvedConnection()`. Any wording about what is sent names both cases: the passage you select, or the whole document when you choose Ask AI for it.
 
 **Rendering** (`rendering.md`)
 - Every INSERTION path (Return, list continuation, Insert Table, Tab's appended row, Reformat, image drop/paste) writes `MarkdownLineEnding.inForce(at:in:)`, never a bare `\n` — the document's endings are preserved, never normalised. It reads the caret's own line, never the whole document (per-keystroke). `ImageInsertionText` was outside this sweep and left a lone LF in Windows-authored files.
@@ -392,30 +392,36 @@ iPhone only. Details: `docs/architecture/iphone-app.md`.
   network), "What to expect", then the three points (`FirstRunCopy`, the one place the copy lives).
   Scene-storage recovery wins over it, and the launch call site skips it under XCTest. WebKit
   stays in the iPhone target, never in the package.
-- **Styling sheet.** The "Aa" button (`StylingButton`, beside Menu) opens `StylingSheet`, the Mac's
+- **Styling sheet.** The word menu's Themes opens `StylingSheet` (the "Aa" button is gone), the Mac's
   Reading Experience panel with the same controls, order, ranges and wording
   (`ReadingExperienceControls` in the package is the one definition both read). It writes only
   through `ReadingProfileStore` (per device). While a slider is held (`StylingDrag`), the editor
   skips the reading assists and the Read view skips rendering: on 1 MB they cost about 0.64 s and
   1.2 s per change. Both catch up once when the drag ends. Details: `docs/architecture/iphone-app.md`,
   "Styling sheet".
-- **History.** Menu ▸ History (listed only when the document has history) and Replace With… (the
-  selection row, its one entry point) enter History mode: read-only editor, passages on a
+- **History.** The word menu's History page (listed only when the document has history; tapping a
+  passage opens it) and Replace With… (the selection row, its one entry point) enter History mode: read-only editor, passages on a
   wash drawn by `CAShapeLayer`s behind the text (never text attributes; the Mac's receded ink is not
   drawn — phone exception), tap selects the innermost passage, ← / → / Esc on a hardware keyboard,
   and `HistoryCard` at the bottom (levels, versions, Delete, "Type a replacement", Done). The store is
   the Mac's router, made lazily (`LazyHistoryStore`: nothing at launch). Details:
   `docs/architecture/iphone-app.md`, "History".
-- **Menu sheet.** The floating Menu button opens `MenuSheet` (medium and large detents): Files,
-  Outline, Markdown Basics, Search, History (only with history), Document and Settings. Sections reach the editor only through
-  `EditorCommands`, each command ONE undo step. Files rename and Trash are coordinated
-  (`.forMoving`), unlike the Mac (ruling in `docs/architecture/files-sidebar.md`); Trash is
-  `trashItem` only, and nothing is scanned until Files or a file search is on screen. Convert to
+- **Word menu.** One ⋯ button (`MoreButton`) opens `WordMenu`, a full-screen overlay (never a
+  sheet) on the Mac Settings wash (`WordMenuPalette`: white → #F1F1F1, or #2A2A2A → #1C1C1C for
+  every dark theme; never on the document screen): Files, Outline, Markdown Basics, Themes,
+  Settings, Export & Print, Read Aloud, History (only with history), Connect Your AI, About
+  Lineform. Navigation is INSTANT (no motion); the corner button is ✕ on the words and ← in a page.
+  Pages reach the editor only through `EditorCommands`, each command ONE undo step. Files rename,
+  Trash and moves between iCloud and On My iPhone are coordinated (`.forMoving`), never replacing,
+  unlike the Mac (ruling in `docs/architecture/files-sidebar.md`); Trash is `trashItem` only, and
+  nothing is scanned until Files or a file search is on screen. On My iPhone always shows beside
+  iCloud, and New Document in a folder saves there (`OpenDocument.newDocument(in:)`). Convert to
   Plain Text / Markdown is the Mac's state machine verbatim (`TextFormatConversion`), through the
-  editor. Check Document Now is the only whole-document spelling pass, and is never scheduled.
-  Settings are per device under the Mac's `Lineform.settings.*` keys (`AppSettings`); Automatic
-  Dark Mode applies the Mac's Quiet mapping from the trait collection's `userInterfaceStyle`.
-  Details: `docs/architecture/iphone-app.md`, "The Menu sheet".
+  editor. Check Document Now (Settings) is the only whole-document spelling pass, and is never
+  scheduled. Settings are per device under the Mac's `Lineform.settings.*` keys (`AppSettings`);
+  Automatic Dark Mode applies the Mac's Quiet mapping from the trait collection's
+  `userInterfaceStyle`. Every menu ink is measured (`WordMenuTests.testPaletteContrast`). Details:
+  `docs/architecture/iphone-app.md`, "The word menu".
 - **Export, print, share, read aloud.** Same content as the Mac (`ExportContent`); `PhonePageLayout`
   paginates, and a line taller than the page never ends pagination or drops content (pictures are
   scaled to the page; any other tall line gets its own scaled page). UIKit calls
@@ -429,26 +435,28 @@ iPhone only. Details: `docs/architecture/iphone-app.md`.
   the comment field (note, Action menu, Send; nothing is sent while marked text is composing).
   The review is `AIReviewOverlayTextView`, a read-only overlay with an EMPTY undo manager, and the
   editor refuses every edit path while `isAIReviewActive`; cards sit above the keyboard. Each
-  accept is ONE undo group through `applyRuleEdit`. Menu ▸ Document ▸ Ask AI… sends the whole
-  document through the shared `WholeDocumentAIPolicy` (confirm above 1,500 words, refuse past
+  accept is ONE undo group through `applyRuleEdit`. The word menu's Connect Your AI ▸ Ask AI… sends
+  the whole document through the shared `WholeDocumentAIPolicy` (confirm above 1,500 words, refuse past
   `AILimits` before the Keychain is read). History is the document's `PhoneHistoryController`
   (`AIHistoryRecording`), the one `SelectionController.aiHistory` assignment in `DocumentScreen`:
   AI is off in History mode, entering History ends a review, and History records once when a review
   ends (abandoning records nothing), as on the Mac. Details: `docs/architecture/iphone-app.md`, "The
   selection row and comment field" and "AI actions and the review".
-- **Updates, announcements, review prompt, App Intents** (`LineformiOS/Integration/`). Menu ▸
-  Settings ▸ Check for Updates… is the Mac's command (`PhoneUpdateCommand`): only on a tap, one at a
+- **Updates, announcements, review prompt, App Intents** (`LineformiOS/Integration/`). The word
+  menu's About Lineform ▸ Check for Updates… is the Mac's command (`PhoneUpdateCommand`): only on a tap, one at a
   time, and the lookup reads the iPhone's listing (`entity=software`, `kind` "software" only — the
   store answers with the Mac entry until an iPhone build is listed, and that is "couldn't check").
   Announcements are the Mac's store rules (`PhoneAnnouncementStore`: the switch gates the request,
-  once a day, checked when the scene becomes active, NEVER under XCTest at that call site) and a
-  floating card above the Menu and Aa buttons. The review prompt is the Mac's policy
+  once a day, checked when the scene becomes active, NEVER under XCTest at that call site), shown
+  as a small one-time sheet only when the page is idle (never over first run, the word menu,
+  History, an AI review or the keyboard). The review prompt is the Mac's policy
   (`PhoneReviewPromptStore`, use = `OpenDocument.onConfirmedWrite`; the app's store is inert under
   XCTest). New Lineform Note and Open in Lineform route through `OpenDocument` (`PhoneIntentRouter`,
   attached after `prepare`); `AppIntents.framework` stays LINKED in the iPhone target too, and
   `PhoneAppIntentsTests` asserts `Metadata.appintents`. Details: `docs/architecture/iphone-app.md`.
 - **Accessibility.** Every quiet chrome ink comes from `PhoneInk` (AA through `Theme.readableInk`,
-  measured by `PhoneInkContrastTests`), never a bare `.opacity`/`.secondary` on text. Document text
+  measured by `PhoneInkContrastTests`), or on the word menu's wash from `WordMenuPalette` (the
+  same `readableInk`, measured by `WordMenuTests`), never a bare `.opacity`/`.secondary` on text. Document text
   follows the reading profile and never tracks Dynamic Type; all chrome does. Anything drawn and
   hit-tested needs a non-visual path (custom actions or a rotor), and nothing a VoiceOver user
   needs dismisses itself on a timer. `LineformiOSUITests` runs `performAccessibilityAudit()` locally

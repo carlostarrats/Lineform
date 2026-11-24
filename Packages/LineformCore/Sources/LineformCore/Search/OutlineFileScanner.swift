@@ -21,7 +21,8 @@ import Foundation
 /// (the iPhone passes `.Trash`, where its Files section moves deleted documents).
 ///
 /// `keepsEmptyFolders` (the iPhone, where New Folder makes a folder before it holds anything)
-/// lists a folder with no supported document too. The Mac leaves it off.
+/// also lists a folder with nothing in it at all (a folder of other files, such as `images/`, is
+/// still dropped). The Mac leaves it off.
 ///
 /// It never writes and never coordinates. Callers decide when and on which thread to run it.
 public enum OutlineFileScanner {
@@ -188,11 +189,18 @@ public enum OutlineFileScanner {
                 excludedNames: excludedNames,
                 keepsEmptyFolders: keepsEmptyFolders
             )
-            if keepsEmptyFolders || !populated.children.isEmpty {
+            if !populated.children.isEmpty || (keepsEmptyFolders && isEmptyFolder(item.url, fileManager: fileManager)) {
                 visible.append(populated)
             }
         }
         return visible
+    }
+
+    /// A folder with nothing in it at all (Finder's `.DS_Store` aside): a folder made by New
+    /// Folder. A folder of pictures (`images/`) or other files is not empty, and stays dropped.
+    private static func isEmptyFolder(_ url: URL, fileManager: FileManager) -> Bool {
+        let entries = (try? fileManager.contentsOfDirectory(atPath: url.path)) ?? ["?"]
+        return entries.allSatisfy { $0 == ".DS_Store" }
     }
 }
 

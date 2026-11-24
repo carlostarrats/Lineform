@@ -179,6 +179,8 @@ final class LocalizationSourceSweepTests: XCTestCase {
         "FilesStore.swift|Could not make a bookmark for the chosen Workspace": "os_log diagnostic (Logger.error), never drawn.",
         "FilesStore.swift|Rename failed: %@": "os_log diagnostic (Logger.error), never drawn.",
         "FilesStore.swift|Trash failed: %@": "os_log diagnostic (Logger.error), never drawn.",
+        "FilesStore.swift|Move failed: %@": "os_log diagnostic (Logger.error), never drawn.",
+        "FilesStore.swift|New Folder failed: %@": "os_log diagnostic (Logger.error), never drawn.",
         "OpenDocument.swift|Trash":
             "A folder name matched in a file path (isTrashLocation), never drawn.",
     ]

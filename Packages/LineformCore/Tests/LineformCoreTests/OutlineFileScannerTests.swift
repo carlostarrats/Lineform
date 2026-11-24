@@ -52,6 +52,19 @@ final class OutlineFileScannerTests: XCTestCase {
         XCTAssertEqual(items.first?.children.map(\.name), ["chapter.md"])
     }
 
+    /// The iPhone's New Folder: a folder with nothing in it is listed when asked; a folder of
+    /// other files (pictures) still is not.
+    func testScannerKeepsTrulyEmptyFoldersWhenAsked() throws {
+        try folder("Empty")
+        try folder("images")
+        try Data().write(to: root.appendingPathComponent("images/cover.png"))
+        try write("Drafts/chapter.md")
+
+        XCTAssertEqual(OutlineFileScanner.items(in: root, showsHidden: false).map(\.name), ["Drafts"], "the Mac's rule is unchanged")
+        let items = OutlineFileScanner.items(in: root, showsHidden: false, keepsEmptyFolders: true)
+        XCTAssertEqual(Set(items.map(\.name)), ["Drafts", "Empty"])
+    }
+
     func testScannerDepthLimit() throws {
         XCTAssertEqual(OutlineFileScanner.maximumTreeDepth, 4)
         // Depth 0 is the root's own children; a file in the fourth folder level is depth 4.

@@ -98,7 +98,7 @@ final class PhoneInkContrastTests: XCTestCase {
             text += (try? String(contentsOf: url, encoding: .utf8)) ?? ""
         }
         if text.isEmpty { throw XCTSkip("the sources are not readable from the test host") }
-        let shortcuts: [PhoneInk.Role: String] = [.secondary: ".secondary", .tertiary: ".tertiary", .icon: ".icon", .accent: ".accent"]
+        let shortcuts: [PhoneInk.Role: String] = [.secondary: ".secondary", .icon: ".icon"]
         for role in PhoneInk.Role.allCases {
             let used = text.contains("(.\(role.rawValue))") || shortcuts[role].map { shortcut in
                 ["ink", "Ink", "inks", ")"].contains { text.contains($0 + shortcut) }
