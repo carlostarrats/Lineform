@@ -87,7 +87,7 @@ final class WholeDocumentAICommandTests: XCTestCase {
     }
 
     /// Enabled only while connected, outside History mode, not mid-request or mid-review, with
-    /// an editor on screen (Write or Split), and an editable document with text in it: with
+    /// an editor on screen (Write or Split), and an editable document with text in it (a request or review in progress only opens the drawer): with
     /// nothing to send, the command is not offered (fix after the step 8 review).
     func testMenuEnablement() {
         func enabled(connected: Bool = true, history: Bool = false, state: AIActionController.State = .idle,
@@ -106,11 +106,41 @@ final class WholeDocumentAICommandTests: XCTestCase {
         XCTAssertTrue(enabled(state: .marking([])))
         XCTAssertFalse(enabled(connected: false))
         XCTAssertFalse(enabled(history: true))
-        XCTAssertFalse(enabled(state: .running(.rephrase, .claude)))
+        XCTAssertTrue(enabled(state: .running(.rephrase, .claude)), "it only opens the drawer, where the request is")
         let session = AIReviewSession(action: .rephrase, changes: [], selectionRange: NSRange(location: 0, length: 1),
                                       originalSelection: "a")
-        XCTAssertFalse(enabled(state: .reviewing(session)))
+        XCTAssertTrue(enabled(state: .reviewing(session)))
         XCTAssertFalse(enabled(mode: .read))
+    }
+
+    /// The AI drawer and Reading Experience share the inspector slot, one at a time: a button opens
+    /// its content, switches to it, or closes it when it is already showing.
+    func testInspectorSlotIsSharedOneAtATime() {
+        let closed = EditorInspectorContent.toggled(.ai, isOpen: false, showing: .readingExperience)
+        XCTAssertEqual(closed.isOpen, true)
+        XCTAssertEqual(closed.content, .ai)
+        let switched = EditorInspectorContent.toggled(.ai, isOpen: true, showing: .readingExperience)
+        XCTAssertEqual(switched.isOpen, true)
+        XCTAssertEqual(switched.content, .ai)
+        let shut = EditorInspectorContent.toggled(.ai, isOpen: true, showing: .ai)
+        XCTAssertEqual(shut.isOpen, false)
+        let back = EditorInspectorContent.toggled(.readingExperience, isOpen: true, showing: .ai)
+        XCTAssertEqual(back.isOpen, true)
+        XCTAssertEqual(back.content, .readingExperience)
+    }
+
+    /// One conversation per open document: a closed tab or a replaced document drops it.
+    func testConversationsLiveWithTheirDocument() {
+        let store = AIConversationStore()
+        let a = AIConversationStore.Key(tab: UUID(), document: UUID())
+        let b = AIConversationStore.Key(tab: UUID(), document: UUID())
+        let first = store.conversation(for: a)
+        XCTAssertTrue(store.conversation(for: a) === first)
+        _ = store.conversation(for: b)
+        XCTAssertEqual(store.count, 2)
+        store.keepOnly([a])
+        XCTAssertEqual(store.count, 1)
+        XCTAssertTrue(store.conversation(for: a) === first)
     }
 
     /// The confirmation: Send and Cancel, Cancel the default (Return), Send never on Return.
@@ -150,7 +180,7 @@ final class WholeDocumentAICommandTests: XCTestCase {
         defer { LineformAIMenuState.shared.setCanAskAI(false) }
 
         let view = Color.clear.frame(width: 100, height: 100).modifier(AskAIMenuHandlers(
-            windowNumber: nil, aiController: controller, historyController: history, connectionStore: store,
+            windowNumber: nil, openDrawer: {}, aiController: controller, historyController: history, connectionStore: store,
             displayMode: .write, documentHasText: true, isKeyWindow: { true }
         ))
         let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 100, height: 100), styleMask: [.titled],

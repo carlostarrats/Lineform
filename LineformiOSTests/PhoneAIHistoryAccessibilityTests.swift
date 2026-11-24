@@ -77,39 +77,30 @@ final class PhoneAIHistoryAccessibilityTests: XCTestCase {
         XCTAssertEqual(commands, [.end])
     }
 
-    // MARK: - Cards
+    // MARK: - The AI sheet
 
-    func testMessageWaitsForVoiceOver() {
-        XCTAssertNil(AIReviewCardsView.messageDismissDelay(voiceOverRunning: true), "never auto-dismissed under VoiceOver")
-        XCTAssertEqual(AIReviewCardsView.messageDismissDelay(voiceOverRunning: false), .seconds(8))
-    }
-
-    func testCardsAtDefaultAndAccessibilitySizes() async throws {
+    /// The conversation in the sheet, at the default and the largest accessibility size, while a
+    /// request runs, after a notice, with Find's marks and with a suggestion pending: inside the
+    /// window, every control labelled and 44 pt (the version arrows are the mockup's 28 pt, and
+    /// do not appear here).
+    func testAISheetAtDefaultAndAccessibilitySizes() async throws {
         for size in [UIContentSizeCategory.large, .accessibilityExtraExtraExtraLarge] {
             for state in ["running", "message", "marks", "review"] {
                 let (selection, ai, editor) = try makeAI(client: client(for: state))
                 try await drive(state, ai: ai, editor: editor, selection: selection)
                 let host = try await PhoneAccessibilityHost(
-                    VStack { Spacer(); AIReviewCardsView(controller: selection, profile: .original) }.padding(16),
+                    AISheetView(conversation: selection.conversation, profile: .original),
                     contentSize: size
                 )
                 hosts.append(host)
                 await host.settle()
                 host.assertElementsInsideWindow()
-                if size.isAccessibilityCategory {
-                    // Every control, the system `.bordered` buttons included, reaches 44 pt.
-                    host.assertInteractiveElementsAreLabelledAndLargeEnough()
-                } else {
-                    // At the default size the system `.bordered` buttons keep their standard
-                    // height; the card's own glyph button is 44 pt.
-                    host.assertInteractiveElementsAreLabelledAndLargeEnough(
-                        allowlist: Set(host.elements().filter { !["ai.messageClose", "ai.reviewDone"].contains($0.identifier) }.map(\.name))
-                    )
-                }
-                if state == "message" {
-                    let close = try XCTUnwrap(host.elements().first { $0.identifier == "ai.messageClose" }, "\(host.elements())")
-                    XCTAssertGreaterThanOrEqual(close.frame.width, 44)
-                    XCTAssertGreaterThanOrEqual(close.frame.height, 44)
+                host.assertInteractiveElementsAreLabelledAndLargeEnough()
+                if state == "review" {
+                    for title in [AIConversationPresentation.acceptTitle, AIConversationPresentation.rejectTitle,
+                                  AIConversationPresentation.tryAgainTitle] {
+                        XCTAssertNotNil(host.elements().first { $0.name == title }, "\(title): \(host.elements())")
+                    }
                 }
                 host.tearDown()
                 hosts.removeAll()

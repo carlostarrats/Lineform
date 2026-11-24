@@ -21,8 +21,6 @@ struct PhoneInk {
     enum Role: String, CaseIterable, Sendable {
         /// Secondary text on the page: notes, dates, counts, hints.
         case secondary
-        /// Non-text marks on the page: icons, chevrons, glyphs that carry meaning.
-        case icon
         /// The visible edge of a control (a field's hairline, an unselected ring).
         case controlEdge
         /// A menu's chevron beside its title (the selection row, the comment field's Action):
@@ -30,6 +28,9 @@ struct PhoneInk {
         case chevron
         /// System blue as a non-text mark on the page: the Preview link button while linked.
         case linkGlyph
+        /// Lineform blue (#2F6BDE; #5B8DEF on a dark page) as TEXT on the page: the selection
+        /// row's Ask.
+        case lineformBlue
         /// The History card's Add glyph (ink at 0.85) on its circle (ink at
         /// `historyAddWashAlpha`), while it can be used. Disabled, it is exempt.
         case historyAddGlyph
@@ -43,7 +44,7 @@ struct PhoneInk {
         /// 4.5:1 for text, 3:1 for non-text marks (WCAG 1.4.3 / 1.4.11).
         var minimumRatio: CGFloat {
             switch self {
-            case .icon, .controlEdge, .chevron, .linkGlyph, .historyAddGlyph: Self.nonTextMinimum
+            case .controlEdge, .chevron, .linkGlyph, .historyAddGlyph: Self.nonTextMinimum
             default: Self.textMinimum
             }
         }
@@ -116,7 +117,7 @@ struct PhoneInk {
     /// The surface `role` is measured against.
     func surface(for role: Role) -> UIColor {
         switch role {
-        case .secondary, .icon, .controlEdge, .chevron, .linkGlyph: page
+        case .secondary, .controlEdge, .chevron, .linkGlyph, .lineformBlue: page
         case .historyAddGlyph: historyAddWash
         case .onReadPill: readPill
         case .tertiaryOnCommentField: commentFieldWash
@@ -132,14 +133,17 @@ struct PhoneInk {
         switch role {
         case .secondary:
             return theme.readableInk(ink.withAlphaComponent(0.6), minimumRatio: minimum)
-        case .icon:
-            return theme.readableInk(ink.withAlphaComponent(0.45), minimumRatio: minimum)
         case .controlEdge:
             return theme.readableInk(ink.withAlphaComponent(0.3), minimumRatio: minimum)
         case .chevron:
             return theme.readableInk(ink.withAlphaComponent(0.6), minimumRatio: minimum)
         case .linkGlyph:
             return theme.readableInk(systemColor(.systemBlue), minimumRatio: minimum)
+        case .lineformBlue:
+            let blue = isDark
+                ? UIColor(red: 0x5B / 255, green: 0x8D / 255, blue: 0xEF / 255, alpha: 1)
+                : UIColor(red: 0x2F / 255, green: 0x6B / 255, blue: 0xDE / 255, alpha: 1)
+            return theme.readableInk(blue, minimumRatio: minimum)
         case .historyAddGlyph:
             return theme.readableInk(ink.withAlphaComponent(0.85), minimumRatio: minimum, on: surface(for: role))
         case .onReadPill:
@@ -153,7 +157,6 @@ struct PhoneInk {
     func color(_ role: Role) -> Color { Color(uiColor: uiColor(role)) }
 
     var secondary: Color { color(.secondary) }
-    var icon: Color { color(.icon) }
 
     // MARK: - Contrast test listing
 

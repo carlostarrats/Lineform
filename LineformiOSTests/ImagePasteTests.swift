@@ -87,6 +87,35 @@ final class ImagePasteTests: XCTestCase {
         XCTAssertFalse(undoManager.canUndo, "exactly one undo step")
     }
 
+    /// The selection row's Image button: a picture picked from Photos or Files goes through the
+    /// same path as a paste (PNG into `images/`, link on its own line, one undo step).
+    func testPickedImageTakesThePastePath() async throws {
+        let document = await preparedDocument()
+        let textView = makeEditor(for: document)
+        type("Notes\n", into: textView)
+        await document.flush()
+        let undoManager = try XCTUnwrap(textView.undoManager)
+        undoManager.removeAllActions()
+
+        // Files hands over a copy on disk; its name becomes the image's.
+        let picked = folder.appendingPathComponent("Holiday shot.png")
+        try Self.pngData().write(to: picked)
+        let provider = try XCTUnwrap(NSItemProvider(contentsOf: picked))
+        provider.suggestedName = "Holiday shot"
+        textView.insertPickedImages([provider])
+        await textView.imagePasteTask?.value
+
+        XCTAssertTrue(FileManager.default.fileExists(atPath: folder.appendingPathComponent("images/Holiday-shot.png").path)
+                      || FileManager.default.fileExists(atPath: folder.appendingPathComponent("images/Holiday shot.png").path),
+                      (try? FileManager.default.contentsOfDirectory(atPath: folder.appendingPathComponent("images").path))?.description ?? "")
+        XCTAssertTrue(textView.text.hasPrefix("Notes\n![](images/"), textView.text)
+        XCTAssertTrue(undoManager.canUndo)
+        undoManager.undo()
+        XCTAssertEqual(textView.text, "Notes\n")
+        XCTAssertFalse(undoManager.canUndo, "one undo step")
+        XCTAssertNil(textView.state.imagePickerCoordinator, "the picker's delegate is let go")
+    }
+
     func testStringPasteWinsOverImage() async throws {
         let document = await preparedDocument()
         let textView = makeEditor(for: document)

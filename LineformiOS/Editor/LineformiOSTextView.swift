@@ -109,6 +109,13 @@ final class LineformTextView: UITextView {
         var isSettingSelectionProgrammatically = false
         /// The writer touched the app's selection or pressed a key (`SelectionController`).
         var writerInteractionHandler: (() -> Void)?
+        // The highlighter selection (LineformiOSTextView+Highlighter.swift).
+        var highlighterSelectionView: HighlighterSelectionView?
+        var replacesSystemSelectionHighlight = false
+        var needsHighlighterSelectionRedraw = false
+        var highlighterSelectionDrawnOrigin: CGPoint = .zero
+        /// The Image button's picker delegate, while a picker is up (LineformiOSTextView+ImagePicker.swift).
+        var imagePickerCoordinator: ImagePickerCoordinator?
         #if DEBUG
         var pasteboardForTesting: UIPasteboard?
         #endif
@@ -216,6 +223,11 @@ final class LineformTextView: UITextView {
         textView.registerForTraitChanges([UITraitUserInterfaceStyle.self]) { (textView: LineformTextView, _) in
             textView.redrawSpellingUnderlines()
             textView.setNeedsHistoryWashRedraw()
+            textView.setNeedsHighlighterSelectionRedraw()
+        }
+        // Increase Contrast strengthens the highlighter's stroke.
+        textView.registerForTraitChanges([UITraitAccessibilityContrast.self]) { (textView: LineformTextView, _) in
+            textView.setNeedsHighlighterSelectionRedraw()
         }
         textView.profile = profile
         if !textView.hasAppliedProfile { textView.applyProfile() }
@@ -257,6 +269,7 @@ final class LineformTextView: UITextView {
         setNeedsSpellingUnderlineRedraw()
         setNeedsHistoryWashRedraw()
         setNeedsAIMarkWashRedraw()
+        setNeedsHighlighterSelectionRedraw()
     }
 
     private func updateTextContainerInset() {
@@ -278,6 +291,7 @@ final class LineformTextView: UITextView {
             refreshReadingAssists()
             needsSpellingUnderlineRedraw = true
             state.needsHistoryWashRedraw = true
+            state.needsHighlighterSelectionRedraw = true
             if state.keepsCaretVisibleOnResize, isFirstResponder {
                 // Deferred: never scroll from inside layout.
                 DispatchQueue.main.async { [weak self] in
@@ -290,6 +304,20 @@ final class LineformTextView: UITextView {
         redrawSpellingUnderlinesIfNeeded()
         redrawHistoryWashIfNeeded()
         redrawAIMarkWashIfNeeded()
+        redrawHighlighterSelectionIfNeeded()
+    }
+
+    // The highlighter follows the focus, as UIKit's own selection does.
+    override func becomeFirstResponder() -> Bool {
+        let became = super.becomeFirstResponder()
+        setNeedsHighlighterSelectionRedraw()
+        return became
+    }
+
+    override func resignFirstResponder() -> Bool {
+        let resigned = super.resignFirstResponder()
+        setNeedsHighlighterSelectionRedraw()
+        return resigned
     }
 
     override func tintColorDidChange() {

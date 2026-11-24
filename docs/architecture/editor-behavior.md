@@ -1305,6 +1305,9 @@ action does to the document. The two sections after it cover the text-view and o
 
 ## Selection toolbar and the AI comment card (2026-11-17)
 
+> **2026-11-24:** the comment card is no longer opened — the toolbar's Ask opens the AI drawer
+> (§ The AI drawer and sheet). The code below remains until the selection toolbar's redesign removes it.
+
 `Lineform/Editor/SelectionToolbar.swift` (views, `SelectionToolbarPresentation`) and
 `LineformTextView+SelectionToolbar.swift` (showing, placing, commands). Mockup of the agreed design:
 `docs/superpowers/specs/2026-11-17-selection-toolbar-mockup.html`.
@@ -1385,7 +1388,8 @@ action does to the document. The two sections after it cover the text-view and o
   an inactive selection OVER layout-manager temporary attributes, so a held highlight alone stayed
   faint grey. The live selection is collapsed while the card is open (guarded by
   `isAdjustingSelection` so the toolbar does not react to its own change) and the passage carries
-  the ACTIVE selection colour as a temporary `.backgroundColor`; Esc restores the selection.
+  the highlighter stroke through `heldHighlightRange` (drawn behind the text like the selection,
+  never a text or layout attribute; see "Highlighter selection"); Esc restores the selection.
 - **Cursor.** The bar and the card's button row carry `CursorRectView(cursor: .arrow)` (the same
   fix as the floating cards and Settings); the note field keeps its I-beam. Synthetic pointer moves
   in automation do not produce cursor updates, so this is verified by hand, not by a test.
@@ -1447,6 +1451,10 @@ toolbar's Ask button does, with no length policy. The iPhone row is always for t
   `WholeDocumentAITests`.
 
 ## AI review overlay and cards (2026-11-12)
+
+> **2026-11-24:** the bottom-right cards are gone (`AIReviewCards.swift` deleted). Progress,
+> messages, Find's count and the decisions live in the AI drawer (§ The AI drawer and sheet); the
+> overlay below is unchanged and nothing covers the editor's bottom any more (`bottomObscured: 0`).
 
 `Lineform/AI/AIReview*.swift`, wired in `EditorContainerView` (one `AIActionController` per editor,
 the app's one `AIConnectionStore.shared`).
@@ -1605,6 +1613,45 @@ the app's one `AIConnectionStore.shared`).
   checked from the test host against the stub. `ReleaseResourceTests.testATSAllowsAtMostLocalNetworking`
   permits at most `NSAllowsLocalNetworking`, never arbitrary loads.
 
+## Highlighter selection (2026-11-24)
+
+The editors' selection is a calm marker stroke instead of the system's flat fill (iPhone TestFlight
+feedback §21; mockup `Lineform-mobile/docs/mockups/selection.html`). Both apps share the shape and
+colour (`Packages/LineformCore/.../Editor/HighlighterSelection.swift`) and the line measuring
+(`.../Markdown/Rendering/HighlighterSelectionLayout.swift`, TextKit 1 on both platforms).
+
+- **Shape.** One straight stroke per line fragment the selection touches. Its box is the selected
+  glyphs' extent (a line break is never painted; a selected empty line gets a 4 pt nib) and the
+  line's pitch + 2 pt, centred on the glyphs and capped at 1.45 × the text height, so consecutive
+  lines just touch with about 2 pt of overlap and a loose line height leaves a calm gap. The ends
+  overshoot by 2–8 pt (left) and 1–10 pt (right), lean a little, and have a slightly rounded nib;
+  top and bottom edges are only very slightly soft. Every varying value is a hash of the line
+  fragment's first character index (the mockup's `rnd`), so a stroke never shimmers while a drag
+  extends the selection.
+- **Colour.** Lineform blue #2F6BDE at 19 % on light pages; #6F9BFF at 30 % on dark ones
+  (`usesDarkChrome`). Each line is its own fill, so the overlap darkens like ink laid twice.
+  **Increase Contrast** (Mac: `accessibilityDisplayShouldIncreaseContrast`, observed; iPhone:
+  `accessibilityContrast == .high` or Darker System Colors) raises it to 34 % / 38 % and fills all
+  lines as ONE shape, so overlaps never double. On a dark page a stronger blue LIGHTENS the ground
+  under light ink, which is why the dark step is small. `HighlighterSelectionTests` asserts body
+  ink on one fill is AA (4.5:1) in every theme at both strengths, and ≥ 3:1 on the calm overlap
+  sliver.
+- **Never stored.** Strokes are drawn behind the glyphs and never written to the text storage
+  (nor as layout-manager temporary attributes), so copy, undo, autosave and the file never see them.
+- **Mac** (`Lineform/Editor/HighlighterSelectionDrawing.swift`, `LineformTextView`).
+  `selectedTextAttributes` is `[.backgroundColor: .clear]`; `drawBackground(in:)` paints the strokes
+  after History's fills and Find's matches and before the Reading Ruler, so they sit under the
+  glyphs. `setSelectedRanges` re-measures the VISIBLE lines only and invalidates just the lines
+  whose stroke changed (old and new paint bounds, which include the overshoot AppKit's own
+  selection invalidation would miss); typing with a caret costs one empty check. AppKit selection
+  behaviour, Find, History's receded ink and the AI review overlay are unchanged. The comment
+  card's held passage (`heldHighlightRange`) is stroked the same way. Tests:
+  `HighlighterSelectionDrawingTests` (rendered pixels, no storage change, determinism).
+- **Read/Split preview is unchanged** (system selection). Its code blocks, tables and callouts
+  paint opaque backgrounds after `drawBackground`, which would hide a stroke drawn there; doing it
+  properly needs a different drawing hook, so it was left out.
+- **iPhone**: `iphone-app.md`, "Highlighter selection".
+
 ## Open bug: "Edited" stays in the title bar after a live reload (found 2026-11-06, not fixed)
 
 **Seen on:** installed 1.7.5 (build 37, TestFlight), macOS 27.0.1.
@@ -1631,3 +1678,130 @@ deferred re-clear on the next main-queue turn. `applyReload` has no such re-clea
 **To fix:** reproduce on the steps above, confirm the cause, and add a test if the ordering can be
 asserted. If the deferred re-clear is the fix, make sure it cannot wipe an edit typed in that same
 turn: a real edit must keep its dirty state and autosave.
+
+## The AI drawer and sheet (2026-11-24)
+
+Supersedes the bottom-right AI cards (§ AI review overlay and cards) and the selection toolbar's
+comment card (§ Selection toolbar and the AI comment card) as the place the writer talks to the AI.
+The reference design is the approved prompt-words mockup (v11, `Lineform-mobile/docs/mockups/
+prompt-words.html`; decisions in the 2026-11-23 TestFlight notes §8, §9, §9e and §15). Everything
+that touches the document is unchanged: `AIActionController` runs the request; the review is still
+the overlay (`AIReviewTextView` / `AIReviewOverlayTextView`) with the editor refusing edits while
+`isAIReviewActive`; accepts go through the one structure-guarded, one-undo-group path; History
+records once when the review ends; the Keychain is read only inside a run; whole-document requests
+go through `WholeDocumentAIPolicy`; nothing is sent while the writer types.
+
+**Where it lives.**
+- Mac: the right-side inspector, the SAME `.inspector` slot as Reading Experience, one at a time
+  (`EditorInspectorContent`, `AIDrawerView`, `AIConversationStore` in `Lineform/AI/AIDrawer.swift`).
+  `isShowingReadingInspector` now means "the inspector is open"; the toolbar band and the Sonoma
+  workaround follow it as before, so no inspector rule moved, and the tab bar stays inside
+  `editorShell`. Same column width as Reading Experience (min 280, ideal 320, max 380). Opened by
+  Edit ▸ Ask AI… (`AskAIMenuHandlers` → `openDrawer`; enabled whenever connected with an editable
+  editor holding text, even mid-request: it only opens the drawer), the toolbar's AI button (an
+  icon, `sparkle`, only while connected), the selection toolbar's Ask (it posts the same `askAI`
+  notification for its window), and any AI action that starts elsewhere (the context menu's
+  Rewrite / Proofread / Find: the drawer opens on `.running`). Aa switches the slot back; a
+  disconnect closes the drawer. The drawer has a ✕ and no title.
+- iPhone: a sheet (`AISheetView`, `LineformiOS/AI/AISheet.swift`) that opens at three-quarters and
+  drags to half or a quarter (`presentationDetents`) without closing; no ✕ (drag down to close).
+  Ask AI on the selection row opens it (`SelectionController.openAISheet`; the row goes, the
+  selection stays). Menu ▸ Ask AI… runs the whole-document policy first, collapses the selection to
+  a caret and opens it; the count the writer confirmed is not asked again
+  (`AIConversation.confirmedWholeDocumentWords`), a larger one is. Read closes it. The sheet's top
+  feeds `aiCardTopInWindow`, so the review overlay keeps the current change above it.
+- The view is ONE SwiftUI file compiled into both apps, `Lineform/AI/AIConversationView.swift`
+  (`AIConversationMetrics` per platform: thumb-sized on iPhone with a 44 pt minimum target;
+  `AIConversationStyle` from the theme — Quiet draws a dark blue-grey writer bubble and a
+  lighter-grey AI bubble with no shadow). Its only per-platform part is the input's text view.
+
+**The conversation** (`AIConversation`, LineformCore). Memory only, never written. Mac: one per
+open document (`AIConversationStore`, keyed by tab ID + document ID; a closed tab or a replaced
+document drops it). iPhone: `SelectionController.conversation`, reset from
+`OpenDocument.onDocumentSwap`. It attaches to the controller and mirrors its state: `.running` → a
+working bubble (plus a request bubble when the run started elsewhere); `.reviewing` → a suggestion;
+`.answer` → an answer; `.message` → a notice; `.marking` → "N sentences found". `.message` and
+`.answer` are dismissed on the NEXT turn — never inside the `@Published` willSet being observed, or
+the outer assignment would overwrite the dismissal.
+- Start: the session note above the seven quick actions (`AIConversation.quickActions`), centred.
+  Typing fades both; once anything is sent they are gone. A Reject that leaves nothing brings the
+  start back.
+- Requests go to the editor's selection when the writer sends (`target`); with nothing selected,
+  to the whole document through the policy (`confirmWholeDocument`). A typed instruction while a
+  suggestion is pending ends that review (nothing applied) and goes to the same range.
+- A suggestion shows ONLY the new text (`AIReviewVersion.displayText`: the selection with every
+  change accepted). Accept / Reject / Try Again are three equal pills above the input, only while
+  pending. Accept is `.acceptAll` (Proofread's corrections together) and leaves no "Accepted" text;
+  Reject is `.end` and removes the request and the suggestion; Try Again is `.retry` and appends a
+  version to the SAME bubble ("v2 ‹ ›" pinned to its bottom edge). The controller passes through
+  `.reviewing` as a review ends and on each overlay decision; the conversation recognises those
+  echoes because their `currentVersion` is already one of its versions. Stepping versions while
+  pending calls `AIActionController.restoreReview` (same text by exact UTF-16, same provider,
+  nothing accepted), so Accept takes the version on screen; a failed or cancelled retry restores
+  the version on screen. A text change in a bubble glides its height (0.32 s ease-in-out, layout
+  animation) while the text dips to 18 % and fades back (0.3 s); Reduce Motion cuts.
+- Questions: `AIRequestClassifier` calls an instruction a question only when it is clearly one (a
+  wh-question; or an aux-verb opening / trailing "?" with no edit verb in its first five words and
+  no curated word). It goes through `AIActionController.ask` with `AIActionPrompt.questionPrompt`
+  (the prose pieces and the question; reply `{"answer"}`, plain-text fallback) and gets an answer
+  bubble with no decisions. Everything else is a Custom edit whose prompt ALSO allows `{"answer"}`
+  (`conversationInstruction`), so a question read as an edit still answers in prose.
+- Blanks: a Custom edit may return up to two `assumptions` (phrase, "I assumed…" line, question,
+  2–4 options). `AIResponseParser.assumptions` validates them (phrase verbatim in the admitted
+  text, the line contains it, bounded lengths, no control or separator characters) and drops
+  anything else — the reply then simply has no blank. The line under the suggestion carries the
+  blank; it opens the options card with single-choice chips and "Something else…" (+ or Return adds
+  it; Apply keeps what is typed). `AIActionController.applyAssumption` replaces the phrase in the
+  revisions and re-runs `admissibleRevisions` / `AIChangeBuilder.change` / `verify`, then swaps the
+  review: no request, the same bubble, the line gone. A choice that would alter Markdown is refused
+  and announced.
+
+**Prompt words** (`AIPromptLexicon`, LineformCore). 33 curated words in six groups — tone 11
+(professional, formal, casual, friendly, polite, softer, diplomatic, direct, confident, natural,
+neutral), length 3 (shorter, concise, longer), clarity 6 (clearer, simpler, jargon, flow, specific,
+structured), energy 6 (punchier, engaging, enthusiastic, persuasive, creative, playful), polish 4
+(better, cleaner, academic, humanize), audience 3 (beginners, experts, executives) — each with 4–7
+refinements (a chip label and an explicit, checkable direction) and two defaults, chosen from the
+2026-11-24 vocabulary research. `AIPromptLexiconTests` pins the shape and that nothing crude or
+offensive is in it. `matches(in:)` runs on every keystroke, on the device: longest forms first,
+case- and diacritic-insensitive, whole words, UTF-16 ranges. Matched words get a dotted underline
+at once (solid once applied; washed while their card is open). Sent as
+`AIPromptLexicon.instruction`: the typed text, a "Directions:" block (“more professional” means: …,
+the chosen refinements or, for a word never opened, its defaults) and the fixed keep-constraint
+("Keep the meaning, facts, numbers and every Markdown mark; change only the selected passage.").
+The sent bubble is the typed text only. Only English ships: `words(forLanguage:)` returns no words
+for the other five languages (each needs its own list built from how people write requests in it,
+not a translation), so those interfaces underline nothing; the lexicon is English data, exempt from
+the localization sweep for that reason.
+
+**The options card.** Inside the drawer / sheet, just above the input (and above the pills) —
+never a popover. The question as heading, chips (white with a hairline and a soft shadow, black
+when chosen), Apply (Lineform blue; left-aligned on the Mac, full width on iPhone) and ✕. Apply, ✕
+or Esc are the only ways out (no click-outside). While it is up the rest dims to 45 %, greys and
+stops responding, under a progressive blur: four masked bands of the system backdrop blur
+(`AIProgressiveBlur`), clear at the top, blurrier toward the bottom. A Metal layer effect was built
+first and dropped: a layer effect cannot draw platform views, and the thread's scroll view and the
+input's text view rendered as SwiftUI's "unsupported" placeholder (seen on the iPhone simulator).
+
+**The input.** A rounded box with a soft shadow, "Ask Lineform…", the send button inside it at the
+bottom right (Lineform blue, `arrow.up`; a stop button while a request runs). Mac: an `NSTextView`
+(Return sends, ⇧Return is a new line, ⌘Return also sends; an input method's Return confirms its
+candidate first). iPhone: a `UITextView` (Return is a new line; Send is the button). A click or tap
+opens a word's card only when it lands ON the word's glyphs: the nearest character to a tap in
+empty space is the last one, which would otherwise open the last word's card. Each typed curated
+word is also an accessibility action on the input.
+
+**Accessibility.** The card is modal (`.isModal`, escape cancels) and the dimmed content is hidden
+from VoiceOver while it is up; the blank is a button with a hint; every pill, arrow and the send
+button is labelled; `PhoneAIHistoryAccessibilityTests.testAISheetAtDefaultAndAccessibilitySizes`
+checks the sheet inside the window with labelled 44 pt targets in each AI state. Reduce Motion
+drops the glides and fades and shows "Working…" instead of the dots.
+
+**Testing without a key.** `scripts/ai-stub-server.py` answers questions and Custom notes too (a
+note ending in "?" gets an answer; a note asking "firmer" gets a blank). On the simulator, write
+`Lineform.ai.provider = other` and `Lineform.ai.otherEndpoint` into the app's defaults.
+
+**Not built (2026-11-24).** Live AI words while typing (§9; the owner's default is curated words
+only). Prompt-word lists for German, French, Spanish, Japanese and Simplified Chinese. The
+comment card / comment field code is no longer reachable and is left for the selection
+toolbar's and selection row's redesign to remove.

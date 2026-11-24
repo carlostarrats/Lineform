@@ -5,7 +5,7 @@ import XCTest
 @testable import LineformiOS
 
 /// The main screen's chrome for VoiceOver, Dynamic Type and touch: the mode pill, the floating
-/// buttons, the notices, the Read view's pills and actions, and first run's VoiceOver timing.
+/// buttons, the notices, the Read view's pills and actions, and first run waiting for the writer.
 @MainActor
 final class PhoneChromeAccessibilityTests: XCTestCase {
     private var folder: URL!
@@ -257,20 +257,18 @@ final class PhoneChromeAccessibilityTests: XCTestCase {
 
     // MARK: - First run
 
-    func testWhatToExpectWaitsForTheWriterUnderVoiceOver() throws {
-        XCTAssertEqual(FirstRunStage.expect.autoAdvanceDelay(reduceMotion: false), .milliseconds(1800))
-        XCTAssertNil(FirstRunStage.expect.autoAdvanceDelay(reduceMotion: false, voiceOverRunning: true))
-        XCTAssertNil(FirstRunStage.expect.autoAdvanceDelay(reduceMotion: true, voiceOverRunning: true))
-        XCTAssertNil(FirstRunStage.points.autoAdvanceDelay(reduceMotion: false, voiceOverRunning: true))
-        let start = ContinuousClock.now
-        XCTAssertNil(
-            FirstRunTiming.deadline(for: .expect, stageStart: start, lineReadyAt: nil, reduceMotion: false, voiceOverRunning: true),
-            "no timer: the writer continues when they have heard it"
-        )
-        XCTAssertEqual(
-            FirstRunTiming.deadline(for: .expect, stageStart: start, lineReadyAt: nil, reduceMotion: false),
-            start + .milliseconds(1800)
-        )
+    func testFirstRunNeverMovesOnByItself() throws {
+        // No stage has a timer: the page finishing the wordmark only reveals Get Started, and
+        // each stage waits for its button.
+        let suite = "PhoneChromeAccessibilityTests-firstRun-\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let flow = FirstRunFlow(defaults: defaults) {}
+        flow.wordmarkDidFinishWriting()
+        XCTAssertEqual(flow.stage, .welcome)
+        flow.advance(from: .welcome)
+        XCTAssertEqual(flow.stage, .points)
+        XCTAssertFalse(flow.hasFinished, "the points wait for Start Writing")
     }
 
     // MARK: - Helpers

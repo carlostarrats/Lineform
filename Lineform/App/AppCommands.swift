@@ -69,7 +69,7 @@ enum AppMenuConfiguration {
     static let checkForUpdatesCommandTitle = String(localized: "Check for Updates…")
     static let settingsCommandTitle = String(localized: "Settings…")
     static let connectAICommandTitle = String(localized: "Connect Your AI…")
-    /// Edit ▸ Ask AI… (`AskAICommand`): the selection's comment card, or the whole document's.
+    /// Edit ▸ Ask AI… (`AskAICommand`): opens the AI drawer.
     static let askAICommandTitle = String(localized: "Ask AI…")
     /// MUST match `MARKETING_VERSION` in the project. This is a hand-maintained string, so it
     /// drifts silently on a version bump — it shipped as V1.2.0 while the app was 1.3.0. The

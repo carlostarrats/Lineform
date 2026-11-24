@@ -119,6 +119,7 @@ struct MarkdownEditor: UIViewRepresentable {
         /// rises once a non-empty selection settles, and goes when it collapses.
         func textViewDidChangeSelection(_ textView: UITextView) {
             (textView as? LineformTextView)?.refreshReadingAssists()
+            (textView as? LineformTextView)?.highlighterSelectionDidChange()
             parent.selectionController?.editorSelectionDidChange()
         }
 

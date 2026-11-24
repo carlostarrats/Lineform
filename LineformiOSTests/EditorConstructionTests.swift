@@ -75,6 +75,9 @@ final class EditorConstructionTests: XCTestCase {
         XCTAssertNil(textView.historyWashView, "historyWashView, \(path)", file: file, line: line)
         XCTAssertFalse(textView.state.needsHistoryWashRedraw, "needsHistoryWashRedraw, \(path)", file: file, line: line)
         XCTAssertNil(textView.state.historyTapRecognizer, "historyTapRecognizer, \(path)", file: file, line: line)
+        XCTAssertNil(textView.highlighterSelectionView, "highlighterSelectionView, \(path)", file: file, line: line)
+        XCTAssertFalse(textView.replacesSystemSelectionHighlight, "replacesSystemSelectionHighlight, \(path)", file: file, line: line)
+        XCTAssertEqual(textView.state.highlighterSelectionDrawnOrigin, .zero, "highlighterSelectionDrawnOrigin, \(path)", file: file, line: line)
 
         // And the state is writable and reads back.
         textView.profile = .original

@@ -334,31 +334,11 @@ extension LineformTextView {
 
     // MARK: - Comment card
 
+    /// The toolbar's Ask (2026-11-24): opens the window's AI drawer, the same route as Edit ▸ Ask
+    /// AI…. The selection stays as it is: the drawer's requests go to it.
     private func openSelectionToolbarComment() {
-        guard let controller = selectionToolbarStorage, controller.isVisible else { return }
-        let model = controller.model
-        model.note = ""
-        model.action = .custom
-        let hosting = controller.hostingView
-        // Measure the card BEFORE switching, on a throwaway hosting view, so the frame is final
-        // when the content changes: the bar stays on screen until the card replaces it in the
-        // same place — no blank frame, no half-drawn card, no jump.
-        let probeModel = SelectionToolbarModel()
-        probeModel.mode = .comment
-        probeModel.aiName = model.aiName
-        probeModel.usesDarkChrome = model.usesDarkChrome
-        let probe = NSHostingView(rootView: SelectionToolbarRoot(model: probeModel))
-        let size = probe.fittingSize
-        if size.width > 0, size.height > 0 {
-            hosting.move(to: commentCardFrame(size: size, replacing: hosting.frame, growsUp: controller.placedAbove))
-        }
-        model.mode = .comment
-        holdCommentHighlight()
-        DispatchQueue.main.async { [weak self] in
-            guard self != nil, controller.isVisible else { return }
-            self?.window?.makeFirstResponder(hosting)
-            model.focusToken += 1
-        }
+        LineformAppNotification.askAI.post(object: LineformAppNotification.Payload(
+            windowNumber: window?.windowNumber, value: nil, selectedRange: selectedRange()))
     }
 
     // MARK: - Edit ▸ Ask AI…
@@ -447,35 +427,28 @@ extension LineformTextView {
         }
     }
 
-    /// While the note field has focus the text view is not first responder, so AppKit would draw
-    /// the selection in its faint inactive grey — the writer could no longer see what the comment
-    /// is about. The passage keeps the ACTIVE selection colour as a temporary layout attribute
-    /// (never in the text storage) until the card closes.
+    /// While the note field has focus the text view is not first responder, and the writer must
+    /// still see what the comment is about. The passage keeps the highlighter stroke
+    /// (`heldHighlightRange`, drawn behind the text like the selection, never in the text storage)
+    /// until the card closes.
     private func holdCommentHighlight() {
-        guard let controller = selectionToolbarStorage, let range = controller.anchorRange,
-              let layoutManager else { return }
+        guard let controller = selectionToolbarStorage, let range = controller.anchorRange else { return }
         let clamped = NSIntersectionRange(range, NSRange(location: 0, length: (string as NSString).length))
-        guard clamped.length > 0,
-              let color = selectedTextAttributes[.backgroundColor] as? NSColor else { return }
-        layoutManager.addTemporaryAttribute(.backgroundColor, value: color, forCharacterRange: clamped)
+        guard clamped.length > 0 else { return }
         controller.heldHighlightRange = clamped
-        // AppKit paints an inactive selection OVER temporary attributes, so the real selection
-        // collapses while the card is open (the card sends against `anchorRange`, not the live
-        // selection). Esc restores it.
+        // The real selection collapses while the card is open (the card sends against
+        // `anchorRange`, not the live selection), so typing in the editor can never replace the
+        // passage. Esc restores it.
         controller.isAdjustingSelection = true
         setSelectedRange(NSRange(location: NSMaxRange(clamped), length: 0))
         controller.isAdjustingSelection = false
+        refreshHighlighterSelection()
     }
 
     private func releaseCommentHighlight() {
-        guard let controller = selectionToolbarStorage, let range = controller.heldHighlightRange else { return }
+        guard let controller = selectionToolbarStorage, controller.heldHighlightRange != nil else { return }
         controller.heldHighlightRange = nil
-        let clamped = NSIntersectionRange(range, NSRange(location: 0, length: (string as NSString).length))
-        if clamped.length > 0 {
-            layoutManager?.removeTemporaryAttribute(.backgroundColor, forCharacterRange: clamped)
-        }
-        // Mark's wash shares this attribute; restore it if any is shown.
-        if !aiMarkRangesStorage.isEmpty { refreshAIMarks() }
+        refreshHighlighterSelection()
     }
 
     /// The note wrapped (or unwrapped) a line: the comment card keeps its TOP edge and grows or

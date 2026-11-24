@@ -96,6 +96,13 @@ Mac-conventional place and flagged that — moving it is one line in `AppCommand
 
 ## Bring your own AI (2026-11-12)
 
+> **2026-11-24:** the writer talks to the AI in a conversation — the Mac's right-side drawer (in
+> Reading Experience's inspector slot) and the iPhone's sheet — with quick actions, curated prompt
+> words, answers to questions, versions and blanks. The connection, the wire and the Keychain are
+> unchanged; questions add one request shape (`questionPrompt`, JSON `answer`), and Custom edits
+> may return `answer` or `assumptions`. Nothing is sent while typing. Details: `editor-behavior.md`
+> § The AI drawer and sheet.
+
 `Packages/LineformCore/Sources/LineformCore/AI/` (model, prompts, clients, Keychain, review composition) and
 `Lineform/AI/` (`AIActionController`, `AISentenceSplitter`, the review and Connect views). What an action does to the document is in `editor-behavior.md` § AI actions and
 review; this is the connection, the wire, and the rules around them.

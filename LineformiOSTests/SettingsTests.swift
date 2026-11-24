@@ -135,7 +135,7 @@ final class SettingsTests: XCTestCase {
         let mac = try NSRegularExpression(pattern: "\\bMac(s|’s|'s)?\\b")
         // First run's copy is the owner's own product wording (`FirstRunCopy`, step 11), which may
         // name the Mac app on purpose (iCloud sync with it). The rule is for the app's UI.
-        let ownerCopy = Set(FirstRunCopy.points + [FirstRunCopy.heading, FirstRunCopy.startWriting])
+        let ownerCopy = Set(FirstRunCopy.allStrings)
         for (key, entry) in strings {
             // The English value is the key unless an `en` localization says otherwise.
             let localizations = entry["localizations"] as? [String: [String: Any]]

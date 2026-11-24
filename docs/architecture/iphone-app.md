@@ -134,6 +134,21 @@ for line alike. Do not switch it to TextKit 2.
   Spelling (the system dictionary) and Ignore Spelling (this document's checker). A guess goes
   through `applyRuleEdit`: one undo step, and autosave sees it. Never call a whole-document pass
   from here; `testSpellPassIsScopedRatio` gates it at 4× on the Mac's 730 KB corpus.
+- **Highlighter selection** (`LineformiOSTextView+Highlighter.swift`; shape, colour and Increase
+  Contrast in `editor-behavior.md`, "Highlighter selection"). UIKit draws the selection through the
+  text view's `UITextSelectionDisplayInteraction`; its `highlightView` is public and settable
+  (iOS 17+), so the editor installs `HiddenSelectionHighlightView` — hidden, draws nothing, and
+  reports each new set of selection rects so the strokes follow UIKit's own updates. The caret
+  (`cursorView`), grabber handles, loupe and edit menu stay the system's. The strokes are
+  `CAShapeLayer`s (one per line; one shape under Increase Contrast) in `HighlighterSelectionView`,
+  a subview BEHIND the text (above the Reading Ruler and History's wash), built from TextKit 1
+  line fragments of the VISIBLE part of the selection only: Select All on 1 MB draws one screenful
+  (`PhoneHighlighterSelectionTests`). Redraws come from the selection change, the hidden view's
+  rects, a scroll (`layoutSubviews` when the origin moved while something is selected), a theme
+  or contrast change, and the focus; a caret with nothing on screen asks for nothing. Like UIKit's
+  own fill, the strokes show only while the editor is first responder. Nothing reaches the text
+  storage. If a future UIKit stops exposing the interaction, the system fill stays and no stroke is
+  drawn (never both). Read keeps the system selection.
 - **Writing Tools** is off (`writingToolsBehavior = .none`, results limited to plain text and
   lists, as on the Mac), and the delegate's `writingToolsIgnoredRangesIn` returns
   `MarkdownWritingToolsProtection.ignoredRanges`, so the protection holds if it is turned on.
@@ -539,24 +554,47 @@ later launch opens straight into a fresh Untitled document, as on the Mac.
 - **Tests.** The test host is the app, so `LineformiOSApp` skips first run under XCTest at the
   launch call site (`XCTestConfigurationFilePath`); the gate itself stays pure and is tested
   directly (`FirstRunTests`).
-- **Stages** (`FirstRunStage`): `.line` → `.expect` → `.points` → `.done`. `.line` is
-  `FirstRunLineView`, a `WKWebView` loading the Mac's bundled `FirstLaunchIntro/` folder (the same
-  folder reference in both targets' Resources phases, never a copy). Its timer starts when the page
-  has loaded, not when the view appears, because a cold WebKit start takes about a second to paint.
-  `.expect` shows "What to expect", which fades out; `.points` shows the three points and Start
-  Writing and waits. A tap or a sideways swipe skips ahead (a vertical drag scrolls the points at
-  large Dynamic Type); Return and the VoiceOver "Continue" action do the same. Reaching `.done`
-  marks the flag once, fades the overlay out and focuses the editor.
+- **Stages** (`FirstRunStage`): `.welcome` → `.points` → `.done` (redesigned 2026-11-24; the old
+  timed line and "What to expect" screens are gone). **Nothing advances by itself**: each stage
+  waits for its button, and `FirstRunFlow.advance(from:)` moves only from the button's own stage,
+  so a double tap never skips the points.
+  - `.welcome`: `FirstRunLineView`, a `WKWebView` loading the Mac's bundled `FirstLaunchIntro/`
+    folder (the same folder reference in both targets' Resources phases, never a copy), writes the
+    wordmark in `FirstRunTiming.writeSeconds` (3.5 s; the Mac takes 1 s), centred both ways at 78 %
+    of the width, over the shader's colour field at `colorBoost` (1.8×). When the page marks itself
+    complete it posts "written" once, and the native tagline ("Simple markdown editing", SF Pro
+    regular) and Get Started (SF Pro medium, ink capsule, `arrow.right`) fade in below it. If the
+    page never says so (no WebGL, a crashed web process) they show after `getStartedCap` (7 s);
+    under VoiceOver they show at once.
+  - Get Started: the web view scales to half and glides so the wordmark sits at the top
+    (`shrinkSeconds`, 0.9 s ease-in-out); its edges feather as it shrinks, so the colour field
+    never ends in a hard line. `lineformQuiet()` eases the colour back to `quietColorBoost` over
+    the same time. The four points (`FirstRunPointsView`: SF Symbol in a soft rounded square,
+    title, words) arrive one after another (`pointDelay`), then the full-width Lineform-blue
+    Start Writing. The points scroll at the largest Dynamic Type sizes; Start Writing stays pinned.
+  - Start Writing reaches `.done`: it marks the flag once, fades the overlay out and focuses the
+    editor (the blank document, ready to type).
+  - Each button answers Return on a hardware keyboard while it is on screen. Pieces not yet shown
+    are absent from the hierarchy, not transparent, so VoiceOver meets only what is on screen; the
+    wordmark is one header element ("Welcome to Lineform") standing in for the hidden web view.
 - **The web view** uses a non-persistent data store, allows only file URLs and cancels every other
-  navigation without opening it, and takes no touches. A document-end user script localizes the
-  tagline and restyles it for the phone (dark ink over the paper, pinned right and wrapping); the
-  Mac files are untouched. WebKit is linked only by the iPhone target; the package purity test bans
-  it there.
-- **Reduce Motion.** The page shows the finished line at once (`prefers-reduced-motion`), `.line`
-  holds for 1.2 s instead of 2.6 s, and every native fade is off.
-- **Copy.** `FirstRunCopy` is the one place the heading, the three points and the button title
-  live, keyed by their English in `LineformiOS/Localizable.xcstrings` (six languages; the
-  translations still need a native speaker's check). The owner edits the wording there.
+  navigation without opening it, and takes no touches. Everything iPhone-only goes in through
+  `pageAdjustmentScript` (document end): a transparent page; the page's own tagline, button and
+  tuning panel hidden; the wordmark un-lifted and 78 % wide; the intro's `writeTime`/`finalDelay`
+  controls widened and set for the slower write; `window.lineformIntroColorBoost`; and the
+  "written" observer. `intro.js` reads `lineformIntroColorBoost` each frame and treats it as 1 when
+  absent (the Mac), and at 1 its alpha sum is unchanged. Near the letters the boost fades back to
+  1, so the wordmark keeps the Mac's look (a stronger boost there blurred the big L). The colour
+  field itself comes from the shader's refraction terms, not a separate background. WebKit is
+  linked only by the iPhone target; the package purity test bans it there.
+- **Reduce Motion.** The page shows the finished wordmark at once (`prefers-reduced-motion`), so
+  Get Started appears right away. The glide becomes a crossfade (out 0.2 s, moved, in 0.35 s), and
+  the points and Start Writing fade in without rising.
+- **Copy.** `FirstRunCopy` is the one place the tagline, the button titles and the four points
+  (symbol, title, words) live, keyed by their English in `LineformiOS/Localizable.xcstrings` (six
+  languages; the translations still need a native speaker's check). The owner edits the wording
+  there. Point 2 names Lineform for Mac on purpose (`SettingsTests` exempts first run's copy from
+  the no-Mac-wording rule).
 
 ## Export, print, share and read aloud
 
@@ -1036,6 +1074,10 @@ History is local to this iPhone. History never writes into the document file.
   saves).
 ## The selection row and comment field
 
+> **2026-11-24:** Ask AI on the row, and the word menu's Connect Your AI ▸ Ask AI…, open the AI sheet (`AISheetView`; see
+> `editor-behavior.md` § The AI drawer and sheet). The comment field is no longer opened; its code
+> remains until the selection row's redesign removes it.
+
 `LineformiOS/Selection/` (`SelectionController`, `SelectionRow`, `CommentField`), drawn by
 `SelectionBottomChrome`, an overlay on `DocumentScreen`. The spec is §5.5.
 
@@ -1044,11 +1086,29 @@ History is local to this iPhone. History never writes into the document file.
   window, no marked text, and no AI request or review in progress. The app's own selections
   (`selectProgrammatically`: Search, Check Document Now, a position restore, the AI's collapse)
   never raise it. It hides on a switch to Read.
-- **Order**, scrolling sideways: Ask AI (only while connected, titled with the AI's name: "Ask
-  Claude"), Heading ▾, Bold, Italic, Strikethrough, Code, List ▾ (Bulleted, Numbered), Link,
-  Blockquote, Replace With… (History's, the Mac's meaning: the selection becomes a passage and
-  History mode opens on it with "Type a replacement"; only where History can keep the selection —
-  see "History", Entry points), and Another Word (one word only, and only while connected).
+- **Order** ("A · Native row", feedback §21), scrolling sideways: **Ask** (only while connected; a
+  sparkle and the word "Ask" in Lineform blue, `PhoneInk.lineformBlue` — #2F6BDE, #5B8DEF on a dark
+  page, made AA by `readableInk`; VoiceOver still hears the AI's name, "Ask Claude"), Heading ›,
+  Bold, Italic, Strikethrough, Code, List ▾ (Bulleted, Numbered), Link, Blockquote, Image ▾ (Photos,
+  Files), Insert Table, Reformat Table (only when the selection starts on a table row, `|`),
+  Replace With… (History's, the Mac's meaning: the selection becomes a passage and History mode
+  opens on it with "Type a replacement"; only where History can keep the selection — see
+  "History", Entry points), and Another Word (one word only, and only while connected). Everything
+  but Ask is in the theme's ink; every glyph is an SF Symbol.
+- **Heading's levels open in place** (`SelectionController.showsHeadingLevels`): the row swaps its
+  buttons for ‹ (Back) and the Mac's Format ▸ Heading items — Title, Section, Heading 3–6, Body.
+  A level applies (one undo step) and the buttons come back; ‹ returns with no change; a new row
+  always opens on the buttons.
+- **Insert Table and Reformat Table** moved here from the Menu (on the Mac they are in Format);
+  both go through the editor's `insertTable()` / `reformatTable()`.
+- **Image** (`LineformiOSTextView+ImagePicker.swift`) adds a picture without pasting: Photos is
+  `PHPickerViewController` (out of process, so no photo-library permission prompt) and Files is a
+  `UIDocumentPickerViewController` for images (as copies). Both hand their item providers to the
+  paste path (`insertImages(from:at:)`), so a picked image is exactly a pasted one (PNG, `images/`
+  beside the document, `ImageFileNaming`, its own line, unsaved document saved first, the notice on
+  failure, one undo step). The picker is presented 0.4 s after the menu closes: UIKit refuses a
+  presentation while the menu's own dismissal runs. It lives in the row, so it needs a selection;
+  a caret alone does not raise the row.
 - **One button, one undo step.** Each formatting button calls the editor's own command, which goes
   through `applyRuleEdit`. The row then adopts the resulting selection instead of hiding.
 - **Placement.** Above the keyboard, or above the home indicator when it is down: bottom padding
@@ -1077,6 +1137,10 @@ History is local to this iPhone. History never writes into the document file.
   limit it refuses on the message card).
 
 ## AI actions and the review
+
+> **2026-11-24:** `AIReviewCardsView` is gone. Progress, messages, Find's count and the decisions
+> (Accept / Reject / Try Again, versions, blanks) live in the AI sheet; the review overlay below is
+> unchanged and keeps the current change above the sheet (`aiCardTopInWindow`).
 
 `LineformiOS/AI/` (`LineformiOSTextView+AI.swift`, `AIReviewOverlay.swift`, `AIReviewCardsView.swift`),
 wired by `SelectionController`. The controller is the shared `AIActionController`, made on first
