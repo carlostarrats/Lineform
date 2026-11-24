@@ -88,7 +88,10 @@ struct FirstRunOverlay: View {
             }
         }
         .task(id: TimerKey(stage: stage, lineIsReady: flow.lineReadyAt != nil)) {
-            guard let deadline = flow.autoAdvanceDeadline(reduceMotion: reduceMotion) else { return }
+            guard let deadline = flow.autoAdvanceDeadline(
+                reduceMotion: reduceMotion,
+                voiceOverRunning: UIAccessibility.isVoiceOverRunning
+            ) else { return }
             try? await Task.sleep(until: deadline, clock: .continuous)
             guard !Task.isCancelled else { return }
             animated(to: stage.next) { flow.autoAdvance(from: stage) }

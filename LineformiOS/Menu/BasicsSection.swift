@@ -8,6 +8,17 @@ import UIKit
 final class BasicsCopyState {
     private(set) var copiedRowID: String?
     @ObservationIgnored private var clearTask: Task<Void, Never>?
+    /// Says "Copied" to VoiceOver: the row's value changes too, but VoiceOver does not re-read a
+    /// value on its own.
+    @ObservationIgnored private let announce: @MainActor (String) -> Void
+
+    init(announce: @escaping @MainActor (String) -> Void = { text in BasicsCopyState.announceToVoiceOver(text) }) {
+        self.announce = announce
+    }
+
+    static func announceToVoiceOver(_ text: String) {
+        UIAccessibility.post(notification: .announcement, argument: text)
+    }
 
     /// Puts the row's `copyAffordance` text on `pasteboard` and shows "Copied" on that row for
     /// `BasicsSection.copiedDuration`. False, with nothing written, for a label row (its cell is a
@@ -17,6 +28,7 @@ final class BasicsCopyState {
         guard let copy = row.copyAffordance() else { return false }
         pasteboard.string = copy.text
         copiedRowID = row.id
+        announce(BasicsSection.copiedText)
         clearTask?.cancel()
         let rowID = row.id
         clearTask = Task { [weak self] in
@@ -33,6 +45,8 @@ final class BasicsCopyState {
 /// explanation), as a List. Tapping a code row copies its Markdown and shows "Copied" for 1 s.
 struct BasicsSection: View {
     @State private var state = BasicsCopyState()
+    @Environment(\.menuTheme) private var theme
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     static var sections: [MarkdownReference.Section] { MarkdownReference.sections }
     static let copiedDuration: Duration = .seconds(1)
@@ -50,6 +64,7 @@ struct BasicsSection: View {
                     Text(section.title)
                         .font(.footnote.weight(.medium))
                         .textCase(nil)
+                        .accessibilityAddTraits(.isHeader)
                 }
             }
         }
@@ -59,13 +74,14 @@ struct BasicsSection: View {
 
     @ViewBuilder
     private func rowView(_ row: MarkdownReference.Row) -> some View {
+        let ink = PhoneInk.menu(theme)
         let content = HStack(alignment: .firstTextBaseline, spacing: 8) {
             VStack(alignment: .leading, spacing: 3) {
                 Text(verbatim: row.syntax)
                     .font(row.rendersSyntaxAsCode ? .system(.callout, design: .monospaced) : .callout)
                 Text(verbatim: row.explanation)
                     .font(.footnote)
-                    .opacity(0.62)
+                    .foregroundStyle(ink.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
             Spacer(minLength: 8)
@@ -73,19 +89,19 @@ struct BasicsSection: View {
                 if state.copiedRowID == row.id {
                     Text(Self.copiedText)
                         .font(.caption.weight(.medium))
-                        .opacity(0.7)
+                        .foregroundStyle(ink.secondary)
                         .transition(.opacity)
                 } else {
                     Image(systemName: "doc.on.doc")
                         .font(.caption)
-                        .opacity(0.45)
+                        .foregroundStyle(ink.icon)
                         .accessibilityHidden(true)
                 }
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .contentShape(Rectangle())
-        .animation(.easeOut(duration: 0.15), value: state.copiedRowID)
+        .animation(EditorMotionPolicy.animation(.easeOut(duration: 0.15), reduceMotion: reduceMotion), value: state.copiedRowID)
 
         // Only a code row is a button: a label row has nothing to copy. One element for
         // VoiceOver: the explanation, then the syntax; the copy is its action, named by the

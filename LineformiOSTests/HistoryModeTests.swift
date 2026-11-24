@@ -33,6 +33,7 @@ final class HistoryModeTests: XCTestCase {
     // MARK: - Menu ▸ History
 
     func testHistorySectionHiddenWithoutHistoryAndShownWithIt() throws {
+        try skipUnlessEnglishInterface()
         XCTAssertFalse(MenuSection.visible(hasHistory: false).contains(.history))
         XCTAssertEqual(MenuSection.visible(hasHistory: true), [.files, .outline, .basics, .search, .history, .document, .settings],
                        "after Search, before Document")
@@ -75,6 +76,7 @@ final class HistoryModeTests: XCTestCase {
     // MARK: - Replace With…
 
     func testReplaceWithAddsPassageAndOpensReplacementField() throws {
+        try skipUnlessEnglishInterface()
         let (controller, textView) = makeEditor(text)
         let selection = range(of: sentence, in: text)
         textView.selectedRange = selection
@@ -241,6 +243,7 @@ final class HistoryModeTests: XCTestCase {
     }
 
     func testHardwareArrowsStepAndEscapeExits() throws {
+        try skipUnlessEnglishInterface()
         let (controller, textView) = makeEditor(text)
         try keepReplacement(in: textView, controller: controller, of: sentence, with: "Alpha BETA gamma delta.")
         let inputs = { Set((textView.keyCommands ?? []).filter { $0.modifierFlags.isEmpty }.compactMap(\.input)) }
@@ -271,6 +274,7 @@ final class HistoryModeTests: XCTestCase {
     // MARK: - Settings ▸ Clear History
 
     func testClearHistoryRowClearsStoreAndReloads() throws {
+        try skipUnlessEnglishInterface()
         let store = MemoryHistoryStore()
         let center = NotificationCenter()
         let url = directory.appendingPathComponent("a.md")
@@ -302,6 +306,7 @@ final class HistoryModeTests: XCTestCase {
     // MARK: - Strings
 
     func testHistoryStringsAreLocalized() throws {
+        try skipUnlessEnglishInterface()
         let keys = [
             "History", "Replace With…", "Type a replacement", "Tap a highlighted passage to see its versions.",
             "Delete from History", "Add", "Done",

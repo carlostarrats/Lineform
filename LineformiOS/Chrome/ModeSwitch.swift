@@ -53,6 +53,13 @@ struct ModeSwitch: View {
     static let liquidSettleDelay: TimeInterval = 0.16
     /// The control's top margin inside the safe area.
     static let topMargin: CGFloat = 8
+    /// The height each segment takes touches in: the drawn capsule is 36 pt, so each segment's
+    /// target reaches past it above and below (invisibly) to 44 pt.
+    static let touchHeight: CGFloat = 44
+    /// How far the touch band reaches past the drawn capsule, above and below.
+    static var verticalTouchOutset: CGFloat { (touchHeight - intrinsicSize.height) / 2 }
+    /// The padding above and below a segment's 30 pt label that makes its 44 pt target.
+    static var segmentTouchPadding: CGFloat { (touchHeight - segmentHeight) / 2 }
     /// The room a page under the control keeps above its first line: the control and its margins.
     static var pageTopClearance: CGFloat { topMargin + intrinsicSize.height + topMargin }
 
@@ -60,6 +67,7 @@ struct ModeSwitch: View {
     var usesDarkChrome = false
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
     @State private var liquidBridge: LiquidBridge?
     @State private var liquidTransitionID = 0
 
@@ -92,6 +100,11 @@ struct ModeSwitch: View {
                     ))
                     .accessibilityLabel(segment.title)
                     .accessibilityAddTraits(mode == segment ? [.isSelected] : [])
+                    // The label stays 14 pt (page chrome, the Mac's size); at the accessibility
+                    // text sizes a long press shows it large.
+                    .accessibilityShowsLargeContentViewer {
+                        Text(segment.title)
+                    }
 
                     if index < modes.index(before: modes.endIndex) {
                         Rectangle()
@@ -103,14 +116,17 @@ struct ModeSwitch: View {
                 }
             }
         }
-        .padding(Self.controlPadding)
+        // The segments' touch padding already spans the height; the capsule is drawn at its own
+        // 36 pt, centred in the 44 pt band.
+        .padding(.horizontal, Self.controlPadding)
         .background {
             Capsule()
                 .fill(.ultraThinMaterial)
                 .overlay {
+                    // Under Reduce Transparency the fill is opaque, so nothing shows through.
                     Capsule()
                         .fill(Self.backgroundFillColor(usesDarkChrome: usesDarkChrome)
-                            .opacity(usesDarkChrome ? Self.darkBackgroundFillOpacity : Self.backgroundFillOpacity))
+                            .opacity(Self.backgroundFillOpacity(usesDarkChrome: usesDarkChrome, reduceTransparency: reduceTransparency)))
                 }
                 .overlay {
                     Capsule()
@@ -118,6 +134,7 @@ struct ModeSwitch: View {
                                 lineWidth: Self.strokeWidth)
                 }
                 .shadow(color: .black.opacity(Self.shadowOpacity), radius: Self.shadowRadius, y: Self.shadowY)
+                .frame(height: Self.intrinsicSize.height)
         }
         .environment(\.colorScheme, usesDarkChrome ? .dark : .light)
         .fixedSize(horizontal: true, vertical: true)
@@ -183,13 +200,19 @@ struct ModeSwitch: View {
         return abs(segmentOffset(for: bridge.to) - segmentOffset(for: bridge.from)) + segmentWidth
     }
 
-    /// The whole control's size: three segments, two divider slots, the padding all round.
+    /// The whole control's drawn size: three segments, two divider slots, the padding all round.
+    /// Its layout is `touchHeight` tall (`touchSize`).
     static var intrinsicSize: CGSize {
         let count = CGFloat(EditorDisplayMode.allCases.count)
         return CGSize(
             width: count * segmentWidth + (count - 1) * dividerSlotWidth + 2 * controlPadding,
             height: segmentHeight + 2 * controlPadding
         )
+    }
+
+    /// The control's layout size: the drawn width, the touch band's height.
+    static var touchSize: CGSize {
+        CGSize(width: intrinsicSize.width, height: touchHeight)
     }
 
     /// A divider shows only between two unselected segments.
@@ -203,6 +226,12 @@ struct ModeSwitch: View {
         usesDarkChrome
             ? Color(white: darkSelectedFillComponent, opacity: darkSelectedFillAlpha)
             : Color(white: selectedFillComponent, opacity: selectedFillAlpha)
+    }
+
+    /// The fill's opacity over the material; opaque under Reduce Transparency.
+    static func backgroundFillOpacity(usesDarkChrome: Bool, reduceTransparency: Bool) -> Double {
+        if reduceTransparency { return 1 }
+        return usesDarkChrome ? darkBackgroundFillOpacity : backgroundFillOpacity
     }
 
     static func backgroundFillColor(usesDarkChrome: Bool) -> Color {
@@ -263,6 +292,9 @@ private struct SegmentPressBody<Label: View>: View {
                     .fill(pressedFill)
                     .opacity(ModeSwitch.pressedPillOpacity(isPressed: isPressed, isSelected: isSelected))
             }
+            // The 44 pt target: invisible room above and below the 30 pt segment.
+            .padding(.vertical, ModeSwitch.segmentTouchPadding)
+            .contentShape(Rectangle())
             .animation(ModeSwitch.pressAnimation(reduceMotion: reduceMotion), value: isPressed)
     }
 }

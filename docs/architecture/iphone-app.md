@@ -35,6 +35,8 @@ a fully working state, never an error or a prompt.
   (six languages) and entitlements.
 - Tests: `LineformiOSTests/`, hosted in the app, run by the shared `LineformiOS` scheme through
   `LineformiOS.xctestplan`. Never link `LineformCoreTestSupport` into this target.
+- UI tests: `LineformiOSUITests/` (`PhoneAccessibilityAuditUITests`), a UI testing bundle that
+  launches the app; it is in the same test plan. See "Accessibility", Tests.
 - Run them on a simulator:
 
   ```sh
@@ -1169,7 +1171,12 @@ The Mac's in-app announcements (`app-integration.md` ▸ In-app announcements) o
   while those buttons do and nothing else holds the bottom (History's card, the selection row or
   comment field, an AI card, a notice, first run, a download). Its entrance is a fade-and-move that
   Reduce Motion turns into a fade. VoiceOver: "Announcement: %@" for the card, "Dismiss
-  announcement" for the ✕, and the escape gesture dismisses (the Mac's Esc).
+  announcement" for the ✕, and the escape gesture dismisses (the Mac's Esc). Every text wraps,
+  the link label included. The card never reaches above the mode switch
+  (`ModeSwitch.pageTopClearance`): at the accessibility sizes, where it is taller than that room,
+  its content scrolls inside it. It is one `ScrollView` at every size, capped at the content's
+  measured height; a `ViewThatFits` that swapped in a scrolling copy made the accessibility audit
+  report the card's text as not supporting Dynamic Type.
 - **Platform targeting.** A feed entry may carry `platforms` (`["mac"]`, `["ios"]`, both). The
   iPhone shows only entries without the field or naming "ios"; the Mac only those without it or
   naming "mac" (`Announcement.appliesTo(appVersion:platform:)`, `.current` by default). An entry
@@ -1240,6 +1247,155 @@ in the iPhone catalog with the Mac's translations.
   Mac's rule: without it no `Metadata.appintents` is emitted and the actions silently never
   register. `PhoneAppIntentsTests.testAppIntentsMetadataIsEmittedIntoTheApp` asserts the file is
   in the built app.
+## Accessibility
+
+Every iPhone screen supports Dynamic Type up to the largest accessibility size (AX5), VoiceOver,
+AA contrast, Reduce Motion and Reduce Transparency.
+
+### Contrast: `PhoneInk`
+
+Every chrome ink that is not the theme's own body ink comes from `PhoneInk`
+(`LineformiOS/Chrome/PhoneInk.swift`). It is made for one appearance, always given: a view passes
+its colour scheme, a sheet the scheme it forces from `theme.usesDarkChrome`. There is no default,
+because the high-contrast theme's colours are dynamic and would otherwise resolve for the wrong
+appearance. Each role goes through `Theme.readableInk`: text reaches
+4.5:1 and non-text marks (icons, chevrons, a control's edge) reach 3:1. A bare `.opacity(x)` or
+`.secondary` on text fails AA on most themes: theme ink at 0.6 is 4.23:1 on Paper and Calm. A wash
+(the search field, the comment field, the History Add circle, the Read pills) is flattened over
+the page before it is measured. The chevrons, the Preview link blue, the History Add glyph and the
+Read pills are measured roles too.
+
+`PhoneInkContrastTests` measures every role on its surface with `Theme.contrastRatio`, the app's one
+definition, for every built-in theme, the high-contrast theme and the Automatic Dark Mode display
+themes. `testEveryRoleIsDrawn` fails when a role is no longer used in `LineformiOS/`. A new quiet
+ink needs a new role, not a local opacity.
+
+Increase Contrast is not mapped onto the High Contrast theme. That is a product decision for the
+owner.
+
+### Document text does not track Dynamic Type
+
+The editor and the Read view draw the document at the reading profile's type size. They do not
+follow the system text size. The reason:
+
+- The size is the writer's explicit choice, made in the Styling sheet. Its Font Size slider
+  already reaches large sizes.
+- Both apps keep it the same: a document looks the same on the Mac and on the iPhone with the same
+  profile.
+- A profile that changed with a system setting would also re-paginate exports.
+
+Dynamic Type scales all chrome: the Menu and Styling sheets, the cards, the notices and first run.
+The Styling preset cards scale their "Aa" and title with `@ScaledMetric`, because they draw in the
+preset's own face.
+
+### Fixed-size floating chrome and touch targets
+
+The floating controls keep their drawn size at every text size: the mode switch, Menu, Aa, the
+Preview link button, the Read view's Copy and Reconnect pills, the selection row and the comment
+field's buttons. At the accessibility sizes a long press shows their label in the Large Content
+Viewer (`accessibilityShowsLargeContentViewer`, or `showsLargeContentViewer` in UIKit).
+
+Every target is at least 44 × 44 pt. Where the drawn control is smaller, padding inside the
+target makes up the difference and a negative padding outside gives the room back, so nothing
+moves on screen. Examples: the mode switch's 36 pt capsule sits in a 44 pt band
+(`ModeSwitch.touchHeight`), the Menu sheet's Done (`doneTargetPadding`) and its section buttons
+(`MenuSectionBar.targetPadding`).
+
+At the accessibility sizes, rows that would squeeze their text go vertical (the Menu header, a
+Settings switch under its text, the Styling rows), the Menu sheet opens at the large detent only,
+and the preset grid drops to two columns, then one.
+
+### VoiceOver
+
+- **The accessibility mirror rule.** Anything drawn as geometry and found by hit-testing also has
+  a non-visual path. The editor has custom rotors: Misspelled Words over `SpellCheckPass`'s
+  results (the system checker is off, so VoiceOver's own rotor would find nothing), Marked
+  sentences while Mark's wash shows, and Passages in History mode. Landing on a passage selects it
+  on the next turn of the run loop, quietly: VoiceOver is already reading it. History mode's
+  commands are custom actions on the text view. The Read view offers its checkboxes, Copy and
+  Reconnect as custom actions, named as on the Mac. The AI review cards carry their decisions as
+  named actions; the History card carries its actions (next and previous passage, Done) on its
+  title.
+- **Limit: the Misspelled Words rotor.** It moves over the misspellings the typing pass found,
+  and that pass only checks the spell-check window: the visible text plus 2,000 characters
+  (`SpellCheckPass.margin`). Words further away are not in the rotor until Menu ▸ Document ▸ Check
+  Document Now has run its whole-document pass.
+- **The text view's value is its text.** It is never overridden with a summary.
+- **Mode switches.** A switch speaks only the new mode's name (`ChromeAnnouncer.modeDidChange`).
+  When Read replaces the editor, or the editor replaces Read, it posts `.layoutChanged`, because
+  the element under the cursor may be gone; Write ↔ Preview keeps the editor, so it is an
+  announcement and the cursor stays. `.screenChanged` is never used: it would send the cursor to
+  the top of the screen, away from the control just used. A switch that is a side effect
+  (entering History, the end of first run) posts nothing.
+- **Announcements.** Transient states are spoken with an announcement, through
+  `ChromeAnnouncer` for the chrome: notices, search results, a conversion in the Document section,
+  a copy in Markdown Basics or Read, History closing (not when typing left History), the AI states
+  and Connect Your AI's result. The selection row says once per app session that formatting is at
+  the bottom of the screen.
+- **Focus.** When History mode opens, VoiceOver focus moves to the History card's title once the
+  card has laid out (not after a fixed delay).
+- **Nothing a listener needs goes away on a timer.** While VoiceOver runs, the AI message card
+  does not dismiss itself (`messageDismissDelay` is nil), a notice that goes by itself stays 15 s
+  instead of 4 s (`OpenDocument.noticeDuration`), and first run's "What to expect" does not
+  advance by itself; it waits for the writer, as the points do.
+- **Modality.** The Menu sheet is `.isModal`; the page under it is not reachable.
+
+### Reduce Motion and Reduce Transparency
+
+`EditorMotionPolicy` (`LineformiOS/Chrome/MotionPolicy.swift`) is the iPhone copy of the Mac's
+policy, with the same API: under Reduce Motion every animation is off and every transition is a
+plain fade. The mode switch's liquid bridge, first run, the selection row and the Menu sheet's
+sections go through it.
+Under Reduce Transparency the mode switch's fill becomes opaque, so nothing shows through its
+material.
+
+### Tests
+
+- **`PhoneAccessibilityHost`** (`LineformiOSTests/PhoneAccessibilityHosting.swift`) hosts a view
+  in a real window at a chosen content size category. It walks the accessibility elements as
+  VoiceOver orders them and asserts that they sit inside the window, that every interactive
+  element has a label and a 44 × 44 pt target (an allowlist names exceptions, each with a reason),
+  and that no reachable label is truncated. There is no snapshot library: these are layout
+  assertions on the live hierarchy. SwiftUI only builds that tree while accessibility is on, and
+  it is off on a fresh simulator. So the test bundle's principal class
+  (`LineformiOSTestsPrincipal`, `INFOPLIST_KEY_NSPrincipalClass`) turns application
+  accessibility and automation on for the test process before the first test
+  (`TestProcessAccessibility`, through `libAccessibility`'s `_AXS…` functions) and restores both
+  after the last. Test code only; the app never calls it. Every test that finds a SwiftUI control
+  by its label depends on it, not only the accessibility suites.
+- **German.** `LineformiOS.xctestplan` has two configurations: Default (English) and `de`. The
+  same tests run in both, so every hosted layout check also covers German, the longest of the six
+  languages. A test that pins English copy calls `skipUnlessEnglishInterface()` and is skipped in
+  the `de` run.
+- **`PhoneCatalogCompletenessTests`** reads the committed iPhone and package catalogs. Every
+  translatable key has all six languages, every unit is `translated` (never `new`, `needs_review`
+  or `stale`), no value is empty, and every value's format specifiers match the English.
+- **The UI audit, `LineformiOSUITests`.** `PhoneAccessibilityAuditUITests` launches the app and
+  runs `performAccessibilityAudit()` on Write, Read, each Menu section, the Styling sheet and
+  first run, at the default text size and at AX5, in both test plan configurations. It is a local
+  gate: CI builds it (`build-for-testing`) but never runs it. It launches the app with In-app
+  notifications off, so a test run never requests the live announcement feed. Every ignored issue matches one rule
+  in `AuditExceptions`, with its reason:
+  - the document text views' Dynamic Type (above) and the preset cards' `@ScaledMetric` text;
+  - the section bar's one-line titles, and a title scrolled partly off the sheet;
+  - a file row's name, which keeps its extension;
+  - issues the audit cannot name while a sheet is up (the page under it, out of VoiceOver's
+    reach);
+  - a contrast failure that the screenshot's own pixels measure at 4.5:1 or more, or an element
+    mostly off screen;
+  - "may clip at larger sizes" on rows the AX5 screenshots show wrapping in full (a short list,
+    English and German), on Outline rows (their line limit is deliberate) and on first run's
+    points (they grow in a ScrollView).
+
+  The audit is not fully repeatable: the same row can be flagged in one run and not the next. Do
+  not add a rule without a reason a reviewer can check, and never add "Sort folders by", which
+  really truncates at AX5.
+
+  ```sh
+  xcodebuild test -project Lineform.xcodeproj -scheme LineformiOS \
+    -destination 'platform=iOS Simulator,name=iPhone 16 Pro,OS=26.5' \
+    -only-testing:LineformiOSUITests
+  ```
 
 ## Strings
 
@@ -1247,3 +1403,9 @@ iPhone strings live in `LineformiOS/Localizable.xcstrings`, in all six languages
 catalog already translates the same English text, the iPhone entry reuses that translation.
 `LocalizationSourceSweepTests` scans `LineformiOS/` against this catalog, the same way it scans
 `Lineform/` against the Mac catalog.
+
+`PhoneCatalogCompletenessTests` gates both catalogs the iPhone uses (its own and the package's): six
+languages, every unit `translated`. Accessibility strings (labels, hints, actions, rotor names,
+announcements) are app chrome and are localized like any other. A translation written for the
+iPhone rather than reused from the Mac is listed for the owner in
+`docs/notes/translations-to-review.md`.

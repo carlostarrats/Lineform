@@ -85,10 +85,16 @@ final class ModeSwitchTests: XCTestCase {
         let host = UIHostingController(rootView: ModeSwitch(mode: Binding(get: { mode }, set: { mode = $0 })))
         let size = host.sizeThatFits(in: CGSize(width: 1000, height: 1000))
         XCTAssertEqual(size.width, 246, accuracy: 0.5)
-        XCTAssertEqual(size.height, 36, accuracy: 0.5)
+        // The layout is the 44 pt touch band; the capsule is drawn 36 pt high inside it, so the
+        // screen moves the control up by the outset (4 pt) and the capsule stays where it was.
+        XCTAssertEqual(size.height, ModeSwitch.touchHeight, accuracy: 0.5)
+        XCTAssertEqual(ModeSwitch.verticalTouchOutset, 4)
+        XCTAssertEqual(ModeSwitch.segmentTouchPadding, 7)
 
-        // The titles are the package's (the Mac's localized strings).
-        XCTAssertEqual(EditorDisplayMode.allCases.map(\.title), ["Write", "Read", "Preview"])
+        // The titles are the package's (the Mac's localized strings). pinned-en.
+        if interfaceLanguage == "en" {
+            XCTAssertEqual(EditorDisplayMode.allCases.map(\.title), ["Write", "Read", "Preview"])
+        }
     }
 
     func testReduceMotionDisablesAnimation() {

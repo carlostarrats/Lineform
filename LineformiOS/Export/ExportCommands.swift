@@ -61,10 +61,9 @@ final class ExportCommands {
     let printPaper: ExportPaperSize
     /// Read aloud's transport: idle, speaking or paused.
     private(set) var speechState: SpeechState
-    /// The calm notice after an export failed, shown for `failureNoticeDuration`; nil otherwise.
+    /// The calm notice after an export failed, shown as long as the image notice
+    /// (`OpenDocument.noticeDuration()`: longer while VoiceOver runs); nil otherwise.
     private(set) var failureNotice: String?
-    /// How long the failure notice stays, the same as the image notice's.
-    static let failureNoticeDuration: Duration = OpenDocument.imageNoticeDuration
 
     @ObservationIgnored private weak var document: OpenDocument?
     @ObservationIgnored private let profile: () -> ReadingProfile
@@ -155,7 +154,7 @@ final class ExportCommands {
         failureNoticeTask?.cancel()
         failureNotice = message
         failureNoticeTask = Task { [weak self] in
-            try? await Task.sleep(for: Self.failureNoticeDuration)
+            try? await Task.sleep(for: OpenDocument.noticeDuration())
             guard !Task.isCancelled else { return }
             self?.failureNotice = nil
         }

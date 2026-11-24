@@ -56,7 +56,8 @@ final class FilesSectionTests: XCTestCase {
         XCTAssertEqual(FilesRowAction.menuActions(for: fileItem), [.rename, .delete])
     }
 
-    func testSortMenuUsesThePackageTitles() {
+    func testSortMenuUsesThePackageTitles() throws {
+        try skipUnlessEnglishInterface()
         // pinned-en
         XCTAssertEqual(FilesSection.sortOptions.map(\.title), ["Name", "Date Created", "Date Modified"])
         XCTAssertEqual(FilesSection.sortMenuTitle, "Sort folders by")
@@ -83,7 +84,8 @@ final class FilesSectionTests: XCTestCase {
         XCTAssertEqual(FilesRow.systemImage(for: directory), "folder")
     }
 
-    func testStatesUseTheMacWording() {
+    func testStatesUseTheMacWording() throws {
+        try skipUnlessEnglishInterface()
         // pinned-en
         let path = "/var/mobile/Notes"
         XCTAssertEqual(FilesSection.scannedFolderText(path), "Scanned folder: /var/mobile/Notes")
@@ -129,10 +131,13 @@ final class FilesSectionTests: XCTestCase {
         }
         XCTAssertTrue(store.isVisible, "showing Files makes it visible")
         XCTAssertNotNil(Self.find("Hello.md", in: window))
-        XCTAssertNotNil(Self.find("On My iPhone", in: window))
-        XCTAssertNotNil(Self.find("Workspace", in: window))
-        XCTAssertNotNil(Self.find("Choose", in: window), "an unassigned Workspace offers Choose")
-        XCTAssertNotNil(Self.find("New Document", in: window))
+        // pinned-en: the roots' and buttons' English names.
+        if interfaceLanguage == "en" {
+            XCTAssertNotNil(Self.find("On My iPhone", in: window))
+            XCTAssertNotNil(Self.find("Workspace", in: window))
+            XCTAssertNotNil(Self.find("Choose", in: window), "an unassigned Workspace offers Choose")
+            XCTAssertNotNil(Self.find("New Document", in: window))
+        }
 
         window.isHidden = true
         window.rootViewController = nil

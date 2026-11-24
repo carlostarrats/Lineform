@@ -8,7 +8,8 @@ import XCTest
 /// the detents and corner radius, and a colour scheme taken from the theme, never the system.
 @MainActor
 final class StylingSheetTests: XCTestCase {
-    func testStylingButtonLabelIsReadingExperience() {
+    func testStylingButtonLabelIsReadingExperience() throws {
+        try skipUnlessEnglishInterface()
         XCTAssertEqual(StylingButton.accessibilityLabel, String(localized: "Reading Experience"))
         XCTAssertEqual(StylingButton.accessibilityLabel, "Reading Experience")
         XCTAssertNotNil(UIImage(systemName: StylingButton.symbolName))
@@ -47,7 +48,8 @@ final class StylingSheetTests: XCTestCase {
         XCTAssertEqual(StylingSheet.colorScheme(for: .paper), .light)
     }
 
-    func testSheetHeaderIsReading() {
+    func testSheetHeaderIsReading() throws {
+        try skipUnlessEnglishInterface()
         XCTAssertEqual(StylingSheet.headerTitle, "Reading")
         XCTAssertEqual(StylingSheet.headerTitleFontSize, 15)
     }
@@ -62,11 +64,15 @@ final class StylingSheetTests: XCTestCase {
         return ReadingProfileStore(defaults: defaults)
     }
 
+    /// By the English name's place in the built-in order (pinned by `testSixPresetsInDesktopOrder`),
+    /// so the lookup works in every interface language.
     private func preset(_ title: String) -> ReadingPreset {
-        ReadingPreset.builtIn.first { $0.title == title }!
+        let order = ["Original", "Quiet", "Paper", "Code", "Calm", "Focus"]
+        return ReadingPreset.builtIn[order.firstIndex(of: title)!]
     }
 
-    func testControlLabelsMatchDesktopOrder() {
+    func testControlLabelsMatchDesktopOrder() throws {
+        try skipUnlessEnglishInterface()
         // `ReadingExperienceInspector.visibleControlLabels`, verbatim and in order.
         XCTAssertEqual(StylingSheet.controlLabels, [
             "Themes",
@@ -85,7 +91,8 @@ final class StylingSheetTests: XCTestCase {
         ])
     }
 
-    func testSixPresetsInDesktopOrder() {
+    func testSixPresetsInDesktopOrder() throws {
+        try skipUnlessEnglishInterface()
         XCTAssertEqual(
             ReadingPreset.builtIn.map(\.title),
             ["Original", "Quiet", "Paper", "Code", "Calm", "Focus"]
@@ -164,7 +171,8 @@ final class StylingSheetTests: XCTestCase {
         XCTAssertEqual(bindings.font.wrappedValue, .openDyslexic)
     }
 
-    func testTogglesWriteRulerAndTypewriter() {
+    func testTogglesWriteRulerAndTypewriter() throws {
+        try skipUnlessEnglishInterface()
         let store = makeStore()
         let bindings = StylingSheet.Bindings(store: store)
 
@@ -180,12 +188,12 @@ final class StylingSheetTests: XCTestCase {
         XCTAssertEqual(StylingRowStyle.toggleAccessibilityValue(false), "Off")
     }
 
-    func testSliderAccessibilityValueUsesTheDesktopWording() {
+    func testSliderAccessibilityTitleJoinsTheQualifier() throws {
+        try skipUnlessEnglishInterface()
+        // The slider row is one adjustable element: this is its label, the value text its value.
         XCTAssertEqual(
-            StylingRowStyle.sliderAccessibilityValue(
-                title: "Block Spacing", subtitle: "(Read / Preview)", valueText: "12 px"
-            ),
-            "Block Spacing (Read / Preview) value 12 px"
+            StylingRowStyle.accessibilityTitle(title: "Block Spacing", subtitle: "(Read / Preview)"),
+            "Block Spacing (Read / Preview)"
         )
         XCTAssertEqual(StylingRowStyle.labelFontSize, 13)
         XCTAssertEqual(StylingRowStyle.qualifierFontSize, 11)
@@ -211,8 +219,9 @@ final class StylingSheetTests: XCTestCase {
     }
 
     func testEveryStylingStringIsInSixLanguages() throws {
+        try skipUnlessEnglishInterface()
         let keys = StylingSheet.controlLabels + [
-            "Reading", "Reading Experience", "%@ reading theme", "%@ value %@", "On", "Off",
+            "Reading", "Reading Experience", "%@ reading theme", "%@ %@", "On", "Off",
         ]
 
         // English is the source language: every key must be in the iPhone catalog itself.

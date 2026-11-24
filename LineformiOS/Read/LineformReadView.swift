@@ -331,7 +331,7 @@ final class LineformReadView: UITextView {
         // Only here, right before the storage is replaced: the blanket colour would flatten the
         // code colours. The rendered string carries the ink on every run; this is a backstop.
         textColor = Theme.theme(for: profile).textColor
-        textStorage.setAttributedString(rendered)
+        textStorage.setAttributedString(Self.markingHeadingLevels(in: rendered, source: text))
         state.renderedText = text
         state.renderedProfile = profile
         state.renderedDocumentDirectory = directory
@@ -357,6 +357,32 @@ final class LineformReadView: UITextView {
                 onFirstRender()
             }
         }
+    }
+
+    /// `rendered` with each heading's text carrying `.accessibilityTextHeadingLevel` (1–6), so
+    /// VoiceOver's Headings rotor moves between them in Read as it does on a web page. The level
+    /// is read from the heading's own source line (`.headingSourceRange`) with
+    /// `MarkdownHeadingParser`, the one heading definition. Speech only; nothing is drawn.
+    /// The render is marked in place when it is mutable (it is the renderer's fresh output), so a
+    /// large document is not copied once more on every render.
+    static func markingHeadingLevels(in rendered: NSAttributedString, source: String) -> NSAttributedString {
+        let sourceText = source as NSString
+        let full = NSRange(location: 0, length: rendered.length)
+        var levels: [(NSRange, Int)] = []
+        rendered.enumerateAttribute(.headingSourceRange, in: full, options: []) { value, range, _ in
+            guard let lineRange = (value as? NSValue)?.rangeValue,
+                  lineRange.location >= 0, NSMaxRange(lineRange) <= sourceText.length
+            else { return }
+            let line = sourceText.substring(with: lineRange).trimmingCharacters(in: .newlines)
+            guard let level = MarkdownHeadingParser.heading(in: line)?.level else { return }
+            levels.append((range, level))
+        }
+        guard !levels.isEmpty else { return rendered }
+        let marked = (rendered as? NSMutableAttributedString) ?? NSMutableAttributedString(attributedString: rendered)
+        for (range, level) in levels {
+            marked.addAttribute(.accessibilityTextHeadingLevel, value: level, range: range)
+        }
+        return marked
     }
 
     /// The column the renderer fits to: the profile's reading column (as on the Mac), but never
@@ -810,8 +836,12 @@ final class LineformReadView: UITextView {
         return true
     }
 
+    /// What VoiceOver hears after a copy (the checkmark is only seen).
+    static var copiedAnnouncement: String { String(localized: "Copied") }
+
     private func copyCodeBlockShowingFeedback(_ button: ReadOverlayButton) {
         guard copyCodeBlock(sourceRange: button.sourceRange) else { return }
+        ChromeAnnouncer.announce(Self.copiedAnnouncement)
         state.copiedSourceRange = button.sourceRange
         button.isShowingCopied = true
         state.copyFeedbackGeneration += 1
@@ -900,7 +930,9 @@ final class LineformReadView: UITextView {
             codeBlockNumber += 1
             let sourceRange = value.rangeValue
             actions.append(UIAccessibilityCustomAction(name: String(localized: "Copy code block \(codeBlockNumber)")) { [weak self] _ in
-                self?.copyCodeBlock(sourceRange: sourceRange) ?? false
+                guard let self, self.copyCodeBlock(sourceRange: sourceRange) else { return false }
+                ChromeAnnouncer.announce(Self.copiedAnnouncement)
+                return true
             })
         }
 
@@ -918,17 +950,42 @@ final class LineformReadView: UITextView {
         textStorage.enumerateAttribute(.checkboxSourceRange, in: full, options: []) { value, range, _ in
             guard let value = value as? NSValue else { return }
             let sourceRange = value.rangeValue
+            // The rendered line starts with the ☐ / ☑ glyph, which VoiceOver would read as
+            // "ballot box": the action's name says the task's state in words instead.
             let lineText = string.substring(with: string.lineRange(for: range))
                 .trimmingCharacters(in: .whitespacesAndNewlines)
-            let name = lineText.isEmpty
-                ? String(localized: "Toggle task")
-                : String(localized: "Toggle task: \(lineText)")
+                .trimmingCharacters(in: CharacterSet(charactersIn: Self.checkboxGlyphs).union(.whitespaces))
+            let name = Self.taskActionName(isDone: isTaskDone(sourceRange: sourceRange), lineText: lineText)
             actions.append(UIAccessibilityCustomAction(name: name) { [weak self] _ in
                 self?.onCheckboxToggle(sourceRange)
                 return true
             })
         }
         return actions
+    }
+
+    /// The glyphs the renderer draws for a task's checkbox.
+    static let checkboxGlyphs = "☐☑"
+
+    /// The task action's name: what it will do, from the task's state. "Mark task done: water
+    /// the plants" on an open task, "Mark task not done: …" on a done one.
+    static func taskActionName(isDone: Bool, lineText: String) -> String {
+        switch (isDone, lineText.isEmpty) {
+        case (false, true): String(localized: "Mark task done")
+        case (true, true): String(localized: "Mark task not done")
+        case (false, false): String(localized: "Mark task done: \(lineText)")
+        case (true, false): String(localized: "Mark task not done: \(lineText)")
+        }
+    }
+
+    /// Whether the task whose `[ ]` / `[x]` sits at `sourceRange` (in the source this view
+    /// rendered) is checked.
+    func isTaskDone(sourceRange: NSRange) -> Bool {
+        guard let source = state.renderedText as NSString?,
+              sourceRange.location >= 0, NSMaxRange(sourceRange) <= source.length
+        else { return false }
+        let marker = source.substring(with: sourceRange)
+        return marker.contains("x") || marker.contains("X")
     }
 
     // MARK: - Position

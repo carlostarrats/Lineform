@@ -8,13 +8,14 @@ struct FolderView: View {
     var store: FilesStore
     var route: FilesFolderRoute
     var actions: FilesRowHandlers
+    @Environment(\.menuTheme) private var theme
 
     var body: some View {
         List {
             let items = store.children(of: route.url) ?? []
             if items.isEmpty {
                 Text(String(localized: "No Markdown files"))
-                    .opacity(0.6)
+                    .foregroundStyle(PhoneInk.menu(theme).secondary)
                     .listRowBackground(Color.clear)
             }
             ForEach(items) { item in
@@ -59,6 +60,8 @@ struct FilesItemRow: View {
                 }
             }
         }
+        // What the row's look says without words: a hidden (dot) item, a file not downloaded.
+        .accessibilityValue(FilesRow.accessibilityValue(for: item).map { Text($0) } ?? Text(verbatim: ""))
         .swipeActions(edge: .trailing, allowsFullSwipe: false) {
             // Swipe actions lay out from the trailing edge: Delete outermost.
             ForEach(FilesRowAction.swipeActions(for: item).reversed(), id: \.self) { action in
@@ -95,10 +98,28 @@ struct FilesItemRow: View {
 }
 
 /// A row's look: an SF Symbol and the name, with the date the list is ordered by when it is sorted
-/// by date. Hidden (dot) items read a step quieter.
+/// by date. Hidden (dot) items read a step quieter, in readable inks (`PhoneInk`).
 struct FilesRow: View {
     var item: OutlineFileTreeItem
     var sortOrder: OutlineFileSortOrder
+    @Environment(\.menuTheme) private var theme
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
+    /// What VoiceOver adds after the row's name and date: "Hidden", "Not downloaded", both, or
+    /// nothing.
+    static func accessibilityValue(for item: OutlineFileTreeItem) -> String? {
+        switch (item.isHidden, item.isICloudPlaceholder) {
+        case (true, true): String(localized: "Hidden, not downloaded")
+        case (true, false): String(localized: "Hidden")
+        case (false, true): String(localized: "Not downloaded")
+        case (false, false): nil
+        }
+    }
+
+    /// A name shows on one line, cut in the middle; at accessibility sizes up to three.
+    static func nameLineLimit(for dynamicTypeSize: DynamicTypeSize) -> Int {
+        dynamicTypeSize.isAccessibilitySize ? 3 : 1
+    }
 
     /// The date shown under a file's name: the one the list is in order of, so none for a name
     /// sort or a folder.
@@ -116,20 +137,22 @@ struct FilesRow: View {
     }
 
     var body: some View {
+        let ink = PhoneInk.menu(theme)
         Label {
             VStack(alignment: .leading, spacing: 1) {
                 Text(item.name)
-                    .lineLimit(1)
+                    .lineLimit(Self.nameLineLimit(for: dynamicTypeSize))
                     .truncationMode(.middle)
+                    .foregroundStyle(item.isHidden ? ink.secondary : Color(uiColor: ink.theme.textColor))
                 if let date = Self.shownDate(for: item, sortOrder: sortOrder) {
                     Text(date.formatted(date: .abbreviated, time: .shortened))
                         .font(.caption)
-                        .opacity(0.6)
+                        .foregroundStyle(item.isHidden ? ink.tertiary : ink.secondary)
                 }
             }
         } icon: {
             Image(systemName: Self.systemImage(for: item))
+                .foregroundStyle(item.isHidden ? ink.icon : Color(uiColor: ink.theme.textColor))
         }
-        .opacity(item.isHidden ? 0.6 : 1)
     }
 }

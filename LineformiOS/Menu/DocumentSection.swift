@@ -1,5 +1,6 @@
 import LineformCore
 import SwiftUI
+import UIKit
 
 /// The Menu sheet's Document section: the document's own commands, then the help pages.
 ///
@@ -63,6 +64,15 @@ struct DocumentSection: View {
         switch textFormat {
         case .markdown: String(localized: "Convert to Plain Text")
         case .plainText: String(localized: "Convert to Markdown")
+        }
+    }
+
+    /// What VoiceOver hears after Convert: the sheet stays open and only the row's title changes,
+    /// which VoiceOver would not say on its own.
+    static func conversionAnnouncement(for newFormat: LineformTextFormat) -> String {
+        switch newFormat {
+        case .plainText: String(localized: "Converted to plain text")
+        case .markdown: String(localized: "Converted to Markdown")
         }
     }
 
@@ -136,9 +146,13 @@ struct DocumentSection: View {
                     }
                 }
                 Button {
-                    switch document.textFormat {
+                    let before = document.textFormat
+                    switch before {
                     case .markdown: document.convertToPlainText()
                     case .plainText: document.restoreMarkdown()
+                    }
+                    if document.textFormat != before {
+                        ChromeAnnouncer.announce(Self.conversionAnnouncement(for: document.textFormat))
                     }
                 } label: {
                     Label(Self.conversionTitle(for: document.textFormat), systemImage: "textformat")

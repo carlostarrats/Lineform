@@ -30,6 +30,7 @@ final class DocumentCommandsTests: XCTestCase {
     // MARK: - Convert
 
     func testConvertToPlainTextAndBackRoundTrips() async throws {
+        try skipUnlessEnglishInterface()
         let document = await preparedDocument()
         let markdown = "# Title\n\nSome **bold** and _italic_ text with a [link](https://example.com).\n\n- one\n- two\n"
         document.edit(markdown)
@@ -131,6 +132,7 @@ final class DocumentCommandsTests: XCTestCase {
     // MARK: - Check Document Now
 
     func testCheckDocumentNowFindsOffscreenMisspelling() throws {
+        try skipUnlessEnglishInterface("spell checks with the English dictionary the keyboard language selects")
         _ = try XCTUnwrap(SpellCheckPass.language(primary: "en-US"), "the simulator has an English dictionary")
         let clean = String(repeating: "A clean line of plain prose sits here.\n", count: 600)
         let text = clean + "The last line has teh word.\n"
@@ -163,7 +165,8 @@ final class DocumentCommandsTests: XCTestCase {
 
     // MARK: - Rows and links
 
-    func testDocumentRowsAndLinks() {
+    func testDocumentRowsAndLinks() throws {
+        try skipUnlessEnglishInterface()
         // pinned-en: the Mac's command titles, in the section's order.
         XCTAssertEqual(DocumentSection.rowTitles(for: .markdown), [
             "New Document", "Open from Files…", "Save As…", "Insert Table", "Reformat Table",

@@ -447,6 +447,12 @@ iPhone only. Details: `docs/architecture/iphone-app.md`.
   XCTest). New Lineform Note and Open in Lineform route through `OpenDocument` (`PhoneIntentRouter`,
   attached after `prepare`); `AppIntents.framework` stays LINKED in the iPhone target too, and
   `PhoneAppIntentsTests` asserts `Metadata.appintents`. Details: `docs/architecture/iphone-app.md`.
+- **Accessibility.** Every quiet chrome ink comes from `PhoneInk` (AA through `Theme.readableInk`,
+  measured by `PhoneInkContrastTests`), never a bare `.opacity`/`.secondary` on text. Document text
+  follows the reading profile and never tracks Dynamic Type; all chrome does. Anything drawn and
+  hit-tested needs a non-visual path (custom actions or a rotor), and nothing a VoiceOver user
+  needs dismisses itself on a timer. `LineformiOSUITests` runs `performAccessibilityAudit()` locally
+  (CI only builds it). Details: `docs/architecture/iphone-app.md`, "Accessibility".
 - **Strings.** iPhone strings live in `LineformiOS/Localizable.xcstrings` (six languages), reusing
   the Mac's translation for the same English text. `LocalizationSourceSweepTests` scans
   `LineformiOS/` against that catalog. No iPhone string names a Mac or a sidebar

@@ -63,6 +63,7 @@ final class SelectionRowTests: XCTestCase {
     }
 
     func testOrderMatchesSpec() throws {
+        try skipUnlessEnglishInterface()
         XCTAssertEqual(SelectionController.rowItems(aiConnected: true, selectedText: "word", offersReplaceWith: true), [
             .askAI, .heading, .bold, .italic, .strikethrough, .code, .list, .link, .blockquote, .replaceWith, .anotherWord,
         ])
@@ -89,6 +90,7 @@ final class SelectionRowTests: XCTestCase {
     }
 
     func testAskAIOnlyWhenConnected() throws {
+        try skipUnlessEnglishInterface()
         XCTAssertFalse(SelectionController.rowItems(aiConnected: false, selectedText: "two words", offersReplaceWith: true).contains(.askAI))
         XCTAssertEqual(SelectionController.rowItems(aiConnected: true, selectedText: "two words", offersReplaceWith: true).first, .askAI)
 
@@ -203,6 +205,7 @@ final class SelectionRowTests: XCTestCase {
     }
 
     func testRowSitsAboveKeyboardAndClearOfEditMenu() async throws {
+        try skipUnlessEnglishInterface("needs prose the keyboard language’s dictionary accepts, so no spelling items join the edit menu")
         let (_, editor, controller) = try await hostScreen(text: "Hello world, a short line.\n\nMore text below.\n")
         let window = try XCTUnwrap(self.window)
         let selection = NSRange(location: 0, length: 5)

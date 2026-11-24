@@ -79,6 +79,7 @@ final class PhoneExportWriterTests: XCTestCase {
     }
 
     func testExportNamesUntitled() throws {
+        try skipUnlessEnglishInterface()
         XCTAssertEqual(try write(.pdf, "", baseName: "").lastPathComponent, "Untitled.pdf")
         XCTAssertEqual(PhoneExportWriter.sanitizedBaseName("/:.."), "Untitled")
         XCTAssertEqual(PhoneExportWriter.sanitizedBaseName(" \n "), "Untitled")

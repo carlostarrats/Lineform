@@ -205,18 +205,20 @@ final class PhoneAnnouncementTests: XCTestCase {
         let settings = AppSettings(defaults: defaults)
         let window = try await hostScreen(store: store, settings: settings)
 
-        try await spin { self.element(labelled: "Dismiss announcement", in: window) != nil }
-        let card = try XCTUnwrap(element(labelled: "Announcement: Lineform 2", in: window))
-        let menu = try XCTUnwrap(element(labelled: "Menu", in: window))
+        try await spin { self.element(labelled: PhoneAnnouncementCard.dismissTitle, in: window) != nil }
+        // The labels the card and button carry, so the `de` configuration finds them too.
+        let shown = try XCTUnwrap(store.visible)
+        let card = try XCTUnwrap(element(labelled: PhoneAnnouncementCard.accessibilityTitle(shown), in: window))
+        let menu = try XCTUnwrap(element(labelled: MenuButton.accessibilityTitle, in: window))
         XCTAssertLessThanOrEqual(card.accessibilityFrame.maxY, menu.accessibilityFrame.minY + 1, "above the buttons")
-        XCTAssertGreaterThan(card.accessibilityFrame.minX, window.bounds.minX, "a floating card, not a bar")
+        XCTAssertGreaterThan(card.accessibilityFrame.minX, window.bounds.minX, "a floating card, not a bar: \(card.accessibilityFrame) in \(window.bounds)")
         XCTAssertLessThan(card.accessibilityFrame.maxX, window.bounds.maxX)
 
-        let close = try XCTUnwrap(element(labelled: "Dismiss announcement", in: window))
+        let close = try XCTUnwrap(element(labelled: PhoneAnnouncementCard.dismissTitle, in: window))
         XCTAssertTrue(close.accessibilityTraits.contains(.button))
         XCTAssertTrue(close.accessibilityActivate())
         try await spin { store.visible == nil }
-        try await spin { self.element(labelled: "Dismiss announcement", in: window) == nil }
+        try await spin { self.element(labelled: PhoneAnnouncementCard.dismissTitle, in: window) == nil }
     }
 
     /// Turning In-app notifications off takes the card away at once.
@@ -226,10 +228,10 @@ final class PhoneAnnouncementTests: XCTestCase {
         await store.checkIfNeeded(isEnabled: true)
         let settings = AppSettings(defaults: defaults)
         let window = try await hostScreen(store: store, settings: settings)
-        try await spin { self.element(labelled: "Dismiss announcement", in: window) != nil }
+        try await spin { self.element(labelled: PhoneAnnouncementCard.dismissTitle, in: window) != nil }
         settings.checksForAnnouncements = false
         try await spin { store.visible == nil }
-        try await spin { self.element(labelled: "Dismiss announcement", in: window) == nil }
+        try await spin { self.element(labelled: PhoneAnnouncementCard.dismissTitle, in: window) == nil }
     }
 
     // MARK: Helpers

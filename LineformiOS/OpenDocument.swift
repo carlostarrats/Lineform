@@ -82,6 +82,14 @@ final class OpenDocument: ImageInsertionHost {
     private(set) var imageSaveFailed = false
     /// How long the image notice stays.
     static let imageNoticeDuration: Duration = .seconds(4)
+    /// How long it stays while VoiceOver runs: the screen announces it as it appears, and a
+    /// listener needs the time to hear it out and swipe to it.
+    static let voiceOverNoticeDuration: Duration = .seconds(15)
+
+    /// How long a notice that goes away by itself (the image notice, a failed export) stays.
+    static func noticeDuration(voiceOverRunning: Bool = UIAccessibility.isVoiceOverRunning) -> Duration {
+        voiceOverRunning ? voiceOverNoticeDuration : imageNoticeDuration
+    }
 
     /// How long after the last keystroke an autosave runs.
     static let autosaveDelay: Duration = .seconds(1)
@@ -754,7 +762,7 @@ final class OpenDocument: ImageInsertionHost {
         imageSaveFailed = true
         imageNoticeTask?.cancel()
         imageNoticeTask = Task { [weak self] in
-            try? await Task.sleep(for: Self.imageNoticeDuration)
+            try? await Task.sleep(for: Self.noticeDuration())
             guard !Task.isCancelled else { return }
             self?.imageSaveFailed = false
         }

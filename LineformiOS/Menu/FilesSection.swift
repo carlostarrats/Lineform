@@ -40,6 +40,8 @@ struct FilesSection: View {
     @State private var renaming: OutlineFileTreeItem?
     @State private var newName = ""
     @State private var deleting: OutlineFileTreeItem?
+    @Environment(\.menuTheme) private var theme
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     // MARK: - Copy (the Mac's strings where the English matches)
 
@@ -48,6 +50,8 @@ struct FilesSection: View {
     static func sortMenuLabel(_ order: OutlineFileSortOrder) -> String {
         String(localized: "Sort folders by: \(order.title)")
     }
+    /// Above and below Choose/Change in a root's header, inside its target.
+    static let headerButtonTargetPadding: CGFloat = 14
     static var hiddenFoldersTitle: String { String(localized: "Show Hidden Folders") }
     static var unavailableText: String { String(localized: "Workspace folder unavailable") }
     static var chooseTitle: String { String(localized: "Choose") }
@@ -179,25 +183,70 @@ struct FilesSection: View {
             }
             .pickerStyle(.inline)
         } label: {
-            Label(Self.sortMenuLabel(store.sortOrder), systemImage: "arrow.up.arrow.down")
+            Label {
+                // A Menu's label keeps one line unless told otherwise: let it wrap, and at
+                // accessibility sizes put the order under the title (German's title alone
+                // fills the line there).
+                Group {
+                    if dynamicTypeSize.isAccessibilitySize {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(Self.sortMenuTitle)
+                            Text(store.sortOrder.title)
+                                .foregroundStyle(PhoneInk.menu(theme).secondary)
+                        }
+                    } else {
+                        Text(Self.sortMenuLabel(store.sortOrder))
+                    }
+                }
+                .lineLimit(nil)
+                .fixedSize(horizontal: false, vertical: true)
+                .multilineTextAlignment(.leading)
+            } icon: {
+                Image(systemName: "arrow.up.arrow.down")
+            }
         }
         .accessibilityLabel(Self.sortMenuTitle)
         .accessibilityValue(store.sortOrder.title)
     }
 
     private func rootHeader(_ root: FilesRoot) -> some View {
-        HStack {
-            Label(root.title, systemImage: root.state == .unavailable ? "folder.badge.questionmark" : root.systemImage)
-                .font(.subheadline.weight(.semibold))
-            Spacer(minLength: 8)
-            if root.id == .workspace {
-                Button(root.state == .unassigned ? Self.chooseTitle : Self.changeTitle) {
-                    isChoosingWorkspace = true
+        let title = Label(root.title, systemImage: root.state == .unavailable ? "folder.badge.questionmark" : root.systemImage)
+            .font(.subheadline.weight(.semibold))
+            .accessibilityAddTraits(.isHeader)
+        return Group {
+            // At accessibility sizes the root's name and Choose/Change take a line each.
+            if dynamicTypeSize.isAccessibilitySize {
+                VStack(alignment: .leading, spacing: 4) {
+                    title
+                    workspaceButton(root)
                 }
-                .font(.subheadline)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            } else {
+                HStack {
+                    title
+                    Spacer(minLength: 8)
+                    workspaceButton(root)
+                }
             }
         }
         .textCase(nil)
+    }
+
+    @ViewBuilder
+    private func workspaceButton(_ root: FilesRoot) -> some View {
+        if root.id == .workspace {
+            // The target reaches 44 pt inside the button; the negative padding gives the room
+            // back, so the header keeps its height.
+            Button {
+                isChoosingWorkspace = true
+            } label: {
+                Text(root.state == .unassigned ? Self.chooseTitle : Self.changeTitle)
+                    .padding(.vertical, Self.headerButtonTargetPadding)
+                    .contentShape(Rectangle())
+            }
+            .font(.subheadline)
+            .padding(.vertical, -Self.headerButtonTargetPadding)
+        }
     }
 
     @ViewBuilder
@@ -209,7 +258,7 @@ struct FilesSection: View {
             // The header offers Change; the body says why and offers Choose. Both open the picker.
             VStack(alignment: .leading, spacing: 8) {
                 Text(Self.unavailableText)
-                    .opacity(0.6)
+                    .foregroundStyle(PhoneInk.menu(theme).secondary)
                 Button(Self.chooseTitle) { isChoosingWorkspace = true }
                     .buttonStyle(.bordered)
             }
@@ -230,7 +279,7 @@ struct FilesSection: View {
                             .textSelection(.enabled)
                     }
                 }
-                .opacity(0.6)
+                .foregroundStyle(PhoneInk.menu(theme).secondary)
             } else {
                 ForEach(root.items) { item in
                     FilesItemRow(item: item, sortOrder: store.sortOrder, actions: rowActions)

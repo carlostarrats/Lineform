@@ -26,42 +26,52 @@ final class MenuSheetTests: XCTestCase {
         try? FileManager.default.removeItem(at: folder)
     }
 
-    func testSectionsInSpecOrder() {
+    func testSectionsInSpecOrder() throws {
         XCTAssertEqual(MenuSection.allCases, [.files, .outline, .basics, .search, .history, .document, .settings])
         // Raw values are scene-storage identity, never localized.
         XCTAssertEqual(MenuSection.allCases.map(\.rawValue), ["files", "outline", "basics", "search", "history", "document", "settings"])
         // pinned-en: the Mac's strings, under the test plan's English.
-        XCTAssertEqual(MenuSection.allCases.map(\.title), ["Files", "Outline", "Markdown Basics", "Search", "History", "Document", "Settings"])
+        if interfaceLanguage == "en" {
+            XCTAssertEqual(MenuSection.allCases.map(\.title), ["Files", "Outline", "Markdown Basics", "Search", "History", "Document", "Settings"])
+        }
         // History is listed only while the document has history (HistoryModeTests).
         XCTAssertEqual(MenuSection.visible(hasHistory: false), [.files, .outline, .basics, .search, .document, .settings])
         XCTAssertEqual(Set(MenuSection.allCases.map(\.systemImage)).count, MenuSection.allCases.count)
     }
 
-    func testHeaderShowsSavedAndCounts() async {
+    func testHeaderShowsSavedAndCounts() async throws {
         let folder = self.folder!
         let document = OpenDocument(folderProvider: { folder }, ubiquitousItems: MenuSheetTestUbiquitousItems())
         await document.prepare()
+        // The states in the interface language; English pins them below.
+        let notSavedYet = MenuSheet.notSavedYetText
+        let saved = DocumentStatusText.saveState(isSaved: true, isAutosaved: false)
+        let unsaved = DocumentStatusText.saveState(isSaved: false, isAutosaved: false)
+        XCTAssertEqual(Set([notSavedYet, saved, unsaved]).count, 3)
 
-        XCTAssertEqual(MenuSheet.saveStateText(for: document), "Not saved yet", "a blank new document has no file")
+        XCTAssertEqual(MenuSheet.saveStateText(for: document), notSavedYet, "a blank new document has no file")
         document.edit("one two three")
-        XCTAssertEqual(MenuSheet.saveStateText(for: document), "Not saved yet", "a new document's text is not on disk")
+        XCTAssertEqual(MenuSheet.saveStateText(for: document), notSavedYet, "a new document's text is not on disk")
         await document.flush()
         XCTAssertNotNil(document.url)
-        XCTAssertEqual(MenuSheet.saveStateText(for: document), "Saved")
+        XCTAssertEqual(MenuSheet.saveStateText(for: document), saved)
         document.edit("one two three four")
-        XCTAssertEqual(MenuSheet.saveStateText(for: document), "Unsaved changes", "between a keystroke and its autosave")
+        XCTAssertEqual(MenuSheet.saveStateText(for: document), unsaved, "between a keystroke and its autosave")
         await document.flush()
-        XCTAssertEqual(MenuSheet.saveStateText(for: document), "Saved")
-        XCTAssertEqual(MenuSheet.countsText(for: "one two three"), "3 words — 13 characters")
-        XCTAssertEqual(MenuSheet.countsText(for: "吾輩は猫である。"), "8 characters", "CJK shows characters only, as on the Mac")
-        // pinned-en: the Mac's own key.
-        XCTAssertEqual(MenuSheet.notSavedYetText, "Not saved yet")
+        XCTAssertEqual(MenuSheet.saveStateText(for: document), saved)
+        // pinned-en: the Mac's own keys and counts.
+        if interfaceLanguage == "en" {
+            XCTAssertEqual([notSavedYet, saved, unsaved], ["Not saved yet", "Saved", "Unsaved changes"])
+            XCTAssertEqual(MenuSheet.countsText(for: "one two three"), "3 words — 13 characters")
+            XCTAssertEqual(MenuSheet.countsText(for: "吾輩は猫である。"), "8 characters", "CJK shows characters only, as on the Mac")
+        }
     }
 
     /// The open file was deleted elsewhere: its text stays on screen but is on disk nowhere, so the
     /// header never says Saved. The next change saves it again, while typing or on the way to the
     /// background.
     func testHeaderAfterADetachSaysNotSavedYetAndTheNextChangeSaves() async throws {
+        try skipUnlessEnglishInterface()
         let folder = self.folder!
         let document = OpenDocument(folderProvider: { folder }, ubiquitousItems: MenuSheetTestUbiquitousItems())
         await document.prepare()
@@ -99,6 +109,7 @@ final class MenuSheetTests: XCTestCase {
     }
 
     func testMenuButtonLabelIsMenu() throws {
+        try skipUnlessEnglishInterface()
         XCTAssertEqual(MenuButton.accessibilityTitle, "Menu")
         let window = try hostScreen(document: OpenDocument(folderProvider: { [folder] in folder! }, ubiquitousItems: MenuSheetTestUbiquitousItems()))
         settle(ticks: 5)

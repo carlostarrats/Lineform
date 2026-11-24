@@ -70,7 +70,8 @@ final class FirstRunTests: XCTestCase {
 
     // MARK: - Copy and resources
 
-    func testCopyIsTheSpecWording() {
+    func testCopyIsTheSpecWording() throws {
+        try skipUnlessEnglishInterface()
         XCTAssertEqual(FirstRunCopy.points, [
             "Free, and everything stays on your device.",
             "Your files stay in iCloud, and sync with Lineform on your Mac if you use it there.",
@@ -86,6 +87,7 @@ final class FirstRunTests: XCTestCase {
     }
 
     func testCopyIsTranslated() throws {
+        try skipUnlessEnglishInterface()
         let keys = [FirstRunCopy.heading] + FirstRunCopy.points + [
             FirstRunCopy.startWriting, "Continue", "Welcome to Lineform", "Simple markdown editing",
         ]

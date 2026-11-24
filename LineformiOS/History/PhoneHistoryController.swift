@@ -50,6 +50,9 @@ final class PhoneHistoryController {
     /// Bumped whenever what History mode shows changes (a step, a delete, a level), so a view
     /// reading `selectedPassage` re-renders. The engine itself is not observed: typing mutates it.
     private(set) var revision = 0
+    /// The last change was a selection VoiceOver made itself (the Passages rotor): it is reading
+    /// the passage, so the card does not talk over it. Any later change clears it.
+    private(set) var selectionIsSpokenElsewhere = false
 
     // MARK: - Unobserved state
 
@@ -408,7 +411,8 @@ final class PhoneHistoryController {
     }
 
     /// Selects a located passage, or deselects with nil (back to the overview; History stays on).
-    func select(_ id: UUID?) {
+    /// `announces` is false when VoiceOver itself moved there (the Passages rotor).
+    func select(_ id: UUID?, announces: Bool = true) {
         guard isHistoryModeActive else { return }
         if let id {
             guard located.contains(where: { $0.id == id }), selectedPassageID != id else { return }
@@ -417,6 +421,24 @@ final class PhoneHistoryController {
         }
         selectedPassageID = id
         bump()
+        if !announces { selectionIsSpokenElsewhere = true }
+    }
+
+    /// Select Next / Previous Passage (the Mac's `moveSelection`): the next or previous located
+    /// passage in text order, clamped at the ends; with nothing selected, the first (forward) or
+    /// the last. The non-visual path to a passage, which a tap on its wash is for sighted writers.
+    /// Returns the passage selected, or nil when History mode is off or shows nothing.
+    @discardableResult
+    func moveSelection(by delta: Int) -> LocatedPassage? {
+        guard isHistoryModeActive, !located.isEmpty, delta != 0 else { return nil }
+        let target: Int
+        if let id = selectedPassageID, let index = located.firstIndex(where: { $0.id == id }) {
+            target = min(max(index + delta, 0), located.count - 1)
+        } else {
+            target = delta > 0 ? 0 : located.count - 1
+        }
+        select(located[target].id)
+        return located[target]
     }
 
     @discardableResult
@@ -720,6 +742,7 @@ final class PhoneHistoryController {
     /// and keys select and step).
     private func bump() {
         revision &+= 1
+        if selectionIsSpokenElsewhere { selectionIsSpokenElsewhere = false }
         editor?.historyDisplayDidChange()
     }
 

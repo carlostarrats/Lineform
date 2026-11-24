@@ -151,7 +151,9 @@ final class PhoneUpdateCheckTests: XCTestCase {
 
     /// The Settings row: after Clear History, as on the Mac it sits apart from the switches.
     func testSettingsOffersCheckForUpdates() {
-        XCTAssertEqual(SettingsSection.checkForUpdatesTitle, "Check for Updates…") // pinned-en
+        if interfaceLanguage == "en" {
+            XCTAssertEqual(SettingsSection.checkForUpdatesTitle, "Check for Updates…") // pinned-en
+        }
         XCTAssertEqual(SettingsSection.rowTitles.last, SettingsSection.checkForUpdatesTitle)
         XCTAssertFalse(SettingsSection.checkForUpdatesNote.isEmpty)
         XCTAssertFalse(SettingsSection.checkForUpdatesNote.localizedCaseInsensitiveContains("mac"))

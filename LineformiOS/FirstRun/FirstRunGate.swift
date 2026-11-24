@@ -43,11 +43,13 @@ enum FirstRunStage: Int, CaseIterable {
     /// How long the stage stays before it advances by itself; nil waits for the writer. For
     /// `.line` the hold runs from the moment the page has painted (`FirstRunTiming`), not from
     /// the stage's start. Under Reduce Motion the page shows the finished line at once, so it
-    /// needs only a moment.
-    func autoAdvanceDelay(reduceMotion: Bool) -> Duration? {
+    /// needs only a moment. While VoiceOver runs, "What to expect" never advances by itself (no
+    /// fixed time fits every speaking rate and language, and the switch to the points interrupts
+    /// speech): the writer continues with a double-tap or the Continue action.
+    func autoAdvanceDelay(reduceMotion: Bool, voiceOverRunning: Bool = false) -> Duration? {
         switch self {
         case .line: reduceMotion ? .milliseconds(1200) : .milliseconds(2600)
-        case .expect: .milliseconds(1800)
+        case .expect: voiceOverRunning ? nil : .milliseconds(1800)
         case .points, .done: nil
         }
     }
@@ -66,9 +68,10 @@ enum FirstRunTiming {
         for stage: FirstRunStage,
         stageStart: ContinuousClock.Instant,
         lineReadyAt: ContinuousClock.Instant?,
-        reduceMotion: Bool
+        reduceMotion: Bool,
+        voiceOverRunning: Bool = false
     ) -> ContinuousClock.Instant? {
-        guard let hold = stage.autoAdvanceDelay(reduceMotion: reduceMotion) else { return nil }
+        guard let hold = stage.autoAdvanceDelay(reduceMotion: reduceMotion, voiceOverRunning: voiceOverRunning) else { return nil }
         guard stage == .line else { return stageStart + hold }
         let cap = stageStart + lineCap
         guard let ready = lineReadyAt else { return cap }

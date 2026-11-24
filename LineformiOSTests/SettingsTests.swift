@@ -27,6 +27,7 @@ final class SettingsTests: XCTestCase {
     }
 
     func testSettingsUseMacKeysAndDefaults() throws {
+        try skipUnlessEnglishInterface()
         let defaults = try makeDefaults()
         let settings = AppSettings(defaults: defaults)
         XCTAssertTrue(settings.automaticDarkMode, "every setting is on until the writer turns it off")
@@ -124,6 +125,7 @@ final class SettingsTests: XCTestCase {
     }
 
     func testNoMacOrSidebarWordingInIPhoneStrings() throws {
+        try skipUnlessEnglishInterface()
         let catalogURL = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent().deletingLastPathComponent()
             .appendingPathComponent("LineformiOS/Localizable.xcstrings")

@@ -131,6 +131,7 @@ final class ExportParityTests: XCTestCase {
     }
 
     func testRTFTextMatchesMac() throws {
+        try skipUnlessEnglishInterface("compares with the Mac’s English fixture")
         let data = try ExportContent.rtfData(
             text: try corpus(), profile: .original, paper: .usLetter, preset: .standard, appVersion: ExportContent.appVersion
         )

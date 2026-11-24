@@ -33,38 +33,58 @@ struct AIReviewCardTopKey: PreferenceKey {
 /// `AIReviewCard`, full-width in the iPhone's floating-card chrome:
 ///
 /// - **Running:** a spinner, "Rephrasing with Claude…", Stop.
-/// - **Message:** the message, ✕; it steps aside after 8 s, as on the Mac.
+/// - **Message:** the message, ✕; it steps aside after 8 s, as on the Mac (never while VoiceOver
+///   runs: `messageDismissDelay`).
 /// - **Mark:** "3 sentences found", Done (the wash goes).
 /// - **Review:** what is ready ("Rephrase ready", "Proofread · 2 of 4"), then Try Again, Reject,
 ///   Accept, and for two or more pending Next and Accept All; Done ends the review (= rejects
 ///   what is pending, keeping what was accepted).
 ///
 /// No Esc / Return hints: the hardware keys are the overlay's key commands. Each card is one
-/// accessibility container with its decisions as custom actions.
+/// accessibility container with its decisions as custom actions, and VoiceOver's escape closes it.
+/// Its states are spoken by the shared controller (`AIEditorSurface.announceAI`). At accessibility
+/// sizes the running, marks and review cards stack their buttons under the text.
 struct AIReviewCardsView: View {
     @ObservedObject var controller: SelectionController
     var profile: ReadingProfile
 
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.accessibilityVoiceOverEnabled) private var voiceOverEnabled
+    /// The glyph sizes scale with the text around them (13 and 12 pt at the default size).
+    @ScaledMetric(relativeTo: .subheadline) private var retryGlyphSize: CGFloat = 14
+    @ScaledMetric(relativeTo: .footnote) private var closeGlyphSize: CGFloat = 12
+
+    /// How long a message stays before it steps aside: 8 s, as on the Mac — and never on its own
+    /// while VoiceOver runs (WCAG 2.2.1): the writer closes it, or the next action replaces it.
+    static func messageDismissDelay(voiceOverRunning: Bool) -> Duration? {
+        voiceOverRunning ? nil : .seconds(8)
+    }
+
     var body: some View {
         let theme = Theme.theme(for: profile)
         let ink = Color(uiColor: theme.textColor)
+        let stacks = dynamicTypeSize.isAccessibilitySize
         Group {
             switch controller.aiState {
             case .idle:
                 EmptyView()
             case let .running(action, provider):
                 card(theme: theme, ink: ink) {
-                    HStack(spacing: 12) {
-                        ProgressView().accessibilityHidden(true)
-                        Text(AIReviewCardPresentation.progressText(for: action, provider: provider))
-                            .font(.subheadline.weight(.semibold))
-                            .fixedSize(horizontal: false, vertical: true)
-                        Spacer(minLength: 8)
+                    textAndButton(stacks: stacks) {
+                        HStack(spacing: 12) {
+                            ProgressView().accessibilityHidden(true)
+                            Text(AIReviewCardPresentation.progressText(for: action, provider: provider))
+                                .font(.subheadline.weight(.semibold))
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                    } button: {
                         Button(AIReviewCardsPresentation.stopTitle) { controller.aiController.cancel() }
                             .buttonStyle(.bordered)
                     }
                 }
                 .accessibilityAction(named: AIReviewCardsPresentation.stopTitle) { controller.aiController.cancel() }
+                .accessibilityAction(.escape) { controller.aiController.cancel() }
             case .message(let message):
                 card(theme: theme, ink: ink) {
                     HStack(alignment: .top, spacing: 12) {
@@ -72,26 +92,30 @@ struct AIReviewCardsView: View {
                             .font(.subheadline.weight(.semibold))
                             .fixedSize(horizontal: false, vertical: true)
                         Spacer(minLength: 8)
-                        closeButton(ink: ink) { controller.aiController.dismissMessage() }
+                        closeButton(theme: theme) { controller.aiController.dismissMessage() }
                     }
                 }
+                .accessibilityAction(.escape) { controller.aiController.dismissMessage() }
                 .task(id: message) {
-                    guard (try? await Task.sleep(for: .seconds(8))) != nil else { return }
+                    guard let delay = Self.messageDismissDelay(voiceOverRunning: voiceOverEnabled || UIAccessibility.isVoiceOverRunning),
+                          (try? await Task.sleep(for: delay)) != nil else { return }
                     controller.aiController.dismissMessage()
                 }
             case .marking(let ranges):
                 card(theme: theme, ink: ink) {
-                    HStack(spacing: 12) {
+                    textAndButton(stacks: stacks) {
                         Text(AIActionController.markedMessage(ranges.count))
                             .font(.subheadline.weight(.semibold))
-                        Spacer(minLength: 8)
+                            .fixedSize(horizontal: false, vertical: true)
+                    } button: {
                         Button(AIReviewCardsPresentation.doneTitle) { controller.aiController.dismissMarks() }
                             .buttonStyle(.bordered)
                     }
                 }
                 .accessibilityAction(named: AIReviewCardsPresentation.doneTitle) { controller.aiController.dismissMarks() }
+                .accessibilityAction(.escape) { controller.aiController.dismissMarks() }
             case .reviewing(let session):
-                reviewCard(session, theme: theme, ink: ink)
+                reviewCard(session, theme: theme, ink: ink, stacks: stacks)
             }
         }
         .background(GeometryReader { proxy in
@@ -99,20 +123,55 @@ struct AIReviewCardsView: View {
         })
     }
 
-    private func reviewCard(_ session: AIReviewSession, theme: Theme, ink: Color) -> some View {
+    /// Text then its button on one line; at accessibility sizes the button goes under the text,
+    /// so neither is squeezed.
+    @ViewBuilder
+    private func textAndButton<Leading: View, Trailing: View>(
+        stacks: Bool,
+        alignment: VerticalAlignment = .center,
+        @ViewBuilder text: () -> Leading,
+        @ViewBuilder button: () -> Trailing
+    ) -> some View {
+        if stacks {
+            VStack(alignment: .leading, spacing: 10) {
+                text()
+                button()
+            }
+        } else {
+            HStack(alignment: alignment, spacing: 12) {
+                text()
+                Spacer(minLength: 8)
+                button()
+            }
+        }
+    }
+
+    private func reviewCard(_ session: AIReviewSession, theme: Theme, ink: Color, stacks: Bool) -> some View {
         let titles = AIReviewCardPresentation.buttonTitles
         let handle: (AIReviewCommand) -> Void = { command in controller.aiController.handle(command) }
         let offersMore = session.pending.count >= 2
         let acceptAll = AIReviewCardPresentation.offersAcceptAll(session)
+        let page = Color(uiColor: theme.backgroundColor)
         return card(theme: theme, ink: ink) {
             VStack(alignment: .leading, spacing: 10) {
-                HStack(alignment: .firstTextBaseline) {
+                // Done sits on the title's first baseline, as it always did.
+                textAndButton(stacks: stacks, alignment: .firstTextBaseline) {
                     Text(AIReviewCardPresentation.title(for: session))
                         .font(.subheadline.weight(.semibold))
                         .fixedSize(horizontal: false, vertical: true)
-                    Spacer(minLength: 8)
-                    Button(AIReviewCardsPresentation.doneTitle) { handle(.end) }
-                        .font(.subheadline)
+                } button: {
+                    // A 44 pt target; on one line the extra height is taken back with negative
+                    // padding measured from the font, so the card lays out exactly as it did. The
+                    // text keeps its trailing edge where it was when the word is narrower than 44.
+                    Button { handle(.end) } label: {
+                        Text(AIReviewCardsPresentation.doneTitle)
+                            .font(.subheadline)
+                            .frame(minWidth: Self.minimumTarget, minHeight: Self.minimumTarget, alignment: .trailing)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.borderless)
+                    .padding(.vertical, stacks ? 0 : -Self.verticalTouchOutset(for: dynamicTypeSize))
+                    .accessibilityIdentifier("ai.reviewDone")
                 }
                 ViewThatFits(in: .horizontal) {
                     HStack(spacing: 8) {
@@ -125,14 +184,14 @@ struct AIReviewCardsView: View {
                             Button(AIReviewCardPresentation.acceptAllTitle) { handle(.acceptAll) }.buttonStyle(.bordered).fixedSize()
                         }
                         Spacer(minLength: 0)
-                        acceptButton(titles.accept, page: Color(uiColor: theme.backgroundColor)) { handle(.acceptCurrent) }
+                        acceptButton(titles.accept, page: page) { handle(.acceptCurrent) }
                     }
                     VStack(alignment: .leading, spacing: 8) {
                         HStack(spacing: 8) {
                             retryButton { handle(.retry) }
                             Button(titles.reject) { handle(.rejectCurrent) }.buttonStyle(.bordered).fixedSize()
                             Spacer(minLength: 0)
-                            acceptButton(titles.accept, page: Color(uiColor: theme.backgroundColor)) { handle(.acceptCurrent) }
+                            acceptButton(titles.accept, page: page) { handle(.acceptCurrent) }
                         }
                         HStack(spacing: 8) {
                             if offersMore {
@@ -143,44 +202,74 @@ struct AIReviewCardsView: View {
                             }
                         }
                     }
+                    // Accessibility sizes: one decision per line, Accept first.
+                    VStack(alignment: .leading, spacing: 8) {
+                        acceptButton(titles.accept, page: page, fixed: false) { handle(.acceptCurrent) }
+                        Button(titles.reject) { handle(.rejectCurrent) }.buttonStyle(.bordered)
+                        if offersMore {
+                            Button(AIReviewCardsPresentation.nextTitle) { handle(.move(1)) }.buttonStyle(.bordered)
+                        }
+                        if acceptAll {
+                            Button(AIReviewCardPresentation.acceptAllTitle) { handle(.acceptAll) }.buttonStyle(.bordered)
+                        }
+                        retryButton { handle(.retry) }
+                    }
                 }
                 .tint(ink)
             }
         }
         .accessibilityLabel(AIReviewCardPresentation.reviewCardLabel)
         .modifier(ReviewCardActions(offersMore: offersMore, acceptAll: acceptAll, handle: handle))
+        .accessibilityAction(.escape) { handle(.end) }
         .accessibilityIdentifier("ai.reviewCard")
     }
 
     /// The prominent decision: the page colour on the ink, so its label reads (the card's ink
     /// foreground would otherwise draw it ink on ink).
-    private func acceptButton(_ title: String, page: Color, action: @escaping () -> Void) -> some View {
+    private func acceptButton(_ title: String, page: Color, fixed: Bool = true,
+                              action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Text(title).foregroundStyle(page)
         }
         .buttonStyle(.borderedProminent)
-        .fixedSize()
+        .fixedSize(horizontal: fixed, vertical: true)
     }
 
     private func retryButton(_ action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Image(systemName: AIReviewCardPresentation.retrySymbol)
-                .font(.system(size: 14, weight: .semibold))
+                .font(.system(size: retryGlyphSize, weight: .semibold))
         }
         .buttonStyle(.bordered)
         .accessibilityLabel(AIReviewCardPresentation.retryTitle)
     }
 
-    private func closeButton(ink: Color, action: @escaping () -> Void) -> some View {
+    /// A 28 pt glyph circle drawn, a 44 pt target: the extra reach is taken back with negative
+    /// padding, so the card's layout is the one it always had.
+    private func closeButton(theme: Theme, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Image(systemName: "xmark")
-                .font(.system(size: 12, weight: .bold))
-                .opacity(0.6)
+                .font(.system(size: closeGlyphSize, weight: .bold))
+                .foregroundStyle(PhoneInk(theme: theme, colorScheme: colorScheme).icon)
                 .frame(width: 28, height: 28)
-                .contentShape(Circle())
+                .frame(width: Self.minimumTarget, height: Self.minimumTarget)
+                .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .padding(-(Self.minimumTarget - 28) / 2)
         .accessibilityLabel(AIReviewCardPresentation.closeTitle)
+        .accessibilityIdentifier("ai.messageClose")
+    }
+
+    /// The smallest touch target (Apple's 44 × 44 pt).
+    static let minimumTarget: CGFloat = 44
+
+    /// How far a one-line subheadline label reaches above and below its own line to make a 44 pt
+    /// target: half the difference, so the layout height is the line's, as before.
+    static func verticalTouchOutset(for size: DynamicTypeSize) -> CGFloat {
+        let traits = UITraitCollection(preferredContentSizeCategory: UIContentSizeCategory(size))
+        let lineHeight = UIFont.preferredFont(forTextStyle: .subheadline, compatibleWith: traits).lineHeight
+        return max(0, (minimumTarget - lineHeight) / 2)
     }
 
     private func card<Content: View>(theme: Theme, ink: Color, @ViewBuilder content: () -> Content) -> some View {
@@ -193,7 +282,8 @@ struct AIReviewCardsView: View {
     }
 }
 
-/// The review card's decisions as VoiceOver / Switch Control custom actions.
+/// The review card's decisions as VoiceOver / Switch Control custom actions. Next Change and
+/// Accept All are offered only when they would do something (the overlay's own rule).
 private struct ReviewCardActions: ViewModifier {
     let offersMore: Bool
     let acceptAll: Bool
@@ -204,8 +294,14 @@ private struct ReviewCardActions: ViewModifier {
         content
             .accessibilityAction(named: titles[0]) { handle(.acceptCurrent) }
             .accessibilityAction(named: titles[1]) { handle(.rejectCurrent) }
-            .accessibilityAction(named: titles[4]) { if offersMore { handle(.move(1)) } }
-            .accessibilityAction(named: titles[3]) { if acceptAll { handle(.acceptAll) } }
+            .accessibilityActions {
+                if offersMore {
+                    Button(titles[4]) { handle(.move(1)) }
+                }
+                if acceptAll {
+                    Button(titles[3]) { handle(.acceptAll) }
+                }
+            }
             .accessibilityAction(named: titles[2]) { handle(.end) }
     }
 }

@@ -44,5 +44,9 @@ struct StylingButton: View {
         }
         .buttonStyle(.plain)
         .accessibilityLabel(Self.accessibilityLabel)
+        // A fixed-size glyph: at the accessibility text sizes a long press shows it large.
+        .accessibilityShowsLargeContentViewer {
+            Label(Self.accessibilityLabel, systemImage: Self.symbolName)
+        }
     }
 }

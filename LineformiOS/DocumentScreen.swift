@@ -141,7 +141,8 @@ struct DocumentScreen: View {
             firstRun.finished()
         }
         let needsSwitch = displayMode != .write
-        if needsSwitch { switchMode(to: .write) }
+        // The editor takes the focus below; naming the mode too would only talk over it.
+        if needsSwitch { switchMode(to: .write, announces: false) }
         Task { @MainActor in
             if needsSwitch { await Task.yield() }
             positionKeeper.editor?.becomeFirstResponder()
@@ -160,8 +161,11 @@ struct DocumentScreen: View {
         Binding(get: { displayMode }, set: { switchMode(to: $0) })
     }
 
-    private func switchMode(to mode: EditorDisplayMode) {
+    /// `announces` is false when the switch is a side effect of something that moves VoiceOver's
+    /// focus itself (History mode's card, first run's end): two focus moves would race.
+    private func switchMode(to mode: EditorDisplayMode, announces: Bool = true) {
         guard mode != displayMode else { return }
+        let previous = displayMode
         // History mode is Write's: switching to Read or Preview leaves it (with the collapse).
         if mode != .write, let history = document.history, history.isHistoryModeActive {
             history.exitHistoryMode(text: editorText)
@@ -169,6 +173,7 @@ struct DocumentScreen: View {
         positionKeeper.switchMode(from: displayMode, to: mode)
         shownDisplayMode = mode
         storedDisplayMode = mode
+        if announces { ChromeAnnouncer.modeDidChange(from: previous, to: mode) }
     }
 
     /// Makes the export commands once. Reading the previous document aloud stops whenever the
@@ -205,10 +210,16 @@ struct DocumentScreen: View {
                     .transition(.opacity)
             }
         }
-        .animation(.easeInOut(duration: 0.2), value: noticeMessage)
+        .animation(EditorMotionPolicy.animation(.easeInOut(duration: 0.2), reduceMotion: reduceMotion), value: noticeMessage)
+        .onChange(of: noticeMessage) { _, message in
+            // The notice never takes the focus; VoiceOver hears it as it appears.
+            if let message { ChromeAnnouncer.announce(message) }
+        }
         .overlay(alignment: .top) {
+            // The control's touch band is taller than the drawn capsule: the capsule still sits
+            // `topMargin` below the safe area.
             ModeSwitch(mode: modeSelection, usesDarkChrome: Theme.theme(for: profile).usesDarkChrome)
-                .padding(.top, ModeSwitch.topMargin)
+                .padding(.top, ModeSwitch.topMargin - ModeSwitch.verticalTouchOutset)
         }
         .overlay(alignment: .bottom) {
             // History mode's card replaces the bottom chrome while it is up (Done leaves).
@@ -226,13 +237,17 @@ struct DocumentScreen: View {
             if !isHistoryModeActive,
                SelectionController.showsBottomButtons(phase: selection.phase, aiState: selection.aiState) {
                 HStack(spacing: Self.bottomChromeSpacing) {
-                    if displayMode == .split {
-                        PreviewLinkButton(isLinked: arePanesLinked, profile: profile) {
-                            linkedScroll.toggleLink()
-                            arePanesLinked = linkedScroll.isLinked
+                    // The link button's touch square is wider than its circle: the gap to Menu
+                    // shrinks by the difference, so the circles stay `bottomChromeSpacing` apart.
+                    HStack(spacing: Self.bottomChromeSpacing - PreviewLinkButton.horizontalTouchOutset) {
+                        if displayMode == .split {
+                            PreviewLinkButton(isLinked: arePanesLinked, profile: profile) {
+                                linkedScroll.toggleLink()
+                                arePanesLinked = linkedScroll.isLinked
+                            }
                         }
+                        MenuButton(profile: profile) { isShowingMenu = true }
                     }
-                    MenuButton(profile: profile) { isShowingMenu = true }
                     StylingButton(profile: profile) { isShowingStyling = true }
                 }
                 .padding(MarkdownEditor.chromeMargin)
@@ -259,6 +274,8 @@ struct DocumentScreen: View {
                 )
                 .padding(.horizontal, MarkdownEditor.chromeMargin)
                 .padding(.bottom, MarkdownEditor.chromeMargin + MenuButton.diameter + 12)
+                // Never over the mode switch: a taller card scrolls inside this room.
+                .padding(.top, ModeSwitch.pageTopClearance)
                 .transition(EditorMotionPolicy.fadeAndMoveTransition(y: 24, reduceMotion: reduceMotion))
             }
         }
@@ -392,7 +409,8 @@ struct DocumentScreen: View {
         }
         .onChange(of: isHistoryModeActive) { _, active in
             // History mode is Write's: the row's Replace With… in Preview's editor lands here too.
-            if active, displayMode != .write { switchMode(to: .write) }
+            // The History card takes VoiceOver's focus itself.
+            if active, displayMode != .write { switchMode(to: .write, announces: false) }
         }
     }
 
@@ -453,7 +471,7 @@ struct DocumentScreen: View {
             text: { editorText },
             dismissMenu: { isShowingMenu = false },
             endAI: { selection.endAIForHistory() },
-            switchToWrite: { switchMode(to: .write) }
+            switchToWrite: { switchMode(to: .write, announces: false) }
         )
         // Hardware ← / → and Esc reach the read-only editor once it is first responder.
         Task { @MainActor in
@@ -591,6 +609,7 @@ extension DocumentScreen {
 /// Shown in place of the text while iCloud downloads the file being opened: quiet, no buttons.
 private struct DownloadingView: View {
     var profile: ReadingProfile
+    @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
         let theme = Theme.theme(for: profile)
@@ -598,7 +617,7 @@ private struct DownloadingView: View {
             ProgressView()
             Text(String(localized: "Downloading…"))
                 .font(.callout)
-                .foregroundStyle(Color(uiColor: theme.textColor).opacity(0.6))
+                .foregroundStyle(PhoneInk(theme: theme, colorScheme: colorScheme).secondary)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Color(uiColor: theme.backgroundColor))
@@ -614,18 +633,31 @@ private struct QuietNotice: View {
     var message: String
     var profile: ReadingProfile
 
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
     var body: some View {
+        // A capsule for the usual one or two lines; at the accessibility sizes the text wraps to
+        // many lines, where a capsule's round ends would cut into it.
+        if dynamicTypeSize.isAccessibilitySize {
+            notice(in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        } else {
+            notice(in: Capsule())
+        }
+    }
+
+    private func notice<Shape: InsettableShape>(in shape: Shape) -> some View {
         let theme = Theme.theme(for: profile)
         let isDark = theme.usesDarkChrome
-        Text(message)
+        return Text(message)
             .font(.footnote)
             .multilineTextAlignment(.center)
+            .fixedSize(horizontal: false, vertical: true)
             .foregroundStyle(Color(uiColor: theme.textColor))
             .padding(.horizontal, 14)
             .padding(.vertical, 8)
-            .background(Capsule().fill(Color(uiColor: theme.backgroundColor)))
+            .background(shape.fill(Color(uiColor: theme.backgroundColor)))
             .overlay(
-                Capsule().strokeBorder(
+                shape.strokeBorder(
                     isDark
                         ? Color.white.opacity(LineformDesign.FloatingCard.hairlineOpacityDark)
                         : Color.black.opacity(LineformDesign.FloatingCard.hairlineOpacityLight),
@@ -634,5 +666,35 @@ private struct QuietNotice: View {
             )
             .allowsHitTesting(false)
             .accessibilityAddTraits(.isStaticText)
+    }
+}
+
+/// The chrome's spoken announcements: a mode switch, a notice, a copy in Read. Every string is
+/// localized by the caller. `post` is the one way out, so tests can record what was said.
+@MainActor
+enum ChromeAnnouncer {
+    /// Posts a notification to VoiceOver. Tests replace it.
+    static var post: (UIAccessibility.Notification, Any?) -> Void = { notification, argument in
+        UIAccessibility.post(notification: notification, argument: argument)
+    }
+
+    /// Speaks `message` without moving the VoiceOver cursor.
+    static func announce(_ message: String) {
+        post(.announcement, message)
+    }
+
+    /// The writer switched modes: VoiceOver says the new mode's name (Write, Read, Preview).
+    static func modeDidChange(from old: EditorDisplayMode, to new: EditorDisplayMode) {
+        post(modeChangeNotification(from: old, to: new), new.title)
+    }
+
+    /// How a switch is spoken. Read replaces the editor (and Write or Preview replace Read's own
+    /// view), so the element under VoiceOver's cursor may be gone: `.layoutChanged` names the mode
+    /// and keeps the cursor where it is if that element is still there (the mode control), or
+    /// moves it to the new page if not. Write ↔ Preview keeps the editor on screen, so the name is
+    /// only announced and the cursor never moves. `.screenChanged` is never used: it sends the
+    /// cursor back to the top of the screen, away from the control just used.
+    static func modeChangeNotification(from old: EditorDisplayMode, to new: EditorDisplayMode) -> UIAccessibility.Notification {
+        (old == .read) != (new == .read) ? .layoutChanged : .announcement
     }
 }

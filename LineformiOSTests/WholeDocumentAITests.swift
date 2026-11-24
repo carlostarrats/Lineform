@@ -24,6 +24,7 @@ final class WholeDocumentAITests: XCTestCase {
     }
 
     func testAskAIRowOnlyWhenConnected() throws {
+        try skipUnlessEnglishInterface()
         // The row: connected, and an editor on screen (Write or Preview; Read has none).
         XCTAssertTrue(DocumentSection.showsAskAI(isConnected: true, mode: .write, hasText: true))
         XCTAssertTrue(DocumentSection.showsAskAI(isConnected: true, mode: .split, hasText: true))
@@ -65,6 +66,7 @@ final class WholeDocumentAITests: XCTestCase {
     }
 
     func testConfirmAbove1500Words() throws {
+        try skipUnlessEnglishInterface()
         let client = FakeAIClient(.suspend)
         let text = String(repeating: "word ", count: 1_600) + "\n"
         let (_, selection, _, keychain) = try makeEditor(text, connected: true, client: client)
@@ -285,6 +287,7 @@ final class WholeDocumentAITests: XCTestCase {
 
     /// The whole-document comment says so, quietly: "Whole document", in six languages.
     func testWholeDocumentCommentSaysWholeDocument() async throws {
+        try skipUnlessEnglishInterface()
         XCTAssertEqual(SelectionToolbarPresentation.wholeDocumentSubtitle, "Whole document")
         for language in ["es", "fr", "de", "ja", "zh-Hans"] {
             let bundle = try XCTUnwrap(Bundle.lineformCore.path(forResource: language, ofType: "lproj").flatMap(Bundle.init(path:)))
