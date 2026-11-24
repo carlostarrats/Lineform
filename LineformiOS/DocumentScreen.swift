@@ -240,10 +240,11 @@ struct DocumentScreen: View {
             }
         }
         .overlay(alignment: .bottomTrailing) {
-            // The selection row, the comment field and a running request or review take the
-            // bottom in turn. A message or Find's marks leave these reachable: that card sits
-            // above them (`SelectionBottomChrome`). History's card replaces them all, the ⋯
-            // button included, so nothing sits behind its Done.
+            // The comment field and a running request or review take the bottom in turn. While
+            // the selection row shows (a selection, or a caret with the software keyboard up)
+            // these float just above it, so ⋯ stays reachable. A message or Find's marks leave
+            // these reachable: that card sits above them (`SelectionBottomChrome`). History's
+            // card replaces them all, the ⋯ button included, so nothing sits behind its Done.
             if !isHistoryModeActive,
                SelectionController.showsBottomButtons(phase: selection.phase, aiState: selection.aiState) {
                 // The link button's touch square is wider than its circle: the gap to ⋯ shrinks
@@ -263,6 +264,7 @@ struct DocumentScreen: View {
                     MoreButton(profile: profile) { openWordMenu() }
                 }
                 .padding(MarkdownEditor.chromeMargin)
+                .padding(.bottom, selection.phase == .row ? Self.selectionRowClearance : 0)
                 .transition(.opacity)
             }
         }
@@ -591,6 +593,12 @@ enum HistoryEntry {
 extension DocumentScreen {
     /// The gap between the bottom-trailing controls: Read aloud's pill, Preview's link, and ⋯.
     static let bottomChromeSpacing: CGFloat = 12
+    /// How far the bottom-trailing controls rise while the selection row shows, so they sit
+    /// `bottomChromeSpacing` above it: the row's height and its gap to the keyboard (or the home
+    /// indicator), less the margin they already keep.
+    static var selectionRowClearance: CGFloat {
+        SelectionRow.height + SelectionRowPlacement.gap + bottomChromeSpacing - MarkdownEditor.chromeMargin
+    }
     /// The room the Read view (and Preview's lower pane) keeps below its last line, so it scrolls
     /// clear of the floating buttons: the taller of ⋯ and the link button.
     static var bottomChromeClearance: CGFloat {
