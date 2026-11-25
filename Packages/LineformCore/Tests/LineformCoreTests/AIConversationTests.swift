@@ -69,12 +69,14 @@ final class AIPromptLexiconTests: XCTestCase {
         XCTAssertEqual((text as NSString).substring(with: match?.range ?? NSRange()), "warmer")
     }
 
-    func testOnlyEnglishShipsAndOtherLanguagesUnderlineNothing() {
-        XCTAssertEqual(AIPromptLexicon.words(forLanguage: "en").count, words.count)
-        XCTAssertEqual(AIPromptLexicon.words(forLanguage: "en-GB").count, words.count)
-        for code in ["de", "fr", "es", "ja", "zh-Hans"] {
-            XCTAssertTrue(AIPromptLexicon.words(forLanguage: code).isEmpty, code)
+    func testEveryInterfaceLanguageHasTheWholeList() {
+        for code in ["en", "en-GB", "de", "fr", "es", "ja", "zh-Hans", "zh", "pt"] {
+            let list = AIPromptLexicon.words(forLanguage: code)
+            XCTAssertEqual(list.map(\.id), words.map(\.id), code)
+            XCTAssertEqual(list.map(\.forms), words.map(\.forms), "\(code): forms do not depend on the interface")
         }
+        XCTAssertEqual(AIPromptLexicon.words(forLanguage: "pt").map(\.question), words.map(\.question),
+                       "a language without a catalog falls back to English")
     }
 
     func testDirectionsUseChoicesOrDefaultsAndKeepTheWritersWord() throws {
