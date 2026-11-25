@@ -354,8 +354,8 @@ final class FilesStoreTests: XCTestCase {
         let placeholder = try XCTUnwrap(documents.first { $0.name == "Evicted.md" })
         XCTAssertTrue(placeholder.isICloudPlaceholder, "a document not downloaded yet still lists")
         XCTAssertEqual(placeholder.url.lastPathComponent, "Evicted.md", "opening it downloads the real file")
-        XCTAssertEqual(FilesSection.recentDocuments(acrossRoots: store.roots).map(\.name), ["Chapter.md"],
-                       "Recent shows documents inside folders, never repeating the root's own cards")
+        XCTAssertEqual(Set(FilesSection.recentDocuments(acrossRoots: store.roots).map(\.name)), ["Draft.md", "Evicted.md", "Chapter.md"],
+                       "Recent: the newest documents anywhere, the root's own and its folders'")
 
         let empty = try XCTUnwrap(store.root(.device))
         XCTAssertTrue(empty.hasScanned)

@@ -240,14 +240,14 @@ struct FilesSection: View {
     /// How many cards Recent shows (the mockup's four).
     static let recentLimit = 4
 
-    /// Recent: the newest documents inside the roots' folders, at most `recentLimit`. A root's own
-    /// documents already show as cards under its heading, so Recent never repeats them (owner
-    /// review 4: every root document appeared twice).
+    /// Recent: the newest documents anywhere in the roots (their own and their folders'), as
+    /// cards, at most `recentLimit`. Under its heading a root lists its documents as plain rows,
+    /// like its folders (owner review 4: cards under the folders read as a second Recent).
     static func recentDocuments(acrossRoots roots: [FilesRoot]) -> [OutlineFileTreeItem] {
-        let inFolders = phoneRoots(roots).filter(\.hasScanned).flatMap { root in
-            root.items.filter(\.isDirectory).flatMap { documentsBelow($0) }
+        let all = phoneRoots(roots).filter(\.hasScanned).flatMap { root in
+            root.items.flatMap { item in item.isDirectory ? documentsBelow(item) : [item] }
         }
-        return Array(recentDocuments(in: inFolders).prefix(recentLimit))
+        return Array(recentDocuments(in: all).prefix(recentLimit))
     }
 
     /// Every document inside `folder`, at any depth, from the scanned tree.
@@ -580,7 +580,7 @@ struct FilesSection: View {
         }
     }
 
-    /// Recent: the newest documents inside folders, as cards (`recentDocuments(acrossRoots:)`).
+    /// Recent: the newest documents, as cards (`recentDocuments(acrossRoots:)`).
     @ViewBuilder
     private var recent: some View {
         let documents = Self.recentDocuments(acrossRoots: store.roots)
@@ -618,16 +618,13 @@ struct FilesSection: View {
         }
     }
 
-    /// The root's own documents as cards, as a folder's page shows them, iCloud placeholders
-    /// included (opening one downloads it).
+    /// The root's own documents as plain rows under its folders, newest first, iCloud
+    /// placeholders included (opening one downloads it). Rows, not cards: cards are Recent's.
     @ViewBuilder
     private func rootDocumentCards(_ root: FilesRoot) -> some View {
         let documents = Self.documents(in: root)
         if !documents.isEmpty {
-            WordMenuCardGrid(items: documents) { item in
-                DocumentCard(item: item, document: document, store: store, actions: actions) { open(item.url) }
-            }
-            .padding(.top, 4)
+            FilesDocumentRows(items: documents, store: store, actions: actions) { item in open(item.url) }
         }
     }
 
@@ -708,6 +705,49 @@ struct FilesFolderRows: View {
                             } label: {
                                 Label(action.title, systemImage: action.systemImage)
                             }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+/// A root's own documents as rows in the folder rows' style: the name, and when it changed on
+/// the right. Swipe and long-press offer what a card's ⋯ does.
+struct FilesDocumentRows: View {
+    var items: [OutlineFileTreeItem]
+    var store: FilesStore
+    var actions: FilesItemActions
+    var onOpen: (OutlineFileTreeItem) -> Void
+
+    static func when(_ item: OutlineFileTreeItem, now: Date = Date()) -> String? {
+        item.modifiedAt.map { $0.formatted(.relative(presentation: .named, unitsStyle: .abbreviated)) }
+    }
+
+    var body: some View {
+        VStack(spacing: 6) {
+            ForEach(items) { item in
+                Button {
+                    onOpen(item)
+                } label: {
+                    WordMenuRowLabel(
+                        title: item.url.deletingPathExtension().lastPathComponent,
+                        systemImage: "doc.text",
+                        accessory: Self.when(item).map { .text($0) } ?? .none
+                    )
+                    .opacity(item.isHidden ? 0.7 : 1)
+                }
+                .buttonStyle(WordMenuPressStyle())
+                .accessibilityValue(FilesRow.accessibilityValue(for: item).map { Text($0) } ?? Text(verbatim: ""))
+                .filesSwipeAccessibilityActions(FilesSwipeAction.actions(for: item, store: store))
+                .filesSwipeActions(FilesSwipeAction.actions(for: item, store: store))
+                .contextMenu {
+                    ForEach(FilesRowAction.menuActions(for: item), id: \.self) { action in
+                        Button {
+                            actions.perform(action, on: item)
+                        } label: {
+                            Label(action.title, systemImage: action.systemImage)
                         }
                     }
                 }

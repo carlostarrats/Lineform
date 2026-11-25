@@ -318,3 +318,57 @@ extension UIScrollView {
         }
     }
 }
+
+// MARK: - The document's name on the page
+
+/// The open document's file name, in small secondary text at the top of the page, above the first
+/// line (owner review 4: a renamable name on the page itself, not up in the menu). It scrolls with
+/// the text. A tap offers Rename…; Untitled (no file yet) shows the name and offers nothing.
+/// Write and Read both keep `DocumentNameTag.topSpace` above the first line, so the text does not
+/// move between the modes.
+final class DocumentNameTag: UIButton {
+    /// The name's line and the gap below it to the first line of text.
+    static let height: CGFloat = 20
+    static let gap: CGFloat = 10
+    static var topSpace: CGFloat { height + gap }
+
+    var onRename: (() -> Void)?
+
+    static func make() -> DocumentNameTag {
+        let tag = DocumentNameTag(type: .system)
+        tag.contentHorizontalAlignment = .leading
+        tag.titleLabel?.font = UIFont.preferredFont(forTextStyle: .footnote)
+        tag.titleLabel?.adjustsFontForContentSizeCategory = false
+        tag.titleLabel?.lineBreakMode = .byTruncatingMiddle
+        tag.showsMenuAsPrimaryAction = true
+        tag.accessibilityIdentifier = "document.name"
+        return tag
+    }
+
+    /// Shows `name` in `ink`; `canRename` gives it the Rename… menu.
+    func update(name: String, ink: UIColor, canRename: Bool) {
+        if title(for: .normal) != name { setTitle(name, for: .normal) }
+        setTitleColor(ink, for: .normal)
+        isUserInteractionEnabled = canRename
+        menu = canRename ? UIMenu(children: [
+            UIAction(title: String(localized: "Rename…"), image: UIImage(systemName: "pencil")) { [weak self] _ in
+                self?.onRename?()
+            },
+        ]) : nil
+        accessibilityLabel = name
+        accessibilityHint = canRename ? String(localized: "Rename…") : nil
+        accessibilityTraits = canRename ? .button : .staticText
+    }
+}
+
+extension UITextView {
+    /// Lays `tag` out across the text column, `top` below the content's top.
+    func layoutDocumentNameTag(_ tag: DocumentNameTag?, top: CGFloat) {
+        guard let tag, tag.superview === self else { return }
+        let padding = textContainer.lineFragmentPadding
+        let x = textContainerInset.left + padding
+        let width = max(0, bounds.width - textContainerInset.left - textContainerInset.right - 2 * padding)
+        let frame = CGRect(x: x, y: top, width: width, height: DocumentNameTag.height)
+        if tag.frame != frame { tag.frame = frame }
+    }
+}

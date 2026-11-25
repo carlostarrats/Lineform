@@ -27,9 +27,11 @@ import UIKit
 /// Swift's property initializers never run (see `LineformTextView`). All state with a starting
 /// value therefore lives in `State`, behind the one optional stored property.
 final class LineformReadView: UITextView {
-    /// Top and bottom page inset, the Mac Read view's 32 pt. The sides come from
-    /// `EditorReadingLayout`.
+    /// Bottom page inset, the Mac Read view's 32 pt. The sides come from `EditorReadingLayout`.
     static let verticalInset: CGFloat = 32
+    /// Top page inset: the editor's (`LineformTextView.pageTopInset`), so the first line stays put
+    /// when the page switches between Write and Read (owner review 4: it dropped 12 pt in Read).
+    static var topInset: CGFloat { LineformTextView.pageTopInset }
     /// The visible-top report waits this long after the last scroll (the Mac's 0.08 s).
     static let visibleTopReportDebounce: TimeInterval = 0.08
     /// Preview renders a text change this long after the last edit (the Mac's preview debounce).
@@ -65,6 +67,8 @@ final class LineformReadView: UITextView {
         var tableTabBasisWidth: CGFloat = 0
         let mermaidProvider = MermaidImageProvider()
         let mathProvider = MathImageProvider()
+        /// The document's name at the top of the page (`DocumentNameTag`). Made on first use.
+        var nameTag: DocumentNameTag?
         let imageProvider = ImageAttachmentProvider()
         let diagramLog = DiagramLogStore()
         var onCheckboxToggle: (NSRange) -> Void = { _ in }
@@ -400,9 +404,30 @@ final class LineformReadView: UITextView {
         (StylingDrag.isActive ? state.renderedProfile : nil) ?? state.profile
     }
 
+    /// The document's name at the top of the page (Read; never Preview's lower pane), as the
+    /// editor shows it (`LineformTextView.setDocumentName`).
+    func setDocumentName(_ name: String?, canRename: Bool, onRename: (() -> Void)?) {
+        guard let name else {
+            state.nameTag?.removeFromSuperview()
+            state.nameTag = nil
+            return
+        }
+        let tag = state.nameTag ?? {
+            let made = DocumentNameTag.make()
+            addSubview(made)
+            state.nameTag = made
+            return made
+        }()
+        let theme = Theme.theme(for: state.profile)
+        tag.update(name: name, ink: theme.readableInk(theme.textColor.withAlphaComponent(0.6), minimumRatio: 4.5),
+                   canRename: canRename)
+        tag.onRename = onRename
+        setNeedsLayout()
+    }
+
     private func updateTextContainerInset() {
         let side = EditorReadingLayout.horizontalInset(forContainerWidth: bounds.width, profile: layoutProfile)
-        let inset = UIEdgeInsets(top: Self.verticalInset, left: side, bottom: Self.verticalInset, right: side)
+        let inset = UIEdgeInsets(top: Self.topInset, left: side, bottom: Self.verticalInset, right: side)
         if textContainerInset != inset {
             textContainerInset = inset
         }
@@ -603,6 +628,7 @@ final class LineformReadView: UITextView {
     override func layoutSubviews() {
         updateTextContainerInset()
         super.layoutSubviews()
+        layoutDocumentNameTag(state.nameTag, top: LineformTextView.verticalInset)
         if let pending = state.pendingContentOffsetY {
             state.pendingContentOffsetY = nil
             if abs(contentOffset.y - pending) > 0.5 {

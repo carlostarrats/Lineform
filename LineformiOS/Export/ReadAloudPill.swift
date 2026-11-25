@@ -76,16 +76,22 @@ struct ReadAloudPill: View {
                 lineWidth: LineformDesign.FloatingCard.hairlineWidth
             )
         )
+        // A softer shadow than the round buttons' (owner review 4: the wide pill's full floating
+        // shadow read far too heavy, in dark especially): a third of the opacity, half the blur.
         .shadow(
             color: .black.opacity(
-                theme.usesDarkChrome ? LineformDesign.FloatingCard.shadowOpacityDark : LineformDesign.FloatingCard.shadowOpacityLight
+                (theme.usesDarkChrome ? LineformDesign.FloatingCard.shadowOpacityDark : LineformDesign.FloatingCard.shadowOpacityLight)
+                    * Self.shadowStrength
             ),
-            radius: LineformDesign.FloatingCard.shadowRadius,
-            x: LineformDesign.FloatingCard.shadowOffset.width,
-            y: LineformDesign.FloatingCard.shadowOffset.height
+            radius: LineformDesign.FloatingCard.shadowRadius / 2,
+            x: 0,
+            y: LineformDesign.FloatingCard.shadowOffset.height / 2
         )
         .accessibilityElement(children: .contain)
     }
+
+    /// How much of the floating chrome's shadow the pill keeps.
+    static let shadowStrength = 0.35
 
     /// A 36 pt circle (`PhoneInk.readAloudButton`) inside a 44 pt target.
     private func roundButton(systemImage: String, label: String, ink: PhoneInk, action: @escaping () -> Void) -> some View {

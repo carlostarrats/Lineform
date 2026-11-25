@@ -116,6 +116,8 @@ final class LineformTextView: UITextView {
         var highlighterSelectionDrawnOrigin: CGPoint = .zero
         /// The Image button's picker delegate, while a picker is up (LineformiOSTextView+ImagePicker.swift).
         var imagePickerCoordinator: ImagePickerCoordinator?
+        /// The document's name at the top of the page (`DocumentNameTag`). Made on first use.
+        var nameTag: DocumentNameTag?
         #if DEBUG
         var pasteboardForTesting: UIPasteboard?
         #endif
@@ -274,9 +276,34 @@ final class LineformTextView: UITextView {
         setNeedsHighlighterSelectionRedraw()
     }
 
+    /// The page's top inset: the margin, then the document's name line (`DocumentNameTag`). The
+    /// Read view uses the same, so the first line never moves between Write and Read.
+    static var pageTopInset: CGFloat { verticalInset + DocumentNameTag.topSpace }
+
+    /// The document's name at the top of the page; nil hides it (its room stays). `canRename`
+    /// offers Rename…, which calls `onRename`.
+    func setDocumentName(_ name: String?, canRename: Bool, onRename: (() -> Void)?) {
+        guard let name else {
+            state.nameTag?.removeFromSuperview()
+            state.nameTag = nil
+            return
+        }
+        let tag = state.nameTag ?? {
+            let made = DocumentNameTag.make()
+            addSubview(made)
+            state.nameTag = made
+            return made
+        }()
+        let theme = Theme.theme(for: profile)
+        tag.update(name: name, ink: theme.readableInk(theme.textColor.withAlphaComponent(0.6), minimumRatio: 4.5),
+                   canRename: canRename)
+        tag.onRename = onRename
+        setNeedsLayout()
+    }
+
     private func updateTextContainerInset() {
         let side = EditorReadingLayout.horizontalInset(forContainerWidth: bounds.width, profile: profile)
-        let inset = UIEdgeInsets(top: Self.verticalInset, left: side, bottom: Self.verticalInset, right: side)
+        let inset = UIEdgeInsets(top: Self.pageTopInset, left: side, bottom: Self.verticalInset, right: side)
         if textContainerInset != inset {
             textContainerInset = inset
         }
@@ -285,6 +312,7 @@ final class LineformTextView: UITextView {
     override func layoutSubviews() {
         updateTextContainerInset()
         super.layoutSubviews()
+        layoutDocumentNameTag(state.nameTag, top: Self.verticalInset)
         if bounds.size != lastLayoutSize {
             lastLayoutSize = bounds.size
             // A new size can uncover lines the last pass never reached. Deferred: no storage

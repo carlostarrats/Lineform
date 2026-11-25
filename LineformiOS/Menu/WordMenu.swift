@@ -140,8 +140,9 @@ struct WordMenu: View {
             }
             .allowsHitTesting(false)
             .accessibilityHidden(true)
-            // In a page: the way straight back to the document, at the bottom left (the
-            // owner's option A, `mockups/back-to-document.html`); the ← keeps the right.
+            // In a page: the way straight back to the document, at the bottom RIGHT, where ⋯ and
+            // ✕ sit; the ← takes the bottom left, nothing to its left (owner review 4 swapped the
+            // option A placement of `mockups/back-to-document.html`).
             if !navigation.isOnWordList {
                 WordMenuCornerButton(
                     glyph: .document,
@@ -155,7 +156,7 @@ struct WordMenu: View {
                 .opacity(isKeyboardUp ? 0 : 1)
                 .allowsHitTesting(!isKeyboardUp)
                 .accessibilityHidden(isKeyboardUp)
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
             }
             WordMenuCornerButton(
                 glyph: navigation.isOnWordList ? .close : .back,
@@ -171,6 +172,10 @@ struct WordMenu: View {
             .opacity(isKeyboardUp ? 0 : 1)
             .allowsHitTesting(!isKeyboardUp)
             .accessibilityHidden(isKeyboardUp)
+            .frame(
+                maxWidth: .infinity, maxHeight: .infinity,
+                alignment: navigation.isOnWordList ? .bottomTrailing : .bottomLeading
+            )
         }
         .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillShowNotification)) { _ in
             isKeyboardUp = true
@@ -273,14 +278,10 @@ struct WordMenu: View {
         let saveState = Self.saveStateText(for: document)
         let text = document.text
         let statistics = WordMenuStatusCounts.cached(for: text)
-        let canRename = document.url != nil
+        // The name is plain text here: Rename… lives on the page itself (`DocumentNameTag`,
+        // owner review 4: the menu's tappable name was not discoverable).
         var line = AttributedString(title)
-        line.foregroundColor = palette.color(canRename ? palette.ink : palette.secondary)
-        if canRename {
-            // The name is tappable (Rename…): a dotted Lineform-blue underline says so
-            // (`mockups/back-to-document.html`, option A).
-            line.underlineStyle = Text.LineStyle(pattern: .dot, color: palette.color(palette.blueMark))
-        }
+        line.foregroundColor = palette.color(palette.secondary)
         var separator = AttributedString(" · ")
         separator.foregroundColor = palette.color(palette.secondary)
         line += separator
@@ -298,28 +299,9 @@ struct WordMenu: View {
             .font(.subheadline)
             .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 2)
             .multilineTextAlignment(.leading)
-        return Group {
-            if let url = document.url {
-                // Untitled has no file to rename: the line stays plain text then.
-                Menu {
-                    Button(FilesRowAction.rename.title, systemImage: FilesRowAction.rename.systemImage) {
-                        fileActions.perform(.rename, on: OutlineFileTreeItem(
-                            url: url, name: url.lastPathComponent, isDirectory: false, children: []
-                        ))
-                    }
-                } label: {
-                    lineText
-                }
-                .menuStyle(.button)
-                .buttonStyle(.plain)
-            } else {
-                lineText
-            }
-        }
+        return lineText
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(Text(verbatim: label))
-        .accessibilityHint(canRename ? Text(FilesRowAction.rename.title) : Text(verbatim: ""))
-        .accessibilityAddTraits(canRename ? .isButton : [])
         .accessibilityIdentifier("wordMenu.status")
             .task(id: statistics == nil) {
                 guard statistics == nil else { return }

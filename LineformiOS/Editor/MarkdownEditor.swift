@@ -41,6 +41,11 @@ struct MarkdownEditor: UIViewRepresentable {
     var history: PhoneHistoryController?
     /// The selection row and comment field (`SelectionController`), told of every selection change.
     var selectionController: SelectionController?
+    /// The document's name at the top of the page (`DocumentNameTag`); nil hides it.
+    var documentName: String?
+    /// Whether the name offers Rename… (the document has a file).
+    var canRename = false
+    var onRename: () -> Void = {}
 
     /// Padding for the chrome that floats over the page (the menu button, the save notice).
     static let chromeMargin: CGFloat = 20
@@ -77,6 +82,8 @@ struct MarkdownEditor: UIViewRepresentable {
     /// agree, nothing is compared.
     func configure(_ textView: LineformTextView, coordinator: Coordinator? = nil) {
         textView.profile = profile
+        let rename = onRename
+        textView.setDocumentName(documentName, canRename: canRename, onRename: { rename() })
         selectionController?.editorProfileDidChange(profile)
         textView.checksSpellingWhileTyping = checksSpelling
         textView.imageInsertionHost = imageHost

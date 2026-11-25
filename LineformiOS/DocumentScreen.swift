@@ -93,6 +93,8 @@ struct DocumentScreen: View {
     @State private var presentedAnnouncement: Announcement?
     /// The keyboard is up: no announcement sheet comes up over typing.
     @State private var isKeyboardUp = false
+    /// The page name's Rename… (`DocumentNameTag`), shown with Files' own alerts.
+    @State private var pageFileActions = FilesItemActions()
 
     /// The quiet notice over the bottom of the page, if any: a failed save, else an image that
     /// could not be written beside the document, else a Check for Updates result whose alert
@@ -212,6 +214,7 @@ struct DocumentScreen: View {
     var body: some View {
         page
         .modifier(KeyboardClearance(keyboard: selection.keyboard))
+        .filesItemAlerts(pageFileActions, store: files)
         // The status bar (and the word menu over the page) follow the display theme, not the
         // phone: a light theme on a dark phone gets dark status text. The phone's own setting is
         // read from the window instead (`SystemAppearanceReader`), so Automatic Dark Mode still sees it.
@@ -734,7 +737,10 @@ extension DocumentScreen {
             readEditDocument: document,
             checksSpelling: settings.checksSpellingWhileTyping,
             history: document.history,
-            selectionController: selection
+            selectionController: selection,
+            documentName: WordMenu.documentTitle(for: document.url),
+            canRename: document.url != nil,
+            onRename: { renameOpenDocument() }
         )
         // Above the editor (Write, and Preview's top pane) and below the chrome, which overlays
         // the whole page.
@@ -786,8 +792,22 @@ extension DocumentScreen {
             topChromeInset: displayMode == .split ? 0 : ModeSwitch.pageTopClearance,
             bottomChromeInset: Self.bottomChromeClearance,
             linkedScroll: displayMode == .split ? linkedScroll : nil,
-            textDelay: displayMode == .split ? LineformReadView.previewTextDelay : 0
+            textDelay: displayMode == .split ? LineformReadView.previewTextDelay : 0,
+            // Read shows the name as Write does; Preview's lower pane does not repeat it.
+            documentName: displayMode == .split ? nil : WordMenu.documentTitle(for: document.url),
+            canRename: document.url != nil,
+            onRename: { renameOpenDocument() }
         )
+    }
+
+    /// The page's name was tapped: Files' Rename, for the open document (the document follows the
+    /// move and stops naming itself from its first line).
+    private func renameOpenDocument() {
+        guard let url = document.url else { return }
+        files.openDocument = document
+        pageFileActions.perform(.rename, on: OutlineFileTreeItem(
+            url: url, name: url.lastPathComponent, isDirectory: false, children: []
+        ))
     }
 }
 

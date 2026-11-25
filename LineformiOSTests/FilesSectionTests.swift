@@ -137,7 +137,7 @@ final class FilesSectionTests: XCTestCase {
         // no Workspace, no Open from Files…, no New Document or New Folder rows; each root's "+".
         if interfaceLanguage == "en" {
             XCTAssertNotNil(Self.find("On My iPhone", in: window))
-            XCTAssertNil(Self.find("Recent", in: window), "Recent shows documents inside folders; a root document is already a card")
+            XCTAssertNotNil(Self.find("Recent", in: window))
             XCTAssertNotNil(Self.find("New Document in On My iPhone", in: window), "the root's + makes a document there")
             XCTAssertNil(Self.find("Workspace", in: window), "the Workspace never shows on iPhone")
             XCTAssertNil(Self.find("Choose", in: window))
@@ -178,12 +178,12 @@ final class FilesSectionTests: XCTestCase {
         self.window = window
 
         let deadline = Date().addingTimeInterval(5)
-        while Self.count("Cloud draft", in: window) < 1, Date() < deadline {
+        while Self.count("Cloud draft", in: window) < 2, Date() < deadline {
             try await Task.sleep(for: .milliseconds(50))
             window.layoutIfNeeded()
         }
         XCTAssertNotNil(store.root(.icloud))
-        XCTAssertEqual(Self.count("Cloud draft", in: window), 1, "a card under iCloud, never repeated in Recent")
+        XCTAssertEqual(Self.count("Cloud draft", in: window), 2, "a row under iCloud and a card in Recent")
         if interfaceLanguage == "en" {
             XCTAssertNotNil(Self.find("New Document in On My iPhone", in: window), "the empty root keeps its +")
             XCTAssertNil(Self.find("No Markdown files", in: window), "no empty-state text in a root")
