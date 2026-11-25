@@ -140,42 +140,42 @@ struct WordMenu: View {
             }
             .allowsHitTesting(false)
             .accessibilityHidden(true)
-            // In a page: the way straight back to the document, at the bottom RIGHT, where ⋯ and
-            // ✕ sit; the ← takes the bottom left, nothing to its left (owner review 4 swapped the
-            // option A placement of `mockups/back-to-document.html`).
+            // The right circle never moves: ✕ on the words, the page button (straight back to the
+            // document) in a page; both close the menu. The ← sits alone at the bottom left in a
+            // page and simply appears and goes. No motion either way (owner review 4: the circle
+            // slid from left to right on ←).
             if !navigation.isOnWordList {
                 WordMenuCornerButton(
-                    glyph: .document,
+                    glyph: .back,
                     fill: palette.card,
                     ink: palette.ink,
                     isDark: palette.isDark,
-                    action: { onClose() }
+                    action: { back() }
                 )
-                .accessibilityIdentifier("wordMenu.document")
+                .accessibilityIdentifier("wordMenu.corner")
                 .padding(MarkdownEditor.chromeMargin)
                 .opacity(isKeyboardUp ? 0 : 1)
                 .allowsHitTesting(!isKeyboardUp)
                 .accessibilityHidden(isKeyboardUp)
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
+                .transition(.identity)
             }
             WordMenuCornerButton(
-                glyph: navigation.isOnWordList ? .close : .back,
+                glyph: navigation.isOnWordList ? .close : .document,
                 fill: palette.card,
                 ink: palette.ink,
                 isDark: palette.isDark,
-                action: { back() }
+                action: { onClose() }
             )
-            .accessibilityIdentifier("wordMenu.corner")
+            .accessibilityIdentifier(navigation.isOnWordList ? "wordMenu.corner" : "wordMenu.document")
             .padding(MarkdownEditor.chromeMargin)
             // While typing in a search field the keyboard (and iOS's suggestion bar above it) would
-            // half-cover the corner button: it steps aside until the keyboard goes; Esc still goes back.
+            // half-cover the corner buttons: they step aside until the keyboard goes; Esc still goes back.
             .opacity(isKeyboardUp ? 0 : 1)
             .allowsHitTesting(!isKeyboardUp)
             .accessibilityHidden(isKeyboardUp)
-            .frame(
-                maxWidth: .infinity, maxHeight: .infinity,
-                alignment: navigation.isOnWordList ? .bottomTrailing : .bottomLeading
-            )
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
+            .transaction { $0.animation = nil }
         }
         .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillShowNotification)) { _ in
             isKeyboardUp = true

@@ -323,7 +323,7 @@ extension UIScrollView {
 
 /// The open document's file name, in small secondary text at the top of the page, above the first
 /// line (owner review 4: a renamable name on the page itself, not up in the menu). It scrolls with
-/// the text. A tap offers Rename…; Untitled (no file yet) shows the name and offers nothing.
+/// the text. A tap opens Rename; Untitled (no file yet) shows the name and offers nothing.
 /// Write and Read both keep `DocumentNameTag.topSpace` above the first line, so the text does not
 /// move between the modes.
 final class DocumentNameTag: UIButton {
@@ -340,21 +340,27 @@ final class DocumentNameTag: UIButton {
         tag.titleLabel?.font = UIFont.preferredFont(forTextStyle: .footnote)
         tag.titleLabel?.adjustsFontForContentSizeCategory = false
         tag.titleLabel?.lineBreakMode = .byTruncatingMiddle
-        tag.showsMenuAsPrimaryAction = true
         tag.accessibilityIdentifier = "document.name"
+        // A tap opens Rename at once (owner review 4: a menu first was one tap too many).
+        tag.addAction(UIAction { [weak tag] _ in tag?.onRename?() }, for: .primaryActionTriggered)
         return tag
     }
 
     /// Shows `name` in `ink`; `canRename` gives it the Rename… menu.
     func update(name: String, ink: UIColor, canRename: Bool) {
-        if title(for: .normal) != name { setTitle(name, for: .normal) }
-        setTitleColor(ink, for: .normal)
+        // A renamable name carries a quiet dashed underline in its own grey, so it reads as
+        // something to tap (not the AI's blue dotted words).
+        var attributes: [NSAttributedString.Key: Any] = [
+            .font: UIFont.preferredFont(forTextStyle: .footnote),
+            .foregroundColor: ink,
+        ]
+        if canRename {
+            attributes[.underlineStyle] = NSUnderlineStyle([.single, .patternDash]).rawValue
+            attributes[.underlineColor] = ink.withAlphaComponent(0.6)
+        }
+        let title = NSAttributedString(string: name, attributes: attributes)
+        if attributedTitle(for: .normal) != title { setAttributedTitle(title, for: .normal) }
         isUserInteractionEnabled = canRename
-        menu = canRename ? UIMenu(children: [
-            UIAction(title: String(localized: "Rename…"), image: UIImage(systemName: "pencil")) { [weak self] _ in
-                self?.onRename?()
-            },
-        ]) : nil
         accessibilityLabel = name
         accessibilityHint = canRename ? String(localized: "Rename…") : nil
         accessibilityTraits = canRename ? .button : .staticText

@@ -593,6 +593,25 @@ final class LineformTextView: UITextView {
         reassertPersistentScrollIfNeeded()
     }
 
+    /// Scrolls to the page's very top (the name and the first line in view), and holds it across
+    /// the next layout turns as `scrollCharacterRangeToTopPersistently` does.
+    func scrollToPageTopPersistently() {
+        state.persistentScrollTarget = nil
+        func toTop() {
+            let top = -adjustedContentInset.top
+            if abs(contentOffset.y - top) > 0.5 { setContentOffset(CGPoint(x: contentOffset.x, y: top), animated: false) }
+        }
+        toTop()
+        DispatchQueue.main.async { [weak self] in
+            guard let self, !self.isTracking, !self.isDecelerating else { return }
+            toTop()
+            DispatchQueue.main.async { [weak self] in
+                guard let self, !self.isTracking, !self.isDecelerating else { return }
+                toTop()
+            }
+        }
+    }
+
     private func reassertPersistentScrollIfNeeded() {
         guard let range = state.persistentScrollTarget,
               state.persistentScrollReassertsRemaining > 0,

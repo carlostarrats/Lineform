@@ -134,6 +134,18 @@ struct FilesSection: View {
     /// menu reopens on them (the ← after a card opened a document).
     var externalSession: WordMenuSession?
     @State private var ownSession = WordMenuSession()
+    /// The roots the writer collapsed (their raw ids, comma-separated), kept on this device.
+    @AppStorage("Lineform.files.collapsedRoots") private var collapsedRoots = ""
+
+    private func isCollapsed(_ id: FilesRootID) -> Bool {
+        collapsedRoots.split(separator: ",").contains { $0 == id.rawValue }
+    }
+
+    private func toggleCollapsed(_ id: FilesRootID) {
+        var ids = Set(collapsedRoots.split(separator: ",").map(String.init))
+        if ids.contains(id.rawValue) { ids.remove(id.rawValue) } else { ids.insert(id.rawValue) }
+        collapsedRoots = ids.sorted().joined(separator: ",")
+    }
     private var session: WordMenuSession { externalSession ?? ownSession }
     private var search: SearchController? {
         get { session.search }
@@ -594,29 +606,65 @@ struct FilesSection: View {
 
     @ViewBuilder
     private func rootSection(_ root: FilesRoot) -> some View {
+        // Each root is a card holding its rows; a tap on its heading collapses it, so a long root
+        // does not have to be scrolled past (owner review 4). No motion: it opens and closes at once.
         let heading = Self.heading(for: root)
-        HStack(alignment: .center) {
-            WordMenuGroupLabel(title: heading.title, systemImage: heading.systemImage)
-            Spacer(minLength: 8)
-            if let folder = root.folderURL, root.state == .available {
-                // A document made here saves here.
-                WordMenuRoundButton(systemImage: "plus", label: Self.newDocumentLabel(in: heading.title)) {
-                    newDocument(in: folder)
+        let collapsed = isCollapsed(root.id)
+        let shape = RoundedRectangle(cornerRadius: WordMenuMetrics.rowRadius + 4, style: .continuous)
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(alignment: .center, spacing: 8) {
+                Button {
+                    toggleCollapsed(root.id)
+                } label: {
+                    HStack(spacing: 6) {
+                        WordMenuGroupLabel(title: heading.title, systemImage: heading.systemImage, isTight: true)
+                        Image(systemName: collapsed ? "chevron.right" : "chevron.down")
+                            .font(.caption2.weight(.semibold))
+                            .foregroundStyle(palette.color(palette.tertiary))
+                            .accessibilityHidden(true)
+                        Spacer(minLength: 0)
+                    }
+                    .frame(minHeight: WordMenuMetrics.minimumTarget)
+                    .contentShape(Rectangle())
                 }
-                .accessibilityIdentifier("files.add.\(root.id.rawValue)")
-                .padding(.top, 6)
+                .buttonStyle(.plain)
+                .accessibilityLabel(Text(heading.title))
+                .accessibilityValue(Text(collapsed ? Self.collapsedValue : Self.expandedValue))
+                .accessibilityHint(Text(collapsed ? Self.expandHint : Self.collapseHint))
+                .accessibilityAddTraits(.isHeader)
+                .accessibilityIdentifier("files.root.\(root.id.rawValue)")
+                if let folder = root.folderURL, root.state == .available {
+                    // A document made here saves here.
+                    WordMenuRoundButton(systemImage: "plus", label: Self.newDocumentLabel(in: heading.title)) {
+                        newDocument(in: folder)
+                    }
+                    .accessibilityIdentifier("files.add.\(root.id.rawValue)")
+                }
+            }
+            if !collapsed {
+                if !root.hasScanned {
+                    ProgressView()
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.horizontal, 4)
+                } else {
+                    // An empty root is its heading and "+" alone: no empty-state text (owner review 4).
+                    FilesFolderRows(items: root.items, store: store, actions: actions, onOpenFolder: onOpenFolder)
+                    rootDocumentCards(root)
+                }
             }
         }
-        if !root.hasScanned {
-            ProgressView()
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.horizontal, 4)
-        } else {
-            // An empty root is its heading and "+" alone: no empty-state text (owner review 4).
-            FilesFolderRows(items: root.items, store: store, actions: actions, onOpenFolder: onOpenFolder)
-            rootDocumentCards(root)
-        }
+        .padding(.horizontal, 10)
+        .padding(.top, 4)
+        .padding(.bottom, collapsed ? 4 : 10)
+        .background(shape.fill(palette.color(palette.isDark ? palette.field : palette.card)))
+        .shadow(color: .black.opacity(palette.cardHasShadow ? 0.06 : 0), radius: 6, x: 0, y: 2)
+        .transaction { $0.animation = nil }
     }
+
+    static var collapsedValue: String { String(localized: "Collapsed") }
+    static var expandedValue: String { String(localized: "Expanded") }
+    static var expandHint: String { String(localized: "Shows its folders and documents.") }
+    static var collapseHint: String { String(localized: "Hides its folders and documents.") }
 
     /// The root's own documents as plain rows under its folders, newest first, iCloud
     /// placeholders included (opening one downloads it). Rows, not cards: cards are Recent's.

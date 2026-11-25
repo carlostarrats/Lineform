@@ -176,9 +176,14 @@ struct FilesSearchResults: View {
                     .padding(.horizontal, 4)
             }
             LazyVStack(alignment: .leading, spacing: WordMenuMetrics.rowSpacing) {
+                let name = WordMenu.documentTitle(for: document.url)
+                let date = document.url.flatMap { SearchResultCard.fileModifiedDate($0) }
+                    .map { $0.formatted(.relative(presentation: .named, unitsStyle: .abbreviated)) }
                 ForEach(Array(rows.enumerated()), id: \.element.id) { index, row in
                     SearchMatchRowView(
                         row: row,
+                        name: name,
+                        date: date,
                         isCurrent: controller.activeIndex == index,
                         position: String(localized: "\(index + 1) of \(count)")
                     ) {
@@ -236,10 +241,14 @@ struct FilesSearchResults: View {
     }
 }
 
-/// One match in the open document: its line with the match marked (bold, on a blue wash), on a
-/// card. The current match is outlined in Lineform blue.
+/// One match in the open document, on a card: the file's name on the left and when it changed on
+/// the right, then the line with the match on a blue wash. No outline on any card (owner review 4:
+/// a phone has no hover, so a ring around one result read as a stray state); the current match
+/// is known to VoiceOver (selected) and is the one ↑/↓ moved to.
 private struct SearchMatchRowView: View {
     var row: SearchRow
+    var name: String
+    var date: String?
     var isCurrent: Bool
     /// "2 of 5", for VoiceOver.
     var position: String
@@ -249,25 +258,31 @@ private struct SearchMatchRowView: View {
     var body: some View {
         let shape = RoundedRectangle(cornerRadius: 12, style: .continuous)
         Button(action: action) {
-            Group {
+            VStack(alignment: .leading, spacing: 4) {
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                    Text(verbatim: name)
+                        .font(.subheadline.weight(.semibold))
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                    Spacer(minLength: 8)
+                    if let date {
+                        Text(verbatim: date)
+                            .font(.caption)
+                            .foregroundStyle(palette.color(palette.secondary))
+                            .lineLimit(1)
+                    }
+                }
                 if let snippet = row.snippet {
                     Text(Self.marked(snippet, wash: palette.color(palette.blueFill).opacity(0.42)))
-                } else {
-                    Text(verbatim: "")
+                        .font(.subheadline)
+                        .lineLimit(2)
                 }
             }
-            .font(.subheadline)
             .foregroundStyle(palette.color(palette.ink))
             .multilineTextAlignment(.leading)
-            .lineLimit(3)
             .padding(.horizontal, 12)
             .padding(.vertical, 10)
             .frame(maxWidth: .infinity, minHeight: WordMenuMetrics.minimumTarget, alignment: .leading)
-            .overlay {
-                if isCurrent {
-                    shape.strokeBorder(palette.color(palette.blueMark), lineWidth: 1.5)
-                }
-            }
             .background(
                 shape.fill(palette.color(palette.card))
                     .shadow(color: .black.opacity(palette.cardHasShadow ? 0.06 : 0), radius: 1, x: 0, y: 1)

@@ -81,7 +81,10 @@ final class ModePositionKeeper {
         readerAwaitsAdoptedFocus = false
         // Read's focus request is Read's alone: leaving it drops one still waiting for a window.
         if new != .read { reader?.cancelPendingFocus() }
-        let target = pendingTarget ?? topSourceLocation(in: old)
+        // A page showing its very top stays at its very top in the new mode (the name and the
+        // first line where they were): restoring "the top paragraph" instead put that paragraph
+        // under the mode control and the page jumped up (owner review 4).
+        let target = pendingTarget ?? (isAtPageTop(old) ? Self.pageTop : topSourceLocation(in: old))
         pendingTarget = target
         currentMode = new
         generation += 1
@@ -118,8 +121,28 @@ final class ModePositionKeeper {
         if let target = awaited.target { restore(target, in: awaited.mode) }
     }
 
-    /// Scrolls the surfaces of `mode` so `location` is at the top.
+    /// The restore target meaning "the page's very top", not a source location.
+    static let pageTop = -1
+
+    /// Whether the surface `mode` shows (the editor for Write and Preview) is scrolled to its top.
+    private func isAtPageTop(_ mode: EditorDisplayMode) -> Bool {
+        let view: UIScrollView? = mode == .read ? reader : editor
+        guard let view else { return false }
+        return view.contentOffset.y <= -view.adjustedContentInset.top + 1
+    }
+
+    /// Scrolls the surfaces of `mode` so `location` is at the top (`pageTop`: the page's top).
     func restore(_ location: Int, in mode: EditorDisplayMode) {
+        if location == Self.pageTop {
+            switch mode {
+            case .write: editor?.scrollToPageTopPersistently()
+            case .read: reader?.scrollSourceLocationToTop(Self.pageTop)
+            case .split:
+                editor?.scrollToPageTopPersistently()
+                if isPreviewLinked() { reader?.scrollSourceLocationToTop(Self.pageTop) }
+            }
+            return
+        }
         let range = NSRange(location: max(0, location), length: 0)
         switch mode {
         case .write:

@@ -1068,7 +1068,8 @@ final class LineformReadView: UITextView {
     }
 
     private func performScrollToSourceLocation(_ target: Int) {
-        guard textStorage.length > 0 else {
+        // `ModePositionKeeper.pageTop`: the page's very top.
+        guard target >= 0, textStorage.length > 0 else {
             setContentOffsetY(topContentOffsetY)
             return
         }
