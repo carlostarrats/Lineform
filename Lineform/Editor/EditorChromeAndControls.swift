@@ -642,13 +642,14 @@ struct EditorSidebarToggleButton: View {
     }
 }
 
-/// The mode control's capsule: Liquid Glass on macOS 26, the drawn frost before.
+/// The mode control's capsule: on macOS 26 the toolbar already sets the item on its own Liquid
+/// Glass, so nothing is drawn (a second glass capsule showed a doubled edge); the drawn frost before.
 private struct EditorModeControlSurface: ViewModifier {
     let usesDarkChrome: Bool
 
     func body(content: Content) -> some View {
         if #available(macOS 26, *) {
-            content.glassEffect(.regular, in: Capsule())
+            content
         } else {
             content.background { EditorModeSegmentedControl.legacyCapsule(usesDarkChrome: usesDarkChrome) }
         }
