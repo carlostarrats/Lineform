@@ -52,6 +52,8 @@ struct ExportPrintSection: View {
 
     /// The space between the mockup's runs of rows.
     static let groupGap: CGFloat = 10
+    /// The space under the file name.
+    static let fileGap: CGFloat = 26
 
     // MARK: - Body
 
@@ -62,7 +64,9 @@ struct ExportPrintSection: View {
             // when both exist), so a long list scrolls fast; turning it opens that document and the
             // page stays (owner review 5).
             ExportDocumentPicker(document: document, files: files)
-            Color.clear.frame(height: Self.groupGap)
+            // More air under the file than between the row groups, so the name reads apart
+            // from the commands (owner review 5).
+            Color.clear.frame(height: Self.fileGap)
             if let exportCommands {
                 ForEach(PhoneExportFormat.allCases, id: \.self) { format in
                     WordMenuRow(title: format.title, accessory: .none) {
@@ -152,9 +156,8 @@ private struct ExportDocumentPicker: View {
             .accessibilityIdentifier("export.document")
         }
         // The wheel rises from the bottom of the screen: the location switch at the top (only
-        // when iCloud and On My iPhone both show), iOS's wheel with the turned-to name on a
-        // Lineform-blue band (the app's selection colour, not iOS's grey), and Select at the
-        // bottom, which opens that document (owner review 5).
+        // when iCloud and On My iPhone both show), iOS's own wheel, full width with its own grey
+        // band, and Select at the bottom, which opens that document (owner review 5).
         .sheet(isPresented: $isOpen) {
             let items = documents(in: currentRootID)
             VStack(spacing: 12) {
@@ -168,6 +171,7 @@ private struct ExportDocumentPicker: View {
                 }
                 FileWheel(
                     names: items.map { $0.url.deletingPathExtension().lastPathComponent },
+                    font: UIFont.preferredFont(forTextStyle: .title3),
                     selection: Binding(
                         get: {
                             let target = pending ?? document.url?.standardizedFileURL
@@ -175,9 +179,11 @@ private struct ExportDocumentPicker: View {
                         },
                         set: { index in if items.indices.contains(index) { pending = items[index].url.standardizedFileURL } }
                     ),
-                    band: palette.color(palette.blueFill).opacity(0.16)
                 )
+                .frame(maxWidth: .infinity)
                 .frame(height: 180)
+                // The wheel insets its band 9 pt from each side: this lines it up with Select.
+                .padding(.horizontal, -9)
                 WordMenuPrimaryButton(title: String(localized: "Select")) {
                     let chosen = pending ?? items.first?.url.standardizedFileURL
                     isOpen = false
@@ -188,10 +194,9 @@ private struct ExportDocumentPicker: View {
                 .disabled(items.isEmpty)
             }
             .padding(.horizontal, 20)
-            .padding(.top, 24)
-            .padding(.bottom, 12)
+            .padding(.top, 20)
             .environment(\.wordMenuPalette, palette)
-            .presentationDetents([.height(roots.count > 1 ? 360 : 320)])
+            .presentationDetents([.height(roots.count > 1 ? 330 : 290)])
         }
         .onChange(of: isOpen) { _, open in
             files.setVisible(open, for: .chooser)
@@ -202,24 +207,24 @@ private struct ExportDocumentPicker: View {
     }
 }
 
-/// iOS's wheel (`UIPickerView`) with its grey selection band replaced by the app's blue band.
+/// iOS's wheel (`UIPickerView`), its own look, with a long name cut in the middle (so its end
+/// shows) rather than at the end.
 private struct FileWheel: UIViewRepresentable {
     var names: [String]
+    var font: UIFont
     @Binding var selection: Int
-    var band: Color
 
     func makeCoordinator() -> Coordinator { Coordinator(self) }
 
-    func makeUIView(context: Context) -> BandedPicker {
-        let picker = BandedPicker()
+    func makeUIView(context: Context) -> WidePicker {
+        let picker = WidePicker()
         picker.dataSource = context.coordinator
         picker.delegate = context.coordinator
         return picker
     }
 
-    func updateUIView(_ picker: BandedPicker, context: Context) {
+    func updateUIView(_ picker: WidePicker, context: Context) {
         context.coordinator.parent = self
-        picker.band = UIColor(band)
         picker.reloadAllComponents()
         if names.indices.contains(selection), picker.selectedRow(inComponent: 0) != selection {
             picker.selectRow(selection, inComponent: 0, animated: false)
@@ -231,20 +236,29 @@ private struct FileWheel: UIViewRepresentable {
         init(_ parent: FileWheel) { self.parent = parent }
         func numberOfComponents(in pickerView: UIPickerView) -> Int { 1 }
         func pickerView(_ pickerView: UIPickerView, numberOfRowsInComponent component: Int) -> Int { parent.names.count }
-        func pickerView(_ pickerView: UIPickerView, titleForRow row: Int, forComponent component: Int) -> String? { parent.names[row] }
+        func pickerView(_ pickerView: UIPickerView, rowHeightForComponent component: Int) -> CGFloat { 36 }
+        func pickerView(_ pickerView: UIPickerView, viewForRow row: Int, forComponent component: Int, reusing view: UIView?) -> UIView {
+            let label = (view as? UILabel) ?? UILabel()
+            label.text = parent.names[row]
+            label.font = parent.font
+            label.textAlignment = .center
+            label.lineBreakMode = .byTruncatingMiddle
+            label.accessibilityLabel = parent.names[row]
+            return label
+        }
         func pickerView(_ pickerView: UIPickerView, didSelectRow row: Int, inComponent component: Int) {
             parent.selection = row
         }
     }
 
-    /// Clears the system's grey band and draws the given colour in its place.
-    final class BandedPicker: UIPickerView {
-        var band: UIColor = .clear { didSet { setNeedsLayout() } }
-        override func layoutSubviews() {
-            super.layoutSubviews()
-            for view in subviews where view.bounds.height > 20 && view.bounds.height < 60 {
-                view.backgroundColor = band
-            }
+    /// iOS's wheel, its own band and all; it only gives up its fixed 320 pt width so SwiftUI can
+    /// lay it out across the sheet (then its band lines up with the Select button).
+    final class WidePicker: UIPickerView {
+        override init(frame: CGRect) {
+            super.init(frame: frame)
+            setContentHuggingPriority(.defaultLow, for: .horizontal)
+            setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
         }
+        required init?(coder: NSCoder) { super.init(coder: coder) }
     }
 }
