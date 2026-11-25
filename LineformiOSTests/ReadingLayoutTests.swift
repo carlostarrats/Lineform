@@ -27,7 +27,7 @@ final class ReadingLayoutTests: XCTestCase {
         let textView = LineformTextView.make(profile: .original)
         let theme = Theme.theme(for: ReadingProfile.original)
         XCTAssertEqual(textView.backgroundColor, theme.backgroundColor)
-        XCTAssertEqual(textView.tintColor, theme.caretColor, "the caret and the selection follow the theme")
+        XCTAssertEqual(textView.tintColor, HighlighterSelection.caretColor(for: theme), "the caret and handles are the highlighter's blue for the theme")
     }
 
     func testTypingUsesTheBaseMarkdownStyle() throws {
@@ -92,7 +92,7 @@ final class ReadingLayoutTests: XCTestCase {
         textView.profile = profile
         let theme = Theme.theme(for: profile)
         XCTAssertEqual(textView.backgroundColor, theme.backgroundColor)
-        XCTAssertEqual(textView.tintColor, theme.caretColor)
+        XCTAssertEqual(textView.tintColor, HighlighterSelection.caretColor(for: theme))
         XCTAssertEqual(textView.typingAttributes[.foregroundColor] as? UIColor, theme.textColor)
     }
 

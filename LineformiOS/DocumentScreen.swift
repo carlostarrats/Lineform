@@ -201,8 +201,9 @@ struct DocumentScreen: View {
     static let reconnectImageTypes: [UTType] = [.png, .jpeg, .gif, .heic, .tiff, .bmp, .image]
 
     var body: some View {
-        KeyboardClearedPage(keyboard: selection.keyboard) { page }
-        // The page makes room for the keyboard itself (`KeyboardClearedPage`): SwiftUI's own
+        page
+        .modifier(KeyboardClearance(keyboard: selection.keyboard))
+        // The page makes room for the keyboard itself (`KeyboardClearance`): SwiftUI's own
         // keyboard avoidance, under `.ignoresSafeArea(.container)`, stopped the page 34 pt (the
         // home indicator's band) above the keyboard and its format row, cutting off the lines and
         // the selection there (owner review, 2026-11-24).
@@ -864,12 +865,13 @@ enum ChromeAnnouncer {
 }
 /// The page, its bottom kept clear of the keyboard (and the format row on it) by exactly the
 /// keyboard's overlap with the window, animated with the keyboard (`SelectionKeyboardTracker`).
-private struct KeyboardClearedPage<Content: View>: View {
+/// A modifier, never a wrapper that rebuilds its content: rebuilding the page on every keyboard
+/// change re-ran the editor's update mid-edit and broke Preview's one undo history
+/// (`ModeSwitchTests.testPreviewTypeThenTickUndoesInOrder`).
+private struct KeyboardClearance: ViewModifier {
     @ObservedObject var keyboard: SelectionKeyboardTracker
-    @ViewBuilder var content: () -> Content
 
-    var body: some View {
-        content()
-            .padding(.bottom, keyboard.overlap)
+    func body(content: Content) -> some View {
+        content.padding(.bottom, keyboard.overlap)
     }
 }

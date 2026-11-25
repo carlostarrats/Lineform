@@ -171,7 +171,7 @@ final class DocumentCommandsTests: XCTestCase {
         ])
         XCTAssertEqual(ExportPrintSection.rowTitles(for: .plainText).last, "Convert to Markdown")
         XCTAssertEqual(AboutSection.rowTitles, ["Check for Updates…", "Lineform Guide", "Privacy Policy", "Terms of Use"])
-        XCTAssertTrue(SettingsSection.rowTitles.contains("Check Document Now"), "Check Document Now moved to Settings")
+        XCTAssertFalse(SettingsSection.rowTitles.contains("Check Document Now"), "Check Document Now is the format row's Check Spelling, not a Settings row")
         XCTAssertEqual(AboutSection.versionText(bundle: .main), "Version \(PhoneUpdateCommand.bundleShortVersion())")
         XCTAssertEqual(AboutSection.guideURL.absoluteString, LineformLinks.guideURL)
         XCTAssertEqual(AboutSection.privacyPolicyURL.absoluteString, LineformLinks.privacyPolicyURL)
