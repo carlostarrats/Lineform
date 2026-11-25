@@ -194,6 +194,8 @@ final class LocalizationSourceSweepTests: XCTestCase {
         "FilesStore.swift|Trash failed: %@": "os_log diagnostic (Logger.error), never drawn.",
         "FilesStore.swift|Move failed: %@": "os_log diagnostic (Logger.error), never drawn.",
         "FilesStore.swift|New Folder failed: %@": "os_log diagnostic (Logger.error), never drawn.",
+        "WordMenu.swift|Open word menu": "OSSignposter interval name (Instruments only), never drawn.",
+        "WordMenu.swift|Word menu open: %@ ms": "os_log timing diagnostic (Logger.log), never drawn.",
         "OpenDocument.swift|Trash":
             "A folder name matched in a file path (isTrashLocation), never drawn.",
     ]
