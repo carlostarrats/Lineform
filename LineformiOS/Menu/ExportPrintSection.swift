@@ -19,7 +19,6 @@ struct ExportPrintSection: View {
     /// The screen's export commands; nil until the screen has made them (no export rows then).
     var exportCommands: ExportCommands?
     var onDismiss: () -> Void
-    @State private var isChoosing = false
 
     // MARK: - Copy (the Mac's strings where the English matches)
 
@@ -58,14 +57,11 @@ struct ExportPrintSection: View {
 
     var body: some View {
         WordMenuPageScaffold(title: WordMenuItem.exportPrint.title) {
-            // What everything below acts on: the open document, by name. A tap lists every
-            // document to pick another (owner review 5), which then opens, and this page stays.
-            WordMenuRow(
-                title: WordMenu.documentTitle(for: document.url),
-                accessory: .text(Self.changeTitle)
-            ) { isChoosing = true }
-            .accessibilityLabel(Text(Self.documentLabel(WordMenu.documentTitle(for: document.url))))
-            .accessibilityIdentifier("export.document")
+            // What everything below acts on: "File name", then the open document's name as a
+            // button. A tap opens a wheel of the documents in place (iCloud or On My iPhone first,
+            // when both exist), so a long list scrolls fast; turning it opens that document and the
+            // page stays (owner review 5).
+            ExportDocumentPicker(document: document, files: files)
             Color.clear.frame(height: Self.groupGap)
             if let exportCommands {
                 ForEach(PhoneExportFormat.allCases, id: \.self) { format in
@@ -95,66 +91,111 @@ struct ExportPrintSection: View {
             }
             .disabled(!document.canConvertTextFormat)
         }
-        .sheet(isPresented: $isChoosing) {
-            ExportDocumentChooser(files: files, current: document.url) { url in
-                isChoosing = false
-                guard url != document.url else { return }
-                Task { await document.openReportingFailure(url) }
-            }
-        }
     }
 
-    static var changeTitle: String { String(localized: "Change") }
-    static func documentLabel(_ name: String) -> String { String(localized: "Document: \(name)") }
 }
 
-/// Export & Print's chooser: every document, under iCloud and On My iPhone, newest first in each,
-/// in one scrolling list (no menu). The open one carries a tick.
-private struct ExportDocumentChooser: View {
+/// Export & Print's document: a small "File name" label over the open document's name, which is a
+/// button. It brings up iOS's wheel from the bottom of the screen, with a location choice first
+/// when iCloud and On My iPhone both show; the wheel's choice opens at once.
+private struct ExportDocumentPicker: View {
+    var document: OpenDocument
     var files: FilesStore
-    var current: URL?
-    var onChoose: (URL) -> Void
+    @State private var isOpen = false
+    @State private var rootID: FilesRootID?
     @Environment(\.wordMenuPalette) private var palette
 
+    private var roots: [FilesRoot] { FilesSection.phoneRoots(files.roots).filter(\.hasScanned) }
+
+    private var currentRootID: FilesRootID? {
+        rootID ?? document.url.flatMap { files.rootID(containing: $0) } ?? roots.first?.id
+    }
+
+    private func documents(in id: FilesRootID?) -> [OutlineFileTreeItem] {
+        guard let root = roots.first(where: { $0.id == id }) else { return [] }
+        return FilesSection.recentDocuments(in: root.items.flatMap { item in
+            item.isDirectory ? FilesSection.documentsBelow(item) : [item]
+        })
+    }
+
     var body: some View {
-        NavigationStack {
-            List {
-                ForEach(FilesSection.phoneRoots(files.roots)) { root in
-                    let documents = FilesSection.recentDocuments(in: root.items.flatMap { item in
-                        item.isDirectory ? FilesSection.documentsBelow(item) : [item]
-                    })
-                    Section(FilesSection.heading(for: root).title) {
-                        if !root.hasScanned {
-                            ProgressView()
-                        }
-                        ForEach(documents) { item in
-                            Button {
-                                onChoose(item.url)
-                            } label: {
-                                HStack {
-                                    Text(verbatim: item.url.deletingPathExtension().lastPathComponent)
-                                        .foregroundStyle(.primary)
-                                    Spacer(minLength: 8)
-                                    if item.url.standardizedFileURL == current?.standardizedFileURL {
-                                        Image(systemName: "checkmark")
-                                            .foregroundStyle(palette.color(palette.blueMark))
-                                            .accessibilityLabel(Text(String(localized: "Open now")))
-                                    } else if let when = FilesDocumentRows.when(item) {
-                                        Text(verbatim: when)
-                                            .font(.subheadline)
-                                            .foregroundStyle(.secondary)
-                                    }
-                                }
-                            }
+        let name = WordMenu.documentTitle(for: document.url)
+        VStack(alignment: .leading, spacing: 6) {
+            Text(String(localized: "File name"))
+                .font(.caption.weight(.medium))
+                .foregroundStyle(palette.color(palette.tertiary))
+                .padding(.horizontal, 4)
+            Button {
+                isOpen.toggle()
+            } label: {
+                HStack(spacing: 6) {
+                    Text(verbatim: name)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                    Image(systemName: "chevron.down")
+                        .font(.caption.weight(.semibold))
+                        .rotationEffect(.degrees(isOpen ? 180 : 0))
+                        .accessibilityHidden(true)
+                }
+                .font(.body.weight(.medium))
+                .foregroundStyle(palette.color(palette.ink))
+                .padding(.horizontal, 14)
+                .padding(.vertical, 9)
+                .background(Capsule().fill(palette.color(palette.soft)))
+                .contentShape(Capsule())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(Text(String(localized: "File name")))
+            .accessibilityValue(Text(verbatim: name))
+            .accessibilityIdentifier("export.document")
+        }
+        // The native wheel, rising from the bottom of the screen as iOS's own pickers do, never
+        // drawn in the page (owner review 5). A location choice first, only when both exist.
+        .sheet(isPresented: $isOpen) {
+            VStack(spacing: 8) {
+                HStack {
+                    Spacer()
+                    Button(String(localized: "Done")) { isOpen = false }
+                        .fontWeight(.semibold)
+                }
+                .padding(.horizontal, 20)
+                .padding(.top, 14)
+                if roots.count > 1 {
+                    Picker(String(localized: "File name"), selection: Binding(get: { currentRootID }, set: { rootID = $0 })) {
+                        ForEach(roots) { root in
+                            Text(FilesSection.heading(for: root).title).tag(Optional(root.id))
                         }
                     }
+                    .pickerStyle(.segmented)
+                    .padding(.horizontal, 20)
                 }
+                let items = documents(in: currentRootID)
+                Picker(String(localized: "File name"), selection: Binding(
+                    get: { document.url?.standardizedFileURL },
+                    set: { url in
+                        guard let url, url != document.url?.standardizedFileURL else { return }
+                        Task { await document.openReportingFailure(url) }
+                    }
+                )) {
+                    if document.url.map({ url in !items.contains { $0.url.standardizedFileURL == url.standardizedFileURL } }) ?? true {
+                        Text(verbatim: name).tag(document.url?.standardizedFileURL)
+                    }
+                    ForEach(items) { item in
+                        Text(verbatim: item.url.deletingPathExtension().lastPathComponent)
+                            .tag(Optional(item.url.standardizedFileURL))
+                    }
+                }
+                .pickerStyle(.wheel)
+                Spacer(minLength: 0)
             }
-            .navigationTitle(String(localized: "Choose a Document"))
-            .navigationBarTitleDisplayMode(.inline)
+            .presentationDetents([.height(roots.count > 1 ? 330 : 290)])
+            .presentationDragIndicator(.hidden)
         }
-        .onAppear { files.setVisible(true, for: .chooser) }
+        .onChange(of: isOpen) { _, open in
+            files.setVisible(open, for: .chooser)
+            if open { Task { await files.scanIfVisible() } }
+        }
         .onDisappear { files.setVisible(false, for: .chooser) }
-        .task { await files.scanIfVisible() }
+        .transaction { $0.animation = nil }
     }
 }

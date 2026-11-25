@@ -103,7 +103,10 @@ struct WordMenu: View {
     // MARK: - Body
 
     /// The software keyboard is up (a search field is being typed in).
-    @State private var isKeyboardUp = false
+    /// How far the on-screen keyboard reaches above the home indicator's band: the corner buttons
+    /// ride above it, always visible (owner review 5: they vanished while a search field was in
+    /// use, leaving no way back).
+    @State private var keyboardLift: CGFloat = 0
 
     var body: some View {
         let palette = palette
@@ -154,9 +157,7 @@ struct WordMenu: View {
                 )
                 .accessibilityIdentifier("wordMenu.corner")
                 .padding(MarkdownEditor.chromeMargin)
-                .opacity(isKeyboardUp ? 0 : 1)
-                .allowsHitTesting(!isKeyboardUp)
-                .accessibilityHidden(isKeyboardUp)
+                .padding(.bottom, keyboardLift)
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
                 .transition(.identity)
             }
@@ -169,22 +170,15 @@ struct WordMenu: View {
             )
             .accessibilityIdentifier(navigation.isOnWordList ? "wordMenu.corner" : "wordMenu.document")
             .padding(MarkdownEditor.chromeMargin)
-            // While typing in a search field the keyboard (and iOS's suggestion bar above it) would
-            // half-cover the corner buttons: they step aside until the keyboard goes; Esc still goes back.
-            .opacity(isKeyboardUp ? 0 : 1)
-            .allowsHitTesting(!isKeyboardUp)
-            .accessibilityHidden(isKeyboardUp)
+            .padding(.bottom, keyboardLift)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
             .transaction { $0.animation = nil }
         }
-        .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillShowNotification)) { note in
-            // Only a real on-screen keyboard: with a hardware keyboard iOS still reports a short
-            // bar, and the corner buttons vanished with nothing covering them (owner review 5).
-            let frame = (note.userInfo?[UIResponder.keyboardFrameEndUserInfoKey] as? NSValue)?.cgRectValue ?? .zero
-            isKeyboardUp = frame.height >= 150
+        .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillChangeFrameNotification)) { note in
+            keyboardLift = Self.keyboardLift(from: note)
         }
         .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillHideNotification)) { _ in
-            isKeyboardUp = false
+            keyboardLift = 0
         }
         .environment(\.wordMenuPalette, palette)
         .environment(\.wordMenuSession, currentSession)
@@ -214,6 +208,17 @@ struct WordMenu: View {
             if let initialPage, navigation.isOnWordList { navigation.push(initialPage) }
         }
         .task { await WordMenuWarmUp.run() }
+    }
+
+    /// The keyboard's height above the bottom safe area, from a frame notification (0 when it is
+    /// off screen or only a hardware keyboard's short bar).
+    static func keyboardLift(from note: Notification) -> CGFloat {
+        guard let frame = (note.userInfo?[UIResponder.keyboardFrameEndUserInfoKey] as? NSValue)?.cgRectValue,
+              let window = UIApplication.shared.connectedScenes.compactMap({ $0 as? UIWindowScene })
+                .flatMap(\.windows).first(where: \.isKeyWindow)
+        else { return 0 }
+        let overlap = max(0, window.bounds.maxY - window.convert(frame, from: window.screen.coordinateSpace).minY)
+        return max(0, overlap - window.safeAreaInsets.bottom)
     }
 
     private var showsFiles: Bool { navigation.top?.showsFiles == true }
