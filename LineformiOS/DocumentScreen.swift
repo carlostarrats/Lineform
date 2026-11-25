@@ -48,15 +48,6 @@ struct DocumentScreen: View {
     @State private var resumeSession: WordMenuSession?
     /// Hides the ← after `resumeButtonDuration` (never while VoiceOver runs).
     @State private var resumeHideTask: Task<Void, Never>?
-    /// Where the menu's cards record themselves before opening a document.
-    @State private var cardTransition = CardOpenTransition()
-    /// The card expanding into the page while the menu fades (nil otherwise).
-    @State private var cardZoom: CardZoom?
-    @State private var cardZoomProgress: CGFloat = 0
-    /// The menu's opacity: 1, except while it fades for a card's expansion.
-    @State private var menuOpacity: Double = 1
-    /// The menu is on its way out (a card is opening): it takes no more taps.
-    @State private var isMenuClosing = false
     @State private var isShowingStyling = false
     /// Write, Read or Preview. Kept with the scene, so a Preview restored after iOS ended the app
     /// opens in Preview; a new scene starts in Write.
@@ -298,7 +289,7 @@ struct DocumentScreen: View {
             value: selection.phase
         )
         .animation(
-            EditorMotionPolicy.animation(.easeOut(duration: 0.3), reduceMotion: reduceMotion),
+            EditorMotionPolicy.animation(.easeOut(duration: Self.resumeFadeDuration), reduceMotion: reduceMotion),
             value: resumeSession == nil
         )
         .animation(
@@ -313,15 +304,6 @@ struct DocumentScreen: View {
             // but first run.
             if isShowingMenu {
                 wordMenu
-                    .environment(\.cardOpenTransition, cardTransition)
-                    .opacity(menuOpacity)
-                    .allowsHitTesting(!isMenuClosing)
-            }
-        }
-        .overlay {
-            // A card expanding into the page, over the fading menu.
-            if let cardZoom {
-                CardZoomView(image: cardZoom.image, from: cardZoom.from, to: cardZoom.to, progress: cardZoomProgress)
             }
         }
         .overlay {
@@ -552,6 +534,8 @@ struct DocumentScreen: View {
 
     /// How long the ← stays when it is not used.
     static let resumeButtonDuration: Duration = .seconds(5)
+    /// The ←'s fade in and out, as one layer (`ResumeMenuButton`).
+    static let resumeFadeDuration: TimeInterval = 0.22
 
     /// The menu closed after a card or search result opened a document: the ← shows at the bottom
     /// left. It fades after `resumeButtonDuration`, or at once when the writer types; while
@@ -581,84 +565,17 @@ struct DocumentScreen: View {
         session.end()
     }
 
-    /// Closes the menu at once, or, when a card just opened a document, expands the card into the
-    /// page (`expandFromCard`).
+    /// Closes the menu at once, with no motion. A card or search result that opened a document
+    /// lands straight on the page (the owner's review of 2026-11-24: no card expansion).
     private func closeWordMenu() {
         // A card or search result opened a document: the ← offers the way back.
-        if menuSession.openedDocument { offerResume(menuSession) } else { menuSession.end() }
-        guard let card = cardTransition.take() else {
-            isShowingMenu = false
-            return
+        if menuSession.openedDocument {
+            WordMenuTiming.end(.openCard)
+            offerResume(menuSession)
+        } else {
+            menuSession.end()
         }
-        isMenuClosing = true
-        Task { @MainActor in await expandFromCard(card) }
-    }
-
-    /// The menu leaves for good, with nothing left of a card's expansion.
-    private func finishClosingMenu() {
         isShowingMenu = false
-        isMenuClosing = false
-        menuOpacity = 1
-        cardZoom = nil
-        cardZoomProgress = 0
-    }
-
-    /// The card expands into the page (0.3 s, ease-in-out) while the menu fades; under Reduce
-    /// Motion the menu only crossfades to the page. The document opens as before (its open is
-    /// already running); only the picture waits, for the page to show the opened text (at most
-    /// `cardWaitLimit`, then the menu simply closes).
-    private func expandFromCard(_ card: CardOpenTransition.Card) async {
-        let deadline = Date().addingTimeInterval(Self.cardWaitLimit)
-        while !pageShows(card.url), Date() < deadline {
-            // Short steps: the page shows the opened text within a frame of it landing.
-            try? await Task.sleep(for: .milliseconds(2))
-        }
-        guard pageShows(card.url) else { return finishClosingMenu() }
-        WordMenuTiming.end(.openCard)
-        // One more turn: the editor (and the Read view) take the new text.
-        await Task.yield()
-        if reduceMotion {
-            withAnimation(.easeInOut(duration: CardZoomView.duration)) {
-                menuOpacity = 0
-            } completion: {
-                finishClosingMenu()
-            }
-            return
-        }
-        let shown: UIView? = displayMode == .read ? positionKeeper.reader : positionKeeper.editor
-        guard let view = shown, view.window != nil, let image = Self.picture(of: view) else { return finishClosingMenu() }
-        cardZoom = CardZoom(image: image, from: card.frame, to: view.convert(view.bounds, to: nil))
-        cardZoomProgress = 0
-        // The picture sits on the card for one frame before it grows.
-        try? await Task.sleep(for: .milliseconds(16))
-        withAnimation(CardZoomView.animation) {
-            cardZoomProgress = 1
-            menuOpacity = 0
-        } completion: {
-            finishClosingMenu()
-        }
-    }
-
-    /// The longest the expansion waits for the opened text; a slower open closes the menu plainly.
-    static let cardWaitLimit: TimeInterval = 0.6
-
-    /// The page shows the document `url` (nil: the open one): the document has opened it and the
-    /// editor holds its text.
-    private func pageShows(_ url: URL?) -> Bool {
-        if let url {
-            let wanted = OpenDocument.realURL(for: url).resolvingSymlinksInPath().path
-            guard document.url?.resolvingSymlinksInPath().path == wanted else { return false }
-        }
-        return positionKeeper.editor.map { $0.textStorage.string == document.text } ?? true
-    }
-
-    /// A picture of the page view as it is now.
-    private static func picture(of view: UIView) -> UIImage? {
-        guard view.bounds.width > 0, view.bounds.height > 0 else { return nil }
-        let renderer = UIGraphicsImageRenderer(bounds: view.bounds)
-        return renderer.image { _ in
-            _ = view.drawHierarchy(in: view.bounds, afterScreenUpdates: true)
-        }
     }
 
     private var wordMenu: some View {
@@ -945,14 +862,6 @@ enum ChromeAnnouncer {
         (old == .read) != (new == .read) ? .layoutChanged : .announcement
     }
 }
-
-/// A card's expansion into the page: the page's picture, the card's frame and the page's.
-struct CardZoom {
-    var image: UIImage
-    var from: CGRect
-    var to: CGRect
-}
-
 /// The page, its bottom kept clear of the keyboard (and the format row on it) by exactly the
 /// keyboard's overlap with the window, animated with the keyboard (`SelectionKeyboardTracker`).
 private struct KeyboardClearedPage<Content: View>: View {

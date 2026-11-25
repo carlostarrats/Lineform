@@ -2,9 +2,9 @@ import LineformCore
 import SwiftUI
 
 /// An announcement on iPhone: a small one-time sheet, as tall as its content, on the word menu's
-/// wash. The title, the body, the action as the full-width blue pill, and a quiet "Not now" under
-/// it. When the action is the Lineform Guide, a footnote says where the guide lives (About
-/// Lineform). Not now, a swipe down and the action all dismiss the announcement for good
+/// wash. The title, the body, the action as the full-width blue pill, and "Not now" under it as
+/// the pill's grey twin (`WordMenuSecondaryButton`). When the action is the Lineform Guide, a
+/// footnote says where the guide lives (About Lineform). Not now, a swipe down and the action all dismiss the announcement for good
 /// (`PhoneAnnouncementStore`'s rules: dismissed ids are never pruned).
 ///
 /// Title and body are remote input and render as plain `Text` (verbatim), never Markdown; the
@@ -55,21 +55,15 @@ struct PhoneAnnouncementSheet: View {
                     .font(.body)
                     .foregroundStyle(palette.color(palette.secondary))
                     .fixedSize(horizontal: false, vertical: true)
-                VStack(spacing: 2) {
+                VStack(spacing: 8) {
                     if let label = announcement.actionLabel {
                         WordMenuPrimaryButton(title: label, action: onAction)
                             .accessibilityAddTraits(.isLink)
                             .accessibilityIdentifier("announcement.action")
                     }
-                    Button(action: onDismiss) {
-                        Text(Self.notNowTitle)
-                            .font(.body)
-                            .foregroundStyle(palette.color(palette.secondary))
-                            .frame(maxWidth: .infinity, minHeight: WordMenuMetrics.minimumTarget)
-                            .contentShape(Rectangle())
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityIdentifier("announcement.notNow")
+                    // A real button under the action: its shape and size, the quiet grey fill.
+                    WordMenuSecondaryButton(title: Self.notNowTitle, action: onDismiss)
+                        .accessibilityIdentifier("announcement.notNow")
                 }
                 .padding(.top, 6)
                 if Self.isGuideAction(announcement) {

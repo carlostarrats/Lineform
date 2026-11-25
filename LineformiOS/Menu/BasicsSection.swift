@@ -102,9 +102,21 @@ struct BasicsSection: View {
         return result
     }
 
+    /// The gap from one group's card to the next group's label (the owner's review of 2026-11-24:
+    /// the groups sat too close). A label keeps its own card close (8 pt).
+    static let groupGap: CGFloat = 30
+    /// The first label's gap under the page title.
+    static let firstGroupGap: CGFloat = 14
+
+    /// The space a group adds above its label, on top of the page's `rowSpacing`.
+    static func topPadding(isFirst: Bool) -> CGFloat {
+        (isFirst ? firstGroupGap : groupGap) - WordMenuMetrics.rowSpacing
+    }
+
     var body: some View {
+        let groups = Self.groups
         WordMenuPageScaffold(title: WordMenuItem.basics.title) {
-            ForEach(Self.groups) { group in
+            ForEach(groups) { group in
                 VStack(alignment: .leading, spacing: 8) {
                     WordMenuGroupLabel(title: group.title, isTight: true)
                     VStack(spacing: 0) {
@@ -123,8 +135,8 @@ struct BasicsSection: View {
                     )
                     .clipShape(RoundedRectangle(cornerRadius: WordMenuMetrics.rowRadius, style: .continuous))
                 }
-                // The page's 8 pt plus 6: the mockup's gap between one card and the next label.
-                .padding(.top, 6)
+                // With the page's 8 pt: `groupGap` from one card to the next label.
+                .padding(.top, Self.topPadding(isFirst: group.id == groups.first?.id))
             }
         }
     }
