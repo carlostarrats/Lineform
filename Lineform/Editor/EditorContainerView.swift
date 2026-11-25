@@ -543,17 +543,21 @@ struct EditorContainerView: View {
             activateSelectedTab()
             syncAIConversation()
         }
-        // A replaced or closed document's conversation goes with it.
-        .onChange(of: tabStore.tabs.map { "\($0.id)|\($0.document.id)" }) { _, _ in syncAIConversation() }
-        .onAppear { syncAIConversation() }
-        // An AI action started anywhere (the context menu, Another Word) is part of the
-        // conversation: the drawer opens on it. A disconnect closes the drawer.
-        .onChange(of: aiController.state) { _, state in
-            if case .running = state, !(isShowingReadingInspector && inspectorContent == .ai) { showAIDrawer() }
-        }
-        .onChange(of: aiConnection.isConnected) { _, connected in
-            if !connected, inspectorContent == .ai, isShowingReadingInspector { isShowingReadingInspector = false }
-        }
+        // The AI drawer's observers, bundled as one modifier (same type-checker-budget rationale
+        // as SpeechNotificationHandlers below: as four modifiers they tipped this body over
+        // Xcode 26.6's budget on CI).
+        .modifier(AIDrawerObservers(
+            documentKeys: tabStore.tabs.map { "\($0.id)|\($0.document.id)" },
+            aiState: aiController.state,
+            isConnected: aiConnection.isConnected,
+            syncConversation: { syncAIConversation() },
+            aiActionStarted: {
+                if !(isShowingReadingInspector && inspectorContent == .ai) { showAIDrawer() }
+            },
+            disconnected: {
+                if inspectorContent == .ai, isShowingReadingInspector { isShowingReadingInspector = false }
+            }
+        ))
         // Both chrome-rebuild appearance re-asserts bundled as a modifier (same
         // type-checker-budget rationale as SpeechNotificationHandlers below).
         .modifier(ReassertWindowChromeOnHierarchyRebuild(
@@ -3471,5 +3475,29 @@ private struct WriteFailureAlert: ViewModifier {
         } message: { name in
             Text("Lineform couldn\u{2019}t write \u{201C}\(name)\u{201D}. Choose a different location and try again.")
         }
+    }
+}
+
+/// The AI drawer's observers on the editor window: a replaced or closed document's conversation
+/// goes with it, an AI action started anywhere (the context menu, Another Word) opens the drawer
+/// on it, and a disconnect closes the drawer.
+private struct AIDrawerObservers: ViewModifier {
+    let documentKeys: [String]
+    let aiState: AIActionController.State
+    let isConnected: Bool
+    let syncConversation: () -> Void
+    let aiActionStarted: () -> Void
+    let disconnected: () -> Void
+
+    func body(content: Content) -> some View {
+        content
+            .onChange(of: documentKeys) { _, _ in syncConversation() }
+            .onAppear { syncConversation() }
+            .onChange(of: aiState) { _, state in
+                if case .running = state { aiActionStarted() }
+            }
+            .onChange(of: isConnected) { _, connected in
+                if !connected { disconnected() }
+            }
     }
 }
