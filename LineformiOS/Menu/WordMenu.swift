@@ -153,8 +153,7 @@ struct WordMenu: View {
             if !navigation.isOnWordList {
                 WordMenuCornerButton(
                     glyph: .back,
-                    fill: palette.card,
-                    ink: palette.ink,
+                        ink: palette.ink,
                     isDark: palette.isDark,
                     action: { back() }
                 )
@@ -169,7 +168,6 @@ struct WordMenu: View {
             }
             WordMenuCornerButton(
                 glyph: navigation.isOnWordList ? .close : .document,
-                fill: palette.card,
                 ink: palette.ink,
                 isDark: palette.isDark,
                 action: { onClose() }

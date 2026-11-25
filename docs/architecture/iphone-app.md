@@ -1322,8 +1322,8 @@ of `render()`), rebuilt value for value on 2026-11-24 and checked side by side i
   capsule, no shadow, no gap, scrolling sideways. Its height is 50 pt while `phase == .row` and 0
   otherwise. iOS 26's keyboard is a
   floating glass panel with rounded top corners, and a `.keyboard` `UIInputView` no longer draws
-  its colour, so the bar fills itself with the keyboard's colour over a Lineform page
-  (`keyboardColor`: #E2E4E8 light, #212122 dark, sampled from the simulator) and the fill runs on
+  its colour, so the bar draws its own Liquid Glass (`UIGlassEffect`, in the theme's light or
+  dark; until 2026-11-25 an opaque sampled keyboard colour) and the glass runs on
   44 pt under the keyboard's top edge (`fillOverlap`), filling the corners it rounds off; the
   keyboard's glass rim stays faintly visible. A theme change while typing re-renders the bar
   (`editorProfileDidChange`) and reloads the input views when the darkness changes, so the

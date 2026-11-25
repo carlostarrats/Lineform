@@ -295,7 +295,8 @@ private struct AIQuickActionButton: View {
                 .contentShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
         }
         .buttonStyle(AIFillButtonStyle(fill: style.field, hoverFill: style.blue, ink: style.ink, hoverInk: .white,
-                                       isHovering: isHovering, cornerRadius: 10))
+                                       isHovering: isHovering, cornerRadius: 10,
+                                       glassTint: nil, hoverGlassTint: style.blue))
         .onHover { isHovering = $0 }
     }
 }
@@ -322,12 +323,15 @@ struct AIPillButton: View {
         .buttonStyle(AIFillButtonStyle(fill: isPrimary ? style.blue : style.field,
                                        hoverFill: isPrimary ? style.blue.opacity(0.9) : style.fieldHover,
                                        ink: isPrimary ? .white : style.ink, hoverInk: isPrimary ? .white : style.ink,
-                                       isHovering: isHovering, cornerRadius: 999))
+                                       isHovering: isHovering, cornerRadius: 999,
+                                       glassTint: isPrimary ? style.blue : nil,
+                                       hoverGlassTint: isPrimary ? style.blue.opacity(0.9) : style.fieldHover))
         .onHover { isHovering = $0 }
     }
 }
 
-/// A filled button with a hover fill (Mac) and a pressed dim (both).
+/// A filled button with a hover fill (Mac) and a pressed dim (both). On iOS 26 / macOS 26 it is
+/// Liquid Glass, tinted where the fill was a colour (Lineform blue); before, the drawn fill.
 struct AIFillButtonStyle: ButtonStyle {
     let fill: Color
     let hoverFill: Color
@@ -335,15 +339,59 @@ struct AIFillButtonStyle: ButtonStyle {
     let hoverInk: Color
     let isHovering: Bool
     let cornerRadius: CGFloat
+    /// The glass's tint at rest and while hovered or pressed (nil: untinted glass).
+    var glassTint: Color? = nil
+    var hoverGlassTint: Color? = nil
     @Environment(\.isEnabled) private var isEnabled
 
     func makeBody(configuration: Configuration) -> some View {
         let hot = isHovering || configuration.isPressed
         configuration.label
             .foregroundStyle(hot ? hoverInk : ink)
-            .background(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous).fill(hot ? hoverFill : fill))
+            .modifier(AIGlassControl(cornerRadius: cornerRadius, fill: hot ? hoverFill : fill,
+                                     glassTint: hot ? hoverGlassTint : glassTint))
             .opacity(isEnabled ? (configuration.isPressed ? 0.85 : 1) : 0.45)
             .animation(.easeOut(duration: LineformDesign.Motion.hover), value: hot)
+    }
+}
+
+/// A control's surface: Liquid Glass on iOS 26 / macOS 26 (the Mac's deployment target is
+/// macOS 14), the drawn fill before. Material only: the shape and size are the control's own.
+private struct AIGlassControl: ViewModifier {
+    let cornerRadius: CGFloat
+    let fill: Color
+    let glassTint: Color?
+
+    func body(content: Content) -> some View {
+        let shape = RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+        if #available(macOS 26, iOS 26, *) {
+            content.glassEffect(.regular.tint(glassTint), in: shape)
+        } else {
+            content.background(shape.fill(fill))
+        }
+    }
+}
+
+/// A floating surface (the input, the options card): Liquid Glass on iOS 26 / macOS 26; before,
+/// the drawn fill, hairline and shadow.
+private struct AIGlassSurface: ViewModifier {
+    let cornerRadius: CGFloat
+    let fill: Color
+    let line: Color
+    let shadow: Color
+    let shadowRadius: CGFloat
+    let shadowY: CGFloat
+
+    func body(content: Content) -> some View {
+        let shape = RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+        if #available(macOS 26, iOS 26, *) {
+            content.glassEffect(.regular, in: shape)
+        } else {
+            content
+                .background(shape.fill(fill))
+                .overlay(shape.strokeBorder(line))
+                .shadow(color: shadow, radius: shadowRadius, y: shadowY)
+        }
     }
 }
 
@@ -655,9 +703,8 @@ private struct AIInputBox: View {
                 // Drawn 7 pt in from the corner, tapped at least at the platform's minimum.
                 .padding(7 - max(0, metrics.minimumTarget - metrics.sendSide) / 2)
         }
-        .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(style.page))
-        .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).strokeBorder(style.line))
-        .shadow(color: .black.opacity(style.isDark ? 0.25 : 0.06), radius: 6, y: 2)
+        .modifier(AIGlassSurface(cornerRadius: 12, fill: style.page, line: style.line,
+                                 shadow: .black.opacity(style.isDark ? 0.25 : 0.06), shadowRadius: 6, shadowY: 2))
         .accessibilityActions {
             ForEach(Array(uniqueMatches.enumerated()), id: \.offset) { _, match in
                 if let word = conversation.word(for: match) {
@@ -792,9 +839,8 @@ private struct AIOptionsCard: View {
         }
         .padding(14)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(style.card))
-        .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).strokeBorder(style.cardLine))
-        .shadow(color: .black.opacity(style.isDark ? 0.4 : 0.14), radius: 14, y: -2)
+        .modifier(AIGlassSurface(cornerRadius: 16, fill: style.card, line: style.cardLine,
+                                 shadow: .black.opacity(style.isDark ? 0.4 : 0.14), shadowRadius: 14, shadowY: -2))
         .overlay(alignment: .topTrailing) {
             AIIconButton(systemImage: "xmark", label: AIConversationPresentation.cancelTitle,
                          side: metrics.closeSide, style: style, action: onCancel)

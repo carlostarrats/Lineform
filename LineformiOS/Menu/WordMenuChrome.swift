@@ -643,8 +643,8 @@ struct WordMenuCardGrid<Item: Identifiable, Card: View>: View {
 }
 
 /// The round button in the bottom-right corner of the document and the menu: ⋯ on the document,
-/// ✕ on the word list, ← inside a section. Drawn with the floating-card chrome of the theme (on the
-/// document) or the menu's surfaces (in the menu).
+/// ✕ on the word list, ← inside a section. Drawn on Liquid Glass, in the theme's (on the document)
+/// or the menu's (in the menu) light or dark.
 struct WordMenuCornerButton: View {
     enum Glyph {
         case more, close, back, document
@@ -669,7 +669,6 @@ struct WordMenuCornerButton: View {
     }
 
     var glyph: Glyph
-    var fill: UIColor
     var ink: UIColor
     var isDark: Bool
     /// VoiceOver's name, when it says more than the glyph's ("Back to Files").
@@ -684,23 +683,9 @@ struct WordMenuCornerButton: View {
                 .font(.system(size: 18, weight: .medium))
                 .foregroundStyle(Color(uiColor: ink))
                 .frame(width: Self.diameter, height: Self.diameter)
-                .background(Circle().fill(Color(uiColor: fill)))
-                .overlay(
-                    Circle().strokeBorder(
-                        isDark
-                            ? Color.white.opacity(LineformDesign.FloatingCard.hairlineOpacityDark)
-                            : Color.black.opacity(LineformDesign.FloatingCard.hairlineOpacityLight),
-                        lineWidth: LineformDesign.FloatingCard.hairlineWidth
-                    )
-                )
-                .shadow(
-                    color: .black.opacity(
-                        isDark ? LineformDesign.FloatingCard.shadowOpacityDark : LineformDesign.FloatingCard.shadowOpacityLight
-                    ),
-                    radius: LineformDesign.FloatingCard.shadowRadius,
-                    x: LineformDesign.FloatingCard.shadowOffset.width,
-                    y: LineformDesign.FloatingCard.shadowOffset.height
-                )
+                // Liquid Glass (iOS 26), in the theme's light or dark so the ink reads on it.
+                .glassEffect(.regular, in: Circle())
+                .environment(\.colorScheme, isDark ? .dark : .light)
                 .contentShape(Circle())
         }
         .buttonStyle(.plain)
@@ -724,7 +709,6 @@ struct MoreButton: View {
         let theme = Theme.theme(for: profile)
         WordMenuCornerButton(
             glyph: .more,
-            fill: theme.backgroundColor,
             ink: theme.textColor,
             isDark: theme.usesDarkChrome,
             action: action
@@ -745,15 +729,13 @@ struct ResumeMenuButton: View {
         let theme = Theme.theme(for: profile)
         WordMenuCornerButton(
             glyph: .back,
-            fill: theme.backgroundColor,
             ink: theme.textColor,
             isDark: theme.usesDarkChrome,
             label: label,
             action: action
         )
-        // One layer: the round fill, its hairline and shadow and the arrow fade in and out
-        // together (without it each faded on its own, the arrow apart from the circle).
-        .compositingGroup()
+        // The glass and the arrow are one view, so they fade in and out together. (A compositing
+        // group, which the drawn fill, hairline and shadow needed, would flatten the glass.)
         .accessibilityIdentifier("document.backToMenu")
     }
 }
