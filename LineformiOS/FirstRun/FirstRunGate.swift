@@ -30,52 +30,34 @@ enum FirstRunGate {
     }
 }
 
-/// First run's stages, in order. `.line` and `.expect` advance on a timer; `.points` waits for the
-/// writer; `.done` hands over to the document. A tap or swipe skips ahead.
+/// First run's stages, in order. Nothing advances by itself: `.welcome` waits for Get Started,
+/// `.points` for Start Writing; `.done` hands over to the document.
 enum FirstRunStage: Int, CaseIterable {
-    case line, expect, points, done
+    case welcome, points, done
 
     /// The stage after this one; `.done` stays `.done`, so a late tap does nothing.
     var next: FirstRunStage {
         FirstRunStage(rawValue: rawValue + 1) ?? .done
     }
-
-    /// How long the stage stays before it advances by itself; nil waits for the writer. For
-    /// `.line` the hold runs from the moment the page has painted (`FirstRunTiming`), not from
-    /// the stage's start. Under Reduce Motion the page shows the finished line at once, so it
-    /// needs only a moment. While VoiceOver runs, "What to expect" never advances by itself (no
-    /// fixed time fits every speaking rate and language, and the switch to the points interrupts
-    /// speech): the writer continues with a double-tap or the Continue action.
-    func autoAdvanceDelay(reduceMotion: Bool, voiceOverRunning: Bool = false) -> Duration? {
-        switch self {
-        case .line: reduceMotion ? .milliseconds(1200) : .milliseconds(2600)
-        case .expect: voiceOverRunning ? nil : .milliseconds(1800)
-        case .points, .done: nil
-        }
-    }
 }
 
-/// When a timed stage advances by itself.
+/// First run's timing. None of it moves the writer on; it only paces what they see.
 enum FirstRunTiming {
-    /// The line stage advances by this long after it began, painted or not (a missing page, a
-    /// WebGL failure or a crashed web content process never strands the writer).
-    static let lineCap: Duration = .seconds(4)
+    /// How long the wordmark takes to write itself (the Mac's intro takes 1 s).
+    static let writeSeconds = 3.5
+    /// Get Started shows at the latest this long after the welcome began, if the page never says
+    /// the wordmark is written (a missing page, a WebGL failure, a crashed web content process).
+    static let getStartedCap: Duration = .seconds(7)
+    /// The wordmark's shrink and glide to the top after Get Started (ease-in-out).
+    static let shrinkSeconds = 0.9
+    /// When each point starts to arrive after Get Started, one after another.
+    static func pointDelay(_ index: Int) -> Double {
+        0.7 + 0.2 * Double(index)
+    }
 
-    /// The moment the stage that began at `stageStart` advances by itself, or nil when it waits
-    /// for the writer. `.line` holds from `lineReadyAt` (the page's first painted frame), capped
-    /// at `lineCap` from its start.
-    static func deadline(
-        for stage: FirstRunStage,
-        stageStart: ContinuousClock.Instant,
-        lineReadyAt: ContinuousClock.Instant?,
-        reduceMotion: Bool,
-        voiceOverRunning: Bool = false
-    ) -> ContinuousClock.Instant? {
-        guard let hold = stage.autoAdvanceDelay(reduceMotion: reduceMotion, voiceOverRunning: voiceOverRunning) else { return nil }
-        guard stage == .line else { return stageStart + hold }
-        let cap = stageStart + lineCap
-        guard let ready = lineReadyAt else { return cap }
-        return min(ready + hold, cap)
+    /// When Start Writing arrives: after the last point.
+    static func startWritingDelay(pointCount: Int) -> Double {
+        pointDelay(max(0, pointCount - 1)) + 0.25
     }
 }
 
@@ -115,18 +97,24 @@ struct FirstRunPresentation: Equatable {
     }
 }
 
-/// One of first run's points: its symbol and its words, kept together so a point added or
+/// One of first run's points: its symbol, title and words, kept together so a point added or
 /// removed in `FirstRunCopy.pointItems` always shows with its own symbol.
 struct FirstRunPoint: Equatable {
     var symbol: String
+    var title: String
     var text: String
 }
 
 /// First run's words: the ONE place the owner edits them. English is the catalog key; the
 /// translations live in `LineformiOS/Localizable.xcstrings`.
 enum FirstRunCopy {
-    static var heading: String {
-        String(localized: "What to expect", comment: "First run heading. The owner edits this copy in FirstRunCopy.")
+    /// Under the wordmark on the welcome screen.
+    static var tagline: String {
+        String(localized: "Simple markdown editing", comment: "First run tagline under the wordmark. The owner edits this copy in FirstRunCopy.")
+    }
+
+    static var getStarted: String {
+        String(localized: "Get Started", comment: "First run button under the tagline. The owner edits this copy in FirstRunCopy.")
     }
 
     /// The points, in order, each with its SF Symbol. Add, remove or reword them here.
@@ -134,32 +122,45 @@ enum FirstRunCopy {
         [
             FirstRunPoint(
                 symbol: "lock",
+                title: String(localized: "Free and private", comment: "First run point 1 title. The owner edits this copy in FirstRunCopy."),
                 text: String(
-                    localized: "Free, and everything stays on your device.",
+                    localized: "No account, nothing to sign up for. Your writing stays with you.",
                     comment: "First run point 1. The owner edits this copy in FirstRunCopy."
                 )
             ),
             FirstRunPoint(
                 symbol: "icloud",
+                title: String(localized: "Real files, in iCloud", comment: "First run point 2 title. The owner edits this copy in FirstRunCopy."),
                 text: String(
-                    localized: "Your files stay in iCloud, and sync with Lineform on your Mac if you use it there.",
+                    localized: "Plain Markdown files that sync with Lineform for Mac and open anywhere.",
                     comment: "First run point 2. The owner edits this copy in FirstRunCopy."
                 )
             ),
             FirstRunPoint(
                 symbol: "doc.richtext",
+                title: String(localized: "More than text", comment: "First run point 3 title. The owner edits this copy in FirstRunCopy."),
                 text: String(
-                    localized: "Markdown, styled PDFs, and AI only if you connect your own.",
+                    localized: "Images, tables, math and diagrams. Export styled PDFs in a tap.",
                     comment: "First run point 3. The owner edits this copy in FirstRunCopy."
+                )
+            ),
+            FirstRunPoint(
+                symbol: "accessibility",
+                title: String(localized: "Made to be read", comment: "First run point 4 title. The owner edits this copy in FirstRunCopy."),
+                text: String(
+                    localized: "Reading themes, accessible fonts and read aloud. AI only if you connect your own.",
+                    comment: "First run point 4. The owner edits this copy in FirstRunCopy."
                 )
             ),
         ]
     }
 
-    /// The points' words, in order.
-    static var points: [String] { pointItems.map(\.text) }
-
     static var startWriting: String {
         String(localized: "Start Writing", comment: "First run button that opens the document. The owner edits this copy in FirstRunCopy.")
+    }
+
+    /// Every string first run shows, in screen order.
+    static var allStrings: [String] {
+        [tagline, getStarted] + pointItems.flatMap { [$0.title, $0.text] } + [startWriting]
     }
 }

@@ -224,7 +224,7 @@ struct MarkdownTextViewRepresentable: NSViewRepresentable {
             textView.aiMarkRanges = []
             textView.isAIRequestRunning = false
             textView.isAIReviewActive = true
-        case .idle, .message:
+        case .idle, .message, .answer:
             textView.aiMarkRanges = []
             textView.isAIRequestRunning = false
             textView.isAIReviewActive = false

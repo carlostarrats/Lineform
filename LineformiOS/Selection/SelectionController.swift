@@ -3,9 +3,10 @@ import LineformCore
 import SwiftUI
 import UIKit
 
-/// One button of the selection row, in the spec's order (§5.5).
+/// One button of the format row, in the order of the owner's mockup A (§5.5, 2026-11-24).
 enum SelectionRowItem: Equatable, CaseIterable {
-    case askAI, heading, bold, italic, strikethrough, code, list, link, blockquote, replaceWith, anotherWord
+    case askAI, heading, bold, italic, strikethrough, code, list, link, blockquote, image, insertTable, reformatTable
+    case replaceWith, anotherWord, checkSpelling
 
     /// The button's name (its accessibility label; the text for the text buttons). Ask AI names the
     /// connected AI ("Ask Claude"), as the Mac's toolbar does.
@@ -20,17 +21,46 @@ enum SelectionRowItem: Equatable, CaseIterable {
         case .list: return SelectionToolbarPresentation.listTitle
         case .link: return String(localized: "Link")
         case .blockquote: return String(localized: "Blockquote")
+        case .image: return String(localized: "Image")
+        case .insertTable: return String(localized: "Insert Table")
+        case .reformatTable: return String(localized: "Reformat Table")
         case .replaceWith: return String(localized: "Replace With…")
         case .anotherWord: return AIAction.anotherWord.title
+        case .checkSpelling: return String(localized: "Check Spelling")
         }
     }
 
     var title: String { title() }
 
-    /// The Mac toolbar's symbols where it has the button.
+    /// The word on the key, as in the mockup: short words ("Quote", "Table"). B, I and S draw
+    /// their letters in their own style.
+    var keyText: String {
+        switch self {
+        case .askAI: return Self.askShortTitle
+        case .bold: return "B"
+        case .italic: return "I"
+        case .strikethrough: return "S"
+        case .blockquote: return String(localized: "Quote")
+        case .insertTable: return String(localized: "Table")
+        default: return title
+        }
+    }
+
+    /// The Large Content Viewer's symbol for the key (the row itself draws words).
+    var largeContentSymbol: String? { systemImage }
+
+    /// What the row SHOWS for Ask: the short "Ask" beside the sparkle (§21, "A · Native row").
+    /// `title` (its VoiceOver label) still names the AI: "Ask Claude".
+    static var askShortTitle: String { String(localized: "Ask") }
+
+    /// The Mac toolbar's symbols where it has the button; the tables use the Mac's Format-menu
+    /// symbols (`MainMenuIconDecorator`).
     var systemImage: String? {
         switch self {
-        case .askAI: return "text.bubble"
+        case .askAI: return "sparkles"
+        case .image: return "photo"
+        case .insertTable: return "tablecells"
+        case .reformatTable: return "tablecells.badge.ellipsis"
         case .bold: return "bold"
         case .italic: return "italic"
         case .strikethrough: return "strikethrough"
@@ -39,6 +69,7 @@ enum SelectionRowItem: Equatable, CaseIterable {
         case .list: return "list.bullet"
         case .link: return "link"
         case .blockquote: return "text.quote"
+        case .checkSpelling: return "textformat.abc.dottedunderline"
         case .replaceWith, .anotherWord: return nil
         }
     }
@@ -63,10 +94,20 @@ enum SelectionRowPlacement {
 ///
 /// - **Settle.** The row rises `settleDelay` (0.35 s) after a non-empty selection stops changing.
 ///   The Mac's toolbar has no delay value of its own (it shows on the next runloop turn after a
-///   mouse-up), so the spec's value is used. A collapsed selection hides it at once.
+///   mouse-up), so the spec's value is used.
+/// - **Caret.** While the editor is first responder with the SOFTWARE keyboard up
+///   (`minimumSoftwareKeyboardOverlap`), the row also shows for a caret (2026-11-24, the owner's
+///   decision): it goes with the keyboard, and a hardware keyboard alone raises none. A collapsed
+///   selection then turns the row into the caret's at once; without the keyboard it hides at once,
+///   as before. Its published values change on the next main-actor turn (`scheduleCaretRefresh`),
+///   never in the middle of an edit, an undo or a resign, and never while an input method is
+///   composing (the row stays exactly as it was until the composition ends).
 /// - **Commands.** Each formatting button calls the editor's own command, which goes through its
 ///   one rule-edit path (`applyRuleEdit`): one button, one undo step. The row then adopts the
-///   resulting selection as its own instead of hiding and rising again.
+///   resulting selection as its own instead of hiding and rising again. With a caret, Bold, Italic,
+///   Strikethrough and Code act on the word at the caret (else the Mac's empty-selection edit:
+///   the paired markers with the caret between), List and Blockquote on the caret's line, and Ask
+///   opens the AI sheet for the whole document (`askAIForWholeDocument`).
 /// - **Comment.** Ask AI swaps the row for the comment field. Send runs the shared
 ///   `AIActionController` on the selection the row was shown for (`anchorRange`); nothing is sent
 ///   while the note's input method is composing.
@@ -91,9 +132,16 @@ final class SelectionController: NSObject, ObservableObject {
     enum Phase: Equatable { case hidden, row, comment }
 
     static let settleDelay: TimeInterval = 0.35
+    /// The keyboard's overlap from which it counts as the software keyboard. A hardware keyboard
+    /// leaves at most the shortcuts bar (well under this); the smallest iPhone keyboard is over
+    /// 200 pt.
+    static let minimumSoftwareKeyboardOverlap: CGFloat = 150
 
     @Published private(set) var phase: Phase = .hidden
     @Published private(set) var items: [SelectionRowItem] = []
+    /// The row shows the heading levels in place of its buttons (Heading's second row, with ‹ to
+    /// go back). Picking a level applies it and returns to the buttons.
+    @Published private(set) var showsHeadingLevels = false
     /// How much of the window's bottom the keyboard covers (0 when it is down). Its own object,
     /// observed only by the bottom chrome: a keyboard frame change must not re-render the whole
     /// screen (it arrives while the editor resigns, and a screen update there broke the editor's
@@ -129,6 +177,11 @@ final class SelectionController: NSObject, ObservableObject {
 
     /// The comment's note, action and the connected AI's name: the Mac toolbar's model.
     let model = SelectionToolbarModel()
+    /// The AI conversation for the document on screen (2026-11-24): the AI sheet's. Memory only;
+    /// it goes when another document replaces this one (`documentWillSwap`).
+    let conversation = AIConversation()
+    /// The AI sheet is up. Ask AI on the row and the Menu's Ask AI… open it.
+    @Published var isShowingAISheet = false
     /// The selection the row was shown for; the comment sends against exactly this range (the
     /// whole document's range for the Menu's Ask AI…).
     private(set) var anchorRange: NSRange?
@@ -158,6 +211,8 @@ final class SelectionController: NSObject, ObservableObject {
     private var aiControllerStorage: AIActionController?
     private var aiStateObservation: AnyCancellable?
     private var settleTask: Task<Void, Never>?
+    /// The caret's row, brought up to date on the next main-actor turn.
+    private var caretRefreshTask: Task<Void, Never>?
     /// Set while the row itself moves the selection (a formatting command, Cancel).
     private var isAdjustingSelection = false
     private var observesKeyboard = false
@@ -199,12 +254,65 @@ final class SelectionController: NSObject, ObservableObject {
     private func wireAI(_ controller: AIActionController) {
         controller.editor = editor
         controller.history = aiHistory
+        conversation.attach(controller)
+        conversation.target = { [weak self] in
+            guard let editor = self?.editor, editor.isEditable, self?.isReadMode == false else { return nil }
+            return AIConversation.Target(range: editor.selectedRange, text: editor.textStorage.string)
+        }
+        conversation.confirmWholeDocument = { [weak self] words, proceed in
+            self?.presentConversationConfirmation(words: words, proceed: proceed)
+        }
     }
 
-    /// The editor whose selection the row follows (`MarkdownEditor` calls it).
+    // MARK: - The AI sheet
+
+    /// Opens the AI sheet for the selection (Ask AI on the row). The selection stays in the editor:
+    /// the sheet's requests go to it.
+    func openAISheet() {
+        guard connectionStore().isConnected, !isReadMode, editor != nil else { return }
+        wireAI(aiController)
+        hide()
+        isShowingAISheet = true
+    }
+
+    /// Another document replaces this one: its conversation goes.
+    func documentWillSwap() {
+        isShowingAISheet = false
+        conversation.reset()
+    }
+
+    /// A whole-document request from the sheet above `WholeDocumentAIPolicy.confirmWordCount`.
+    private func presentConversationConfirmation(words: Int, proceed: @escaping () -> Void) {
+        let store = connectionStore()
+        guard let provider = store.connectedProvider else { return }
+        let recipient = WholeDocumentAIPolicy.recipient(for: provider, otherEndpoint: store.otherEndpoint)
+        presentAlert(Self.wholeDocumentConfirmation(words: words, recipient: recipient, onSend: proceed, onCancel: {}))
+    }
+
+    /// The format row's home on the keyboard (`FormatBarAccessoryView`), made with the first editor.
+    private(set) lazy var formatBar = FormatBarAccessoryView(controller: self)
+
+    /// The editor's display profile changed (a theme, Automatic Dark Mode): the bar follows it
+    /// (its keyboard colour and ink), also while it shows.
+    func editorProfileDidChange(_ profile: ReadingProfile) {
+        let old = formatBar.style.profile
+        guard old != profile else { return }
+        formatBar.style.profile = profile
+        // The keyboard takes a new appearance only when its input views reload: without this, a
+        // switch to dark while typing kept a light keyboard under a dark bar (and the mirror).
+        if Theme.theme(for: old).usesDarkChrome != Theme.theme(for: profile).usesDarkChrome,
+           let editor, editor.isFirstResponder {
+            editor.reloadInputViews()
+        }
+    }
+
+    /// The editor whose selection the row follows (`MarkdownEditor` calls it). The row becomes
+    /// the editor's input accessory, so it rides on the keyboard.
     func attach(_ editor: LineformTextView) {
         guard self.editor !== editor else { return }
         self.editor = editor
+        editor.inputAccessoryView = formatBar
+        if editor.isFirstResponder { editor.reloadInputViews() }
         hide()
         editor.aiRefusalHandler = { [weak self] in self?.editRefusedDuringReview() }
         editor.aiDismissMarksHandler = { [weak self] in self?.aiControllerStorage?.dismissMarks() }
@@ -225,34 +333,62 @@ final class SelectionController: NSObject, ObservableObject {
     // MARK: - Which buttons
 
     /// The row's buttons, in order: Ask AI (only while connected), Heading, Bold, Italic,
-    /// Strikethrough, Code, List, Link, Blockquote, Replace With… (only where History can keep the
-    /// selection: `offersReplaceWith`), and Another Word (one word only, and only while connected:
-    /// it is an AI action).
-    static func rowItems(aiConnected: Bool, selectedText: String, offersReplaceWith: Bool) -> [SelectionRowItem] {
+    /// Strikethrough, Code, List, Link, Blockquote, Image, Insert Table, Reformat Table (only when
+    /// the selection starts on a table row: elsewhere it would do nothing), Replace With… (only
+    /// where History can keep the selection: `offersReplaceWith`), Another Word (one word only,
+    /// and only while connected: it is an AI action), and Check Spelling, always last (the one
+    /// whole-document spelling pass; it left Settings on 2026-11-24). Insert and Reformat Table
+    /// moved here from the Menu; on the Mac they live in Format.
+    ///
+    /// For a caret (`hasSelection: false`) Replace With… and Another Word never show: both need a
+    /// selection. Ask then asks about the whole document (the caller passes `aiConnected` only when
+    /// there is text to send).
+    static func rowItems(aiConnected: Bool, selectedText: String, offersReplaceWith: Bool,
+                         startsOnTableRow: Bool = false, hasSelection: Bool = true) -> [SelectionRowItem] {
         var items: [SelectionRowItem] = aiConnected ? [.askAI] : []
         // (Read mode passes `aiConnected: false`: Read allows no AI.)
-        items += [.heading, .bold, .italic, .strikethrough, .code, .list, .link, .blockquote]
-        if offersReplaceWith { items.append(.replaceWith) }
-        if aiConnected, AIMenuPresentation.isSingleWord(selectedText) { items.append(.anotherWord) }
+        items += [.heading, .bold, .italic, .strikethrough, .code, .list, .link, .blockquote, .image, .insertTable]
+        if startsOnTableRow { items.append(.reformatTable) }
+        if hasSelection {
+            if offersReplaceWith { items.append(.replaceWith) }
+            if aiConnected, AIMenuPresentation.isSingleWord(selectedText) { items.append(.anotherWord) }
+        }
+        items.append(.checkSpelling)
         return items
+    }
+
+    /// The row's buttons for `range` in the editor now (a caret or a selection).
+    private func currentItems(for range: NSRange, aiConnected: Bool) -> [SelectionRowItem] {
+        guard let editor else { return [] }
+        guard range.length > 0 else {
+            return Self.rowItems(aiConnected: aiConnected && ExportPrintSection.hasText(editor.textStorage.string),
+                                 selectedText: "", offersReplaceWith: false,
+                                 startsOnTableRow: startsOnTableRow(range), hasSelection: false)
+        }
+        return Self.rowItems(aiConnected: aiConnected, selectedText: selectedText(in: range),
+                             offersReplaceWith: editor.offersReplaceWith(for: range),
+                             startsOnTableRow: startsOnTableRow(range))
     }
 
     // MARK: - When it shows
 
-    /// The editor's selection changed (`textViewDidChangeSelection`). An empty selection hides the
-    /// row at once; a non-empty one shows it once it has stayed the same for `settleDelay`.
+    /// The editor's selection changed (`textViewDidChangeSelection`). A caret shows the caret's
+    /// row while the software keyboard is up and hides the row at once otherwise; a non-empty
+    /// selection shows its row once it has stayed the same for `settleDelay`.
     func editorSelectionDidChange() {
         guard !isAdjustingSelection, let editor else { return }
         // A new selection closes the comment (the Mac's card closes on any click); the new
         // selection is then the writer's like any other.
         if phase == .comment { closeCommentForChange() }
+        // Composing: the caret's row stays exactly as it is until the composition ends.
+        if editor.markedTextRange != nil, isCaretRow { return }
         settleTask?.cancel()
-        // The app's own selection (a Search or Outline jump, a position restore, a review's end)
-        // never raises the row.
-        if editor.isSelectionProgrammatic { return hide() }
-        editor.forgetProgrammaticSelection()
         let range = editor.selectedRange
-        guard range.length > 0 else { return hide() }
+        // The app's own selection (a Search or Outline jump, a position restore, a review's end)
+        // never raises the selection's row; a caret it leaves is still a caret.
+        if editor.isSelectionProgrammatic { return range.length == 0 ? caretDidChange() : hide() }
+        editor.forgetProgrammaticSelection()
+        guard range.length > 0 else { return caretDidChange() }
         if phase == .row, range == anchorRange { return }
         settleTask = Task { @MainActor [weak self] in
             try? await Task.sleep(for: .seconds(Self.settleDelay))
@@ -272,8 +408,69 @@ final class SelectionController: NSObject, ObservableObject {
     /// The editor's text changed (`textViewDidChange`: typing, a formatting command, Read's
     /// checkbox, Search's Replace). An open comment closes: its range no longer names the same text.
     func editorTextDidChange() {
+        if phase == .hidden {
+            // A composition that hid the selection's row has ended: the caret's row may show.
+            if editor?.markedTextRange == nil, editor?.selectedRange.length == 0 { scheduleCaretRefresh() }
+            return
+        }
         guard phase == .comment else { return }
         closeCommentForChange()
+    }
+
+    /// The editor became or stopped being first responder (`textViewDidBeginEditing` /
+    /// `textViewDidEndEditing`): the caret's row follows on the next turn.
+    func editorFocusDidChange() {
+        scheduleCaretRefresh()
+    }
+
+    // MARK: - The caret's row
+
+    /// The row is showing for a caret (not a selection).
+    private var isCaretRow: Bool { phase == .row && anchorRange?.length == 0 }
+
+    /// The editor is first responder with the software keyboard up.
+    private var editorHasSoftwareKeyboard: Bool {
+        guard let editor else { return false }
+        return editor.isFirstResponder && keyboard.overlap >= Self.minimumSoftwareKeyboardOverlap
+    }
+
+    /// The caret's row may show: the selection's rules, plus the software keyboard for this editor,
+    /// and never in Read or under the AI sheet.
+    private var allowsCaretRow: Bool {
+        allowsRow && !isReadMode && !isShowingAISheet && editorHasSoftwareKeyboard
+    }
+
+    /// The selection collapsed to a caret (or the caret moved). Without the software keyboard the
+    /// row hides at once, as it always has; with it, the caret's row is brought up to date on the
+    /// next turn. `anchorRange` is not published, so it follows at once.
+    private func caretDidChange() {
+        guard let editor, allowsCaretRow else { return hide() }
+        if phase == .row { anchorRange = editor.selectedRange }
+        scheduleCaretRefresh()
+    }
+
+    /// Brings the caret's row up to date on the next main-actor turn: never in the middle of an
+    /// edit, an undo or a resign (a screen update there broke the editor's undo grouping), and
+    /// coalesced when several changes arrive together.
+    private func scheduleCaretRefresh() {
+        caretRefreshTask?.cancel()
+        caretRefreshTask = Task { @MainActor [weak self] in
+            guard !Task.isCancelled else { return }
+            self?.refreshCaretRow()
+        }
+    }
+
+    /// Shows, updates or hides the caret's row. A selection's row is left to its own rules, the
+    /// comment field is never touched, and nothing changes while an input method is composing.
+    private func refreshCaretRow() {
+        caretRefreshTask = nil
+        guard let editor, phase != .comment, editor.markedTextRange == nil,
+              editor.selectedRange.length == 0 else { return }
+        if allowsCaretRow {
+            showRowNow()
+        } else if phase == .row {
+            hide()
+        }
     }
 
     /// Something changed under the open comment field: it closes, sending nothing and putting no
@@ -283,34 +480,51 @@ final class SelectionController: NSObject, ObservableObject {
         hide()
     }
 
-    /// The Menu, Aa (and Preview's link) buttons show unless the row or the comment field has the
-    /// bottom, or a request or review is running. A message or Find's marks leave them reachable:
-    /// their card sits above the buttons.
+    /// The ⋯ (and Preview's link) button and the Read Aloud pill show unless the comment field has
+    /// the bottom, or a request or review is running. While the row shows they float just above it
+    /// (`DocumentScreen`), so the menu stays reachable whenever the keyboard is up. A message or
+    /// Find's marks leave them reachable: their card sits above the buttons.
     static func showsBottomButtons(phase: Phase, aiState: AIActionController.State) -> Bool {
-        guard phase == .hidden else { return false }
+        guard phase != .comment else { return false }
         switch aiState {
         case .running, .reviewing: return false
-        case .idle, .message, .marking: return true
+        case .idle, .message, .marking, .answer: return true
         }
     }
 
-    /// Shows the row for the editor's current selection, now. The settle wait ends here.
+    /// Shows the row for the editor's current selection, now (for a caret, only while the caret's
+    /// row is allowed: `allowsCaretRow`). The settle wait ends here.
     func showRowNow() {
         settleTask?.cancel()
         settleTask = nil
         guard let editor else { return }
         let range = editor.selectedRange
-        guard range.length > 0, allowsRow else { return hide() }
+        guard range.length > 0 ? allowsRow : allowsCaretRow else { return hide() }
         let provider = connectionStore().connectedProvider
         let aiName = provider.map { SelectionToolbarPresentation.aiName(for: $0) }
         if model.aiName != aiName { model.aiName = aiName }
         let dark = Theme.theme(for: editor.profile).usesDarkChrome
         if model.usesDarkChrome != dark { model.usesDarkChrome = dark }
-        let newItems = Self.rowItems(aiConnected: provider != nil && !isReadMode, selectedText: selectedText(in: range),
-                                     offersReplaceWith: editor.offersReplaceWith(for: range))
+        if formatBar.style.profile != editor.profile { formatBar.style.profile = editor.profile }
+        let newItems = currentItems(for: range, aiConnected: provider != nil && !isReadMode)
         if items != newItems { items = newItems }
         anchorRange = range
-        if phase != .row { phase = .row }
+        if phase != .row {
+            // A new row always opens on the formatting buttons, never on the heading levels.
+            if showsHeadingLevels { showsHeadingLevels = false }
+            phase = .row
+        }
+    }
+
+    /// Whether the line `range` starts on is a table row (it starts with `|`): line-local, so it
+    /// costs nothing on a large document.
+    private func startsOnTableRow(_ range: NSRange) -> Bool {
+        guard let editor else { return false }
+        let text = editor.textStorage.string as NSString
+        guard range.location <= text.length else { return false }
+        let line = text.lineRange(for: NSRange(location: range.location, length: 0))
+        let content = text.substring(with: line).trimmingCharacters(in: markdownLineTrimCharacters)
+        return content.hasPrefix("|")
     }
 
     /// No row while composing, outside an editable editor on screen, or while an AI request or
@@ -328,6 +542,8 @@ final class SelectionController: NSObject, ObservableObject {
     func hide() {
         settleTask?.cancel()
         settleTask = nil
+        caretRefreshTask?.cancel()
+        caretRefreshTask = nil
         anchorRange = nil
         wholeDocumentCaret = nil
         confirmedWholeDocumentWords = nil
@@ -335,6 +551,7 @@ final class SelectionController: NSObject, ObservableObject {
         if isNoteComposing { isNoteComposing = false }
         if isWholeDocument { isWholeDocument = false }
         if model.isWholeDocument { model.isWholeDocument = false }
+        if showsHeadingLevels { showsHeadingLevels = false }
         if phase != .hidden { phase = .hidden }
     }
 
@@ -348,15 +565,27 @@ final class SelectionController: NSObject, ObservableObject {
 
     func perform(_ item: SelectionRowItem) {
         switch item {
-        case .askAI: openComment()
-        // Heading and List are menus (`setHeading`, `applyList`).
-        case .heading, .list: break
-        case .bold: runCommand { $0.apply(.bold) }
-        case .italic: runCommand { $0.apply(.italic) }
-        case .strikethrough: runCommand { $0.apply(.strikethrough) }
-        case .code: runCommand { $0.apply(.inlineCode) }
+        // With a caret, Ask is for the whole document, through the shared length policy.
+        case .askAI:
+            guard let editor, editor.markedTextRange == nil else { return }
+            if editor.selectedRange.length == 0 { askAIForWholeDocument() } else { openAISheet() }
+        // Heading opens the levels in place (`setHeading`); List is a menu (`applyList`).
+        case .heading: showHeadingLevels(true)
+        // Image is a menu (`pickImage`).
+        case .image: break
+        case .list: break
+        case .insertTable: runCommand { $0.insertTable() }
+        case .reformatTable: runCommand { $0.reformatTable() }
+        case .bold: runCommand { Self.applyInline(.bold, in: $0) }
+        case .italic: runCommand { Self.applyInline(.italic, in: $0) }
+        case .strikethrough: runCommand { Self.applyInline(.strikethrough, in: $0) }
+        case .code: runCommand { Self.applyInline(.inlineCode, in: $0) }
+        // Link with a caret is the Mac's: `[](https://example.com)`, the address selected.
         case .link: runCommand { $0.apply(.link) }
-        case .blockquote: runCommand { $0.apply(.blockquote) }
+        case .blockquote: runCommand { Self.applyToLine(.blockquote, in: $0) }
+        // Check Document Now: the first misspelling after the selection is selected (the row
+        // stays, for that selection); no edit, so no undo step.
+        case .checkSpelling: runCommand { _ = $0.checkDocumentNow() }
         case .replaceWith:
             // History's Replace With… (the Mac's meaning): the selection becomes a passage and
             // History mode opens on it with "Type a replacement". History and AI never overlap:
@@ -374,28 +603,129 @@ final class SelectionController: NSObject, ObservableObject {
         }
     }
 
-    /// Heading's menu: Title, Section, Heading 3–6, or Body (`nil`).
+    /// Heading's second row: Title, Section, Heading 3–6, or Body (`nil`), the Mac's Format ▸
+    /// Heading items. Applies the level (one undo step), then the row returns to its buttons.
     func setHeading(_ level: Int?) {
         runCommand { $0.setHeadingLevel(level) }
+        showHeadingLevels(false)
     }
+
+    /// Swaps the row between its buttons and the heading levels (Heading, and ‹).
+    func showHeadingLevels(_ shows: Bool) {
+        guard phase == .row || !shows else { return }
+        if showsHeadingLevels != shows { showsHeadingLevels = shows }
+    }
+
+    /// The heading levels, in the Mac's order, with Body (`nil`) last.
+    static var headingLevels: [(level: Int?, title: String)] {
+        [
+            (1, String(localized: "Title")),
+            (2, String(localized: "Section")),
+            (3, String(localized: "Heading 3")),
+            (4, String(localized: "Heading 4")),
+            (5, String(localized: "Heading 5")),
+            (6, String(localized: "Heading 6")),
+            (nil, String(localized: "Body")),
+        ]
+    }
+
+    /// Image's menu: Photos or Files. The row goes while the picker is up; the picked image goes
+    /// in through the editor's paste path (one undo step).
+    func pickImage(from source: LineformTextView.ImagePickerSource) {
+        guard let editor, phase == .row, editor.markedTextRange == nil else { return }
+        hide()
+        // After the menu has finished closing: UIKit refuses a presentation while the menu's own
+        // dismissal is still running.
+        Task { @MainActor [weak editor] in
+            try? await Task.sleep(for: .seconds(Self.menuDismissalDelay))
+            editor?.presentImagePicker(source)
+        }
+    }
+
+    static let menuDismissalDelay: TimeInterval = 0.4
 
     /// List's menu: Bulleted or Numbered.
     func applyList(ordered: Bool) {
-        runCommand { $0.apply(ordered ? .orderedList : .unorderedList) }
+        runCommand { Self.applyToLine(ordered ? .orderedList : .unorderedList, in: $0) }
     }
 
-    /// Runs one editor command with the row held still, then adopts the selection it left.
+    /// Runs one editor command with the row held still, then adopts the selection (or caret) it
+    /// left. Refused while an input method is composing: the composition is never disturbed.
     private func runCommand(_ command: (LineformTextView) -> Void) {
-        guard let editor, phase == .row else { return }
+        guard let editor, phase == .row, editor.markedTextRange == nil else { return }
         isAdjustingSelection = true
         command(editor)
         isAdjustingSelection = false
         let range = editor.selectedRange
-        guard range.length > 0 else { return hide() }
+        guard range.length > 0 || allowsCaretRow else { return hide() }
         anchorRange = range
-        let newItems = Self.rowItems(aiConnected: model.aiName != nil, selectedText: selectedText(in: range),
-                                     offersReplaceWith: editor.offersReplaceWith(for: range))
+        let newItems = currentItems(for: range, aiConnected: model.aiName != nil && !isReadMode)
         if items != newItems { items = newItems }
+    }
+
+    // MARK: - Caret commands
+
+    /// Bold, Italic, Strikethrough or Code. A selection is formatted as on the Mac. A caret in a
+    /// word formats that word (and keeps the caret where it was in it, so a second tap removes the
+    /// markers again); a caret outside a word gets the Mac's empty-selection edit, the paired
+    /// markers with the caret between. One edit, so one undo step.
+    static func applyInline(_ command: MarkdownFormattingCommand, in editor: LineformTextView) {
+        let caret = editor.selectedRange
+        let text = editor.textStorage.string
+        guard caret.length == 0, let word = wordRange(at: caret.location, in: text as NSString) else {
+            return editor.apply(command)
+        }
+        let edit = command.apply(to: text, selectedRange: word)
+        // The word moved by the markers added (or removed) before it.
+        let shift = edit.selectedRange.location - word.location
+        let location = max(0, min(caret.location + shift, (edit.text as NSString).length))
+        editor.applyMarkdownEdit(MarkdownEdit(text: edit.text, selectedRange: NSRange(location: location, length: 0)))
+    }
+
+    /// List or Blockquote. A selection is prefixed line by line as on the Mac; a caret prefixes
+    /// (or un-prefixes) its whole line, the caret moving with its text. One edit, one undo step.
+    static func applyToLine(_ command: MarkdownFormattingCommand, in editor: LineformTextView) {
+        let caret = editor.selectedRange
+        guard caret.length == 0 else { return editor.apply(command) }
+        let text = editor.textStorage.string
+        let line = lineContentRange(at: caret.location, in: text as NSString)
+        let edit = command.apply(to: text, selectedRange: line)
+        let shift = edit.selectedRange.length - line.length
+        let location = max(line.location, min(caret.location + shift, (edit.text as NSString).length))
+        editor.applyMarkdownEdit(MarkdownEdit(text: edit.text, selectedRange: NSRange(location: location, length: 0)))
+    }
+
+    /// The word the caret at `location` is in or touches (the system's word boundaries, so
+    /// apostrophes and CJK follow the language), or nil between words. Line-local.
+    static func wordRange(at location: Int, in text: NSString) -> NSRange? {
+        guard location <= text.length else { return nil }
+        let line = lineContentRange(at: location, in: text)
+        var found: NSRange?
+        text.enumerateSubstrings(in: line, options: [.byWords]) { word, range, _, stop in
+            if range.location > location { stop.pointee = true; return }
+            // The tokenizer can report a lone space between scripts as a "word".
+            guard word?.rangeOfCharacter(from: .alphanumerics) != nil else { return }
+            if location <= NSMaxRange(range) {
+                found = range
+                // Inside it: done. At its end: a word starting right here would not exist (words
+                // are separated), so this one stands.
+                if location < NSMaxRange(range) { stop.pointee = true }
+            }
+        }
+        guard let found, found.length > 0 else { return nil }
+        return found
+    }
+
+    /// The line `location` is on, without its line ending (`\n`, or `\r\n`). Lines split on
+    /// `\n` only, as every line-anchored construct does.
+    static func lineContentRange(at location: Int, in text: NSString) -> NSRange {
+        let newline = unichar(10)
+        var start = min(location, text.length)
+        while start > 0, text.character(at: start - 1) != newline { start -= 1 }
+        var end = min(location, text.length)
+        while end < text.length, text.character(at: end) != newline { end += 1 }
+        if end > start, text.character(at: end - 1) == unichar(13) { end -= 1 }
+        return NSRange(location: start, length: end - start)
     }
 
     // MARK: - Comment
@@ -492,10 +822,10 @@ final class SelectionController: NSObject, ObservableObject {
     var aiConnectionStore: AIConnectionStore { connectionStore() }
 
     /// The Menu's Ask AI… row: connected, an editor on screen (Read allows no AI), and text to
-    /// send (`DocumentSection.hasText`).
+    /// send (`ExportPrintSection.hasText`).
     var allowsWholeDocumentAI: Bool {
         guard connectionStore().isConnected, !isReadMode, let editor, editor.isEditable,
-              DocumentSection.hasText(editor.textStorage.string) else { return false }
+              ExportPrintSection.hasText(editor.textStorage.string) else { return false }
         switch aiControllerStorage?.state {
         case .running, .reviewing: return false
         default: return true
@@ -513,6 +843,8 @@ final class SelectionController: NSObject, ObservableObject {
             openWholeDocumentComment(confirmedWords: nil)
         case .refuse:
             hide()
+            wireAI(aiController)
+            isShowingAISheet = true
             aiController.refuseWholeDocument()
         case .confirm(let words):
             hide()
@@ -582,27 +914,21 @@ final class SelectionController: NSObject, ObservableObject {
         pendingConfirmationID = nil
     }
 
-    /// The comment field, for the whole document: its range is the whole text, nothing is
-    /// highlighted, and the caret is remembered for Cancel.
+    /// The AI sheet, for the whole document (2026-11-24; it was the comment field): the selection
+    /// collapses to a caret, so the sheet's requests go to the whole text, and the count the
+    /// writer confirmed is not asked about again.
     private func openWholeDocumentComment(confirmedWords: Int?) {
-        guard allowsWholeDocumentAI, let editor, let provider = connectionStore().connectedProvider else { return }
-        let caret = editor.selectedRange
+        guard allowsWholeDocumentAI, let editor, connectionStore().connectedProvider != nil else { return }
         hide()
-        let aiName = SelectionToolbarPresentation.aiName(for: provider)
-        if model.aiName != aiName { model.aiName = aiName }
-        let dark = Theme.theme(for: editor.profile).usesDarkChrome
-        if model.usesDarkChrome != dark { model.usesDarkChrome = dark }
-        model.note = ""
-        model.action = .custom
-        wholeDocumentCaret = caret
-        confirmedWholeDocumentWords = confirmedWords
-        commentSnapshot = editor.textStorage.string
-        anchorRange = NSRange(location: 0, length: editor.textStorage.length)
-        isWholeDocument = true
-        model.isWholeDocument = true
-        isNoteComposing = false
-        phase = .comment
-        model.focusToken += 1
+        let selected = editor.selectedRange
+        if selected.length > 0 {
+            isAdjustingSelection = true
+            editor.selectedRange = NSRange(location: selected.location, length: 0)
+            isAdjustingSelection = false
+        }
+        wireAI(aiController)
+        conversation.confirmedWholeDocumentWords = confirmedWords
+        isShowingAISheet = true
     }
 
     private func presentFromEditorWindow(_ alert: UIAlertController) {
@@ -638,6 +964,7 @@ final class SelectionController: NSObject, ObservableObject {
         case .idle: status = nil
         case .running(let action, _): status = action.progressVerb
         case .message(let message): status = message
+        case .answer(let answer): status = answer
         case .marking(let ranges): status = AIActionController.markedMessage(ranges.count)
         case .reviewing(let session):
             status = session.action.reviewsPerCorrection
@@ -674,7 +1001,7 @@ final class SelectionController: NSObject, ObservableObject {
         guard let controller = aiControllerStorage else { return }
         switch controller.state {
         case .running, .reviewing, .marking: controller.abandon()
-        case .idle, .message: break
+        case .idle, .message, .answer: break
         }
     }
 
@@ -684,12 +1011,13 @@ final class SelectionController: NSObject, ObservableObject {
         isReadMode = mode == .read
         guard isReadMode else { return }
         hide()
+        isShowingAISheet = false
         guard let controller = aiControllerStorage else { return }
         switch controller.state {
         case .reviewing, .running, .marking:
             controller.endReview()
             controller.abandon()
-        case .idle, .message:
+        case .idle, .message, .answer:
             break
         }
     }
@@ -721,6 +1049,9 @@ final class SelectionController: NSObject, ObservableObject {
         withAnimation(duration > 0 ? animation : nil) {
             keyboard.overlap = overlap
         }
+        // The caret's row comes and goes with the software keyboard (on the next turn: this
+        // arrives while the editor resigns).
+        scheduleCaretRefresh()
     }
 }
 

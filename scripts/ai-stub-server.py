@@ -9,6 +9,9 @@ The last user message is JSON, as Lineform's AIActionPrompt builds it:
   edit actions  {"action": "trim|cutInHalf|rephrase|simplify|moreFormal|moreCasual|proofread|anotherWord",
                  "segments": [...]}   ("rewrite", the pre-2026-11-14 name of rephrase, is still answered)
                 -> {"segments": [...]}       (one revised string per segment, same order)
+  custom        {"action": "custom", "segments": [...], "note": "..."} -> {"segments": [...]} (+ "assumptions"
+                 for a note asking "firmer"), or {"answer": "..."} when the note ends with "?"
+  questions     {"question": "...", "passage": [...]} -> {"answer": "..."}
   Mark actions  {"action": "weakestSentences|longSentences", "sentences": [...]}
                 -> {"sentences": [n, ...]}   (1-based sentence numbers, as AIResponseParser reads)
 Replies are deterministic, and like the prompts ask, rephrase / simplify / moreFormal / moreCasual /
@@ -164,9 +167,35 @@ def differ(action, seg, out):
     return out
 
 
+def custom(payload, system):
+    """The AI drawer's typed instruction (action "custom", the note in "note"). A trailing "?"
+    in the note's first line gets a prose answer; otherwise the segments are rephrased, and when
+    the note asks for "firmer" the first segment gains " by Friday." with a blank for it."""
+    note = payload.get("note", "")
+    first_line = note.split("\n", 1)[0].strip()
+    if first_line.endswith("?"):
+        return {"answer": "Mostly the hedges and the exclamation marks; the facts are fine."}
+    out = [rewrite(s) for s in payload.get("segments", [])]
+    avoid = avoided_segments(system)
+    if avoid is not None and len(avoid) == len(out):
+        out = [differ("rephrase", seg, o) if o == a else o
+               for seg, o, a in zip(payload.get("segments", []), out, avoid)]
+    result = {"segments": out}
+    if "firmer" in first_line.lower() and out:
+        out[0] = out[0].rstrip(".") + " by Friday."
+        result["assumptions"] = [{"phrase": "by Friday", "line": "I assumed you'll share it by Friday.",
+                                  "question": "When will you share it?",
+                                  "options": ["by Friday", "next week", "by the end of the sprint"]}]
+    return result
+
+
 def result_for(payload, system=""):
     action = payload.get("action", "")
     segments = payload.get("segments", [])
+    if "question" in payload:
+        return {"answer": "It reads as informal mostly because of the opening and the hedges."}
+    if action == "custom":
+        return custom(payload, system)
     if action in ("weakestSentences", "longSentences"):
         sentences = payload.get("sentences", [])
         if not sentences:

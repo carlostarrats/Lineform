@@ -63,12 +63,20 @@ struct MarkdownEditor: UIViewRepresentable {
 
     func updateUIView(_ textView: LineformTextView, context: Context) {
         context.coordinator.parent = self
-        configure(textView)
+        configure(textView, coordinator: context.coordinator)
     }
 
     /// Hands `textView` this value's inputs. Internal so tests update an editor the same way.
-    func configure(_ textView: LineformTextView) {
+    ///
+    /// The text check runs on every screen update (opening the word menu is one), so it must not
+    /// walk the text: `textView.text != text` bridges the storage and compares with Unicode
+    /// normalisation, about 50 ms for 1 MB in the simulator and several times that on a phone. The
+    /// coordinator keeps the text it last knew the editor to hold (`knownText`); when the binding
+    /// still holds that same string (the same storage, which `==` answers at once) and the lengths
+    /// agree, nothing is compared.
+    func configure(_ textView: LineformTextView, coordinator: Coordinator? = nil) {
         textView.profile = profile
+        selectionController?.editorProfileDidChange(profile)
         textView.checksSpellingWhileTyping = checksSpelling
         textView.imageInsertionHost = imageHost
         textView.keepsCaretVisibleOnResize = keepsCaretVisibleOnResize
@@ -78,6 +86,10 @@ struct MarkdownEditor: UIViewRepresentable {
         readEditDocument?.readEditor = textView
         history?.attach(textView)
         selectionController?.attach(textView)
+        if let known = coordinator?.knownText, known == text,
+           textView.textStorage.length == text.utf16.count {
+            return
+        }
         if textView.text != text {
             // An outside replacement (a live reload, another document): an AI request or review
             // for the old text is abandoned first, recording and applying nothing.
@@ -86,6 +98,7 @@ struct MarkdownEditor: UIViewRepresentable {
             textView.setDocumentText(text)
             textView.undoManager?.removeAllActions()
         }
+        coordinator?.knownText = text
     }
 
     func makeCoordinator() -> Coordinator { Coordinator(parent: self) }
@@ -93,6 +106,8 @@ struct MarkdownEditor: UIViewRepresentable {
     @MainActor
     final class Coordinator: NSObject, UITextViewDelegate {
         var parent: MarkdownEditor
+        /// The text the editor was last known to hold (`configure`'s cheap check).
+        var knownText: String?
 
         init(parent: MarkdownEditor) { self.parent = parent }
 
@@ -107,7 +122,9 @@ struct MarkdownEditor: UIViewRepresentable {
         }
 
         func textViewDidChange(_ textView: UITextView) {
-            parent.text = textView.text
+            let text: String = textView.text
+            knownText = text
+            parent.text = text
             // An open comment field closes: its range no longer names the same text.
             parent.selectionController?.editorTextDidChange()
             guard let textView = textView as? LineformTextView else { return }
@@ -116,10 +133,22 @@ struct MarkdownEditor: UIViewRepresentable {
         }
 
         /// The Reading Ruler follows the caret, and Typewriter Mode re-centres it. The selection row
-        /// rises once a non-empty selection settles, and goes when it collapses.
+        /// rises once a non-empty selection settles; when it collapses the row becomes the caret's
+        /// (software keyboard up) or goes.
         func textViewDidChangeSelection(_ textView: UITextView) {
             (textView as? LineformTextView)?.refreshReadingAssists()
+            (textView as? LineformTextView)?.highlighterSelectionDidChange()
             parent.selectionController?.editorSelectionDidChange()
+        }
+
+        /// The caret's row shows only while the editor has the software keyboard: it follows
+        /// the focus (on the next turn).
+        func textViewDidBeginEditing(_ textView: UITextView) {
+            parent.selectionController?.editorFocusDidChange()
+        }
+
+        func textViewDidEndEditing(_ textView: UITextView) {
+            parent.selectionController?.editorFocusDidChange()
         }
 
         func scrollViewDidScroll(_ scrollView: UIScrollView) {

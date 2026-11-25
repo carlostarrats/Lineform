@@ -9413,74 +9413,6 @@
         }
       }
     },
-    "Clear History": {
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Verlauf löschen"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Borrar historial"
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Effacer l’historique"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "履歴を消去"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "清除历史记录"
-          }
-        }
-      }
-    },
-    "Removes saved versions for every document. Your files are not changed.": {
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Entfernt gespeicherte Versionen aller Dokumente. Die Dateien selbst bleiben unverändert."
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Elimina las versiones guardadas de todos los documentos. Tus archivos no cambian."
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Supprime les versions enregistrées de tous les documents. Vos fichiers ne sont pas modifiés."
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "すべての書類の保存済みバージョンを削除します。ファイル自体は変更されません。"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "移除所有文稿的已存储版本。你的文件不会被更改。"
-          }
-        }
-      }
-    },
     "Clear…": {
       "localizations": {
         "de": {
@@ -9511,74 +9443,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "清除…"
-          }
-        }
-      }
-    },
-    "Clear all history?": {
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Gesamten Verlauf löschen?"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "¿Borrar todo el historial?"
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Effacer tout l’historique ?"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "すべての履歴を消去しますか？"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "清除所有历史记录？"
-          }
-        }
-      }
-    },
-    "Saved versions for every document will be removed. This can't be undone. Your files are not changed.": {
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Gespeicherte Versionen aller Dokumente werden entfernt. Dies kann nicht widerrufen werden. Die Dateien selbst bleiben unverändert."
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Se eliminarán las versiones guardadas de todos los documentos. Esta acción no se puede deshacer. Tus archivos no cambian."
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Les versions enregistrées de tous les documents seront supprimées. Cette action est irréversible. Vos fichiers ne sont pas modifiés."
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "すべての書類の保存済みバージョンが削除されます。この操作は取り消せません。ファイル自体は変更されません。"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "所有文稿的已存储版本将被移除。此操作无法撤销。你的文件不会被更改。"
           }
         }
       }
@@ -10217,6 +10081,142 @@
           "stringUnit": {
             "state": "translated",
             "value": "询问 AI…"
+          }
+        }
+      }
+    },
+    "Clear Version History": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Versionsverlauf löschen"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Borrar historial de versiones"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Effacer l’historique des versions"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "バージョン履歴を消去"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "清除版本历史记录"
+          }
+        }
+      }
+    },
+    "Deletes the earlier versions Lineform kept of passages you changed. Your documents stay exactly as they are.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Löscht die früheren Versionen geänderter Passagen, die Lineform aufbewahrt hat. Deine Dokumente bleiben genau so, wie sie sind."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Elimina las versiones anteriores que Lineform guardó de los pasajes que cambiaste. Tus documentos quedan exactamente como están."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Supprime les versions antérieures que Lineform a conservées des passages que vous avez modifiés. Vos documents restent exactement tels quels."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "変更したパッセージについてLineformが保持していた以前のバージョンを削除します。書類はそのまま変わりません。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "删除 Lineform 为你更改过的段落保留的早期版本。你的文稿会保持原样。"
+          }
+        }
+      }
+    },
+    "Clear version history?": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Versionsverlauf löschen?"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "¿Borrar el historial de versiones?"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Effacer l’historique des versions ?"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "バージョン履歴を消去しますか？"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "清除版本历史记录？"
+          }
+        }
+      }
+    },
+    "Earlier versions of passages in every document will be removed. This can't be undone. Your documents aren't changed.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Frühere Versionen von Passagen in allen Dokumenten werden entfernt. Dies kann nicht widerrufen werden. Deine Dokumente werden nicht verändert."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Se eliminarán las versiones anteriores de los pasajes de todos los documentos. Esta acción no se puede deshacer. Tus documentos no cambian."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Les versions antérieures des passages de tous les documents seront supprimées. Cette action est irréversible. Vos documents ne sont pas modifiés."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "すべての書類のパッセージの以前のバージョンが削除されます。この操作は取り消せません。書類は変更されません。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "所有文稿中段落的早期版本将被移除。此操作无法撤销。你的文稿不会被更改。"
           }
         }
       }

@@ -4,14 +4,27 @@ import Foundation
 /// `AVSpeechSynthesisVoice` the resolver reads, so the decision can be tested without depending on
 /// which voices happen to be installed on the machine running the suite.
 struct SpeechVoiceCandidate: Equatable {
+    /// `AVSpeechSynthesisVoice.quality`, ranked (higher is better).
+    enum Quality: Int, Comparable {
+        case standard = 0, enhanced = 1, premium = 2
+
+        static func < (lhs: Quality, rhs: Quality) -> Bool { lhs.rawValue < rhs.rawValue }
+    }
+
     /// `AVSpeechSynthesisVoice.identifier`.
     let identifier: String
     /// `AVSpeechSynthesisVoice.language` — a BCP-47 tag such as `"fr-CA"` or `"zh-TW"`.
     let language: String
+    /// `AVSpeechSynthesisVoice.quality`.
+    let quality: Quality
+    /// `voiceTraits` contains `.isNoveltyVoice` (Bells, Bubbles, Zarvox…): never chosen.
+    let isNovelty: Bool
 
-    init(identifier: String, language: String) {
+    init(identifier: String, language: String, quality: Quality = .standard, isNovelty: Bool = false) {
         self.identifier = identifier
         self.language = language
+        self.quality = quality
+        self.isNovelty = isNovelty
     }
 }
 
@@ -74,6 +87,51 @@ enum SpeechVoiceResolver {
         }
 
         return .language(detectedLanguage)
+    }
+
+    /// The best-sounding installed voice for `language` (iPhone's Read Aloud, the owner's review of
+    /// 2026-11-24: the default compact voice sounded poor). Novelty voices never count. The user's
+    /// system-default voice wins when it speaks the language and is enhanced or premium; otherwise
+    /// premium beats enhanced beats standard, then the system default, then the region (the
+    /// document's own, the user's, any, none), then list order. Nil when nothing installed speaks
+    /// the language (or `language` is not a tag).
+    ///
+    /// - Parameters:
+    ///   - language: the document's detected language, or the current locale's.
+    ///   - systemDefaultIdentifier: the identifier of the voice the system speaks `language` with
+    ///     by default (`AVSpeechSynthesisVoice(language:)`), if any.
+    static func bestQualityVoice(
+        for language: String,
+        systemDefaultIdentifier: String?,
+        preferredRegion: String?,
+        among voices: [SpeechVoiceCandidate]
+    ) -> SpeechVoiceCandidate? {
+        guard let wanted = LanguageTag(language) else { return nil }
+        let candidates = voices.filter { voice in
+            guard !voice.isNovelty, let tag = LanguageTag(voice.language) else { return false }
+            return wanted.isCompatible(with: tag)
+        }
+        if let systemDefaultIdentifier,
+           let systemVoice = candidates.first(where: { $0.identifier == systemDefaultIdentifier }),
+           systemVoice.quality >= .enhanced {
+            return systemVoice
+        }
+        let normalizedPreferredRegion = preferredRegion?.uppercased()
+        func regionRank(_ voice: SpeechVoiceCandidate) -> Int {
+            let region = LanguageTag(voice.language)?.region
+            if let wantedRegion = wanted.region, region == wantedRegion { return 0 }
+            if let normalizedPreferredRegion, region == normalizedPreferredRegion { return 1 }
+            return region != nil ? 2 : 3
+        }
+        // Lower is better; the first voice at the best key is kept (list order breaks ties).
+        func key(_ voice: SpeechVoiceCandidate) -> (Int, Int, Int) {
+            (-voice.quality.rawValue, voice.identifier == systemDefaultIdentifier ? 0 : 1, regionRank(voice))
+        }
+        var best: SpeechVoiceCandidate?
+        for voice in candidates where best == nil || key(voice) < key(best!) {
+            best = voice
+        }
+        return best
     }
 
     private static func bestVoice(

@@ -37,15 +37,14 @@ final class DocumentCommandsTests: XCTestCase {
         XCTAssertEqual(document.textFormat, .markdown)
         XCTAssertTrue(document.canConvertTextFormat)
         // pinned-en: the Mac's menu titles.
-        XCTAssertEqual(DocumentSection.conversionTitle(for: document.textFormat), "Convert to Plain Text")
+        XCTAssertEqual(ExportPrintSection.conversionTitle(for: document.textFormat), "Convert to Plain Text")
 
         let converted = try XCTUnwrap(document.convertToPlainText())
         XCTAssertEqual(document.text, MarkdownPlainTextConverter.plainText(from: markdown))
         XCTAssertEqual(converted, NSRange(location: 0, length: (document.text as NSString).length))
         XCTAssertEqual(document.textFormat, .plainText)
         XCTAssertNotNil(document.plainTextConversion)
-        XCTAssertEqual(DocumentSection.conversionTitle(for: document.textFormat), "Convert to Markdown")
-        XCTAssertFalse(DocumentSection.showsTableCommands(for: document.textFormat), "tables are Markdown only, as on the Mac")
+        XCTAssertEqual(ExportPrintSection.conversionTitle(for: document.textFormat), "Convert to Markdown")
         XCTAssertTrue(document.canConvertTextFormat, "the conversion it holds can be restored")
 
         // Converting again does nothing: the Mac returns the conversion's range.
@@ -55,7 +54,6 @@ final class DocumentCommandsTests: XCTestCase {
         XCTAssertEqual(document.text, markdown, "back to the Markdown byte for byte")
         XCTAssertEqual(document.textFormat, .markdown)
         XCTAssertNil(document.plainTextConversion)
-        XCTAssertTrue(DocumentSection.showsTableCommands(for: document.textFormat))
 
         // The converted text saves as is (no stripping at write time).
         document.convertToPlainText()
@@ -167,22 +165,17 @@ final class DocumentCommandsTests: XCTestCase {
 
     func testDocumentRowsAndLinks() throws {
         try skipUnlessEnglishInterface()
-        // pinned-en: the Mac's command titles, in the section's order.
-        XCTAssertEqual(DocumentSection.rowTitles(for: .markdown), [
-            "New Document", "Open from Files…", "Save As…", "Insert Table", "Reformat Table",
-            "Convert to Plain Text", "Check Document Now",
-            "Export As", "Print…", "Share…", "Start Speaking", "Show Hidden Folders",
-            "Lineform Guide", "Privacy Policy", "Terms of Use",
+        // pinned-en: the Mac's command titles, in the pages' order.
+        XCTAssertEqual(ExportPrintSection.rowTitles(for: .markdown), [
+            "HTML", "PDF", "Styled PDF", "Rich Text (.rtf)", "Share…", "Print…", "Save As…", "Convert to Plain Text",
         ])
-        XCTAssertEqual(DocumentSection.rowTitles(for: .plainText), [
-            "New Document", "Open from Files…", "Save As…",
-            "Convert to Markdown", "Check Document Now",
-            "Export As", "Print…", "Share…", "Start Speaking", "Show Hidden Folders",
-            "Lineform Guide", "Privacy Policy", "Terms of Use",
-        ])
-        XCTAssertEqual(DocumentSection.guideURL.absoluteString, LineformLinks.guideURL)
-        XCTAssertEqual(DocumentSection.privacyPolicyURL.absoluteString, LineformLinks.privacyPolicyURL)
-        XCTAssertEqual(DocumentSection.termsOfUseURL.absoluteString, LineformLinks.termsOfUseURL)
+        XCTAssertEqual(ExportPrintSection.rowTitles(for: .plainText).last, "Convert to Markdown")
+        XCTAssertEqual(AboutSection.rowTitles, ["Check for Updates…", "Lineform Guide", "Privacy Policy", "Terms of Use"])
+        XCTAssertFalse(SettingsSection.rowTitles.contains("Check Document Now"), "Check Document Now is the format row's Check Spelling, not a Settings row")
+        XCTAssertEqual(AboutSection.versionText(bundle: .main), "Version \(PhoneUpdateCommand.bundleShortVersion())")
+        XCTAssertEqual(AboutSection.guideURL.absoluteString, LineformLinks.guideURL)
+        XCTAssertEqual(AboutSection.privacyPolicyURL.absoluteString, LineformLinks.privacyPolicyURL)
+        XCTAssertEqual(AboutSection.termsOfUseURL.absoluteString, LineformLinks.termsOfUseURL)
     }
 
     // MARK: - Helpers

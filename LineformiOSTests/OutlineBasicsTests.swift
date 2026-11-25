@@ -93,6 +93,22 @@ final class OutlineBasicsTests: XCTestCase {
 
     // MARK: - Markdown Basics
 
+    /// Markdown Basics is the mockup's groups, each its own card: every reference row exactly
+    /// once, the first section split into Headings, Emphasis, Lists, Links & images and Blocks,
+    /// and every code row named.
+    func testBasicsGroupsShowEveryRowOnce() throws {
+        try skipUnlessEnglishInterface()
+        let groups = BasicsSection.groups
+        XCTAssertEqual(Array(groups.prefix(5).map(\.title)), ["Headings", "Emphasis", "Lists", "Links & images", "Blocks"])
+        XCTAssertEqual(Set(groups.flatMap(\.rows).map(\.id)), Set(MarkdownReference.sections.flatMap(\.rows).map(\.id)))
+        XCTAssertEqual(groups.flatMap(\.rows).count, MarkdownReference.sections.flatMap(\.rows).count)
+        let bold = try XCTUnwrap(MarkdownReference.sections.flatMap(\.rows).first { $0.id == "**bold**" })
+        XCTAssertEqual(BasicsSection.name(for: bold), "Bold")
+        for row in MarkdownReference.sections.flatMap(\.rows) {
+            XCTAssertFalse(BasicsSection.name(for: row).isEmpty, row.id)
+        }
+    }
+
     func testBasicsRowCopies() async throws {
         try skipUnlessEnglishInterface()
         let board = try XCTUnwrap(UIPasteboard(name: UIPasteboard.Name("lineform-basics-\(UUID().uuidString)"), create: true))

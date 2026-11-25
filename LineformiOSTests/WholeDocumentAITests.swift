@@ -6,8 +6,8 @@ import XCTest
 @testable import LineformiOS
 
 /// Ask AI for the whole document on iPhone (2026-11-22): the Menu's Document section has an
-/// "Ask AI…" row while an AI is connected and Write or Preview is on screen. It opens the comment
-/// field for the whole document after the shared `WholeDocumentAIPolicy`: up to 1,500 words at
+/// "Ask AI…" row while an AI is connected and Write or Preview is on screen. It opens the AI sheet
+/// (2026-11-24; it was the comment field) for the whole document after the shared `WholeDocumentAIPolicy`: up to 1,500 words at
 /// once, above that after "Send the whole document (N words) to …?" (Send / Cancel, Cancel the
 /// default), and past `AILimits` it is refused with the policy's message — nothing sent, the
 /// Keychain not read. The review then runs over the whole document through the Task 5 overlay and
@@ -26,43 +26,30 @@ final class WholeDocumentAITests: XCTestCase {
     func testAskAIRowOnlyWhenConnected() throws {
         try skipUnlessEnglishInterface()
         // The row: connected, and an editor on screen (Write or Preview; Read has none).
-        XCTAssertTrue(DocumentSection.showsAskAI(isConnected: true, mode: .write, hasText: true))
-        XCTAssertTrue(DocumentSection.showsAskAI(isConnected: true, mode: .split, hasText: true))
-        XCTAssertFalse(DocumentSection.showsAskAI(isConnected: false, mode: .write, hasText: true))
-        XCTAssertFalse(DocumentSection.showsAskAI(isConnected: true, mode: .read, hasText: true))
-        XCTAssertEqual(DocumentSection.askAITitle, "Ask AI…")
-
-        // It sits with the document's commands, after Check Document Now.
-        let titles = DocumentSection.rowTitles(for: .markdown, showsAskAI: true)
-        let check = try XCTUnwrap(titles.firstIndex(of: DocumentSection.checkDocumentTitle))
-        XCTAssertEqual(titles[check + 1], DocumentSection.askAITitle)
-        XCTAssertFalse(DocumentSection.rowTitles(for: .markdown).contains(DocumentSection.askAITitle))
-        XCTAssertEqual(DocumentSection.rowTitles(for: .markdown, showsAskAI: false), DocumentSection.rowTitles(for: .markdown))
+        XCTAssertTrue(ConnectAISection.showsAskAI(isConnected: true, mode: .write, hasText: true))
+        XCTAssertTrue(ConnectAISection.showsAskAI(isConnected: true, mode: .split, hasText: true))
+        XCTAssertFalse(ConnectAISection.showsAskAI(isConnected: false, mode: .write, hasText: true))
+        XCTAssertFalse(ConnectAISection.showsAskAI(isConnected: true, mode: .read, hasText: true))
+        // It lives on the Connect Your AI page, under the connection.
+        XCTAssertEqual(ConnectAISection.askAITitle, "Ask AI…")
 
         // Disconnected (or in Read), the controller opens nothing either.
         let (_, offline, _, _) = try makeEditor("A short document.\n", connected: false)
         offline.askAIForWholeDocument()
-        XCTAssertEqual(offline.phase, .hidden)
+        XCTAssertFalse(offline.isShowingAISheet)
         let (_, reading, _, _) = try makeEditor("A short document.\n", connected: true)
         reading.displayModeDidChange(to: .read)
         reading.askAIForWholeDocument()
-        XCTAssertEqual(reading.phase, .hidden)
+        XCTAssertFalse(reading.isShowingAISheet)
 
-        // Connected in Write: the comment field opens for the whole document.
+        // Connected in Write: the AI sheet opens, with nothing selected (its requests go to the
+        // whole document).
         let (editor, selection, _, keychain) = try makeEditor("A short document.\n", connected: true)
-        editor.selectedRange = NSRange(location: 2, length: 0)
+        editor.selectedRange = NSRange(location: 2, length: 5)
         selection.askAIForWholeDocument()
-        XCTAssertEqual(selection.phase, .comment)
-        XCTAssertTrue(selection.isWholeDocument)
-        XCTAssertEqual(selection.anchorRange, NSRange(location: 0, length: editor.textStorage.length))
-        XCTAssertEqual(selection.model.action, .custom)
-        XCTAssertEqual(keychain.readCount, 0, "opening the field reads no key")
-
-        // Cancel puts the caret back where it was.
-        selection.cancelComment()
-        XCTAssertEqual(selection.phase, .hidden)
-        XCTAssertFalse(selection.isWholeDocument)
+        XCTAssertTrue(selection.isShowingAISheet)
         XCTAssertEqual(editor.selectedRange, NSRange(location: 2, length: 0))
+        XCTAssertEqual(keychain.readCount, 0, "opening the sheet reads no key")
     }
 
     func testConfirmAbove1500Words() throws {
@@ -81,21 +68,21 @@ final class WholeDocumentAITests: XCTestCase {
         XCTAssertEqual(alert.actions.last?.style, .cancel)
         XCTAssertTrue(alert.preferredAction === alert.actions.last, "Cancel is the default")
         XCTAssertEqual(selection.pendingWholeDocumentWords, 1_600)
-        XCTAssertEqual(selection.phase, .hidden, "nothing opens before the writer answers")
+        XCTAssertFalse(selection.isShowingAISheet, "nothing opens before the writer answers")
         XCTAssertEqual(keychain.readCount, 0)
         XCTAssertTrue(client.prompts.isEmpty)
 
         // Cancel: nothing opens, nothing is sent.
         selection.cancelWholeDocumentConfirmation()
         XCTAssertNil(selection.pendingWholeDocumentWords)
-        XCTAssertEqual(selection.phase, .hidden)
+        XCTAssertFalse(selection.isShowingAISheet)
 
-        // Send: the comment field opens for the whole document; still nothing sent.
+        // Send: the AI sheet opens; still nothing sent, and the count is not asked about again.
         selection.askAIForWholeDocument()
         selection.confirmWholeDocument()
         XCTAssertNil(selection.pendingWholeDocumentWords)
-        XCTAssertEqual(selection.phase, .comment)
-        XCTAssertTrue(selection.isWholeDocument)
+        XCTAssertTrue(selection.isShowingAISheet)
+        XCTAssertEqual(selection.conversation.confirmedWholeDocumentWords, 1_600)
         XCTAssertEqual(keychain.readCount, 0)
         XCTAssertTrue(client.prompts.isEmpty)
 
@@ -105,7 +92,7 @@ final class WholeDocumentAITests: XCTestCase {
         short.presentAlert = { shortShown.append($0) }
         short.askAIForWholeDocument()
         XCTAssertTrue(shortShown.isEmpty)
-        XCTAssertEqual(short.phase, .comment)
+        XCTAssertTrue(short.isShowingAISheet)
 
         // Other names its address's host.
         XCTAssertEqual(WholeDocumentAIPolicy.recipient(for: .other, otherEndpoint: URL(string: "http://127.0.0.1:8080/v1")),
@@ -121,11 +108,12 @@ final class WholeDocumentAITests: XCTestCase {
 
         selection.askAIForWholeDocument()
         XCTAssertTrue(shown.isEmpty, "no confirmation for a document that cannot be sent")
-        XCTAssertEqual(selection.phase, .hidden, "no comment field")
+        XCTAssertTrue(selection.isShowingAISheet, "the sheet opens on the refusal")
         XCTAssertEqual(ai.state, .message(WholeDocumentAIPolicy.refusalMessage))
-        XCTAssertEqual(selection.aiState, .message(WholeDocumentAIPolicy.refusalMessage), "shown on the AI's message card")
+        XCTAssertTrue(selection.conversation.messages.contains { $0.content == .notice(WholeDocumentAIPolicy.refusalMessage) },
+                      "shown in the conversation")
 
-        // Even a Send that got past the field is refused by the controller, before any read.
+        // Even a request that got past the sheet is refused by the controller, before any read.
         ai.dismissMessage()
         ai.runWholeDocument(.rephrase, text: editor.string, note: nil)
         XCTAssertEqual(ai.state, .message(WholeDocumentAIPolicy.refusalMessage))
@@ -144,12 +132,10 @@ final class WholeDocumentAITests: XCTestCase {
         editor.selectedRange = NSRange(location: 5, length: 0)
 
         selection.askAIForWholeDocument()
-        XCTAssertEqual(selection.phase, .comment)
-        selection.model.action = .rephrase
-        XCTAssertTrue(selection.canSendNow)
-        XCTAssertTrue(selection.send())
-        XCTAssertEqual(selection.phase, .hidden)
+        XCTAssertTrue(selection.isShowingAISheet)
+        selection.conversation.runQuickAction(.rephrase)
         try await spin { if case .reviewing = ai.state { return true }; return false }
+        XCTAssertNotNil(selection.conversation.pendingSuggestion, "the suggestion is in the sheet")
 
         // The whole document's prose was sent, never its code.
         let prompt = try XCTUnwrap(client.prompts.first)
@@ -182,9 +168,8 @@ final class WholeDocumentAITests: XCTestCase {
 
     // MARK: - Fixes after the step 8 review
 
-    /// Send checks the policy again. A document that grew past the count the writer confirmed is
-    /// asked about again; one that grew past the limit is refused. (A paste normally closes the
-    /// field; this is the backstop for a change no hook heard.)
+    /// A request from the sheet checks the policy again. A document that grew past the count the
+    /// writer confirmed is asked about again; one that grew past the limit is refused.
     func testPastingPast1500AfterConfirmingReasks() async throws {
         let client = FakeAIClient(.suspend)
         let text = String(repeating: "word ", count: 1_600) + "\n"
@@ -194,33 +179,18 @@ final class WholeDocumentAITests: XCTestCase {
         selection.askAIForWholeDocument()
         XCTAssertEqual(shown.count, 1)
         selection.confirmWholeDocument()
-        XCTAssertEqual(selection.phase, .comment)
-        selection.model.action = .rephrase
+        XCTAssertTrue(selection.isShowingAISheet)
 
-        // 200 more words arrive with no hook hearing them.
+        // 200 more words arrive.
         editor.textStorage.replaceCharacters(in: NSRange(location: editor.textStorage.length, length: 0),
                                              with: String(repeating: "more ", count: 200))
-        XCTAssertFalse(selection.send(), "1,800 words were never confirmed")
+        selection.conversation.runQuickAction(.rephrase)
         let again = try XCTUnwrap(shown.last)
-        XCTAssertEqual(shown.count, 2, "asked again")
+        XCTAssertEqual(shown.count, 2, "1,800 words were never confirmed: asked again")
         XCTAssertEqual(again.title, WholeDocumentAIPolicy.confirmationTitle(words: 1_800, recipient: "Claude"))
-        XCTAssertEqual(selection.pendingWholeDocumentWords, 1_800)
-        XCTAssertEqual(selection.phase, .comment, "the field stays, note and action kept")
         XCTAssertEqual(keychain.readCount, 0)
         XCTAssertTrue(client.prompts.isEmpty)
-
-        // Cancel on the second question: nothing sent, the field still open.
-        selection.cancelWholeDocumentConfirmation()
-        XCTAssertNil(selection.pendingWholeDocumentWords)
-        XCTAssertEqual(selection.phase, .comment)
-
-        // Send on it: the comment goes, for 1,800 words.
-        XCTAssertFalse(selection.send())
-        selection.confirmWholeDocument()
-        XCTAssertEqual(selection.phase, .hidden)
-        XCTAssertEqual(ai.state, .running(.rephrase, .claude))
-        try await spin { client.prompts.count == 1 }
-        ai.cancel()
+        XCTAssertEqual(ai.state, .idle)
 
         // Fewer words than confirmed: no question.
         let (smaller, smallerSelection, smallerAI, _) = try makeEditor(text, connected: true, client: FakeAIClient(.suspend))
@@ -228,9 +198,8 @@ final class WholeDocumentAITests: XCTestCase {
         smallerSelection.presentAlert = { smallerShown.append($0) }
         smallerSelection.askAIForWholeDocument()
         smallerSelection.confirmWholeDocument()
-        smallerSelection.model.action = .rephrase
         smaller.textStorage.replaceCharacters(in: NSRange(location: 0, length: 50), with: "")
-        XCTAssertTrue(smallerSelection.send())
+        smallerSelection.conversation.runQuickAction(.rephrase)
         XCTAssertEqual(smallerShown.count, 1)
         XCTAssertEqual(smallerAI.state, .running(.rephrase, .claude))
         smallerAI.cancel()
@@ -240,14 +209,12 @@ final class WholeDocumentAITests: XCTestCase {
         grownSelection.presentAlert = { _ in }
         grownSelection.askAIForWholeDocument()
         grownSelection.confirmWholeDocument()
-        grownSelection.model.action = .rephrase
         grown.textStorage.replaceCharacters(in: NSRange(location: grown.textStorage.length, length: 0),
                                             with: String(repeating: "more ", count: 4_000))
-        XCTAssertFalse(grownSelection.send())
-        XCTAssertEqual(grownSelection.phase, .hidden, "the field closes")
+        grownSelection.conversation.runQuickAction(.rephrase)
         XCTAssertEqual(grownAI.state, .message(WholeDocumentAIPolicy.refusalMessage))
         XCTAssertEqual(grownKeychain.readCount, 0)
-        XCTAssertEqual(client.prompts.count, 1, "only the confirmed send above")
+        XCTAssertTrue(client.prompts.isEmpty)
     }
 
     /// The confirmation going away by ANY path (here, its presenter dismissing it, as when the
@@ -274,49 +241,19 @@ final class WholeDocumentAITests: XCTestCase {
 
     /// No Ask AI… for an empty document: there is nothing to send.
     func testAskAIRowHiddenForEmptyDocument() throws {
-        XCTAssertFalse(DocumentSection.showsAskAI(isConnected: true, mode: .write, hasText: false))
-        XCTAssertTrue(DocumentSection.showsAskAI(isConnected: true, mode: .write, hasText: true))
-        XCTAssertFalse(DocumentSection.hasText(""))
-        XCTAssertFalse(DocumentSection.hasText(" \n\n\t"))
-        XCTAssertTrue(DocumentSection.hasText("\nA"))
+        XCTAssertFalse(ConnectAISection.showsAskAI(isConnected: true, mode: .write, hasText: false))
+        XCTAssertTrue(ConnectAISection.showsAskAI(isConnected: true, mode: .write, hasText: true))
+        XCTAssertFalse(ConnectAISection.hasText(""))
+        XCTAssertFalse(ConnectAISection.hasText(" \n\n\t"))
+        XCTAssertTrue(ConnectAISection.hasText("\nA"))
         let (_, selection, _, _) = try makeEditor("  \n\n", connected: true)
         XCTAssertFalse(selection.allowsWholeDocumentAI)
         selection.askAIForWholeDocument()
         XCTAssertEqual(selection.phase, .hidden)
     }
 
-    /// The whole-document comment says so, quietly: "Whole document", in six languages.
-    func testWholeDocumentCommentSaysWholeDocument() async throws {
-        try skipUnlessEnglishInterface()
-        XCTAssertEqual(SelectionToolbarPresentation.wholeDocumentSubtitle, "Whole document")
-        for language in ["es", "fr", "de", "ja", "zh-Hans"] {
-            let bundle = try XCTUnwrap(Bundle.lineformCore.path(forResource: language, ofType: "lproj").flatMap(Bundle.init(path:)))
-            let value = String(localized: "Whole document", bundle: bundle)
-            XCTAssertNotEqual(value, "Whole document", language)
-        }
-
-        let (editor, selection, _, _) = try makeEditor("A short document here.\n", connected: true)
-        selection.askAIForWholeDocument()
-        XCTAssertTrue(selection.model.isWholeDocument)
-        let host = UIHostingController(rootView: CommentField(controller: selection, profile: .original))
-        host.view.frame = CGRect(x: 0, y: 400, width: 393, height: 240)
-        window?.rootViewController?.view.addSubview(host.view)
-        host.view.layoutIfNeeded()
-        try await spin { Self.hasLabel("Whole document", in: host.view) }
-
-        // A selection's comment has no subtitle.
-        selection.cancelComment()
-        XCTAssertFalse(selection.model.isWholeDocument)
-        editor.selectedRange = NSRange(location: 2, length: 5)
-        selection.showRowNow()
-        selection.perform(.askAI)
-        XCTAssertFalse(selection.model.isWholeDocument)
-        for _ in 0..<5 {
-            try await Task.sleep(for: .milliseconds(20))
-            host.view.layoutIfNeeded()
-        }
-        XCTAssertFalse(Self.hasLabel("Whole document", in: host.view))
-    }
+    // (The whole-document comment field's subtitle test went with the comment field: the Menu's
+    // Ask AI… opens the AI sheet, 2026-11-24.)
 
     private static func hasLabel(_ label: String, in root: NSObject, depth: Int = 0) -> Bool {
         guard depth < 60 else { return false }

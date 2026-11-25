@@ -192,6 +192,24 @@ final class OpenDocumentTests: XCTestCase {
         XCTAssertEqual(document.lastSyncedText, "Current version")
     }
 
+    /// A file with a local copy opens without waiting for iCloud's status: that lookup (about
+    /// 0.3 s on a session's first open) ran before every switch. Here it is held, and the open
+    /// still finishes; released, it finds the copy outdated and the current version comes in.
+    func testLocalCopyOpensWithoutWaitingForTheICloudStatus() async throws {
+        let url = try write("Local copy", named: "Fast.md")
+        let cloud = FakeUbiquitousItems(outdated: [url], arrivingText: "Current version", hold: .firstStateCheck)
+        let document = makeDocument(ubiquitousItems: cloud)
+
+        try await document.open(url)
+
+        XCTAssertEqual(document.text, "Local copy", "the open did not wait for the iCloud status")
+        try await waitUntil { cloud.isHolding }
+        XCTAssertEqual(cloud.startedURLs, [], "nothing is downloaded before the status is known")
+        cloud.release()
+        try await waitUntil { cloud.startedURLs == [url] }
+        try await waitUntil { document.text == "Current version" }
+    }
+
     func testNewDocumentWhileDownloadingCancelsTheOpen() async throws {
         let real = folder.appendingPathComponent("Never.md")
         let cloud = FakeUbiquitousItems(pending: [real], arrivingText: nil)

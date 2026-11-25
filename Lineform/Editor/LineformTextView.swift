@@ -94,8 +94,6 @@ final class SplitScrollSynchronizer: ObservableObject {
 final class LineformTextView: NSTextView {
     let emptyStatePlaceholder = String(localized: "Start writing...")
     static let readingRulerFillOpacity: CGFloat = 0.12
-    static let lightSelectionBackgroundAlpha: CGFloat = 0.34
-    static let darkSelectionBackgroundAlpha: CGFloat = 0.56
     /// Characters of syntax highlighting kept on each side of the visible range so scroll
     /// seams stay coloured. A few hundred words; tokenizing this window is sub-millisecond.
     static let highlightMargin = 3000
@@ -110,6 +108,9 @@ final class LineformTextView: NSTextView {
     private var hasAppliedTextContainerLayout = false
     private(set) var isLineformWritingToolsSessionActive = false
     private var searchHighlightRanges: [NSRange] = []
+    /// The highlighter strokes last painted for the selection (`HighlighterSelectionDrawing`),
+    /// kept so a selection change repaints only the lines whose stroke changed.
+    private var highlighterSelectionLines: [HighlighterSelection.Line] = []
     /// History mode. `nil` = normal writing, which draws no history markers. Setting an equal
     /// value is a no-op (like `setSearchHighlights`). See `LineformTextView+History.swift`.
     var historyDisplay: HistoryModeDisplay? {
@@ -383,8 +384,10 @@ final class LineformTextView: NSTextView {
         textColor = theme.textColor
         backgroundColor = theme.backgroundColor
         drawsBackground = true
-        insertionPointColor = theme.caretColor
+        // The highlighter's blue, as on iPhone (the caret and the selection are one colour).
+        insertionPointColor = HighlighterSelection.caretColor(for: theme)
         selectedTextAttributes = Self.selectedTextAttributes(usesDarkChrome: theme.usesDarkChrome)
+        refreshHighlighterSelection(redrawAll: true)
         updateTextContainerLayout(for: profile)
         typingAttributes = MarkdownSyntaxHighlighter.baseAttributes(for: profile)
         refreshMarkdownHighlighting()
@@ -400,12 +403,48 @@ final class LineformTextView: NSTextView {
         refreshSelectionToolbarIfVisible()
     }
 
-    static func selectedTextAttributes(usesDarkChrome: Bool) -> [NSAttributedString.Key: Any] {
-        [
-            .backgroundColor: NSColor.controlAccentColor.withAlphaComponent(
-                usesDarkChrome ? darkSelectionBackgroundAlpha : lightSelectionBackgroundAlpha
-            )
-        ]
+    /// AppKit's selection fill is clear in every theme: the selection is the highlighter stroke
+    /// drawn behind the text (`drawHighlighterSelection`), never a text or layout attribute.
+    static func selectedTextAttributes(usesDarkChrome _: Bool) -> [NSAttributedString.Key: Any] {
+        HighlighterSelectionDrawing.clearSelectedTextAttributes
+    }
+
+    // MARK: - Highlighter selection
+
+    /// What the highlighter strokes: the selection, plus the passage the comment card holds while
+    /// its note field has the focus (`heldHighlightRange`).
+    var highlighterSelectionRanges: [NSRange] {
+        var ranges = selectedRanges.map(\.rangeValue).filter { $0.length > 0 }
+        if let held = selectionToolbarStorage?.heldHighlightRange, held.length > 0 { ranges.append(held) }
+        return ranges
+    }
+
+    /// Re-measures the visible strokes and repaints the lines that changed (or, after a theme or
+    /// contrast change, every stroke on screen).
+    func refreshHighlighterSelection(redrawAll: Bool = false) {
+        let lines = HighlighterSelectionDrawing.lines(for: highlighterSelectionRanges, in: self)
+        if redrawAll {
+            for line in Set(highlighterSelectionLines).union(lines) {
+                setNeedsDisplay(HighlighterSelection.paintBounds(for: line))
+            }
+        } else {
+            HighlighterSelectionDrawing.invalidate(changedFrom: highlighterSelectionLines, to: lines, in: self)
+        }
+        highlighterSelectionLines = lines
+    }
+
+    private func drawHighlighterSelection(in rect: NSRect) {
+        let ranges = highlighterSelectionRanges
+        guard !ranges.isEmpty else { return }
+        HighlighterSelectionDrawing.draw(
+            HighlighterSelectionDrawing.lines(for: ranges, in: self),
+            theme: Theme.theme(for: activeReadingProfile),
+            dirtyRect: rect
+        )
+    }
+
+    @objc private func accessibilityDisplayOptionsDidChange(_ notification: Notification) {
+        refreshHighlighterSelection(redrawAll: true)
     }
 
     /// Full refresh (load / profile change / full-text replacement): resets base attributes
@@ -1090,6 +1129,10 @@ final class LineformTextView: NSTextView {
     override func setSelectedRanges(_ ranges: [NSValue], affinity: NSSelectionAffinity, stillSelecting stillSelectingFlag: Bool) {
         super.setSelectedRanges(historyClampedSelection(ranges) ?? ranges, affinity: affinity,
                                 stillSelecting: stillSelectingFlag)
+        // Typing with no selection (the common case) costs nothing here: both lists are empty.
+        if !highlighterSelectionLines.isEmpty || ranges.contains(where: { $0.rangeValue.length > 0 }) {
+            refreshHighlighterSelection()
+        }
         selectionToolbarSelectionDidChange(stillSelecting: stillSelectingFlag)
     }
 
@@ -1126,6 +1169,8 @@ final class LineformTextView: NSTextView {
         // History first: its hover/selection fills are opaque, so search matches stay on top.
         drawHistoryIfNeeded()
         drawSearchHighlightsIfNeeded()
+        // Over History's fills and Find's matches, under the glyphs (`drawBackground` runs first).
+        drawHighlighterSelection(in: rect)
         drawReadingRulerIfNeeded()
     }
 
@@ -1185,6 +1230,13 @@ final class LineformTextView: NSTextView {
             self,
             selector: #selector(spellCheckingPreferenceDidChange),
             name: Self.spellCheckingDidChangeNotification,
+            object: nil
+        )
+        // Increase Contrast strengthens the highlighter's fill.
+        NSWorkspace.shared.notificationCenter.addObserver(
+            self,
+            selector: #selector(accessibilityDisplayOptionsDidChange(_:)),
+            name: NSWorkspace.accessibilityDisplayOptionsDidChangeNotification,
             object: nil
         )
         // The inline candidate list — a floating pill of alternatives that appears near the

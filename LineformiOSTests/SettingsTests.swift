@@ -57,12 +57,16 @@ final class SettingsTests: XCTestCase {
             "Automatic Dark Mode", "Show iCloud in Files", "Check spelling while typing", "In-app notifications",
         ])
         XCTAssertTrue(SettingsSection.rows.allSatisfy { !$0.note.isEmpty }, "every row explains itself")
-        // pinned-en: every row, the switches then Clear History (the Mac's copy) and Check for Updates….
+        // pinned-en: every row, the switches, then Clear History (the Mac's copy). Check Document
+        // Now left Settings for the format row's Check Spelling (2026-11-24).
         XCTAssertEqual(SettingsSection.rowTitles, [
             "Automatic Dark Mode", "Show iCloud in Files", "Check spelling while typing", "In-app notifications",
-            "Clear History", "Check for Updates…",
+            "Clear Version History",
         ])
         XCTAssertFalse(SettingsSection.clearHistoryNote.isEmpty)
+        // Show iCloud in Files only when this device's iCloud container resolves (never in Debug).
+        XCTAssertFalse(SettingsSection.shownRows(iCloudAvailable: false).contains { $0.id == "showICloud" })
+        XCTAssertEqual(SettingsSection.shownRows(iCloudAvailable: true).map(\.id), SettingsSection.rows.map(\.id))
     }
 
     func testAutomaticDarkModeFollowsAppearance() async throws {
@@ -135,7 +139,7 @@ final class SettingsTests: XCTestCase {
         let mac = try NSRegularExpression(pattern: "\\bMac(s|’s|'s)?\\b")
         // First run's copy is the owner's own product wording (`FirstRunCopy`, step 11), which may
         // name the Mac app on purpose (iCloud sync with it). The rule is for the app's UI.
-        let ownerCopy = Set(FirstRunCopy.points + [FirstRunCopy.heading, FirstRunCopy.startWriting])
+        let ownerCopy = Set(FirstRunCopy.allStrings)
         for (key, entry) in strings {
             // The English value is the key unless an `en` localization says otherwise.
             let localizations = entry["localizations"] as? [String: [String: Any]]

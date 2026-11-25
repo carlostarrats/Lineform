@@ -9,7 +9,7 @@ struct OutlineRow: Identifiable, Equatable {
     var id: String { item.id }
 }
 
-/// The Outline section's heading list. Built at once from the text the sheet opens on, then
+/// The Outline section's heading list. Built at once from the text the menu opens on, then
 /// rebuilt `rebuildDelay` after the text changes (each change restarts the wait, so the latest
 /// text wins), as the Mac's derived refresh does.
 @MainActor
@@ -48,22 +48,26 @@ final class OutlineModel {
     }
 }
 
-/// The Menu sheet's Outline: the heading tree of the current text. Tapping a heading closes the
-/// sheet and scrolls the heading to the top of the surface on screen (Write, Read, or both Preview
-/// panes) through `EditorCommands`, which uses the mode position keeper.
+/// The word menu's Outline, like the Mac sidebar's: each heading with its level's icon
+/// (`iconName(forHeadingLevel:)`), the top level heavier, nested rows indented with a thin guide
+/// line down them. Tapping a heading closes the menu, scrolls the heading to the top of the
+/// surface on screen (Write, Read, or both Preview panes) through `EditorCommands`, and flashes it
+/// briefly.
 struct OutlineSection: View {
     var text: String
     var editor: any EditorCommands
     var onDismiss: () -> Void
 
     /// Built once, when the section first appears, then kept current by its debounced rebuild:
-    /// never in `init`, which SwiftUI runs on every update of the sheet (each keystroke).
+    /// never in `init`, which SwiftUI runs on every update (each keystroke).
     @State private var model: OutlineModel?
-    @Environment(\.menuTheme) private var theme
+    @Environment(\.wordMenuPalette) private var palette
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
-    /// Points per level of indent.
-    static let indentStep: CGFloat = 14
+    /// Points per level of indent: the guide line sits under the parent's icon.
+    static let indentStep: CGFloat = 17
+    /// The guide line's width.
+    static let guideWidth: CGFloat = 1.5
 
     /// The Mac's empty-state wording.
     static var emptyText: String { String(localized: "Add # Title or ## Section to build an outline.") }
@@ -80,18 +84,26 @@ struct OutlineSection: View {
         dynamicTypeSize.isAccessibilitySize ? nil : 2
     }
 
-    /// A heading tap: the sheet goes first, then the heading is scrolled to the top.
+    /// The Mac sidebar's icon for a heading level (`OutlineSidebarView.iconName(forHeadingLevel:)`).
+    static func iconName(forHeadingLevel level: Int) -> String {
+        switch level {
+        case 1: "textformat.size"
+        case 2: "list.bullet.indent"
+        default: "text.alignleft"
+        }
+    }
+
+    /// A heading tap: the menu goes first, then the heading is scrolled to the top and flashed.
     static func open(_ row: OutlineRow, editor: any EditorCommands, dismiss: () -> Void) {
         dismiss()
         editor.scrollToCharacterRange(row.item.characterRange)
+        editor.flashCharacterRange(row.item.characterRange)
     }
 
     var body: some View {
-        Group {
+        WordMenuPageScaffold(title: WordMenuItem.outline.title) {
             if let model {
                 list(model)
-            } else {
-                Color.clear
             }
         }
         .onAppear {
@@ -102,34 +114,63 @@ struct OutlineSection: View {
 
     @ViewBuilder
     private func list(_ model: OutlineModel) -> some View {
-        Group {
-            if model.rows.isEmpty {
-                Text(Self.emptyText)
-                    .font(.callout)
-                    .foregroundStyle(PhoneInk.menu(theme).secondary)
-                    .multilineTextAlignment(.center)
-                    .frame(maxWidth: .infinity)
-                    .padding(.horizontal, 32)
-                    .padding(.top, 40)
-            } else {
-                List(model.rows) { row in
-                    Button {
-                        Self.open(row, editor: editor, dismiss: onDismiss)
-                    } label: {
-                        Text(row.item.title)
-                            .font(row.depth == 0 ? .body.weight(.semibold) : .body)
-                            .lineLimit(Self.lineLimit(for: dynamicTypeSize))
-                            .padding(.leading, CGFloat(row.depth) * Self.indentStep)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .contentShape(Rectangle())
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityValue(Text(Self.accessibilityValue(for: row)))
-                    .listRowBackground(Color.clear)
+        if model.rows.isEmpty {
+            Text(Self.emptyText)
+                .font(.callout)
+                .foregroundStyle(palette.color(palette.secondary))
+                .multilineTextAlignment(.center)
+                .frame(maxWidth: .infinity)
+                .padding(.horizontal, 24)
+                .padding(.top, 40)
+        } else {
+            LazyVStack(alignment: .leading, spacing: 0) {
+                ForEach(model.rows) { row in
+                    rowView(row)
                 }
-                .listStyle(.plain)
-                .scrollContentBackground(.hidden)
             }
         }
+    }
+
+    private func rowView(_ row: OutlineRow) -> some View {
+        Button {
+            Self.open(row, editor: editor, dismiss: onDismiss)
+        } label: {
+            HStack(alignment: .firstTextBaseline, spacing: 10) {
+                Image(systemName: Self.iconName(forHeadingLevel: row.item.level))
+                    .font(.footnote)
+                    .foregroundStyle(palette.color(palette.icon))
+                    .frame(width: 18)
+                    .accessibilityHidden(true)
+                Text(row.item.title)
+                    .font(row.depth == 0 ? .body.weight(.semibold) : .body)
+                    .foregroundStyle(palette.color(palette.ink))
+                    .lineLimit(Self.lineLimit(for: dynamicTypeSize))
+                    .multilineTextAlignment(.leading)
+            }
+            .padding(.vertical, 10)
+            .padding(.horizontal, 8)
+            .padding(.leading, CGFloat(row.depth) * Self.indentStep)
+            .frame(maxWidth: .infinity, minHeight: WordMenuMetrics.minimumTarget, alignment: .leading)
+            .background(alignment: .leading) { guides(depth: row.depth) }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(WordMenuPressStyle())
+        .accessibilityValue(Text(Self.accessibilityValue(for: row)))
+    }
+
+    /// One thin vertical line per level above the row, under each ancestor's icon, so the lines
+    /// run unbroken down a nested run.
+    private func guides(depth: Int) -> some View {
+        ZStack(alignment: .leading) {
+            ForEach(0..<max(0, depth), id: \.self) { level in
+                Rectangle()
+                    .fill(palette.color(palette.hair))
+                    .frame(width: Self.guideWidth)
+                    .frame(maxHeight: .infinity)
+                    .offset(x: 8 + 8 + CGFloat(level) * Self.indentStep)
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
+        .accessibilityHidden(true)
     }
 }

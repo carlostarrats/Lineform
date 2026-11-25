@@ -102,10 +102,29 @@ public final class SystemSpeechSynthesizer: NSObject, SpeechSynthesizing, AVSpee
     // Control methods are driven from the @MainActor `SpeechController`; AVSpeechSynthesizer is not
     // Sendable but is only ever touched through those main-actor-serialized calls.
     private nonisolated(unsafe) let synthesizer = AVSpeechSynthesizer()
+    /// Read with the best-sounding installed voice for the language
+    /// (`SpeechVoiceResolver.bestQualityVoice`) instead of leaving the system's default. iPhone
+    /// sets it: there a nil voice is the compact default, not the writer's Spoken Content voice.
+    private let prefersBestQualityVoice: Bool
 
-    public override init() {
+    public init(prefersBestQualityVoice: Bool = false) {
+        self.prefersBestQualityVoice = prefersBestQualityVoice
         super.init()
         synthesizer.delegate = self
+    }
+
+    private static func candidate(_ voice: AVSpeechSynthesisVoice) -> SpeechVoiceCandidate {
+        let quality: SpeechVoiceCandidate.Quality = switch voice.quality {
+        case .premium: .premium
+        case .enhanced: .enhanced
+        default: .standard
+        }
+        return SpeechVoiceCandidate(
+            identifier: voice.identifier,
+            language: voice.language,
+            quality: quality,
+            isNovelty: voice.voiceTraits.contains(.isNoveltyVoice)
+        )
     }
 
     public var isSpeaking: Bool { synthesizer.isSpeaking }
@@ -113,6 +132,20 @@ public final class SystemSpeechSynthesizer: NSObject, SpeechSynthesizing, AVSpee
 
     public func speak(_ text: String, languageCode: String?) {
         let utterance = AVSpeechUtterance(string: text)
+        if prefersBestQualityVoice {
+            let language = languageCode ?? AVSpeechSynthesisVoice.currentLanguageCode()
+            if let best = SpeechVoiceResolver.bestQualityVoice(
+                for: language,
+                systemDefaultIdentifier: AVSpeechSynthesisVoice(language: language)?.identifier,
+                preferredRegion: Locale.current.region?.identifier,
+                among: AVSpeechSynthesisVoice.speechVoices().map { voice in Self.candidate(voice) }
+            ), let voice = AVSpeechSynthesisVoice(identifier: best.identifier) {
+                utterance.voice = voice
+                currentUtterance = utterance
+                synthesizer.speak(utterance)
+                return
+            }
+        }
         // The user's own Spoken Content voice wins unless the document is positively in another
         // language — `SpeechVoiceResolver` owns that judgement (and the region preference behind
         // it); see its doc comment for why an unconditional override was a regression.

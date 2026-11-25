@@ -87,16 +87,12 @@ final class FilesSectionTests: XCTestCase {
     func testStatesUseTheMacWording() throws {
         try skipUnlessEnglishInterface()
         // pinned-en
-        let path = "/var/mobile/Notes"
-        XCTAssertEqual(FilesSection.scannedFolderText(path), "Scanned folder: /var/mobile/Notes")
-        XCTAssertEqual(FilesSection.unavailableText, "Workspace folder unavailable")
-        XCTAssertEqual(FilesSection.chooseTitle, "Choose")
-        XCTAssertEqual(FilesSection.changeTitle, "Change")
         XCTAssertEqual(FilesSection.deleteTitle(for: "Notes.md"), "Delete “Notes.md”?")
         XCTAssertEqual(FilesSection.deleteMessage, "It will be moved to the Trash.")
         XCTAssertEqual(FilesSection.renameTitle(isDirectory: false), "Rename File")
         XCTAssertEqual(FilesSection.renameTitle(isDirectory: true), "Rename Folder")
-        for text in [FilesSection.unavailableText, FilesSection.scannedFolderText(path), FilesSection.deleteMessage] {
+        XCTAssertEqual(FilesSection.newDocumentLabel(in: "iCloud"), "New Document in iCloud")
+        for text in [FilesSection.deleteMessage, FilesSection.newDocumentLabel(in: "iCloud")] {
             XCTAssertFalse(text.contains("Mac"), text)
             XCTAssertFalse(text.localizedCaseInsensitiveContains("sidebar"), text)
         }
@@ -118,31 +114,41 @@ final class FilesSectionTests: XCTestCase {
         let document = OpenDocument(folderProvider: { [folder] in folder! }, ubiquitousItems: FakeUbiquitousItems(arrivingText: nil))
         let scene = try XCTUnwrap(UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first)
         let window = UIWindow(windowScene: scene)
+        // The word menu holds the store visible while Files is on screen (`WordMenu`).
         window.rootViewController = UIHostingController(
-            rootView: FilesSection(store: store, document: document, onDismiss: {})
+            rootView: WordMenu(
+                document: document, editor: RecordingEditorCommands(text: ""), files: store,
+                settings: AppSettings(defaults: defaults), profile: .original, exportCommands: nil, mode: .write,
+                aiStore: nil, initialPage: .files,
+                onClose: {}, onThemes: {}, onReadAloud: {}, onShowHistoryPassage: { _ in }, onAskAI: {}
+            )
         )
         window.makeKeyAndVisible()
         self.window = window
 
         let deadline = Date().addingTimeInterval(5)
-        while Self.find("Hello.md", in: window) == nil, Date() < deadline {
+        while Self.find("Hello", in: window) == nil, Date() < deadline {
             try await Task.sleep(for: .milliseconds(50))
             window.layoutIfNeeded()
         }
         XCTAssertTrue(store.isVisible, "showing Files makes it visible")
-        XCTAssertNotNil(Self.find("Hello.md", in: window))
-        // pinned-en: the roots' and buttons' English names.
+        XCTAssertNotNil(Self.find("Hello", in: window), "a document card")
+        // pinned-en: the roots' and buttons' English names. Only the mockup's rows (2026-11-24):
+        // no Workspace, no Open from Files…, no New Document or New Folder rows; each root's "+".
         if interfaceLanguage == "en" {
             XCTAssertNotNil(Self.find("On My iPhone", in: window))
-            XCTAssertNotNil(Self.find("Workspace", in: window))
-            XCTAssertNotNil(Self.find("Choose", in: window), "an unassigned Workspace offers Choose")
-            XCTAssertNotNil(Self.find("New Document", in: window))
+            XCTAssertNotNil(Self.find("Recent", in: window))
+            XCTAssertNotNil(Self.find("New Document in On My iPhone", in: window), "the root's + makes a document there")
+            XCTAssertNil(Self.find("Workspace", in: window), "the Workspace never shows on iPhone")
+            XCTAssertNil(Self.find("Choose", in: window))
+            XCTAssertNil(Self.find("Open from Files…", in: window))
+            XCTAssertNil(Self.find("New Folder", in: window))
         }
 
         window.isHidden = true
         window.rootViewController = nil
         try await Task.sleep(for: .milliseconds(200))
-        XCTAssertFalse(store.isVisible, "Files going away stops the scans")
+        XCTAssertFalse(store.isVisible, "the menu going away stops the scans")
     }
 
     // MARK: - Helpers

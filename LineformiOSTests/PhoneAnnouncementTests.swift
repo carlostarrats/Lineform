@@ -195,30 +195,33 @@ final class PhoneAnnouncementTests: XCTestCase {
         XCTAssertFalse(PhoneAnnouncementStore.checksOnSceneChange(to: .inactive, isRunningUnderTests: false))
     }
 
-    // MARK: The card on screen
+    // MARK: The sheet on screen
 
-    /// The card floats above the Menu and Aa buttons (no full-width bar), and its ✕ dismisses it.
-    func testTheCardFloatsAboveTheBottomChromeAndDismisses() async throws {
+    /// The announcement comes up as a small sheet when the page is idle; Not now dismisses it for
+    /// good.
+    func testTheSheetShowsWhenIdleAndNotNowDismisses() async throws {
         let defaults = try makeDefaults()
         let store = PhoneAnnouncementStore(defaults: defaults, fetcher: SpyFetcher(result: try announcements(feed)), appVersion: "1.8.0")
         await store.checkIfNeeded(isEnabled: true)
         let settings = AppSettings(defaults: defaults)
         let window = try await hostScreen(store: store, settings: settings)
 
-        try await spin { self.element(labelled: PhoneAnnouncementCard.dismissTitle, in: window) != nil }
-        // The labels the card and button carry, so the `de` configuration finds them too.
+        // The labels the sheet and button carry, so the `de` configuration finds them too.
+        try await spin { self.element(labelled: PhoneAnnouncementSheet.notNowTitle, in: window) != nil }
         let shown = try XCTUnwrap(store.visible)
-        let card = try XCTUnwrap(element(labelled: PhoneAnnouncementCard.accessibilityTitle(shown), in: window))
-        let menu = try XCTUnwrap(element(labelled: MenuButton.accessibilityTitle, in: window))
-        XCTAssertLessThanOrEqual(card.accessibilityFrame.maxY, menu.accessibilityFrame.minY + 1, "above the buttons")
-        XCTAssertGreaterThan(card.accessibilityFrame.minX, window.bounds.minX, "a floating card, not a bar: \(card.accessibilityFrame) in \(window.bounds)")
-        XCTAssertLessThan(card.accessibilityFrame.maxX, window.bounds.maxX)
-
-        let close = try XCTUnwrap(element(labelled: PhoneAnnouncementCard.dismissTitle, in: window))
-        XCTAssertTrue(close.accessibilityTraits.contains(.button))
-        XCTAssertTrue(close.accessibilityActivate())
+        XCTAssertNotNil(element(labelled: PhoneAnnouncementSheet.accessibilityTitle(shown), in: window))
+        let notNow = try XCTUnwrap(element(labelled: PhoneAnnouncementSheet.notNowTitle, in: window))
+        XCTAssertTrue(notNow.accessibilityTraits.contains(.button))
+        XCTAssertTrue(notNow.accessibilityActivate())
         try await spin { store.visible == nil }
-        try await spin { self.element(labelled: PhoneAnnouncementCard.dismissTitle, in: window) == nil }
+        try await spin { self.element(labelled: PhoneAnnouncementSheet.notNowTitle, in: window) == nil }
+    }
+
+    /// The guide footnote shows only when the action opens the Lineform Guide.
+    func testGuideFootnoteOnlyForTheGuide() throws {
+        XCTAssertTrue(PhoneAnnouncementSheet.isGuideURL(URL(string: LineformLinks.guideURL)))
+        XCTAssertFalse(PhoneAnnouncementSheet.isGuideURL(URL(string: "https://lineform.app/news")))
+        XCTAssertFalse(PhoneAnnouncementSheet.isGuideURL(nil))
     }
 
     /// Turning In-app notifications off takes the card away at once.
@@ -228,10 +231,10 @@ final class PhoneAnnouncementTests: XCTestCase {
         await store.checkIfNeeded(isEnabled: true)
         let settings = AppSettings(defaults: defaults)
         let window = try await hostScreen(store: store, settings: settings)
-        try await spin { self.element(labelled: PhoneAnnouncementCard.dismissTitle, in: window) != nil }
+        try await spin { self.element(labelled: PhoneAnnouncementSheet.notNowTitle, in: window) != nil }
         settings.checksForAnnouncements = false
         try await spin { store.visible == nil }
-        try await spin { self.element(labelled: PhoneAnnouncementCard.dismissTitle, in: window) == nil }
+        try await spin { self.element(labelled: PhoneAnnouncementSheet.notNowTitle, in: window) == nil }
     }
 
     // MARK: Helpers

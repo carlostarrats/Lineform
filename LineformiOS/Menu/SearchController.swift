@@ -109,7 +109,7 @@ final class SearchController {
         editor: any EditorCommands,
         files: FilesStore?,
         currentURL: @escaping () -> URL?,
-        fileSearch: CrossFileSearchModel = CrossFileSearchModel(),
+        fileSearch: CrossFileSearchModel = CrossFileSearchModel(debounceInterval: SearchController.fileSearchDebounce),
         open: @escaping Opener,
         announce: @escaping @MainActor (String) -> Void = SearchController.announceToVoiceOver,
         editorWait: Duration = .seconds(2)
@@ -131,6 +131,11 @@ final class SearchController {
             }
             .store(in: &subscriptions)
     }
+
+    /// How long the file-content search waits after a keystroke: 0.1 s on iPhone (the Mac's
+    /// 0.3 s made results lag behind typing; the files are read off the main thread, the latest
+    /// query winning).
+    nonisolated static let fileSearchDebounce: TimeInterval = 0.1
 
     static func announceToVoiceOver(_ text: String) {
         UIAccessibility.post(notification: .announcement, argument: text)
@@ -212,9 +217,20 @@ final class SearchController {
         announceStatus()
     }
 
+    /// How many of this document's matches become rows: a card's few when every document is
+    /// searched (a card shows only the first), up to `maximumDocumentRows` when the search is
+    /// this document only (the match list).
+    private var documentRowLimit: Int {
+        filter == .document ? Self.maximumDocumentRows : CrossFileSearchResolver.maximumSnippetsPerFile
+    }
+
+    /// The most matches the open document's list shows. The count and the arrows still reach
+    /// every match; past this, the current match has no row to outline.
+    static let maximumDocumentRows = 500
+
     private func rebuildDocumentRows(in text: String) {
         let indicator = SearchRow.inDocumentIndicator
-        inDocumentRows = matches.prefix(CrossFileSearchResolver.maximumSnippetsPerFile).enumerated().map { index, range in
+        inDocumentRows = matches.prefix(documentRowLimit).enumerated().map { index, range in
             SearchRow(
                 id: "document-\(index)-\(range.location)",
                 kind: .inDocument(range),
@@ -281,6 +297,47 @@ final class SearchController {
         announceStatus()
     }
 
+    // MARK: - Stepping (the open document's arrows)
+
+    /// The next match becomes the current one (wrapping), in the list only: the page moves when a
+    /// match is tapped.
+    func selectNext() {
+        guard searchesDocument,
+              let next = EditorSearchResolver.nextIndex(after: activeIndex, matchCount: matches.count)
+        else { return }
+        activeIndex = next
+        announceStatus()
+    }
+
+    /// The previous match becomes the current one (wrapping; the last when none is current).
+    func selectPrevious() {
+        guard searchesDocument, !matches.isEmpty else { return }
+        let count = matches.count
+        activeIndex = activeIndex.map { ($0 - 1 + count) % count } ?? count - 1
+        announceStatus()
+    }
+
+    var canStep: Bool { searchesDocument && !matches.isEmpty }
+
+    /// The open document's compact count in the field: "2/5", the match count alone while no
+    /// match is current (after a replacement), "0" for none. Nil with no query.
+    var positionText: String? {
+        guard searchesDocument, !trimmedQuery.isEmpty else { return nil }
+        guard !matches.isEmpty else { return 0.formatted() }
+        guard let activeIndex, matches.indices.contains(activeIndex) else { return matches.count.formatted() }
+        return String(localized: "\(activeIndex + 1)/\(matches.count)")
+    }
+
+    /// What VoiceOver reads for the count: "2 of 5", "5 matches" or "No matches".
+    var positionAccessibilityText: String? {
+        guard searchesDocument, !trimmedQuery.isEmpty else { return nil }
+        guard !matches.isEmpty else { return String(localized: "No matches") }
+        guard let activeIndex, matches.indices.contains(activeIndex) else {
+            return String(localized: "\(matches.count) matches")
+        }
+        return String(localized: "\(activeIndex + 1) of \(matches.count)")
+    }
+
     // MARK: - Files
 
     private func updateFiles() {
@@ -309,7 +366,8 @@ final class SearchController {
 
     private func searchFiles() {
         guard let files else { return }
-        let entries = Self.entries(from: files.roots, excluding: currentURL())
+        // Only the roots Files shows (iCloud, On My iPhone): the dormant Workspace never shows.
+        let entries = Self.entries(from: FilesSection.phoneRoots(files.roots), excluding: currentURL())
         nameRows = QuickOpenIndex.search(entries, query: query).map { entry in
             SearchRow(id: "name-\(entry.id)", kind: .fileName, url: entry.url, detail: entry.directoryDisplayPath, indicator: entry.name)
         }
@@ -403,6 +461,7 @@ final class SearchController {
             guard let target = live.contains(shown) ? shown : Self.firstMatch(in: live, atOrAfter: shown.location) else {
                 return nil
             }
+            if let index = matches.firstIndex(of: target), activeIndex != index { activeIndex = index }
             select(target)
             return nil
         case .fileName, .fileContent:
@@ -437,6 +496,7 @@ final class SearchController {
     private static func select(_ range: NSRange, in editor: any EditorCommands) {
         editor.selectRange(range)
         editor.scrollToCharacterRange(range)
+        editor.flashMatch(range)
     }
 
     /// The editor takes an opened file's text on its next update; wait (briefly) for it.

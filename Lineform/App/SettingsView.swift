@@ -45,11 +45,11 @@ struct SettingsModal: View {
     static let makeDefaultTitle = String(localized: "Make Default")
     static let defaultStatusTitle = String(localized: "Default")
     static let changingDefaultTitle = String(localized: "Changing…")
-    static let clearHistoryTitle = String(localized: "Clear History")
-    static let clearHistoryNote = String(localized: "Removes saved versions for every document. Your files are not changed.")
+    static let clearHistoryTitle = String(localized: "Clear Version History")
+    static let clearHistoryNote = String(localized: "Deletes the earlier versions Lineform kept of passages you changed. Your documents stay exactly as they are.")
     static let clearHistoryButtonTitle = String(localized: "Clear…")
-    static let clearHistoryConfirmTitle = String(localized: "Clear all history?")
-    static let clearHistoryConfirmMessage = String(localized: "Saved versions for every document will be removed. This can't be undone. Your files are not changed.")
+    static let clearHistoryConfirmTitle = String(localized: "Clear version history?")
+    static let clearHistoryConfirmMessage = String(localized: "Earlier versions of passages in every document will be removed. This can't be undone. Your documents aren't changed.")
     static let cancelTitle = String(localized: "Cancel")
 
     /// The confirmed Clear History: empties the store and refreshes every open editor's History.

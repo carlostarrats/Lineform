@@ -63,12 +63,12 @@ final class PhoneStylingSelectionAccessibilityTests: XCTestCase {
         func headerHeight(_ size: UIContentSizeCategory) async throws -> CGFloat {
             let host = try await PhoneAccessibilityHost(StylingSheet(store: store), contentSize: size)
             defer { host.tearDown() }
-            let header = try XCTUnwrap(host.elements().first { $0.label == StylingSheet.headerTitle })
+            let header = try XCTUnwrap(host.elements().first { $0.label == StylingSheet.themesTitle })
             return header.frame.height
         }
         let regular = try await headerHeight(.large)
         let large = try await headerHeight(.accessibilityExtraExtraExtraLarge)
-        XCTAssertGreaterThan(large, regular * 2, "the header grows with the text size (\(regular) → \(large))")
+        XCTAssertGreaterThan(large, regular * 2, "the Themes label grows with the text size (\(regular) → \(large))")
     }
 
     func testSliderRowIsOneAdjustableStopThatStepsTheProfile() async throws {
@@ -252,7 +252,9 @@ final class PhoneStylingSelectionAccessibilityTests: XCTestCase {
 
     private func openComment() throws -> (SelectionController, LineformTextView) {
         let (controller, editor) = try makeController("Hello there world\n", connected: true)
-        controller.perform(.askAI)
+        // The row's Ask AI opens the AI sheet now (2026-11-24); the comment field is opened
+        // directly while its code remains.
+        controller.openComment()
         XCTAssertEqual(controller.phase, .comment)
         return (controller, editor)
     }

@@ -90,17 +90,16 @@ final class ThemeTests: XCTestCase {
         XCTAssertTrue(Theme.theme(for: .night).usesDarkChrome)
     }
 
+    /// The selection is the highlighter stroke drawn behind the text; AppKit's own fill is clear
+    /// in every theme, so it never paints over the stroke.
     @MainActor
-    func testEditorSelectionHighlightFollowsReaderTheme() throws {
-        let lightBackground = try XCTUnwrap(
-            LineformTextView.selectedTextAttributes(usesDarkChrome: false)[.backgroundColor] as? NSColor
-        ).usingColorSpace(.sRGB)
-        let darkBackground = try XCTUnwrap(
-            LineformTextView.selectedTextAttributes(usesDarkChrome: true)[.backgroundColor] as? NSColor
-        ).usingColorSpace(.sRGB)
-
-        XCTAssertEqual(lightBackground?.alphaComponent ?? -1, LineformTextView.lightSelectionBackgroundAlpha, accuracy: 0.005)
-        XCTAssertEqual(darkBackground?.alphaComponent ?? -1, LineformTextView.darkSelectionBackgroundAlpha, accuracy: 0.005)
+    func testEditorSelectionFillIsClearBehindTheHighlighter() throws {
+        for dark in [false, true] {
+            let fill = try XCTUnwrap(
+                LineformTextView.selectedTextAttributes(usesDarkChrome: dark)[.backgroundColor] as? NSColor
+            )
+            XCTAssertEqual(fill.alphaComponent, 0, accuracy: 0.001)
+        }
     }
 
     func testCodeAccentBlueMaintainsTextContrastAcrossReaderThemes() {

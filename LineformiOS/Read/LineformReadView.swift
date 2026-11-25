@@ -283,8 +283,8 @@ final class LineformReadView: UITextView {
     private func applyChrome() {
         let theme = Theme.theme(for: state.profile)
         backgroundColor = theme.backgroundColor
-        // On iOS the tint colours the selection.
-        tintColor = theme.caretColor
+        // On iOS the tint colours the selection handles: the highlighter's blue, as in Write.
+        tintColor = HighlighterSelection.caretColor(for: theme)
         indicatorStyle = theme.usesDarkChrome ? .white : .black
         updateTextContainerInset()
     }

@@ -298,6 +298,36 @@ final class PhoneHistoryController {
 
     // MARK: - Reading
 
+    /// One passage with earlier versions, for the word menu's History page.
+    struct PassageSummary: Identifiable, Equatable {
+        var id: UUID
+        /// The passage's current text in the document, on one line.
+        var excerpt: String
+        var versionCount: Int
+        var lastTouched: Date
+        var range: NSRange
+    }
+
+    /// The passages that locate in `text`, in text order: what History mode would show. Reads
+    /// only; History mode is not entered.
+    func passageSummaries(text: String) -> [PassageSummary] {
+        _ = revision
+        guard !engine.history.isEmpty else { return [] }
+        let located = isHistoryModeActive ? self.located : engine.locateAll(in: text)
+        let source = text as NSString
+        return located.compactMap { found in
+            guard let passage = passage(found.id), NSMaxRange(found.range) <= source.length else { return nil }
+            let excerpt = source.substring(with: found.range)
+                .split(whereSeparator: \.isNewline)
+                .joined(separator: " ")
+                .trimmingCharacters(in: .whitespaces)
+            return PassageSummary(
+                id: found.id, excerpt: excerpt, versionCount: passage.versions.count,
+                lastTouched: passage.lastTouched, range: found.range
+            )
+        }
+    }
+
     /// The stored passage `id`, or nil.
     func passage(_ id: UUID) -> HistoryPassage? {
         engine.history.passages.first { $0.id == id }

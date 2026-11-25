@@ -37,6 +37,8 @@ final class LocalizationSourceSweepTests: XCTestCase {
             "Icon lookup tables — normalized English titles and their per-language aliases. The decorator only ever sets NSMenuItem.image; it writes no titles.",
         "LineformAppIntents.swift":
             "Every literal is a LocalizedStringResource / IntentDescription / @Parameter title / AppShortcut phrase. Those types localize a bare literal by construction and extract into Localizable.xcstrings and AppShortcuts.xcstrings, where LocalizationCatalogTests covers them.",
+        "AIPromptLexicon.swift":
+            "The curated ENGLISH prompt-word vocabulary: its forms are matched against English instructions, its directions are sent to the AI model (never drawn), and its questions and chip labels are shown only while the interface is English (`AIPromptLexicon.words(forLanguage:)` returns no words for the other five, which need their own lists, not translations). The `Directions:` header and keep-constraint are model instructions. AIPromptLexiconTests pins it.",
         "PhoneAppIntents.swift":
             "The iPhone's copy of LineformAppIntents.swift: the same LocalizedStringResource / IntentDescription / @Parameter / AppShortcut literals, which localize by construction from the iPhone catalog and the Mac's AppShortcuts.xcstrings (by reference). PhoneAppIntentsTests.testTheIntentStringsAreLocalized checks every language.",
     ]
@@ -96,6 +98,17 @@ final class LocalizationSourceSweepTests: XCTestCase {
         "AIProvider.swift|Claude": "Brand name.",
         "AIProvider.swift|Google": "Brand name.",
         "AIProvider.swift|Anthropic": "Brand name.",
+        // The Model picker's product names (`AIProvider.models`). Never translated.
+        "AIProvider.swift|Claude Haiku 5.5": "Model product name.",
+        "AIProvider.swift|Claude Sonnet 5.5": "Model product name.",
+        "AIProvider.swift|Claude Opus 5.5": "Model product name.",
+        "AIProvider.swift|GPT-6 Luna": "Model product name.",
+        "AIProvider.swift|GPT-6.1 Terra": "Model product name.",
+        "AIProvider.swift|GPT-6.2 Sol": "Model product name.",
+        "AIProvider.swift|Gemini 3.5 Flash-Lite": "Model product name.",
+        "AIProvider.swift|Gemini 3.8 Flash": "Model product name.",
+        "AIProvider.swift|Gemini 4 Hydrogen": "Model product name.",
+        "AIProvider.swift|Gemini 4 Neon": "Model product name.",
         "AIProvider.swift|AIConnection(provider: %@, endpoint: %@, ":
             "Debug description, never displayed; deliberately redacts the key.",
         "AIProvider.swift|model: %@, apiKey: %@)":
@@ -179,6 +192,10 @@ final class LocalizationSourceSweepTests: XCTestCase {
         "FilesStore.swift|Could not make a bookmark for the chosen Workspace": "os_log diagnostic (Logger.error), never drawn.",
         "FilesStore.swift|Rename failed: %@": "os_log diagnostic (Logger.error), never drawn.",
         "FilesStore.swift|Trash failed: %@": "os_log diagnostic (Logger.error), never drawn.",
+        "FilesStore.swift|Move failed: %@": "os_log diagnostic (Logger.error), never drawn.",
+        "FilesStore.swift|New Folder failed: %@": "os_log diagnostic (Logger.error), never drawn.",
+        "WordMenu.swift|Open word menu": "OSSignposter interval name (Instruments only), never drawn.",
+        "WordMenu.swift|Word menu open: %@ ms": "os_log timing diagnostic (Logger.log), never drawn.",
         "OpenDocument.swift|Trash":
             "A folder name matched in a file path (isTrashLocation), never drawn.",
     ]

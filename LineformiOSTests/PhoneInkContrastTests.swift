@@ -69,7 +69,7 @@ final class PhoneInkContrastTests: XCTestCase {
     func testFloorsAreTheWCAGNumbers() {
         for role in PhoneInk.Role.allCases {
             switch role {
-            case .icon, .controlEdge, .chevron, .linkGlyph, .historyAddGlyph: XCTAssertEqual(role.minimumRatio, 3, role.rawValue)
+            case .controlEdge, .chevron, .linkGlyph, .historyAddGlyph: XCTAssertEqual(role.minimumRatio, 3, role.rawValue)
             default: XCTAssertEqual(role.minimumRatio, 4.5, role.rawValue)
             }
         }
@@ -98,7 +98,7 @@ final class PhoneInkContrastTests: XCTestCase {
             text += (try? String(contentsOf: url, encoding: .utf8)) ?? ""
         }
         if text.isEmpty { throw XCTSkip("the sources are not readable from the test host") }
-        let shortcuts: [PhoneInk.Role: String] = [.secondary: ".secondary", .tertiary: ".tertiary", .icon: ".icon", .accent: ".accent"]
+        let shortcuts: [PhoneInk.Role: String] = [.secondary: ".secondary"]
         for role in PhoneInk.Role.allCases {
             let used = text.contains("(.\(role.rawValue))") || shortcuts[role].map { shortcut in
                 ["ink", "Ink", "inks", ")"].contains { text.contains($0 + shortcut) }

@@ -2,8 +2,8 @@ import LineformCore
 import SwiftUI
 import UIKit
 
-/// The Menu sheet's document rows, in the Mac's order: Export As (HTML, PDF, Styled PDF, Rich
-/// Text, with the paper size above the two PDFs), Print…, Share…, and read aloud.
+/// The export, print, share and read-aloud commands, in the Mac's order, for the word menu's
+/// Export & Print page and the Read Aloud pill.
 ///
 /// An export opens the share sheet for the new copy; its "Save to Files" is where an export is
 /// saved, and the copy is deleted when that sheet closes. A failed export closes the menu and
@@ -11,91 +11,41 @@ import UIKit
 /// the Mac's ⌘P does. Share hands on the document's own file, saved first, and is unavailable
 /// while an Untitled document has nothing typed.
 ///
-/// Read aloud reads `selection()` (the editor's selection, in source coordinates) in Write and
-/// Preview and the whole document in Read, by the Mac's rule (`ExportCommands.speechSource`).
-struct ExportRows: View {
-    @Bindable var commands: ExportCommands
-    var selection: () -> NSRange?
-    var mode: EditorDisplayMode
+/// Read aloud reads the editor's selection (in source coordinates) in Write and Preview and the
+/// whole document in Read, by the Mac's rule (`ExportCommands.speechSource`).
+@MainActor
+enum ExportRows {
+    static var exportGroupTitle: String { String(localized: "Export As") }
+    static var paperSizeTitle: String { String(localized: "Paper Size") }
+    static var printTitle: String { String(localized: "Print\u{2026}") }
+    static var shareTitle: String { String(localized: "Share\u{2026}") }
 
-    @Environment(\.dismiss) private var dismiss
-
-    init(commands: ExportCommands, selection: @escaping () -> NSRange?, mode: EditorDisplayMode) {
-        self.commands = commands
-        self.selection = selection
-        self.mode = mode
-    }
-
-    var body: some View {
-        Section {
-            exportMenu
-            Button(action: { printDocument() }) {
-                Label(String(localized: "Print\u{2026}"), systemImage: "printer")
-            }
-            Button(action: { shareDocument() }) {
-                Label(String(localized: "Share\u{2026}"), systemImage: "square.and.arrow.up")
-            }
-            .disabled(Self.isShareDisabled(commands))
-            ForEach(Self.speechActions(for: commands.speechState), id: \.self) { action in
-                Button {
-                    perform(action)
-                } label: {
-                    Label(action.title, systemImage: action.systemImage)
-                }
-            }
-        }
-    }
-
-    private var exportMenu: some View {
-        Menu {
-            exportButton(.html)
-            Section {
-                Picker(String(localized: "Paper Size"), selection: $commands.paper) {
-                    ForEach(ExportPaperSize.allCases, id: \.self) { paper in
-                        Text(paper.displayName).tag(paper)
-                    }
-                }
-                .pickerStyle(.menu)
-                exportButton(.pdf)
-                exportButton(.styledPDF)
-            }
-            exportButton(.rtf)
-        } label: {
-            Label(String(localized: "Export As"), systemImage: "square.and.arrow.up")
-        }
-    }
-
-    private func exportButton(_ format: PhoneExportFormat) -> some View {
-        Button(format.title) { export(format) }
-    }
-
-    // MARK: - Actions
-
-    private func export(_ format: PhoneExportFormat) {
+    /// Exports `format` and shares the copy. `onFailure` runs when the export failed (the
+    /// screen's notice says why; the menu should close so it shows).
+    static func export(_ format: PhoneExportFormat, commands: ExportCommands, onFailure: @escaping () -> Void) {
         Task {
             if let url = await commands.exportForSharing(format) {
                 // Closing the share sheet deletes the copy: it was shared, saved, or not wanted.
-                let commands = commands
                 ActivityShareSheet(fileURL: url) { commands.removeExports() }.present()
             } else {
-                // The notice is the screen's; the menu would cover it.
-                dismiss()
+                onFailure()
             }
         }
     }
 
-    private func shareDocument() {
+    /// Shares the document's own file, saved first. `onFailure` runs when that save failed.
+    static func share(commands: ExportCommands, onFailure: @escaping () -> Void) {
         Task {
             if let url = await commands.documentFileForSharing() {
                 ActivityShareSheet(fileURL: url) {}.present()
             } else {
-                // A failed save shows the screen's save notice; the menu would cover it.
-                dismiss()
+                onFailure()
             }
         }
     }
 
-    private func printDocument() {
+    /// The system print panel with the Styled layout.
+    static func print(commands: ExportCommands) {
         let controller = UIPrintInteractionController.shared
         controller.printInfo = PhonePrintRenderer.printInfo(jobName: commands.printJobName)
         let renderer = commands.makePrintRenderer()
@@ -106,9 +56,9 @@ struct ExportRows: View {
         Task { await renderer.renderRemainingSheets() }
     }
 
-    private func perform(_ action: SpeechAction) {
+    static func perform(_ action: SpeechAction, commands: ExportCommands, selection: NSRange?, mode: EditorDisplayMode) {
         switch action {
-        case .start: commands.startReadingAloud(selection: mode == .read ? nil : selection(), mode: mode)
+        case .start: commands.startReadingAloud(selection: mode == .read ? nil : selection, mode: mode)
         case .pause, .resume: commands.pauseOrResumeReading()
         case .stop: commands.stopReading()
         }
@@ -116,13 +66,12 @@ struct ExportRows: View {
 
     // MARK: - State
 
-    /// Share has no file while an Untitled document has nothing typed.
-    /// The rows' titles while nothing is being read, in order (the Document section's row list).
-    static var idleRowTitles: [String] {
-        [String(localized: "Export As"), String(localized: "Print\u{2026}"), String(localized: "Share\u{2026}")]
-            + speechTitles(for: .idle)
+    /// The page's command titles, in order: the export formats, then Share and Print.
+    static var rowTitles: [String] {
+        PhoneExportFormat.allCases.map(\.title) + [shareTitle, printTitle]
     }
 
+    /// Share has no file while an Untitled document has nothing typed.
     static func isShareDisabled(_ commands: ExportCommands) -> Bool {
         !commands.canShareDocument
     }
@@ -141,13 +90,15 @@ struct ExportRows: View {
 
         var systemImage: String {
             switch self {
-            case .start, .pause, .resume: return "speaker.wave.2"
-            case .stop: return "stop"
+            case .start: return "speaker.wave.2"
+            case .pause: return "pause"
+            case .resume: return "play"
+            case .stop: return "xmark"
             }
         }
     }
 
-    /// The read-aloud rows for a state: Start when idle; Pause or Resume, then Stop, while
+    /// The read-aloud actions for a state: Start when idle; Pause or Resume, then Stop, while
     /// reading.
     static func speechActions(for state: SpeechState) -> [SpeechAction] {
         switch state {

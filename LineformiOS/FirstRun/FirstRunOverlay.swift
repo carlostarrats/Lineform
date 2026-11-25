@@ -1,57 +1,70 @@
 import SwiftUI
 import UIKit
 
-/// First run, over the already-loaded blank document: the Mac's line animation, "What to expect"
-/// (which fades in and out), then the points and Start Writing. A tap or swipe skips ahead;
-/// Return (hardware keyboard) and the VoiceOver "Continue" action do the same, so it can be left
-/// without a tap. `FirstRunFlow` holds the stages, the timing and the one-time finish (the
-/// completed flag, then `onFinish`).
+/// First run, over the already-loaded blank document. Nothing moves on by itself:
 ///
-/// It always draws on the intro's paper, in a fixed light look (status bar included), whatever
-/// the reading theme. Under Reduce Motion every native fade is off (the web page itself shows the
-/// finished line).
+/// 1. **Welcome.** The Mac's wordmark writes itself slowly, centred, over the intro's shader with
+///    its colour turned up (`FirstRunLineView`). Once it is written, the tagline and Get Started
+///    fade in below it.
+/// 2. **Points.** Get Started shrinks the wordmark and glides it to the top
+///    (`FirstRunTiming.shrinkSeconds`, ease-in-out) while the shader quietens; the four points
+///    arrive one after another, then Start Writing.
+/// 3. Start Writing finishes (`FirstRunFlow`: the completed flag, then `onFinish`), which opens the
+///    blank document WITHOUT the keyboard (and so without the format row): a tap on the page
+///    raises them as usual.
+///
+/// Each button also answers Return on a hardware keyboard while it is on screen. It always draws
+/// on the intro's paper, in a fixed light look (status bar included), whatever the reading theme.
+/// Under Reduce Motion every movement becomes a crossfade (the web page itself shows the finished
+/// wordmark at once).
 struct FirstRunOverlay: View {
     @State private var flow: FirstRunFlow
+    /// The wordmark sits small at the top (the points screen).
+    @State private var wordmarkAtTop = false
+    /// The wordmark's opacity: only Reduce Motion's crossfade changes it.
+    @State private var wordmarkOpacity = 1.0
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    /// One column for the point symbols, so the lines of text start at the same edge.
-    @ScaledMetric(relativeTo: .body) private var symbolColumnWidth: CGFloat = 28
+    @ScaledMetric(relativeTo: .body) private var iconSize: CGFloat = 44
 
-    /// The intro's `--paper`, and the overlay's ink.
+    /// The intro's `--paper`, and the overlay's inks.
     static let paper = Color(red: 0xF7 / 255, green: 0xF6 / 255, blue: 0xF0 / 255)
-    static let ink = Color(red: 0x1F / 255, green: 0x1F / 255, blue: 0x1F / 255)
+    static let ink = Color(red: 0x14 / 255, green: 0x13 / 255, blue: 0x10 / 255)
+    /// The points' body text: 6.3:1 on the paper.
+    static let secondaryInk = Color(red: 0x5C / 255, green: 0x5A / 255, blue: 0x54 / 255)
+    /// Lineform blue, Start Writing's fill (4.9:1 under white text).
+    static let lineformBlue = Color(red: 0x2F / 255, green: 0x6B / 255, blue: 0xDE / 255)
 
     init(defaults: UserDefaults = .standard, onFinish: @escaping () -> Void) {
         _flow = State(initialValue: FirstRunFlow(defaults: defaults, onFinish: onFinish))
     }
 
-    /// What the stage timer waits on: the stage, and for the line, whether the page has painted.
-    private struct TimerKey: Hashable {
-        var stage: FirstRunStage
-        var lineIsReady: Bool
-    }
-
     var body: some View {
-        let stage = flow.stage
-        ZStack {
-            Self.paper.ignoresSafeArea()
-            if stage == .line {
-                FirstRunLineView(onReady: { flow.lineDidBecomeReady() })
+        GeometryReader { proxy in
+            let layout = FirstRunLayout(size: proxy.size, safeArea: proxy.safeAreaInsets)
+            ZStack(alignment: .top) {
+                Self.paper.ignoresSafeArea()
+                FirstRunLineView(
+                    isQuiet: flow.stage != .welcome,
+                    onWritten: { revealGetStarted() }
+                )
+                .ignoresSafeArea()
+                // Shrunk to the top, the page's edges would cut the colour field off in a hard
+                // line: feather them as it shrinks.
+                .mask {
+                    ZStack {
+                        Rectangle().opacity(wordmarkAtTop ? 0 : 1)
+                        Self.featheredEdges.opacity(wordmarkAtTop ? 1 : 0)
+                    }
                     .ignoresSafeArea()
-                    .accessibilityHidden(true)
-                    .transition(.opacity)
-            }
-            if stage == .expect {
-                Text(FirstRunCopy.heading)
-                    .font(.title2)
-                    .multilineTextAlignment(.center)
-                    .padding(.horizontal, 32)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .transition(.opacity)
-            }
-            // `.done` keeps the points on screen while the document screen fades first run out.
-            if stage == .points || stage == .done {
-                points
-                    .transition(.opacity)
+                }
+                .scaleEffect(wordmarkAtTop ? FirstRunLayout.topScale : 1)
+                .offset(y: wordmarkAtTop ? layout.topOffset : 0)
+                .opacity(wordmarkOpacity)
+                .accessibilityHidden(true)
+
+                wordmarkElement(layout)
+                welcome(layout)
+                points(layout)
             }
         }
         .foregroundStyle(Self.ink)
@@ -59,93 +72,286 @@ struct FirstRunOverlay: View {
         // Dark status bar text on the paper, also when the system is in Dark Mode. Only while
         // first run is on screen: the preference goes away with the overlay.
         .preferredColorScheme(.light)
-        .contentShape(Rectangle())
-        .onTapGesture { userAdvance() }
-        .gesture(DragGesture(minimumDistance: 24).onEnded { value in
-            // On the points, a vertical drag scrolls them (the largest text sizes); a sideways
-            // swipe still skips ahead.
-            let translation = value.translation
-            if flow.stage == .points, abs(translation.height) >= abs(translation.width) { return }
-            userAdvance()
-        })
-        .background {
-            // Return on a hardware keyboard.
-            Button(String(localized: "Continue")) { userAdvance() }
-                .keyboardShortcut(.defaultAction)
-                .hidden()
-        }
-        .accessibilityElement(children: stage == .points || stage == .done ? .contain : .ignore)
-        .accessibilityLabel(stage == .line ? Text(String(localized: "Welcome to Lineform")) : Text(FirstRunCopy.heading))
-        .accessibilityAction(named: Text(String(localized: "Continue"))) { userAdvance() }
+        .accessibilityElement(children: .contain)
         // VoiceOver stays on first run; the document underneath is not reachable until it ends.
-        // On "What to expect" the single element is the heading.
-        .accessibilityAddTraits(stage == .expect ? [.isModal, .isHeader] : .isModal)
-        .onChange(of: stage) { _, newStage in
-            switch newStage {
-            case .expect: UIAccessibility.post(notification: .layoutChanged, argument: nil)
-            case .points: UIAccessibility.post(notification: .screenChanged, argument: nil)
-            case .line, .done: break
-            }
+        .accessibilityAddTraits(.isModal)
+        .onAppear {
+            // A VoiceOver user gets Get Started at once rather than waiting out the write-on.
+            if UIAccessibility.isVoiceOverRunning { revealGetStarted() }
         }
-        .task(id: TimerKey(stage: stage, lineIsReady: flow.lineReadyAt != nil)) {
-            guard let deadline = flow.autoAdvanceDeadline(
-                reduceMotion: reduceMotion,
-                voiceOverRunning: UIAccessibility.isVoiceOverRunning
-            ) else { return }
-            try? await Task.sleep(until: deadline, clock: .continuous)
+        .task {
+            // The page never said the wordmark is written: show Get Started anyway.
+            try? await Task.sleep(for: FirstRunTiming.getStartedCap)
             guard !Task.isCancelled else { return }
-            animated(to: stage.next) { flow.autoAdvance(from: stage) }
+            revealGetStarted()
         }
     }
 
-    /// The points and Start Writing, centred when they fit and scrolling when they do not (the
-    /// largest Dynamic Type sizes).
-    private var points: some View {
-        GeometryReader { proxy in
-            ScrollView {
-                VStack(alignment: .leading, spacing: 20) {
-                    ForEach(Array(FirstRunCopy.pointItems.enumerated()), id: \.offset) { _, point in
-                        Label {
-                            Text(point.text)
-                                .font(.body)
-                                .fixedSize(horizontal: false, vertical: true)
-                        } icon: {
-                            Image(systemName: point.symbol)
-                                .frame(width: symbolColumnWidth)
+    /// Opaque in the middle, clear at the edges: wide fades top and bottom, narrow ones at the
+    /// sides (the wordmark runs to 11 % of the width from each side).
+    private static var featheredEdges: some View {
+        LinearGradient(
+            stops: [.init(color: .clear, location: 0), .init(color: .black, location: 0.25),
+                    .init(color: .black, location: 0.75), .init(color: .clear, location: 1)],
+            startPoint: .top, endPoint: .bottom
+        )
+        .mask {
+            LinearGradient(
+                stops: [.init(color: .clear, location: 0), .init(color: .black, location: 0.1),
+                        .init(color: .black, location: 0.9), .init(color: .clear, location: 1)],
+                startPoint: .leading, endPoint: .trailing
+            )
+        }
+    }
+
+    // MARK: - Wordmark
+
+    /// The wordmark for VoiceOver: the web view is hidden from it, so this stands in its place.
+    private func wordmarkElement(_ layout: FirstRunLayout) -> some View {
+        let scale = wordmarkAtTop ? FirstRunLayout.topScale : 1
+        return Rectangle()
+            .fill(.clear)
+            .frame(width: layout.wordmarkSize.width * scale, height: layout.wordmarkSize.height * scale)
+            .accessibilityElement()
+            .accessibilityLabel(Text(String(localized: "Welcome to Lineform")))
+            .accessibilityAddTraits(.isHeader)
+            .position(x: layout.size.width / 2, y: wordmarkAtTop ? layout.topWordmarkCenterY : layout.wordmarkCenterY)
+            .allowsHitTesting(false)
+    }
+
+    // MARK: - Welcome
+
+    /// The tagline and Get Started: only once the wordmark is written, and only on the welcome
+    /// (absent rather than transparent, so VoiceOver never finds a button that is not there).
+    @ViewBuilder
+    private func welcome(_ layout: FirstRunLayout) -> some View {
+        if flow.stage == .welcome {
+            let written = flow.isWordmarkWritten
+            VStack(spacing: 0) {
+                Color.clear.frame(height: layout.wordmarkCenterY + layout.wordmarkSize.height / 2 + 16)
+                if written {
+                    Text(FirstRunCopy.tagline)
+                        .font(.callout)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal, 32)
+                        .transition(.opacity.animation(fade(0.8, delay: 0.15)))
+                }
+                Spacer(minLength: 24)
+                if written {
+                    Button(action: getStarted) {
+                        HStack(spacing: 10) {
+                            Text(FirstRunCopy.getStarted)
+                            Image(systemName: "arrow.right")
                                 .accessibilityHidden(true)
                         }
+                        .font(.body.weight(.medium))
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 30)
+                        .frame(minHeight: 52)
+                        .background(Capsule().fill(Self.ink))
+                        .contentShape(Capsule())
                     }
-                    Button { userAdvance() } label: {
-                        // The paper on the ink capsule: the container's ink would hide the label.
-                        Text(FirstRunCopy.startWriting)
-                            .foregroundStyle(Self.paper)
-                    }
-                        .font(.body.weight(.semibold))
-                        .buttonStyle(.borderedProminent)
-                        .buttonBorderShape(.capsule)
-                        .controlSize(.large)
-                        .tint(Self.ink)
-                        .frame(maxWidth: .infinity)
-                        .padding(.top, 12)
+                    .buttonStyle(.plain)
+                    .keyboardShortcut(.defaultAction)
+                    .transition(arrival(rise: 8).animation(fade(0.7)))
                 }
-                .padding(.horizontal, 32)
-                .padding(.vertical, 24)
-                .frame(maxWidth: .infinity, minHeight: proxy.size.height)
+            }
+            .padding(.bottom, 56)
+            .frame(width: layout.size.width, height: layout.size.height)
+            .transition(.opacity.animation(fade(0.3)))
+        }
+    }
+
+    // MARK: - Points
+
+    @ViewBuilder
+    private func points(_ layout: FirstRunLayout) -> some View {
+        if flow.stage != .welcome {
+            FirstRunPointsView(
+                reduceMotion: reduceMotion,
+                arrival: { rise, delay in arrival(rise: rise).animation(fade(0.6, delay: delay)) },
+                onStartWriting: { startWriting() }
+            )
+            .padding(.top, layout.pointsTop)
+            .frame(width: layout.size.width, height: layout.size.height)
+        }
+    }
+
+    /// How a piece arrives: a fade and a small rise, or only the fade under Reduce Motion.
+    private func arrival(rise: CGFloat) -> AnyTransition {
+        reduceMotion ? .opacity : .opacity.combined(with: .offset(y: rise))
+    }
+
+    // MARK: - Actions
+
+    private func revealGetStarted() {
+        guard flow.stage == .welcome, !flow.isWordmarkWritten else { return }
+        flow.wordmarkDidFinishWriting()
+        UIAccessibility.post(notification: .layoutChanged, argument: nil)
+    }
+
+    /// The wordmark shrinks and glides to the top (a crossfade under Reduce Motion) while the
+    /// welcome fades out and the points arrive.
+    private func getStarted() {
+        guard flow.advance(from: .welcome) else { return }
+        if reduceMotion {
+            withAnimation(.easeOut(duration: 0.2)) {
+                wordmarkOpacity = 0
+            } completion: {
+                var jump = Transaction()
+                jump.disablesAnimations = true
+                withTransaction(jump) { wordmarkAtTop = true }
+                withAnimation(.easeIn(duration: 0.35)) { wordmarkOpacity = 1 }
+            }
+        } else {
+            withAnimation(.easeInOut(duration: FirstRunTiming.shrinkSeconds)) {
+                wordmarkAtTop = true
+            }
+        }
+        UIAccessibility.post(notification: .screenChanged, argument: nil)
+    }
+
+    private func startWriting() {
+        flow.advance(from: .points)
+    }
+
+    /// A fade, with the movement it carries; the same fade under Reduce Motion (the callers drop
+    /// the movement there), just quicker.
+    private func fade(_ duration: Double, delay: Double = 0) -> Animation {
+        reduceMotion
+            ? .easeOut(duration: min(duration, 0.4)).delay(delay * 0.6)
+            : .easeOut(duration: duration).delay(delay)
+    }
+}
+
+/// The four points and Start Writing. They arrive one after another once the view is on screen
+/// (`FirstRunTiming`); each is absent until it arrives, so VoiceOver meets only what is shown.
+private struct FirstRunPointsView: View {
+    var reduceMotion: Bool
+    /// The overlay's arrival transition for a rise and a delay.
+    var arrival: (CGFloat, Double) -> AnyTransition
+    var onStartWriting: () -> Void
+
+    @State private var arrived = false
+    @ScaledMetric(relativeTo: .body) private var iconSize: CGFloat = 44
+
+    var body: some View {
+        let items = FirstRunCopy.pointItems
+        VStack(spacing: 12) {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 22) {
+                    ForEach(Array(items.enumerated()), id: \.offset) { index, point in
+                        if arrived {
+                            row(point)
+                                .transition(arrival(12, FirstRunTiming.pointDelay(index)))
+                        }
+                    }
+                }
+                .padding(.horizontal, 28)
+                .padding(.vertical, 8)
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
             .scrollBounceBehavior(.basedOnSize)
+            ZStack {
+                if arrived {
+                    Button(action: onStartWriting) {
+                        Text(FirstRunCopy.startWriting)
+                            .font(.body.weight(.medium))
+                            .foregroundStyle(.white)
+                            .frame(maxWidth: .infinity, minHeight: 54)
+                            .background(Capsule().fill(FirstRunOverlay.lineformBlue))
+                            .contentShape(Capsule())
+                    }
+                    .buttonStyle(.plain)
+                    .keyboardShortcut(.defaultAction)
+                    .transition(arrival(10, FirstRunTiming.startWritingDelay(pointCount: items.count)))
+                }
+            }
+            .frame(minHeight: 54)
+            .padding(.horizontal, 24)
+            .padding(.bottom, 12)
+        }
+        .onAppear {
+            withAnimation { arrived = true }
         }
     }
 
-    private func userAdvance() {
-        animated(to: flow.stage.next) { flow.userAdvance() }
+    private func row(_ point: FirstRunPoint) -> some View {
+        HStack(alignment: .top, spacing: 16) {
+            Image(systemName: point.symbol)
+                .font(.body.weight(.medium))
+                .frame(width: iconSize, height: iconSize)
+                .background(
+                    RoundedRectangle(cornerRadius: iconSize * 14 / 44, style: .continuous)
+                        .fill(Color.white.opacity(0.7))
+                        .shadow(color: .black.opacity(0.05), radius: 1, y: 1)
+                )
+                .accessibilityHidden(true)
+            VStack(alignment: .leading, spacing: 3) {
+                Text(point.title)
+                    .font(.headline)
+                Text(point.text)
+                    .font(.subheadline)
+                    .foregroundStyle(FirstRunOverlay.secondaryInk)
+                    .lineSpacing(2)
+            }
+            .fixedSize(horizontal: false, vertical: true)
+        }
+        .accessibilityElement(children: .combine)
+    }
+}
+
+/// Where first run's pieces sit, in the overlay's safe-area coordinates. The web view fills the
+/// whole screen and draws the wordmark at 78 % of the width, `welcomeLiftFraction` of the screen
+/// height above its centre (`pageAdjustmentScript`): with Get Started below, a group at the true
+/// centre reads low, so it sits a little higher to read optically centred.
+struct FirstRunLayout {
+    /// The wordmark's size on the points screen, relative to the welcome.
+    static let topScale: CGFloat = 0.5
+    /// The wordmark's aspect ratio (the intro's `Lineform.svg`, 639 × 255).
+    static let wordmarkAspect: CGFloat = 639 / 255
+    /// Gap from the safe area's top to the small wordmark.
+    static let topMargin: CGFloat = 20
+    /// How far above the screen's centre the welcome wordmark sits, as a share of the screen's
+    /// height (the page's `vh`).
+    static let welcomeLiftFraction: CGFloat = 0.05
+
+    var size: CGSize
+    var safeArea: EdgeInsets
+
+    /// The welcome wordmark's size (the page draws it at 78 % of the screen width).
+    var wordmarkSize: CGSize {
+        let width = (size.width + safeArea.leading + safeArea.trailing) * 0.78
+        return CGSize(width: width, height: width / Self.wordmarkAspect)
     }
 
-    /// Runs `change` inside the fade for the stage it leads to ("What to expect" fades in over
-    /// 0.4 s, the others take the cards' 0.24 s; none under Reduce Motion).
-    private func animated(to next: FirstRunStage, _ change: () -> Void) {
-        let duration: TimeInterval = next == .expect ? 0.4 : 0.24
-        withAnimation(EditorMotionPolicy.animation(.easeOut(duration: duration), reduceMotion: reduceMotion)) {
-            change()
-        }
+    /// The screen's centre (where the page centres the wordmark), measured from the safe top.
+    var centerY: CGFloat {
+        (size.height + safeArea.top + safeArea.bottom) / 2 - safeArea.top
+    }
+
+    /// The welcome wordmark's lift above the screen's centre, in points.
+    var welcomeLift: CGFloat {
+        (size.height + safeArea.top + safeArea.bottom) * Self.welcomeLiftFraction
+    }
+
+    /// Where the welcome wordmark's centre sits: `welcomeLift` above the screen's centre.
+    var wordmarkCenterY: CGFloat {
+        centerY - welcomeLift
+    }
+
+    var topWordmarkCenterY: CGFloat {
+        Self.topMargin + wordmarkSize.height * Self.topScale / 2
+    }
+
+    /// The web view's offset that brings the scaled wordmark to the top. The web view scales
+    /// about its centre, so the lifted wordmark ends `welcomeLift × topScale` above it.
+    var topOffset: CGFloat {
+        topWordmarkCenterY - (centerY - welcomeLift * Self.topScale)
+    }
+
+    /// Where the points begin, below the small wordmark.
+    var pointsTop: CGFloat {
+        Self.topMargin + wordmarkSize.height * Self.topScale + 28
     }
 }

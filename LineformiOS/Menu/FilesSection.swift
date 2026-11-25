@@ -2,46 +2,179 @@ import LineformCore
 import SwiftUI
 import UniformTypeIdentifiers
 
-/// What a Files row offers besides opening. Files can be renamed and moved to the Trash; folders
+/// What a Files item offers besides opening. Files can be renamed and moved to the Trash; folders
 /// can only be renamed (no folder delete, as on the Mac). An iCloud placeholder (a file not
 /// downloaded yet) offers neither until it has downloaded: on disk it is only its stub.
 enum FilesRowAction: Equatable {
     case rename
     case delete
 
-    /// The swipe actions: downloaded files only.
+    /// The quick actions (a card's ⋯): downloaded files only.
     static func swipeActions(for item: OutlineFileTreeItem) -> [FilesRowAction] {
         item.isDirectory || item.isICloudPlaceholder ? [] : [.rename, .delete]
     }
 
-    /// The long-press menu: Rename for a folder, Rename and Delete for a file, nothing for a
-    /// placeholder.
+    /// The long-press menu: Rename for a folder, Rename and Move to Trash for a file, nothing for
+    /// a placeholder.
     static func menuActions(for item: OutlineFileTreeItem) -> [FilesRowAction] {
         if item.isICloudPlaceholder { return [] }
         return FilesStore.canTrash(item) ? [.rename, .delete] : [.rename]
     }
+
+    var title: String {
+        switch self {
+        case .rename: String(localized: "Rename…")
+        case .delete: String(localized: "Move to Trash")
+        }
+    }
+
+    var systemImage: String {
+        switch self {
+        case .rename: "pencil"
+        case .delete: "trash"
+        }
+    }
 }
 
-/// The Menu sheet's Files section: New Document and Open from Files…, the sort and Show Hidden
-/// Folders, then each root (iCloud, or On My iPhone when iCloud does not resolve, and the
-/// Workspace) with its top level. A folder opens as its own list with the system's sideways slide
-/// (`NavigationStack`); a file opens, and the sheet closes.
+/// The rename and Trash confirmations Files and its folders share. The menu owns the alerts
+/// (`filesItemAlerts`), so a card's ⋯ on any page asks the same way.
+@MainActor
+@Observable
+final class FilesItemActions {
+    var renaming: OutlineFileTreeItem?
+    var newName = ""
+    var deleting: OutlineFileTreeItem?
+
+    func perform(_ action: FilesRowAction, on item: OutlineFileTreeItem) {
+        switch action {
+        case .rename:
+            newName = FileRenaming.displayName(for: item.url, isDirectory: item.isDirectory)
+            renaming = item
+        case .delete:
+            deleting = item
+        }
+    }
+}
+
+extension View {
+    /// The rename field, the Trash confirmation (Cancel the default) and the store's notice.
+    func filesItemAlerts(_ actions: FilesItemActions, store: FilesStore) -> some View {
+        modifier(FilesItemAlerts(actions: actions, store: store))
+    }
+}
+
+private struct FilesItemAlerts: ViewModifier {
+    @Bindable var actions: FilesItemActions
+    var store: FilesStore
+
+    func body(content: Content) -> some View {
+        content
+            .alert(
+                FilesSection.renameTitle(isDirectory: actions.renaming?.isDirectory ?? false),
+                isPresented: Binding(get: { actions.renaming != nil }, set: { if !$0 { actions.renaming = nil } }),
+                presenting: actions.renaming
+            ) { item in
+                TextField(String(localized: "Name"), text: $actions.newName)
+                Button(String(localized: "Cancel"), role: .cancel) {}
+                Button(String(localized: "Rename")) {
+                    let name = actions.newName
+                    Task { try? await store.rename(item, to: name) }
+                }
+                .disabled(FileRenaming.validatedDestination(
+                    for: item.url, isDirectory: item.isDirectory, newDisplayName: actions.newName
+                ) == nil)
+            } message: { item in
+                Text(FilesSection.renameMessage(isDirectory: item.isDirectory))
+            }
+            .alert(
+                FilesSection.deleteTitle(for: actions.deleting?.name ?? ""),
+                isPresented: Binding(get: { actions.deleting != nil }, set: { if !$0 { actions.deleting = nil } }),
+                presenting: actions.deleting
+            ) { item in
+                // Cancel is the default; the destructive button never is.
+                Button(String(localized: "Cancel"), role: .cancel) {}
+                Button(FilesRowAction.delete.title, role: .destructive) {
+                    Task { try? await store.trash(item) }
+                }
+            } message: { _ in
+                Text(FilesSection.deleteMessage)
+            }
+            .alert(
+                store.notice ?? "",
+                isPresented: Binding(get: { store.notice != nil }, set: { if !$0 { store.dismissNotice() } })
+            ) {
+                Button(String(localized: "OK"), role: .cancel) {}
+            }
+    }
+}
+
+/// The word menu's Files, as in the owner's mockup (2026-11-24): the search field at the top
+/// (with its scope button; results are document cards with the matching line), then the "iCloud"
+/// heading (cloud icon) with its folders as plain rows (icon, name, count, chevron), the "On My
+/// iPhone" heading (phone icon) with its folders, then "Recent": both roots' own documents as
+/// cards, newest first. Each root's heading has a "+" on a grey round background that makes a new
+/// document in that root. A folder opens its page of cards; a card opens its document and the
+/// menu closes.
 ///
-/// Files is visible while this view is on screen, pushed folders included: only then does the
-/// store look up iCloud, scan and watch.
+/// Nothing else: no Open from Files…, no New Document row, no New Folder (the Mac has none), and
+/// no Workspace. The store still models a Workspace root (`FilesStore.roots`), dormant: the iPhone
+/// shows only `phoneRoots` and searches nothing else.
+///
+/// The menu keeps the store visible (scanning and watching) while Files or a folder is on screen.
 struct FilesSection: View {
     var store: FilesStore
     var document: OpenDocument
+    var editor: (any EditorCommands)?
+    var actions: FilesItemActions
+    var onOpenFolder: (FilesFolderRoute) -> Void
     var onDismiss: () -> Void
 
-    @State private var path: [FilesFolderRoute] = []
-    @State private var isImportingDocument = false
-    @State private var isChoosingWorkspace = false
-    @State private var renaming: OutlineFileTreeItem?
-    @State private var newName = ""
-    @State private var deleting: OutlineFileTreeItem?
-    @Environment(\.menuTheme) private var theme
-    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    /// The search's text, scope, replace row and controller live in the menu's session, so the
+    /// menu reopens on them (the ← after a card opened a document).
+    var externalSession: WordMenuSession?
+    @State private var ownSession = WordMenuSession()
+    private var session: WordMenuSession { externalSession ?? ownSession }
+    private var search: SearchController? {
+        get { session.search }
+        nonmutating set { session.search = newValue }
+    }
+    private var query: String {
+        get { session.filesQuery }
+        nonmutating set { session.filesQuery = newValue }
+    }
+    private var scope: FilesSearchScope {
+        get { session.filesScope }
+        nonmutating set { session.filesScope = newValue }
+    }
+    private var isReplaceShown: Bool {
+        get { session.isReplaceShown }
+        nonmutating set { session.isReplaceShown = newValue }
+    }
+    private var replacementBinding: Binding<String> {
+        Binding(get: { session.replacement }, set: { session.replacement = $0 })
+    }
+    private var replacement: String { session.replacement }
+    @FocusState private var isSearchFocused: Bool
+    @FocusState private var isReplaceFocused: Bool
+    @Environment(\.wordMenuPalette) private var palette
+
+    init(
+        store: FilesStore,
+        document: OpenDocument,
+        editor: (any EditorCommands)? = nil,
+        actions: FilesItemActions = FilesItemActions(),
+        session: WordMenuSession? = nil,
+        onOpenFolder: @escaping (FilesFolderRoute) -> Void = { _ in },
+        onDismiss: @escaping () -> Void
+    ) {
+        self.store = store
+        self.document = document
+        self.editor = editor
+        self.actions = actions
+        self.externalSession = session
+        self.onOpenFolder = onOpenFolder
+        self.onDismiss = onDismiss
+    }
 
     // MARK: - Copy (the Mac's strings where the English matches)
 
@@ -50,14 +183,8 @@ struct FilesSection: View {
     static func sortMenuLabel(_ order: OutlineFileSortOrder) -> String {
         String(localized: "Sort folders by: \(order.title)")
     }
-    /// Above and below Choose/Change in a root's header, inside its target.
-    static let headerButtonTargetPadding: CGFloat = 14
     static var hiddenFoldersTitle: String { String(localized: "Show Hidden Folders") }
-    static var unavailableText: String { String(localized: "Workspace folder unavailable") }
-    static var chooseTitle: String { String(localized: "Choose") }
-    static var changeTitle: String { String(localized: "Change") }
     static var deleteMessage: String { String(localized: "It will be moved to the Trash.") }
-    static func scannedFolderText(_ path: String) -> String { String(localized: "Scanned folder: \(path)") }
     static func deleteTitle(for name: String) -> String { String(localized: "Delete “\(name)”?") }
     static func renameTitle(isDirectory: Bool) -> String {
         isDirectory ? String(localized: "Rename Folder") : String(localized: "Rename File")
@@ -67,250 +194,719 @@ struct FilesSection: View {
             ? String(localized: "Renames the folder. Its files are kept.")
             : String(localized: "Renames the file. Its contents are kept.")
     }
+    static var newDocumentTitle: String { String(localized: "New Document") }
+    /// A root's "+" for VoiceOver: "New Document in iCloud".
+    static func newDocumentLabel(in place: String) -> String { String(localized: "New Document in \(place)") }
+    static var recentTitle: String { String(localized: "Recent") }
+    static var searchPrompt: String { String(localized: "Search all documents") }
+    /// The scope button's and its menu's name for VoiceOver.
+    static var scopeLabel: String { String(localized: "Search in") }
+    static var showReplaceTitle: String { String(localized: "Show Replace") }
+    static var hideReplaceTitle: String { String(localized: "Hide Replace") }
+    static var previousMatchTitle: String { String(localized: "Previous Match") }
+    static var nextMatchTitle: String { String(localized: "Next Match") }
+    static var replaceWithPrompt: String { String(localized: "Replace with") }
+    static var replaceTitle: String { String(localized: "Replace") }
+    /// The blue pill's short word; VoiceOver reads `replaceAllTitle`.
+    static var replaceAllShortTitle: String { String(localized: "All") }
+    static var replaceAllTitle: String { String(localized: "Replace All") }
+    /// The iCloud root's heading: the place, not the folder's name.
+    static var iCloudHeading: String { String(localized: "iCloud") }
 
-    /// The documents Open from Files… offers: Markdown and plain text.
-    static var importableTypes: [UTType] {
-        [UTType("net.daringfireball.markdown"), .plainText].compactMap { $0 }
+    /// A root's heading and its icon: iCloud with a cloud, On My iPhone with a phone. (The dormant
+    /// Workspace root never shows on iPhone: `phoneRoots`.)
+    static func heading(for root: FilesRoot) -> (title: String, systemImage: String) {
+        switch root.id {
+        case .icloud: (iCloudHeading, "icloud")
+        case .device: (root.title, "iphone")
+        case .workspace: (root.title, root.systemImage)
+        }
+    }
+
+    /// The roots the iPhone shows, in order: iCloud, then On My iPhone. Never the Workspace.
+    static func phoneRoots(_ roots: [FilesRoot]) -> [FilesRoot] {
+        roots.filter { $0.id != .workspace }
+    }
+
+    /// Recent: every shown root's own documents (not those in its folders), newest first.
+    static func recentDocuments(acrossRoots roots: [FilesRoot]) -> [OutlineFileTreeItem] {
+        recentDocuments(in: phoneRoots(roots).filter(\.hasScanned).flatMap(\.items))
+    }
+
+    /// A root's or folder's documents for its cards: files only, newest first (a file with no date
+    /// last), then by name.
+    static func recentDocuments(in items: [OutlineFileTreeItem]) -> [OutlineFileTreeItem] {
+        items.filter { !$0.isDirectory }.sorted { lhs, rhs in
+            switch (lhs.modifiedAt, rhs.modifiedAt) {
+            case let (l?, r?) where l != r: return l > r
+            case (_?, nil): return true
+            case (nil, _?): return false
+            default: return lhs.name.localizedStandardCompare(rhs.name) == .orderedAscending
+            }
+        }
+    }
+
+    /// How many documents a folder row counts: the files directly inside it.
+    static func documentCount(in folder: OutlineFileTreeItem, store: FilesStore) -> Int {
+        (store.children(of: folder.url) ?? folder.children).filter { !$0.isDirectory }.count
     }
 
     // MARK: - Body
 
     var body: some View {
-        NavigationStack(path: $path) {
-            list
-                .navigationDestination(for: FilesFolderRoute.self) { route in
-                    FolderView(store: store, route: route, actions: rowActions)
-                }
-                .fileImporter(isPresented: $isImportingDocument, allowedContentTypes: Self.importableTypes) { result in
-                    if case .success(let url) = result { open(url) }
-                }
-        }
-        // The folder picker sits on another view: two importers on one view shadow each other.
-        .fileImporter(isPresented: $isChoosingWorkspace, allowedContentTypes: [.folder]) { result in
-            if case .success(let url) = result { store.chooseWorkspace(url) }
-        }
-        .alert(
-            Self.renameTitle(isDirectory: renaming?.isDirectory ?? false),
-            isPresented: Binding(get: { renaming != nil }, set: { if !$0 { renaming = nil } }),
-            presenting: renaming
-        ) { item in
-            TextField(String(localized: "Name"), text: $newName)
-            Button(String(localized: "Cancel"), role: .cancel) {}
-            Button(String(localized: "Rename")) {
-                let name = newName
-                Task { try? await store.rename(item, to: name) }
+        WordMenuPageScaffold(title: WordMenuItem.files.title) {
+            // Option C's page: the box, the scope pill and the results 10 pt apart.
+            searchBox
+                .padding(.bottom, 2)
+            scopeButton
+                .padding(.bottom, 2)
+            if hasQuery, let search {
+                FilesSearchResults(controller: search, scope: scope, document: document, store: store, onDismiss: onDismiss)
+            } else if !searchesOpenDocument {
+                // With the open document as the scope and nothing typed, nothing shows under the
+                // box and the scope pill (option C).
+                roots
+                recent
             }
-            .disabled(FileRenaming.validatedDestination(for: item.url, isDirectory: item.isDirectory, newDisplayName: newName) == nil)
-        } message: { item in
-            Text(Self.renameMessage(isDirectory: item.isDirectory))
         }
-        .alert(
-            Self.deleteTitle(for: deleting?.name ?? ""),
-            isPresented: Binding(get: { deleting != nil }, set: { if !$0 { deleting = nil } }),
-            presenting: deleting
-        ) { item in
-            // Cancel is the default; the destructive Delete never is.
-            Button(String(localized: "Cancel"), role: .cancel) {}
-            Button(String(localized: "Delete"), role: .destructive) {
-                Task { try? await store.trash(item) }
-            }
-        } message: { _ in
-            Text(Self.deleteMessage)
-        }
-        .alert(
-            store.notice ?? "",
-            isPresented: Binding(get: { store.notice != nil }, set: { if !$0 { store.dismissNotice() } })
-        ) {
-            Button(String(localized: "OK"), role: .cancel) {}
-        }
+        .onChange(of: document.text) { search?.textChanged() }
+        .onChange(of: store.roots) { search?.rootsChanged() }
         .onAppear {
-            store.openDocument = document
-            store.setVisible(true, for: .files)
+            // Reopened on this session (the ← after a card): the search catches up with the
+            // document and the folders now on screen.
+            search?.textChanged()
+            search?.rootsChanged()
         }
-        .task { await store.scanIfVisible() }
-        .onDisappear { store.setVisible(false, for: .files) }
+        // The search keeps running while the menu may be reopened on it; the session ends it.
+        .onDisappear { if !session.openedDocument { search?.stop() } }
     }
 
-    private var list: some View {
-        List {
-            Section {
-                Button {
-                    Task { await document.newDocument() }
-                    onDismiss()
-                } label: {
-                    Label(String(localized: "New Document"), systemImage: "square.and.pencil")
-                }
-                Button {
-                    isImportingDocument = true
-                } label: {
-                    Label(String(localized: "Open from Files…"), systemImage: "doc.badge.ellipsis")
-                }
-                sortMenu
-                Toggle(isOn: Binding(
-                    get: { store.showsHidden },
-                    set: { shows in Task { await store.setShowsHidden(shows) } }
-                )) {
-                    Label(Self.hiddenFoldersTitle, systemImage: "eye")
-                }
-            }
-            .listRowBackground(Color.clear)
+    private var hasQuery: Bool { !query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
 
-            ForEach(store.roots) { root in
-                Section {
-                    rootContent(root)
-                } header: {
-                    rootHeader(root)
-                }
-                .listRowBackground(Color.clear)
+    private var searchesOpenDocument: Bool { scope == .openDocument }
+
+    /// Option C's box (2026-11-24 mockup, `.cbox`): ONE card (the card colour, radius 16, padding
+    /// 6, a soft shadow) holding the search field's row and, under it, the replace row. With the
+    /// open document as the scope the row is the replace button on the left, the field (with the
+    /// count) and the up/down arrows on the right. The field is a fixed 40 pt tall, so nothing in
+    /// the row moves when typing starts.
+    private var searchBox: some View {
+        VStack(alignment: .leading, spacing: Self.boxSpacing) {
+            HStack(spacing: Self.boxSpacing) {
+                if searchesOpenDocument { replaceToggle }
+                searchField
+                if searchesOpenDocument { stepButtons }
             }
+            if searchesOpenDocument, isReplaceShown { replaceRow }
         }
-        .listStyle(.plain)
-        .scrollContentBackground(.hidden)
-        .containerBackground(.clear, for: .navigation)
-        .toolbar(.hidden, for: .navigationBar)
+        .padding(Self.boxSpacing)
+        .background(
+            RoundedRectangle(cornerRadius: Self.boxRadius, style: .continuous)
+                .fill(palette.color(palette.card))
+                .shadow(color: .black.opacity(palette.cardHasShadow ? 0.06 : 0), radius: 1, x: 0, y: 1)
+                .shadow(color: .black.opacity(palette.cardHasShadow ? 0.07 : 0), radius: 7, x: 0, y: 4)
+        )
     }
 
-    private var sortMenu: some View {
-        Menu {
-            // An inline Picker, so the checkmark sits in the system's selection gutter.
-            Picker(Self.sortMenuTitle, selection: Binding(
-                get: { store.sortOrder },
-                set: { order in Task { await store.setSort(order) } }
-            )) {
-                ForEach(Self.sortOptions) { order in
-                    Text(order.title).tag(order)
-                }
+    // The mockup's measurements for the box and what is inside it.
+    static let boxRadius: CGFloat = 16
+    static let boxSpacing: CGFloat = 6
+    static let fieldHeight: CGFloat = 40
+    static let fieldRadius: CGFloat = 10
+    /// The replace button and the arrows: drawn 36 pt (radius 10), each with a 44 pt target.
+    static let iconButtonSize: CGFloat = 36
+
+    private var replaceToggle: some View {
+        Button {
+            isReplaceShown.toggle()
+            if isReplaceShown { isReplaceFocused = true }
+        } label: {
+            Image(systemName: "arrow.left.arrow.right")
+                .font(.system(size: 16, weight: .regular))
+                .foregroundStyle(palette.color(isReplaceShown ? palette.blueMark : palette.ink))
+                .frame(width: Self.iconButtonSize, height: Self.iconButtonSize)
+                .background(
+                    RoundedRectangle(cornerRadius: Self.fieldRadius, style: .continuous)
+                        .fill(palette.color(palette.blueFill).opacity(isReplaceShown ? 0.12 : 0))
+                )
+                .contentShape(Rectangle().inset(by: -4))
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(isReplaceShown ? Self.hideReplaceTitle : Self.showReplaceTitle)
+        .accessibilityAddTraits(isReplaceShown ? .isSelected : [])
+        .accessibilityIdentifier("files.search.replaceToggle")
+    }
+
+    private var stepButtons: some View {
+        HStack(spacing: 0) {
+            stepButton(systemImage: "chevron.up", label: Self.previousMatchTitle, identifier: "files.search.previous") {
+                search?.selectPrevious()
+            }
+            stepButton(systemImage: "chevron.down", label: Self.nextMatchTitle, identifier: "files.search.next") {
+                search?.selectNext()
+            }
+        }
+        .disabled(!(search?.canStep ?? false) || !hasQuery)
+    }
+
+    private func stepButton(
+        systemImage: String, label: String, identifier: String, action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            Image(systemName: systemImage)
+                .font(.system(size: 14, weight: .medium))
+                .foregroundStyle(palette.color(palette.ink))
+                .frame(width: Self.iconButtonSize, height: Self.iconButtonSize)
+                .contentShape(Rectangle().inset(by: -4))
+        }
+        .buttonStyle(WordMenuPressStyle())
+        .accessibilityLabel(label)
+        .accessibilityIdentifier(identifier)
+    }
+
+    /// Replace with, Replace (the current match) and All (every match, one undo step), inside the
+    /// box. Side by side, or stacked when the text size leaves no room.
+    private var replaceRow: some View {
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: Self.boxSpacing) {
+                replaceField
+                replaceButtons
+            }
+            VStack(alignment: .leading, spacing: Self.boxSpacing) {
+                replaceField
+                HStack(spacing: Self.boxSpacing) { replaceButtons }
+            }
+        }
+    }
+
+    private var replaceField: some View {
+        TextField(
+            text: replacementBinding,
+            prompt: Text(Self.replaceWithPrompt).foregroundStyle(palette.color(palette.tertiary))
+        ) {
+            Text(Self.replaceWithPrompt)
+        }
+        .focused($isReplaceFocused)
+        .textInputAutocapitalization(.never)
+        .autocorrectionDisabled()
+        .font(.body)
+        .foregroundStyle(palette.color(palette.ink))
+        .boxField()
+        .frame(minWidth: 120)
+        .accessibilityIdentifier("files.search.replacement")
+    }
+
+    @ViewBuilder
+    private var replaceButtons: some View {
+        Button {
+            guard let search else { return }
+            search.replacement = replacement
+            search.replace()
+        } label: {
+            Text(Self.replaceTitle)
+                .font(.subheadline)
+                .foregroundStyle(palette.color(palette.ink))
+                .lineLimit(1)
+                .padding(.horizontal, 14)
+                .frame(height: Self.iconButtonSize)
+                .background(Capsule().fill(palette.color(palette.field)))
+                .contentShape(Capsule().inset(by: -4))
+        }
+        .buttonStyle(WordMenuPressStyle())
+        .disabled(!(search?.canReplace ?? false) || !hasQuery)
+        .opacity((search?.canReplace ?? false) && hasQuery ? 1 : 0.5)
+        .fixedSize()
+        .accessibilityIdentifier("files.search.replace")
+        Button {
+            guard let search else { return }
+            search.replacement = replacement
+            search.replaceAll()
+        } label: {
+            Text(Self.replaceAllShortTitle)
+                .font(.subheadline)
+                .foregroundStyle(.white)
+                .lineLimit(1)
+                .padding(.horizontal, 14)
+                .frame(height: Self.iconButtonSize)
+                .background(Capsule().fill(palette.color(palette.blueFill)))
+                .contentShape(Capsule().inset(by: -4))
+        }
+        .buttonStyle(WordMenuPressStyle())
+        .disabled(!(search?.canReplaceAll ?? false) || !hasQuery)
+        .opacity((search?.canReplaceAll ?? false) && hasQuery ? 1 : 0.5)
+        .fixedSize()
+        .accessibilityLabel(Self.replaceAllTitle)
+        .accessibilityIdentifier("files.search.replaceAll")
+    }
+
+    /// The scope: All documents, or the open document by its file name. A long name stays on one
+    /// line, cut in the middle so its extension shows, and never widens the pill past the page.
+    private var scopeButton: some View {
+        let fileName = FilesSearchScope.fileName(for: document.url)
+        let title = FilesSearchScope.title(for: scope, documentURL: document.url)
+        return Menu {
+            Picker(selection: Binding(get: { scope }, set: { setScope($0) })) {
+                Text(FilesSearchScope.allDocumentsTitle)
+                    .tag(FilesSearchScope.allDocuments)
+                Text(verbatim: FilesSearchScope.middleElided(fileName))
+                    .accessibilityLabel(Text(verbatim: fileName))
+                    .tag(FilesSearchScope.openDocument)
+            } label: {
+                Text(Self.scopeLabel)
             }
             .pickerStyle(.inline)
         } label: {
-            Label {
-                // A Menu's label keeps one line unless told otherwise: let it wrap, and at
-                // accessibility sizes put the order under the title (German's title alone
-                // fills the line there).
-                Group {
-                    if dynamicTypeSize.isAccessibilitySize {
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(Self.sortMenuTitle)
-                            Text(store.sortOrder.title)
-                                .foregroundStyle(PhoneInk.menu(theme).secondary)
-                        }
-                    } else {
-                        Text(Self.sortMenuLabel(store.sortOrder))
-                    }
-                }
-                .lineLimit(nil)
-                .fixedSize(horizontal: false, vertical: true)
-                .multilineTextAlignment(.leading)
-            } icon: {
-                Image(systemName: "arrow.up.arrow.down")
+            HStack(spacing: 6) {
+                Text(verbatim: title)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                Image(systemName: "chevron.down")
+                    .font(.caption.weight(.semibold))
+                    .accessibilityHidden(true)
             }
+            .font(.subheadline.weight(.medium))
+            .foregroundStyle(palette.color(palette.ink))
+            .padding(.horizontal, 12)
+            .padding(.vertical, 7)
+            .frame(minHeight: 36)
+            .background(Capsule().fill(palette.color(palette.field)))
+            .contentShape(Capsule())
+            .frame(minHeight: WordMenuMetrics.minimumTarget)
         }
-        .accessibilityLabel(Self.sortMenuTitle)
-        .accessibilityValue(store.sortOrder.title)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .accessibilityLabel(Self.scopeLabel)
+        .accessibilityValue(Text(verbatim: title))
+        .accessibilityIdentifier("files.search.scope")
     }
 
-    private func rootHeader(_ root: FilesRoot) -> some View {
-        let title = Label(root.title, systemImage: root.state == .unavailable ? "folder.badge.questionmark" : root.systemImage)
-            .font(.subheadline.weight(.semibold))
-            .accessibilityAddTraits(.isHeader)
-        return Group {
-            // At accessibility sizes the root's name and Choose/Change take a line each.
-            if dynamicTypeSize.isAccessibilitySize {
-                VStack(alignment: .leading, spacing: 4) {
-                    title
-                    workspaceButton(root)
+    private func setScope(_ newScope: FilesSearchScope) {
+        guard newScope != scope else { return }
+        WordMenuTiming.begin(.scope)
+        scope = newScope
+        // Replace only ever touches the open document: leaving its scope closes the replace row.
+        if newScope == .allDocuments { isReplaceShown = false }
+        search?.setFilter(newScope.filter)
+    }
+
+    /// The field inside the box: the glass (only while empty; typed text starts where it was), the
+    /// text and, with the open document as the scope, the count ("1/5"). A fixed 40 pt tall: no
+    /// clear button or anything else that could change its height (the mockup has none).
+    private var searchField: some View {
+        HStack(spacing: Self.boxSpacing) {
+            if !hasQuery {
+                Image(systemName: "magnifyingglass")
+                    .font(.system(size: 15))
+                    .foregroundStyle(palette.color(palette.secondary))
+                    .accessibilityHidden(true)
+            }
+            TextField(
+                text: Binding(get: { query }, set: { setQuery($0) }),
+                prompt: Text(scope.prompt).foregroundStyle(palette.color(palette.tertiary))
+            ) {
+                Text(scope.prompt)
+            }
+            .focused($isSearchFocused)
+            .textInputAutocapitalization(.never)
+            .autocorrectionDisabled()
+            .submitLabel(.search)
+            .onSubmit {
+                if searchesOpenDocument { search?.selectNext() }
+            }
+            .font(.body)
+            .foregroundStyle(palette.color(palette.ink))
+            .accessibilityIdentifier("files.search.field")
+            if searchesOpenDocument, let position = search?.positionText {
+                Text(verbatim: position)
+                    .font(.footnote.monospacedDigit())
+                    .foregroundStyle(palette.color(palette.secondary))
+                    .lineLimit(1)
+                    .fixedSize()
+                    .accessibilityLabel(Text(verbatim: search?.positionAccessibilityText ?? position))
+                    .accessibilityIdentifier("files.search.count")
+            }
+        }
+        .boxField()
+    }
+
+    /// The search is made on the first query (never in `init`). In All documents it reaches every
+    /// file and this document (`SearchFilter.all`); with the open document as the scope, only
+    /// this document (`.document`), and nothing is scanned.
+    private func setQuery(_ newQuery: String) {
+        if !newQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { WordMenuTiming.begin(.search) }
+        query = newQuery
+        if search == nil, !newQuery.isEmpty {
+            let made = SearchController(
+                editor: editor ?? NoEditorCommands(document: document),
+                files: store,
+                currentURL: { [weak document] in document?.url },
+                open: SearchController.opener(for: document)
+            )
+            made.setFilter(scope.filter)
+            search = made
+        }
+        search?.setQuery(newQuery)
+    }
+
+    @ViewBuilder
+    private var roots: some View {
+        ForEach(Self.phoneRoots(store.roots)) { root in
+            rootSection(root)
+        }
+    }
+
+    /// Recent: both roots' own documents as cards, newest first.
+    @ViewBuilder
+    private var recent: some View {
+        let documents = Self.recentDocuments(acrossRoots: store.roots)
+        if !documents.isEmpty {
+            WordMenuGroupLabel(title: Self.recentTitle)
+            WordMenuCardGrid(items: documents) { item in
+                DocumentCard(item: item, document: document, store: store, actions: actions) { open(item.url) }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func rootSection(_ root: FilesRoot) -> some View {
+        let heading = Self.heading(for: root)
+        HStack(alignment: .center) {
+            WordMenuGroupLabel(title: heading.title, systemImage: heading.systemImage)
+            Spacer(minLength: 8)
+            if let folder = root.folderURL, root.state == .available {
+                // A document made here saves here.
+                WordMenuRoundButton(systemImage: "plus", label: Self.newDocumentLabel(in: heading.title)) {
+                    newDocument(in: folder)
                 }
+                .accessibilityIdentifier("files.add.\(root.id.rawValue)")
+                .padding(.top, 6)
+            }
+        }
+        if !root.hasScanned {
+            ProgressView()
                 .frame(maxWidth: .infinity, alignment: .leading)
-            } else {
-                HStack {
-                    title
-                    Spacer(minLength: 8)
-                    workspaceButton(root)
-                }
-            }
-        }
-        .textCase(nil)
-    }
-
-    @ViewBuilder
-    private func workspaceButton(_ root: FilesRoot) -> some View {
-        if root.id == .workspace {
-            // The target reaches 44 pt inside the button; the negative padding gives the room
-            // back, so the header keeps its height.
-            Button {
-                isChoosingWorkspace = true
-            } label: {
-                Text(root.state == .unassigned ? Self.chooseTitle : Self.changeTitle)
-                    .padding(.vertical, Self.headerButtonTargetPadding)
-                    .contentShape(Rectangle())
-            }
-            .font(.subheadline)
-            .padding(.vertical, -Self.headerButtonTargetPadding)
-        }
-    }
-
-    @ViewBuilder
-    private func rootContent(_ root: FilesRoot) -> some View {
-        switch root.state {
-        case .unassigned:
-            EmptyView()
-        case .unavailable:
-            // The header offers Change; the body says why and offers Choose. Both open the picker.
-            VStack(alignment: .leading, spacing: 8) {
-                Text(Self.unavailableText)
-                    .foregroundStyle(PhoneInk.menu(theme).secondary)
-                Button(Self.chooseTitle) { isChoosingWorkspace = true }
-                    .buttonStyle(.bordered)
-            }
-        case .available, .disconnected:
-            if !root.hasScanned {
-                ProgressView()
-                    .frame(maxWidth: .infinity, alignment: .leading)
-            } else if root.items.isEmpty {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(String(localized: "No Markdown files"))
-                    // Naming the scanned folder is what tells "this folder is empty" apart from
-                    // "this is not the folder you think it is" (files-sidebar.md).
-                    if root.id == .workspace, let path = root.folderURL?.path {
-                        Text(Self.scannedFolderText(path))
-                            .font(.footnote)
-                            .lineLimit(2)
-                            .truncationMode(.head)
-                            .textSelection(.enabled)
-                    }
-                }
-                .foregroundStyle(PhoneInk.menu(theme).secondary)
-            } else {
-                ForEach(root.items) { item in
-                    FilesItemRow(item: item, sortOrder: store.sortOrder, actions: rowActions)
-                }
-            }
+                .padding(.horizontal, 4)
+        } else if root.items.isEmpty {
+            Text(String(localized: "No Markdown files"))
+                .font(.subheadline)
+                .foregroundStyle(palette.color(palette.secondary))
+                .padding(.horizontal, 4)
+        } else {
+            FilesFolderRows(items: root.items, store: store, actions: actions, onOpenFolder: onOpenFolder)
         }
     }
 
     // MARK: - Actions
 
-    private var rowActions: FilesRowHandlers {
-        FilesRowHandlers(
-            open: { item in open(item.url) },
-            rename: { item in
-                newName = FileRenaming.displayName(for: item.url, isDirectory: item.isDirectory)
-                renaming = item
-            },
-            delete: { item in deleting = item }
-        )
+    private func newDocument(in folder: URL? = nil) {
+        Task { await document.newDocument(in: folder) }
+        onDismiss()
     }
 
-    /// Opens a file and closes the sheet. A file iCloud has not downloaded is downloaded first;
+    /// Opens a file and closes the menu. A file iCloud has not downloaded is downloaded first;
     /// the document shows its downloading state meanwhile.
     private func open(_ url: URL) {
+        session.noteOpenedDocument()
         Task { await document.openReportingFailure(url) }
         onDismiss()
     }
 }
 
-/// A folder pushed onto the Files stack.
+extension View {
+    /// A field inside Files' search box: the field colour, radius 10, a fixed 40 pt height.
+    fileprivate func boxField() -> some View { modifier(FilesBoxField()) }
+}
+
+private struct FilesBoxField: ViewModifier {
+    @Environment(\.wordMenuPalette) private var palette
+
+    func body(content: Content) -> some View {
+        content
+            .padding(.horizontal, 10)
+            .frame(height: FilesSection.fieldHeight)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(
+                RoundedRectangle(cornerRadius: FilesSection.fieldRadius, style: .continuous)
+                    .fill(palette.color(palette.field))
+            )
+    }
+}
+
+/// A folder pushed onto the menu's stack.
 struct FilesFolderRoute: Hashable {
     var url: URL
     var title: String
+}
+
+/// A level's folders as plain rows: the folder icon close to the name, the count of its documents
+/// on the right, a chevron. A long press offers Rename.
+struct FilesFolderRows: View {
+    var items: [OutlineFileTreeItem]
+    var store: FilesStore
+    var actions: FilesItemActions
+    var onOpenFolder: (FilesFolderRoute) -> Void
+
+    var body: some View {
+        let folders = items.filter(\.isDirectory)
+        if !folders.isEmpty {
+            VStack(spacing: 6) {
+                ForEach(folders) { folder in
+                    Button {
+                        onOpenFolder(FilesFolderRoute(url: folder.url, title: folder.name))
+                    } label: {
+                        WordMenuRowLabel(
+                            title: folder.name,
+                            systemImage: "folder",
+                            accessory: .chevron,
+                            count: FilesSection.documentCount(in: folder, store: store)
+                        )
+                        .opacity(folder.isHidden ? 0.7 : 1)
+                    }
+                    .buttonStyle(WordMenuPressStyle())
+                    .accessibilityValue(FilesRow.accessibilityValue(for: folder).map { Text($0) } ?? Text(verbatim: ""))
+                    .filesSwipeAccessibilityActions(FilesSwipeAction.actions(for: folder, store: store))
+                    .filesSwipeActions(FilesSwipeAction.actions(for: folder, store: store))
+                    .contextMenu {
+                        ForEach(FilesRowAction.menuActions(for: folder), id: \.self) { action in
+                            Button {
+                                actions.perform(action, on: folder)
+                            } label: {
+                                Label(action.title, systemImage: action.systemImage)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+/// One swipe action on a card or folder row: Move to Trash (red), or a move between iCloud and On
+/// My iPhone.
+struct FilesSwipeAction: Identifiable {
+    enum Kind: Hashable {
+        case trash
+        case move(FilesRootID)
+    }
+
+    var kind: Kind
+    var perform: () -> Void
+    var id: Kind { kind }
+
+    var title: String {
+        switch kind {
+        case .trash: FilesRowAction.delete.title
+        case .move(.icloud): String(localized: "Move to iCloud")
+        case .move: String(localized: "Move to On My iPhone")
+        }
+    }
+
+    var systemImage: String {
+        switch kind {
+        case .trash: "trash"
+        case .move(.icloud): "icloud.and.arrow.up"
+        case .move: "iphone"
+        }
+    }
+
+    var isDestructive: Bool { kind == .trash }
+
+    /// The swipe actions for `item`, like Mail's: Move to Trash for a downloaded file (never a
+    /// folder), then the move to the other root where it can go. Trash and the move act at once
+    /// (both reversible: the Trash, or moving back); a failure shows the store's notice.
+    @MainActor
+    static func actions(for item: OutlineFileTreeItem, store: FilesStore) -> [FilesSwipeAction] {
+        var actions: [FilesSwipeAction] = []
+        if FilesRowAction.swipeActions(for: item).contains(.delete) {
+            actions.append(FilesSwipeAction(kind: .trash) { Task { try? await store.trash(item) } })
+        }
+        for target in store.moveTargets(for: item) {
+            actions.append(FilesSwipeAction(kind: .move(target)) { Task { try? await store.move(item, to: target) } })
+        }
+        return actions
+    }
+}
+
+extension View {
+    /// Swipe left to reveal `actions` at the trailing edge. The item's own accessibility element
+    /// carries them as custom actions (`filesSwipeAccessibilityActions`).
+    func filesSwipeActions(_ actions: [FilesSwipeAction]) -> some View {
+        modifier(FilesSwipeActions(actions: actions))
+    }
+
+    /// The swipe actions as VoiceOver custom actions, on the element VoiceOver visits.
+    func filesSwipeAccessibilityActions(_ actions: [FilesSwipeAction]) -> some View {
+        accessibilityActions {
+            ForEach(actions) { action in
+                Button(action.title) { action.perform() }
+            }
+        }
+    }
+}
+
+private struct FilesSwipeActions: ViewModifier {
+    var actions: [FilesSwipeAction]
+    @State private var offset: CGFloat = 0
+    @State private var dragStart: CGFloat?
+    @Environment(\.wordMenuPalette) private var palette
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    static let buttonWidth: CGFloat = 76
+    static let spacing: CGFloat = 6
+
+    private var revealWidth: CGFloat {
+        CGFloat(actions.count) * Self.buttonWidth + CGFloat(actions.count) * Self.spacing
+    }
+
+    func body(content: Content) -> some View {
+        if actions.isEmpty {
+            content
+        } else {
+            ZStack(alignment: .trailing) {
+                HStack(spacing: Self.spacing) {
+                    ForEach(actions) { action in
+                        Button {
+                            close()
+                            action.perform()
+                        } label: {
+                            VStack(spacing: 4) {
+                                Image(systemName: action.systemImage)
+                                    .font(.body.weight(.medium))
+                                Text(action.title)
+                                    .font(.caption2.weight(.semibold))
+                                    .multilineTextAlignment(.center)
+                                    .minimumScaleFactor(0.8)
+                            }
+                            .foregroundStyle(.white)
+                            .padding(4)
+                            .frame(width: Self.buttonWidth)
+                            .frame(maxHeight: .infinity)
+                            .background(
+                                RoundedRectangle(cornerRadius: WordMenuMetrics.rowRadius, style: .continuous)
+                                    .fill(action.isDestructive ? Color(red: 0.79, green: 0.23, blue: 0.23) : palette.color(palette.blueFill))
+                            )
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityHidden(true)
+                    }
+                }
+                .opacity(offset < 0 ? 1 : 0)
+                content
+                    .offset(x: offset)
+                    .overlay {
+                        if offset < 0 {
+                            // While open, a tap on the item closes the actions instead of opening it.
+                            Color.clear
+                                .contentShape(Rectangle())
+                                .offset(x: offset)
+                                .onTapGesture { close() }
+                        }
+                    }
+            }
+            .clipped()
+            // A UIKit pan that begins only for a sideways movement, so the page still scrolls
+            // when a vertical drag starts on a card.
+            .gesture(
+                HorizontalPanGesture(
+                    onChange: { translation in
+                        let start = dragStart ?? offset
+                        dragStart = start
+                        offset = min(0, max(-revealWidth - 24, start + translation))
+                    },
+                    onEnd: { _, velocity in
+                        dragStart = nil
+                        let opens = offset < -revealWidth / 2 || velocity < -600
+                        withAnimation(EditorMotionPolicy.animation(.easeOut(duration: 0.18), reduceMotion: reduceMotion)) {
+                            offset = opens ? -revealWidth : 0
+                        }
+                    }
+                )
+            )
+        }
+    }
+
+    private func close() {
+        withAnimation(EditorMotionPolicy.animation(.easeOut(duration: 0.18), reduceMotion: reduceMotion)) {
+            offset = 0
+        }
+    }
+}
+
+/// A pan that begins only when the finger moves sideways (more across than down), so it never
+/// takes a scroll from the page around it.
+private struct HorizontalPanGesture: UIGestureRecognizerRepresentable {
+    var onChange: (CGFloat) -> Void
+    var onEnd: (_ translation: CGFloat, _ velocity: CGFloat) -> Void
+
+    func makeCoordinator(converter: CoordinateSpaceConverter) -> Coordinator { Coordinator() }
+
+    func makeUIGestureRecognizer(context: Context) -> UIPanGestureRecognizer {
+        let recognizer = UIPanGestureRecognizer()
+        recognizer.delegate = context.coordinator
+        return recognizer
+    }
+
+    func handleUIGestureRecognizerAction(_ recognizer: UIPanGestureRecognizer, context: Context) {
+        let translation = recognizer.translation(in: recognizer.view).x
+        switch recognizer.state {
+        case .changed:
+            onChange(translation)
+        case .ended, .cancelled, .failed:
+            onEnd(translation, recognizer.velocity(in: recognizer.view).x)
+        default:
+            break
+        }
+    }
+
+    final class Coordinator: NSObject, UIGestureRecognizerDelegate {
+        func gestureRecognizerShouldBegin(_ recognizer: UIGestureRecognizer) -> Bool {
+            guard let pan = recognizer as? UIPanGestureRecognizer else { return false }
+            let velocity = pan.velocity(in: pan.view)
+            return abs(velocity.x) > abs(velocity.y) * 1.5
+        }
+    }
+}
+
+/// What a file or folder says without words, and the date a list sorted by date shows.
+enum FilesRow {
+    /// What VoiceOver adds after an item's name: "Hidden", "Not downloaded", both, or nothing.
+    static func accessibilityValue(for item: OutlineFileTreeItem) -> String? {
+        switch (item.isHidden, item.isICloudPlaceholder) {
+        case (true, true): String(localized: "Hidden, not downloaded")
+        case (true, false): String(localized: "Hidden")
+        case (false, true): String(localized: "Not downloaded")
+        case (false, false): nil
+        }
+    }
+
+    /// A name shows on one line, cut in the middle; at accessibility sizes up to three.
+    static func nameLineLimit(for dynamicTypeSize: DynamicTypeSize) -> Int {
+        dynamicTypeSize.isAccessibilitySize ? 3 : 1
+    }
+
+    /// The date the sort is in order of, so none for a name sort or a folder.
+    static func shownDate(for item: OutlineFileTreeItem, sortOrder: OutlineFileSortOrder) -> Date? {
+        guard !item.isDirectory else { return nil }
+        switch sortOrder {
+        case .name: return nil
+        case .dateCreated: return item.createdAt
+        case .dateModified: return item.modifiedAt
+        }
+    }
+
+    static func systemImage(for item: OutlineFileTreeItem) -> String {
+        item.isDirectory ? "folder" : "doc.text"
+    }
+}
+
+/// Search without a live editor (a hosted Files page): this document's text, and no edits.
+@MainActor
+private struct NoEditorCommands: EditorCommands {
+    var document: OpenDocument
+    var currentText: String { document.text }
+    func scrollToCharacterRange(_ range: NSRange) {}
+    func selectRange(_ range: NSRange) {}
+    func insertTable() {}
+    func reformatTable() {}
+    func replace(range: NSRange, with replacement: String) -> Bool { false }
+    func replaceAll(ranges: [NSRange], with replacement: String) -> Bool { false }
 }

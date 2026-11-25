@@ -1,6 +1,6 @@
 import Foundation
 
-public struct DocumentStatistics: Equatable {
+public struct DocumentStatistics: Equatable, Sendable {
     public var wordCount: Int
     public var characterCount: Int
     /// True when more than half of the word-forming scalars are Han, Hiragana, or

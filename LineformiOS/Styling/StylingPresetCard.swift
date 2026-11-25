@@ -79,7 +79,7 @@ struct StylingPresetCard: View {
     /// The Mac's unselected edge: a Quiet card on a Quiet sheet would vanish against black.
     static func unselectedStrokeColor(usesDarkChrome: Bool) -> UIColor {
         usesDarkChrome
-            ? UIColor.white.withAlphaComponent(0.18)
+            ? UIColor.white.withAlphaComponent(0.26)
             : UIColor.black.withAlphaComponent(0.08)
     }
 

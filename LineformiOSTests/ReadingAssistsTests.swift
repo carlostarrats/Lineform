@@ -39,8 +39,9 @@ final class ReadingAssistsTests: XCTestCase {
         XCTAssertFalse(ruler.isUserInteractionEnabled)
         XCTAssertEqual(
             ruler.backgroundColor?.resolvedColor(with: textView.traitCollection),
-            textView.tintColor.withAlphaComponent(LineformTextView.readingRulerFillOpacity).resolvedColor(with: textView.traitCollection),
-            "tint at alpha 0.12"
+            Theme.theme(for: textView.profile).caretColor
+                .withAlphaComponent(LineformTextView.readingRulerFillOpacity).resolvedColor(with: textView.traitCollection),
+            "the theme's ink at alpha 0.12 (the caret itself is the highlighter's blue)"
         )
         XCTAssertEqual(LineformTextView.readingRulerFillOpacity, 0.12)
 

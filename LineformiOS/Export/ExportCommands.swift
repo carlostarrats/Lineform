@@ -78,7 +78,8 @@ final class ExportCommands {
         document: OpenDocument,
         profile: @escaping () -> ReadingProfile,
         writer: PhoneExportWriter = .init(),
-        speech: SpeechController = SpeechController(),
+        // The best-sounding installed voice for the document's language (premium, then enhanced).
+        speech: SpeechController = SpeechController(synthesizer: SystemSpeechSynthesizer(prefersBestQualityVoice: true)),
         regionCode: String? = Locale.current.region?.identifier,
         audioSession: any SpeechAudioSessionControlling = LiveSpeechAudioSession()
     ) {

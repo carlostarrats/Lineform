@@ -54,18 +54,20 @@ final class PhoneAccessibilityAuditUITests: XCTestCase {
         tap(app.buttons[labels.write].firstMatch, "Write segment")
         try audit(app, screen: "Write")
 
-        tap(app.buttons[labels.menu].firstMatch, "Menu button")
-        XCTAssertTrue(app.buttons[labels.done].waitForExistence(timeout: 5), "The Menu sheet never appeared")
+        // The ⋯ button opens the word menu over the whole screen; each word opens its page, and
+        // the corner button (← there) goes back to the words.
+        tap(app.buttons[labels.menu].firstMatch, "⋯ button")
+        XCTAssertTrue(app.buttons[labels.closeMenu].waitForExistence(timeout: 5), "The word menu never appeared")
+        try audit(app, screen: "Word menu", sheetIsUp: true)
         for section in labels.menuSections {
-            let button = app.buttons[section].firstMatch
-            scrollSectionBar(app, toReveal: button)
-            tap(button, "Menu section \(section)")
+            tap(app.buttons[section].firstMatch, "Word \(section)")
+            XCTAssertTrue(app.buttons[labels.back].waitForExistence(timeout: 5), "\(section) never opened")
             try audit(app, screen: "Menu ▸ \(section)", sheetIsUp: true)
+            tap(app.buttons[labels.back].firstMatch, "Back")
         }
-        tap(app.buttons[labels.done].firstMatch, "Menu Done")
-        XCTAssertTrue(app.buttons[labels.styling].waitForExistence(timeout: 5))
 
-        tap(app.buttons[labels.styling].firstMatch, "Reading Experience button")
+        // Themes leaves the menu for the Styling sheet.
+        tap(app.buttons[labels.themes].firstMatch, "Word Themes")
         XCTAssertTrue(app.sliders.firstMatch.waitForExistence(timeout: 5), "The Styling sheet never appeared")
         try audit(app, screen: "Styling", sheetIsUp: true)
     }
@@ -73,9 +75,16 @@ final class PhoneAccessibilityAuditUITests: XCTestCase {
     private func auditFirstRun(contentSize: String?) throws {
         let app = launch(contentSize: contentSize, firstRunCompleted: false, forceFirstRun: true)
         let labels = Labels.current
+        // Nothing advances by itself: Get Started shows once the wordmark is written, and the
+        // points wait for Start Writing.
+        let getStarted = app.buttons[labels.getStarted]
+        XCTAssertTrue(getStarted.waitForExistence(timeout: 20), "First run never showed Get Started")
+        try audit(app, screen: "First run ▸ welcome")
+        getStarted.tap()
         let start = app.buttons[labels.startWriting]
-        // The line and "What to expect" advance by themselves; the points wait for the writer.
-        XCTAssertTrue(start.waitForExistence(timeout: 20), "First run never reached its points")
+        XCTAssertTrue(start.waitForExistence(timeout: 10), "First run never reached its points")
+        // The points and Start Writing finish arriving (about 1.7 s).
+        Thread.sleep(forTimeInterval: 2)
         try audit(app, screen: "First run ▸ points", textGrowsInScrollView: true)
         start.tap()
         XCTAssertTrue(app.textViews.firstMatch.waitForExistence(timeout: 10), "Start Writing never reached the document")
@@ -361,8 +370,12 @@ private struct Labels {
     var menu: String
     var done: String
     var styling: String
+    var getStarted: String
     var startWriting: String
     var menuSections: [String]
+    var closeMenu: String
+    var back: String
+    var themes: String
 
     /// The runner's language, which the test plan's configuration sets.
     static var languageCode: String {
@@ -374,13 +387,18 @@ private struct Labels {
 
     static let english = Labels(
         write: "Write", read: "Read", menu: "Menu", done: "Done", styling: "Reading Experience",
-        startWriting: "Start Writing",
-        menuSections: ["Files", "Outline", "Markdown Basics", "Search", "Document", "Settings"]
+        getStarted: "Get Started", startWriting: "Start Writing",
+        menuSections: ["Files", "Outline", "Markdown Basics", "Settings", "Export & Print", "Connect Your AI", "About Lineform"],
+        closeMenu: "Close menu", back: "Back", themes: "Themes"
     )
 
     static let german = Labels(
         write: "Schreiben", read: "Lesen", menu: "Menü", done: "Fertig", styling: "Leseerlebnis",
-        startWriting: "Losschreiben",
-        menuSections: ["Dateien", "Gliederung", "Markdown-Grundlagen", "Suchen", "Dokument", "Einstellungen"]
+        getStarted: "Loslegen", startWriting: "Losschreiben",
+        menuSections: [
+            "Dateien", "Gliederung", "Markdown-Grundlagen", "Einstellungen", "Exportieren & Drucken",
+            "Eigene KI verbinden", "Über Lineform",
+        ],
+        closeMenu: "Menü schließen", back: "Zurück", themes: "Themen"
     )
 }

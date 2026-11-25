@@ -1,8 +1,8 @@
 import LineformCore
 import SwiftUI
 
-/// The Styling sheet: the Mac's Reading Experience panel in a bottom sheet, opened by the "Aa"
-/// button (`StylingButton`). Every control writes through `ReadingProfileStore`, which
+/// The Styling sheet: the Mac’s Reading Experience panel in a bottom sheet, opened by the word
+/// menu’s Themes. Every control writes through `ReadingProfileStore`, which
 /// `DocumentScreen` observes, so the editor and the Read view restyle live.
 ///
 /// `DocumentScreen` presents it with `stylingSheetChrome(theme:)` for the live profile's theme:
@@ -12,14 +12,24 @@ struct StylingSheet: View {
     @ObservedObject var store: ReadingProfileStore
 
     static let detents: Set<PresentationDetent> = [.medium, .large]
+
+    /// The sheet's surface: the page colour on a light theme; on a dark one, a step darker than
+    /// the page (#1F1F1F), so the Quiet card (the page's own colour) never blends into the sheet.
+    /// Every ink on it is the page's readable ink, which only gains contrast on the darker ground.
+    static func surface(for theme: Theme) -> UIColor {
+        guard theme.usesDarkChrome else { return theme.backgroundColor }
+        let darker = UIColor(white: 0x1F / 255, alpha: 1)
+        // A page darker still (Low Light) keeps its own colour: the sheet never gets lighter.
+        return Theme.relativeLuminance(theme.backgroundColor) < Theme.relativeLuminance(darker) ? theme.backgroundColor : darker
+    }
     static let cornerRadius: CGFloat = LineformDesign.Radius.modal
-    /// 15 pt at the default text size, scaled like `.subheadline` (also 15 pt).
-    static let headerTitleFontSize: CGFloat = 15
     /// The Mac panel's section spacing and padding.
     static let sectionSpacing: CGFloat = 18
     static let horizontalPadding: CGFloat = 18
     static let verticalPadding: CGFloat = 16
-    static var headerTitle: String { String(localized: "Reading") }
+    /// The space above the "Themes" label: the mockup's sheet padding (8), grabber (5 + 4) and
+    /// gap (10). The sheet has no title (`word-menu.html`, `openThemes()`).
+    static let topPadding: CGFloat = 27
 
     /// The theme's own light or dark, independent of the trait collection.
     static func colorScheme(for theme: Theme) -> ColorScheme {
@@ -76,8 +86,6 @@ struct StylingSheet: View {
     static let themeTitleFontSize: CGFloat = 13
     static let themeToFontSpacing: CGFloat = 10
     static let resetTopSpacing: CGFloat = 20
-    /// The Mac header's gap above the scrolling controls.
-    static let headerBottomPadding: CGFloat = 8
     /// The page behind the medium detent stays undimmed and usable, so a change shows live.
     static let backgroundInteraction: PresentationBackgroundInteraction = .enabled(upThrough: .medium)
 
@@ -104,7 +112,6 @@ struct StylingSheet: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            header
             ScrollView {
                 VStack(alignment: .leading, spacing: Self.sectionSpacing) {
                     presetGrid
@@ -157,11 +164,13 @@ struct StylingSheet: View {
                     .padding(.top, Self.resetTopSpacing)
                 }
                 .padding(.horizontal, Self.horizontalPadding)
-                .padding(.vertical, Self.verticalPadding)
+                .padding(.top, Self.topPadding)
+                .padding(.bottom, Self.verticalPadding)
                 .frame(maxWidth: .infinity, alignment: .topLeading)
             }
         }
         .foregroundStyle(Color(uiColor: theme.textColor))
+        .onAppear { WordMenuTiming.end(.themes) }
         // A sheet dismissed mid-drag never reports the drag's end: end it here, or the Read view
         // would wait for it.
         .onDisappear { coalescer.endAllDrags() }
@@ -169,16 +178,6 @@ struct StylingSheet: View {
         .onReceive(NotificationCenter.default.publisher(for: UIApplication.willResignActiveNotification)) { _ in
             coalescer.endAllDrags()
         }
-    }
-
-    private var header: some View {
-        Text(Self.headerTitle)
-            .stylingFont(size: Self.headerTitleFontSize, relativeTo: .subheadline, weight: .semibold)
-            .accessibilityAddTraits(.isHeader)
-            .frame(maxWidth: .infinity)
-            .padding(.top, Self.verticalPadding + 8)
-            .padding(.bottom, Self.headerBottomPadding)
-            .padding(.horizontal, Self.horizontalPadding)
     }
 
     private var presetGrid: some View {
@@ -190,7 +189,8 @@ struct StylingSheet: View {
         let usesDarkChrome = theme.usesDarkChrome
         return VStack(alignment: .leading, spacing: Self.presetGridSpacing) {
             Text(Self.themesTitle)
-                .stylingFont(size: Self.themeTitleFontSize, relativeTo: StylingRowStyle.labelTextStyle, weight: .medium)
+                .stylingFont(size: Self.themeTitleFontSize, relativeTo: StylingRowStyle.labelTextStyle, weight: .semibold)
+                .foregroundStyle(secondaryInk)
                 .accessibilityAddTraits(.isHeader)
             LazyVGrid(columns: columns, alignment: .leading, spacing: Self.presetGridSpacing) {
                 ForEach(ReadingPreset.builtIn) { preset in
@@ -293,7 +293,7 @@ extension View {
     /// modal corner radius, a visible drag indicator, and the theme's own colour scheme.
     func stylingSheetChrome(theme: Theme) -> some View {
         presentationDetents(StylingSheet.detents)
-            .presentationBackground(Color(uiColor: theme.backgroundColor))
+            .presentationBackground(Color(uiColor: StylingSheet.surface(for: theme)))
             .presentationCornerRadius(StylingSheet.cornerRadius)
             .presentationDragIndicator(.visible)
             .presentationBackgroundInteraction(StylingSheet.backgroundInteraction)

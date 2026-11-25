@@ -42,9 +42,9 @@ Core product principles:
 - Read/Preview rendering of Mermaid diagrams, LaTeX math (`$…$`/`$$…$$` and the AI-tool `\(…\)`/`\[…\]` spellings), GFM tables, task checkboxes, GitHub-style callouts, code-language syntax highlighting with a copy button, and local (never remote) inline images.
 - Save As retargets the Markdown file; File ▸ Export As writes a copy as HTML, PDF, Styled PDF, or Rich Text (.rtf), plus Print (⌘P). Exported HTML is one-to-one with the source — image paths and link URLs are emitted exactly as written.
 - Read-aloud of the rendered text (Edit ▸ Speech), skipping code, math, and diagrams.
-- History: right-click a selection ▸ Add to History keeps per-passage versions (Paragraph · Sentence · Word); the sidebar's History tab (shown only when the document has history) or View ▸ History (⌘Y) enters a read-only History mode that steps them. Stored in the app container, or for documents in the Lineform iCloud folder in the container's hidden `History/` folder, shared with the user's other devices; never in the file; 30-day cleanup; Settings ▸ Clear History removes everything.
-- Bring your own AI: Lineform ▸ Connect Your AI… connects Claude, ChatGPT, Google or an OpenAI-compatible server with the user's key (Keychain); a Standard (default) or Higher quality model tier per provider; right-click Rewrite ▸ Trim/Cut in half/Rewrite, Proofread, Mark ▸ Weakest/Long sentences, each result reviewed as ONE change (struck original + highlighted replacement) on a bottom-right card, as a read-only overlay. Write mode only; absent (not disabled) when nothing is connected.
-- Selection toolbar: selecting text in the editor floats one-click formatting (Heading ▾, Bold, Italic, Strikethrough, Code, List ▾, Link) over it; while an AI is connected it also offers a comment card — a free-form note to the AI, optionally with an action (Custom = the note alone), reviewed like any AI result. Right-click and the Format menu are unchanged.
+- History: right-click a selection ▸ Add to History keeps per-passage versions (Paragraph · Sentence · Word); the sidebar's History tab (shown only when the document has history) or View ▸ History (⌘Y) enters a read-only History mode that steps them. Stored in the app container, or for documents in the Lineform iCloud folder in the container's hidden `History/` folder, shared with the user's other devices; never in the file; 30-day cleanup; Settings ▸ Clear Version History removes every kept version (never a document).
+- Bring your own AI: Lineform ▸ Connect Your AI… connects Claude, ChatGPT, Google or an OpenAI-compatible server with the user's key (Keychain); a model per provider from a curated list, cheapest first and the cheapest by default, shown by name ("Claude Sonnet 5.5"; stored as the model ID); the Connect button says "Connect" with what is sent and to whom in small text under it; the AI drawer (right side, in Reading Experience's inspector slot; Edit ▸ Ask AI…, the toolbar's AI icon, the selection toolbar's Ask) holds a session-only conversation: quick actions, typed instructions whose curated words (`AIPromptLexicon`) get a dotted underline and an options card, plain answers to questions, Accept / Reject / Try Again with versions, and blanks. Right-click Rewrite / Proofread / Find still work and open the drawer. Each suggestion is reviewed as a read-only overlay in the editor. Write mode only; absent (not disabled) when nothing is connected.
+- Selection toolbar: selecting text in the editor floats one-click formatting (Heading ▾, Bold, Italic, Strikethrough, Code, List ▾, Link) over it; while an AI is connected its Ask opens the AI drawer. Right-click and the Format menu are unchanged.
 - ⌘E toggles Write ↔ Read; Split stays on the toolbar and View menu.
 - Reading profiles for type size, line height, block spacing, margins, column width, caret width, focus, ruler, and themes.
 - Automatic Dark Mode (Settings, default on): while the Mac is in Dark Mode every preset draws with Quiet's page and ink but keeps its own font and layout. Display only — export and print keep the chosen theme.
@@ -128,7 +128,7 @@ file named after it carries the full story and the reasoning.
 - `LineformAppNotification.activeWindowPayload` casts to `LineformTextView`, NEVER the general `NSTextView`. Its `selectedRange` is used to substring `document.text` (read aloud, Convert to Plain Text), and the wide cast also matched a search field's FIELD EDITOR and the Split preview pane — whose ranges are in rendered coordinates, the thing the `.read` guard exists to prevent but could not catch for `.split`.
 - `speechController.stop()` belongs in `resetTransientDocumentState()`, the choke point every document swap goes through. Wired only to `willCloseNotification`, read-aloud kept reading the PREVIOUS document after a tab switch or sidebar selection, with Pause/Stop acting on a document no longer on screen.
 - Never infer cancel-vs-finish from which `AVSpeechSynthesizer` delegate method fires. A stopped utterance reports `didFinish`, not `didCancel` — `SystemSpeechSynthesizer` filters by utterance identity. `FakeSynthesizer` must model the SHIPPING behaviour (stop delivers finish; pause is deferred to a word boundary) or it certifies the bug instead of catching it.
-- Read-aloud must NEVER set `utterance.voice` when the detected document language agrees with `AVSpeechSynthesisVoice.currentLanguageCode()` — nil voice IS the user's Spoken Content selection, and `AVSpeechSynthesisVoice(language:)` picks an arbitrary region (`fr` → fr-CA with fr-FR installed, `en` → en-US), so overriding on agreement forced every en-GB/en-AU user onto Samantha. `SpeechVoiceResolver` owns that decision and prefers an installed region-matched voice by identifier; its zh script inference (region → Hans/Hant) is what keeps a Traditional document off a Simplified voice.
+- Read-aloud must NEVER set `utterance.voice` when the detected document language agrees with `AVSpeechSynthesisVoice.currentLanguageCode()` — nil voice IS the user's Spoken Content selection, and `AVSpeechSynthesisVoice(language:)` picks an arbitrary region (`fr` → fr-CA with fr-FR installed, `en` → en-US), so overriding on agreement forced every en-GB/en-AU user onto Samantha. `SpeechVoiceResolver` owns that decision and prefers an installed region-matched voice by identifier; its zh script inference (region → Hans/Hant) is what keeps a Traditional document off a Simplified voice. iPhone exception (owner, 2026-11-24): there a nil voice is the compact default, so `SystemSpeechSynthesizer(prefersBestQualityVoice: true)` sets the best installed voice for the language (`SpeechVoiceResolver.bestQualityVoice`: system default if enhanced/premium, else premium > enhanced > standard, never a novelty voice); the Mac never sets that flag.
 - SwiftUI builds NO Spelling and Grammar menu and this app replaces the Edit menu, so the submenu in `AppCommands` is the only off switch; `menu(for:)` likewise replaces AppKit's context menu, so spelling guesses/Learn/Ignore only exist because they are added there by hand. Deleting either strands the feature with no way to control it.
 - Keyboard intercepts in the text view hook `insertNewline`/`insertTab`/`insertBacktab`/`doCommandBy`, NEVER `keyDown` — `keyDown` fires before input-method handling and swallows Return during IME composition. Per-keystroke edits must use the localized `replaceCharacters` path, never `applyWholeTextReplacement` (it rewrites the whole document), and must not force a synchronous re-highlight (`didChangeText` already schedules the debounced one).
 - `MarkdownHeadingEditing` must NOT detect headings with `MarkdownHeadingParser.heading(in:)`. That parser requires a non-empty title, so it reports `nil` for `"## "` and the line is then treated as prose and given a second marker — the `# ## Section` stacking bug, which produces a line the outline sidebar cannot see. It must also never call `isInsideCodeOrFrontMatter` per line: that rescans from the document start, making Select All + a heading key quadratic.
@@ -136,6 +136,7 @@ file named after it carries the full story and the reasoning.
 - Table Reformat pads by APPENDING spaces, never `String.padding(toLength:)` — that measures in UTF-16 while the widths measure in Characters, so it silently truncated emoji and decomposed-accent cells and wrote the loss to disk.
 - `MarkdownHeadingEditing.classify` and `MarkdownHeadingParser` must accept the SAME heading shape (≤3 columns of indent; space, tab, or end of line after the hashes). A disagreement is the stacking bug from the other side.
 - Ordered-list continuation must cap the marker at NINE ASCII digits, matching `MarkdownBlockGrouping`'s `[0-9]{1,9}`. Unbounded, `Int.max` overflowed `number + 1` and Return on that line CRASHED the app, and a 10-digit marker drew as a paragraph while Return continued it as a list.
+- The selection is a highlighter stroke DRAWN behind the text (Mac `drawBackground`, iPhone a layer under the text with the system fill replaced through `UITextSelectionDisplayInteraction.highlightView`), never a text-storage or temporary attribute, and measured over the VISIBLE lines only — Select All on 1 MB must cost one screenful (`HighlighterSelection`, `editor-behavior.md` § Highlighter selection).
 - Table Reformat must REFUSE on `\|` and on backticks. It rewrites the file through `MarkdownTableParser.cells(in:)`, which splits on every pipe — harmless while rendering, permanent data loss when written back. It must also re-emit delimiter colons read from the ORIGINAL row, not from `table.alignments`, which collapses `:--` into `---`.
 
 **History** (`editor-behavior.md` § History)
@@ -157,7 +158,8 @@ file named after it carries the full story and the reasoning.
 - Leaving `.reviewing` by ANY path collapses the editor's selection to the reviewed passage's TEXT end, before a trailing line ending (`AIActionController.state` didSet → `collapseSelectionForAI(at: caretEnd)`); Mark collapses it too, or the selection hides the wash. The passage stays selected under the overlay; without the collapse, the next keystroke, Delete, Tab or dictation replaced the whole passage. The overlay's ⌫ ends the review and is not re-sent.
 - One AI action records History once, when the review ends: one passage per CHANGED paragraph. Abandon (reload, whole-text writers, disconnect) applies and records nothing; a tab or document swap ENDS the review and records what was accepted; a reply that arrives after the text changed is discarded (exact UTF-16 compare).
 - API keys live ONLY in the Keychain (`SystemAIKeychain`, service `<bundle id>.ai`, not synchronizable). Never UserDefaults, never files, never logged (`AIConnection.description` redacts).
-- Whole-document AI (the Mac's Edit ▸ Ask AI… with nothing selected, the iPhone's Menu ▸ Document ▸ Ask AI…) goes through ONE policy, `WholeDocumentAIPolicy`, measured on the prose that would be sent: up to 1,500 words it runs, above that the writer confirms (Cancel the default), past `AILimits` it is refused before the Keychain is read. `runWholeDocument` re-checks it before `resolvedConnection()`. Any wording about what is sent names both cases: the passage you select, or the whole document when you choose Ask AI for it.
+- The AI drawer (Mac) and sheet (iPhone) share ONE conversation model, `AIConversation`, and ONE view, `Lineform/AI/AIConversationView.swift`; the conversation is memory only (never written) and goes when its document closes. It only drives `AIActionController`: every rule above still holds through it. No request while the writer types — curated prompt words are matched on the device. A version step or a filled blank re-enters the review only through `restoreReview` / `applyAssumption` (same text, same provider, nothing accepted; blanks re-run the structure guard). The drawer shares the inspector slot with Reading Experience, one at a time (`EditorInspectorContent`). Details: `editor-behavior.md` § The AI drawer and sheet.
+- Whole-document AI (a request from the drawer or sheet with nothing selected; the iPhone's word menu ▸ Connect Your AI ▸ Ask AI… asks before the sheet opens) goes through ONE policy, `WholeDocumentAIPolicy`, measured on the prose that would be sent: up to 1,500 words it runs, above that the writer confirms (Cancel the default), past `AILimits` it is refused before the Keychain is read. `runWholeDocument` re-checks it before `resolvedConnection()`. Any wording about what is sent names both cases: the passage you select, or the whole document when you choose Ask AI for it.
 
 **Rendering** (`rendering.md`)
 - Every INSERTION path (Return, list continuation, Insert Table, Tab's appended row, Reformat, image drop/paste) writes `MarkdownLineEnding.inForce(at:in:)`, never a bare `\n` — the document's endings are preserved, never normalised. It reads the caret's own line, never the whole document (per-keystroke). `ImageInsertionText` was outside this sweep and left a lone LF in Windows-authored files.
@@ -388,67 +390,114 @@ iPhone only. Details: `docs/architecture/iphone-app.md`.
   `docs/architecture/iphone-app.md`, "Write, Read and Preview".
 - **First run.** On first launch only (`FirstRunGate`, per-device flag
   `LineformiOSFirstRunCompleted.v1`, set when the writer reaches the document), `FirstRunOverlay`
-  plays the Mac's `FirstLaunchIntro/` web animation (referenced, not copied; file URLs only, no
-  network), "What to expect", then the three points (`FirstRunCopy`, the one place the copy lives).
-  Scene-storage recovery wins over it, and the launch call site skips it under XCTest. WebKit
-  stays in the iPhone target, never in the package.
-- **Styling sheet.** The "Aa" button (`StylingButton`, beside Menu) opens `StylingSheet`, the Mac's
+  shows the Mac's `FirstLaunchIntro/` wordmark writing itself, a little above centre
+  (`FirstRunLayout.welcomeLiftFraction`, 5 %; referenced, not copied; file URLs only, no network),
+  then Get Started; that shrinks the wordmark to the top and brings in the four points and Start
+  Writing (`FirstRunCopy`, the one place the copy lives), which opens the blank page WITHOUT the
+  keyboard. Nothing advances by itself. iPhone-only page changes go in through `FirstRunLineView.pageAdjustmentScript` and
+  `window.lineformIntro*` values the intro treats as absent on the Mac, so the Mac's intro is
+  unchanged. Scene-storage recovery wins over it, and the launch call site skips it under XCTest.
+  WebKit stays in the iPhone target, never in the package.
+- **Styling sheet.** The word menu's Themes opens `StylingSheet` (the "Aa" button is gone), the Mac's
   Reading Experience panel with the same controls, order, ranges and wording
   (`ReadingExperienceControls` in the package is the one definition both read). It writes only
   through `ReadingProfileStore` (per device). While a slider is held (`StylingDrag`), the editor
   skips the reading assists and the Read view skips rendering: on 1 MB they cost about 0.64 s and
   1.2 s per change. Both catch up once when the drag ends. Details: `docs/architecture/iphone-app.md`,
   "Styling sheet".
-- **History.** Menu ▸ History (listed only when the document has history) and Replace With… (the
-  selection row, its one entry point) enter History mode: read-only editor, passages on a
+- **History.** The word menu's History page (listed only when the document has history; tapping a
+  passage opens it) and Replace With… (the selection row, its one entry point) enter History mode: read-only editor, passages on a
   wash drawn by `CAShapeLayer`s behind the text (never text attributes; the Mac's receded ink is not
   drawn — phone exception), tap selects the innermost passage, ← / → / Esc on a hardware keyboard,
   and `HistoryCard` at the bottom (levels, versions, Delete, "Type a replacement", Done). The store is
   the Mac's router, made lazily (`LazyHistoryStore`: nothing at launch). Details:
   `docs/architecture/iphone-app.md`, "History".
-- **Menu sheet.** The floating Menu button opens `MenuSheet` (medium and large detents): Files,
-  Outline, Markdown Basics, Search, History (only with history), Document and Settings. Sections reach the editor only through
-  `EditorCommands`, each command ONE undo step. Files rename and Trash are coordinated
-  (`.forMoving`), unlike the Mac (ruling in `docs/architecture/files-sidebar.md`); Trash is
-  `trashItem` only, and nothing is scanned until Files or a file search is on screen. Convert to
+- **Word menu.** One ⋯ button (`MoreButton`) opens `WordMenu`, a full-screen overlay (never a
+  sheet) on the Mac's modal field wash (`WordMenuPalette` from `ChromeWash`, the one definition the
+  Mac's ⌘K field uses: the theme's hue and two diagonals in light, one near-black wash for every
+  dark theme; never on the document screen): Files, Outline, Markdown Basics, Themes,
+  Settings, Export & Print, Read Aloud, History (only with history), Connect Your AI, About
+  Lineform. Opening it and navigation are INSTANT (no motion; `WordMenuTiming` measures the open,
+  and nothing on that path may walk the document text — `WordMenuStatusCounts`,
+  `MarkdownEditor.Coordinator.knownText`); the corner button is ✕ on the words and ← in a page, and
+  every page keeps `WordMenuMetrics.bottomClearance` below its last item. A card (Recent, folder,
+  search) opens its document INSTANTLY: the menu closes straight to the page, no expansion or
+  fade (owner review 3, 2026-11-24). After a card or search result opens a document, a round
+  ← (`ResumeMenuButton`, ⋯'s twin at the bottom left, "Back to Files") reopens the menu exactly
+  where the writer was (`WordMenuSession`: page, search text and scope, scroll); it fades (0.22 s, as one
+  layer: `compositingGroup`) after 4 s or at the first keystroke, and never on a timer while VoiceOver runs. Markdown Basics is the
+  mockup's grouped cards (name · Markdown · copy); the Themes sheet has no title; Settings' "Clear
+  Version History" (same wording on the Mac) and "Show iCloud in Files" only when the iCloud
+  container resolves. The caret and selection handles are the highlighter's blue
+  (`HighlighterSelection.caretColor`, both apps).
+  Pages reach the editor only through `EditorCommands`, each command ONE undo step. Files rename,
+  Trash and moves between iCloud and On My iPhone are coordinated (`.forMoving`), never replacing,
+  unlike the Mac (ruling in `docs/architecture/files-sidebar.md`); Trash is `trashItem` only, and
+  nothing is scanned until Files or a file search is on screen. Find & Replace lives in Files'
+  search (never a bar on the page), in option C's one white card (field and replace row inside, a
+  fixed 40 pt field, no clear button): its scope button picks All documents (cards) or the open
+  document by its file name (count, ↑/↓, matches as rows, Replace / All through `EditorCommands`,
+  Replace All one undo step); replace never reaches another file. Files shows only the search, "iCloud" and "On My iPhone"
+  (each with its folders and a Lineform-blue round "+" making a document there), then Recent — no Workspace (the
+  store's root stays dormant, `FilesSection.phoneRoots`), no Open from Files…, no New Folder. On My
+  iPhone always shows beside iCloud, and New Document in a folder saves there
+  (`OpenDocument.newDocument(in:)`). Convert to
   Plain Text / Markdown is the Mac's state machine verbatim (`TextFormatConversion`), through the
-  editor. Check Document Now is the only whole-document spelling pass, and is never scheduled.
-  Settings are per device under the Mac's `Lineform.settings.*` keys (`AppSettings`); Automatic
-  Dark Mode applies the Mac's Quiet mapping from the trait collection's `userInterfaceStyle`.
-  Details: `docs/architecture/iphone-app.md`, "The Menu sheet".
+  editor. Check Document Now (the format row's Check Spelling, no longer in Settings) is the only
+  whole-document spelling pass, and is never scheduled. Settings are per device under the Mac's `Lineform.settings.*` keys (`AppSettings`);
+  Automatic Dark Mode applies the Mac's Quiet mapping from the trait collection's
+  `userInterfaceStyle`. Every menu ink is measured (`WordMenuTests.testPaletteContrast`). Details:
+  `docs/architecture/iphone-app.md`, "The word menu".
 - **Export, print, share, read aloud.** Same content as the Mac (`ExportContent`); `PhonePageLayout`
   paginates, and a line taller than the page never ends pagination or drops content (pictures are
   scaled to the page; any other tall line gets its own scaled page). UIKit calls
   `PhonePrintRenderer`'s `numberOfPages`/`drawPage` OFF main: never hop to main there; render on
   main beforehand. `OpenDocument.onDocumentSwap` is the only place read aloud stops on a swap.
-- **Selection row, comment field and AI.** A settled selection raises `SelectionRow` above the
-  keyboard or home indicator (`SelectionController`, 0.35 s): Ask AI (connected only), Heading,
-  Bold, Italic, Strikethrough, Code, List, Link, Blockquote, Replace With… (History's, where it
-  can keep the selection) and Another Word. It
+- **Selection row, the AI sheet and AI.** The format row is the owner's format-row option 1
+  exactly (`format-row-options.html`, `.b1`): a full-width 50 pt bar in the keyboard's colour docked
+  on the keyboard as the editor's `inputAccessoryView` (`FormatBarAccessoryView`; never a floating
+  capsule), every command its own light chip (36 pt, 8 pt corners, 4 pt apart, 44 pt targets), always
+  shown scrolled to its start. A settled selection raises `SelectionRow`
+  (`SelectionController`, 0.35 s), and while the editor has the
+  SOFTWARE keyboard up the row shows for a caret too (it goes with the keyboard; a hardware keyboard
+  alone raises none; nothing about it changes while an input method composes). With a caret, Bold,
+  Italic, Strikethrough and Code act on the word at the caret (else the Mac's paired markers, caret
+  between), List, Blockquote and Heading on its line, Link, Image and Insert Table at the caret, Ask
+  opens the AI sheet for the whole document (`askAIForWholeDocument`, `WholeDocumentAIPolicy`), and
+  Replace With… and Another Word are hidden; each is still ONE undo step. The ⋯ button and the Read
+  Aloud pill float just above the row. Its buttons: Ask (connected only, Lineform blue),
+  Heading (its levels open in place: ‹ back, Title, Section, Heading 3, Heading 4, Body), Bold, Italic, Strikethrough, Code, List, Link,
+  Blockquote ("Quote"), Image (Photos or Files, through the paste path), Insert Table ("Table"),
+  Reformat Table (on a table row), Replace With… (History's, where it can keep the selection),
+  Another Word, and Check Spelling last. It
   never changes the system edit menu, and the app's own selections never raise it. Ask AI opens
-  the comment field (note, Action menu, Send; nothing is sent while marked text is composing).
+  the AI sheet (`AISheetView`: three-quarters, drags to half or a quarter, no ✕), the Mac drawer's
+  conversation; the comment field is no longer opened.
   The review is `AIReviewOverlayTextView`, a read-only overlay with an EMPTY undo manager, and the
-  editor refuses every edit path while `isAIReviewActive`; cards sit above the keyboard. Each
-  accept is ONE undo group through `applyRuleEdit`. Menu ▸ Document ▸ Ask AI… sends the whole
-  document through the shared `WholeDocumentAIPolicy` (confirm above 1,500 words, refuse past
+  editor refuses every edit path while `isAIReviewActive`; the decisions are the sheet's. Each
+  accept is ONE undo group through `applyRuleEdit`. The word menu's Connect Your AI ▸ Ask AI… sends
+  the whole document through the shared `WholeDocumentAIPolicy` (confirm above 1,500 words, refuse past
   `AILimits` before the Keychain is read). History is the document's `PhoneHistoryController`
   (`AIHistoryRecording`), the one `SelectionController.aiHistory` assignment in `DocumentScreen`:
   AI is off in History mode, entering History ends a review, and History records once when a review
   ends (abandoning records nothing), as on the Mac. Details: `docs/architecture/iphone-app.md`, "The
-  selection row and comment field" and "AI actions and the review".
-- **Updates, announcements, review prompt, App Intents** (`LineformiOS/Integration/`). Menu ▸
-  Settings ▸ Check for Updates… is the Mac's command (`PhoneUpdateCommand`): only on a tap, one at a
+  selection row and comment field" and "AI actions and the review", and `editor-behavior.md` § The
+  AI drawer and sheet.
+- **Updates, announcements, review prompt, App Intents** (`LineformiOS/Integration/`). The word
+  menu's About Lineform ▸ Check for Updates… is the Mac's command (`PhoneUpdateCommand`): only on a tap, one at a
   time, and the lookup reads the iPhone's listing (`entity=software`, `kind` "software" only — the
   store answers with the Mac entry until an iPhone build is listed, and that is "couldn't check").
   Announcements are the Mac's store rules (`PhoneAnnouncementStore`: the switch gates the request,
-  once a day, checked when the scene becomes active, NEVER under XCTest at that call site) and a
-  floating card above the Menu and Aa buttons. The review prompt is the Mac's policy
+  once a day, checked when the scene becomes active, NEVER under XCTest at that call site), shown
+  as a small one-time sheet only when the page is idle (never over first run, the word menu,
+  History, an AI review or the keyboard). The review prompt is the Mac's policy
   (`PhoneReviewPromptStore`, use = `OpenDocument.onConfirmedWrite`; the app's store is inert under
   XCTest). New Lineform Note and Open in Lineform route through `OpenDocument` (`PhoneIntentRouter`,
   attached after `prepare`); `AppIntents.framework` stays LINKED in the iPhone target too, and
   `PhoneAppIntentsTests` asserts `Metadata.appintents`. Details: `docs/architecture/iphone-app.md`.
 - **Accessibility.** Every quiet chrome ink comes from `PhoneInk` (AA through `Theme.readableInk`,
-  measured by `PhoneInkContrastTests`), never a bare `.opacity`/`.secondary` on text. Document text
+  measured by `PhoneInkContrastTests`), or on the word menu's wash from `WordMenuPalette` (the
+  same `readableInk`, measured by `WordMenuTests`), never a bare `.opacity`/`.secondary` on text. Document text
   follows the reading profile and never tracks Dynamic Type; all chrome does. Anything drawn and
   hit-tested needs a non-visual path (custom actions or a rotor), and nothing a VoiceOver user
   needs dismisses itself on a timer. `LineformiOSUITests` runs `performAccessibilityAudit()` locally

@@ -76,9 +76,13 @@ public final class AIConnectionStore: ObservableObject {
     static let providerKey = "Lineform.ai.provider"
     static let otherEndpointKey = "Lineform.ai.otherEndpoint"
     static let otherModelKey = "Lineform.ai.otherModel"
-    /// Per provider: `Lineform.ai.tier.<provider.rawValue>`, holding an `AIModelTier` raw value.
-    static let tierKeyPrefix = "Lineform.ai.tier"
-    static func tierKey(for provider: AIProvider) -> String { [tierKeyPrefix, provider.rawValue].joined(separator: ".") }
+    /// Per provider: `Lineform.ai.model.<provider.rawValue>`, holding a model ID from
+    /// `AIProvider.models`.
+    static let modelKeyPrefix = "Lineform.ai.model"
+    static func modelKey(for provider: AIProvider) -> String { [modelKeyPrefix, provider.rawValue].joined(separator: ".") }
+    /// The earlier two-tier choice (`standard` / `higherQuality`), migrated to a model ID at init.
+    static let legacyTierKeyPrefix = "Lineform.ai.tier"
+    static func legacyTierKey(for provider: AIProvider) -> String { [legacyTierKeyPrefix, provider.rawValue].joined(separator: ".") }
 
     @Published public private(set) var connectedProvider: AIProvider?
     public private(set) var otherEndpoint: URL?
@@ -102,18 +106,37 @@ public final class AIConnectionStore: ObservableObject {
         }
         otherEndpoint = endpoint
         otherModel = defaults.string(forKey: Self.otherModelKey)
+        Self.migrateLegacyTiers(in: defaults)
     }
 
-    /// The writer's model tier for a provider; `.standard` until they choose otherwise.
-    public func tier(for provider: AIProvider) -> AIModelTier {
-        defaults.string(forKey: Self.tierKey(for: provider)).flatMap(AIModelTier.init(rawValue:)) ?? .standard
+    /// A saved tier becomes the model it sent; the tier key is then removed. A model already
+    /// chosen wins over a leftover tier.
+    private static func migrateLegacyTiers(in defaults: UserDefaults) {
+        for provider in AIProvider.allCases where provider != .other {
+            let tierKey = legacyTierKey(for: provider)
+            guard let tier = defaults.string(forKey: tierKey) else { continue }
+            if defaults.string(forKey: modelKey(for: provider)) == nil,
+               let id = provider.migratedModelID(fromTier: tier) {
+                defaults.set(id, forKey: modelKey(for: provider))
+            }
+            defaults.removeObject(forKey: tierKey)
+        }
     }
 
-    /// Takes effect at the next action; the key is untouched.
-    public func setTier(_ tier: AIModelTier, for provider: AIProvider) {
-        guard tier != self.tier(for: provider) else { return }
+    /// The writer's model for a provider: the cheapest until they choose otherwise, and again
+    /// when a saved ID is no longer in the list. Nil for Other (its model is typed).
+    public func model(for provider: AIProvider) -> AIModelOption? {
+        defaults.string(forKey: Self.modelKey(for: provider)).flatMap(provider.model(withID:))
+            ?? provider.defaultModel
+    }
+
+    /// Takes effect at the next action; the key is untouched. IDs not in the provider's list
+    /// are ignored.
+    public func setModel(_ model: AIModelOption, for provider: AIProvider) {
+        guard provider.model(withID: model.id) != nil,
+              defaults.string(forKey: Self.modelKey(for: provider)) != model.id else { return }
         objectWillChange.send()
-        defaults.set(tier.rawValue, forKey: Self.tierKey(for: provider))
+        defaults.set(model.id, forKey: Self.modelKey(for: provider))
     }
 
     public func connect(_ provider: AIProvider, key: String) -> AIConnectError? {
@@ -172,9 +195,8 @@ public final class AIConnectionStore: ObservableObject {
             return AIConnection(provider: provider, endpoint: endpoint,
                                 model: otherModel ?? "default", apiKey: key)
         }
-        guard let endpoint = provider.endpoint, let model = provider.model(for: tier(for: provider)),
-              let key else { return nil }
-        return AIConnection(provider: provider, endpoint: endpoint, model: model, apiKey: key)
+        guard let endpoint = provider.endpoint, let model = self.model(for: provider), let key else { return nil }
+        return AIConnection(provider: provider, endpoint: endpoint, model: model.id, apiKey: key)
     }
 
     /// True when the store says a big-three provider is connected but its key is gone from

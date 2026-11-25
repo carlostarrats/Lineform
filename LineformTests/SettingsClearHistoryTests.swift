@@ -63,11 +63,11 @@ final class SettingsClearHistoryTests: XCTestCase {
 
     func testClearHistoryStringsAreLocalized() throws {
         let english: [(String, String)] = [
-            (SettingsModal.clearHistoryTitle, "Clear History"),
-            (SettingsModal.clearHistoryNote, "Removes saved versions for every document. Your files are not changed."),
+            (SettingsModal.clearHistoryTitle, "Clear Version History"),
+            (SettingsModal.clearHistoryNote, "Deletes the earlier versions Lineform kept of passages you changed. Your documents stay exactly as they are."),
             (SettingsModal.clearHistoryButtonTitle, "Clear…"),
-            (SettingsModal.clearHistoryConfirmTitle, "Clear all history?"),
-            (SettingsModal.clearHistoryConfirmMessage, "Saved versions for every document will be removed. This can't be undone. Your files are not changed."),
+            (SettingsModal.clearHistoryConfirmTitle, "Clear version history?"),
+            (SettingsModal.clearHistoryConfirmMessage, "Earlier versions of passages in every document will be removed. This can't be undone. Your documents aren't changed."),
         ]
         for language in ["es", "fr", "de", "ja", "zh-Hans"] {
             let bundle = try XCTUnwrap(

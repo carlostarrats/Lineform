@@ -1,10 +1,11 @@
+import SwiftUI
 import UIKit
 import WebKit
 import XCTest
 @testable import LineformiOS
 
-/// First run (roadmap step 11): the launch gate, the stage order, the copy and the bundled line
-/// animation.
+/// First run (roadmap step 11, redesigned 2026-11-24): the launch gate, the stage order (nothing
+/// advances by itself), the copy and the bundled wordmark animation.
 @MainActor
 final class FirstRunTests: XCTestCase {
     private var suiteName = ""
@@ -48,37 +49,100 @@ final class FirstRunTests: XCTestCase {
 
     // MARK: - Stages
 
-    func testStagesRunInOrder() {
-        XCTAssertEqual(FirstRunStage.allCases, [.line, .expect, .points, .done])
-        XCTAssertEqual(FirstRunStage.line.next, .expect)
-        XCTAssertEqual(FirstRunStage.expect.next, .points)
+    func testStagesRunInOrderWithNoWhatToExpect() {
+        XCTAssertEqual(FirstRunStage.allCases, [.welcome, .points, .done])
+        XCTAssertEqual(FirstRunStage.welcome.next, .points)
         XCTAssertEqual(FirstRunStage.points.next, .done)
-    }
-
-    func testAdvancePastDoneIsIgnored() {
         XCTAssertEqual(FirstRunStage.done.next, .done)
     }
 
-    func testOnlyTimedStagesAdvanceThemselves() {
-        for reduceMotion in [false, true] {
-            XCTAssertNotNil(FirstRunStage.line.autoAdvanceDelay(reduceMotion: reduceMotion))
-            XCTAssertNotNil(FirstRunStage.expect.autoAdvanceDelay(reduceMotion: reduceMotion))
-            XCTAssertNil(FirstRunStage.points.autoAdvanceDelay(reduceMotion: reduceMotion))
-            XCTAssertNil(FirstRunStage.done.autoAdvanceDelay(reduceMotion: reduceMotion))
-        }
+    func testTimingPacesTheScreenAsApproved() {
+        XCTAssertEqual(FirstRunTiming.writeSeconds, 3.5)
+        XCTAssertEqual(FirstRunTiming.shrinkSeconds, 0.9)
+        let delays = (0..<FirstRunCopy.pointItems.count).map(FirstRunTiming.pointDelay)
+        XCTAssertEqual(delays, delays.sorted(), "the points arrive one after another")
+        XCTAssertEqual(Set(delays).count, delays.count)
+        XCTAssertGreaterThan(
+            FirstRunTiming.startWritingDelay(pointCount: delays.count), delays.last ?? 0,
+            "Start Writing comes last"
+        )
+    }
+
+    // MARK: - Flow
+
+    func testNothingAdvancesWithoutATap() {
+        var finishes = 0
+        let flow = FirstRunFlow(defaults: defaults) { finishes += 1 }
+        XCTAssertEqual(flow.stage, .welcome)
+        XCTAssertFalse(flow.isWordmarkWritten)
+        flow.wordmarkDidFinishWriting()
+        XCTAssertTrue(flow.isWordmarkWritten, "the written wordmark only reveals Get Started")
+        XCTAssertEqual(flow.stage, .welcome, "the page finishing writing does not move on")
+        XCTAssertEqual(finishes, 0)
+    }
+
+    func testEachButtonAdvancesOnlyFromItsOwnStage() {
+        let flow = FirstRunFlow(defaults: defaults) {}
+        XCTAssertFalse(flow.advance(from: .points), "Start Writing does nothing on the welcome")
+        XCTAssertEqual(flow.stage, .welcome)
+        XCTAssertTrue(flow.advance(from: .welcome))
+        XCTAssertEqual(flow.stage, .points)
+        XCTAssertFalse(flow.advance(from: .welcome), "a second Get Started never skips the points")
+        XCTAssertEqual(flow.stage, .points)
+    }
+
+    func testFlagIsWrittenOnlyOnStartWriting() {
+        var finishes = 0
+        let flow = FirstRunFlow(defaults: defaults) { finishes += 1 }
+        flow.wordmarkDidFinishWriting()
+        flow.advance(from: .welcome)
+        XCTAssertFalse(defaults.bool(forKey: FirstRunGate.completedKey))
+        XCTAssertEqual(finishes, 0)
+        XCTAssertTrue(flow.advance(from: .points))
+        XCTAssertEqual(flow.stage, .done)
+        XCTAssertTrue(defaults.bool(forKey: FirstRunGate.completedKey))
+        XCTAssertEqual(finishes, 1)
+    }
+
+    func testDoubleStartWritingFinishesOnceAndWritesTheFlagOnce() throws {
+        let counting = try XCTUnwrap(CountingDefaults(suiteName: suiteName))
+        var finishes = 0
+        let flow = FirstRunFlow(defaults: counting) { finishes += 1 }
+        flow.advance(from: .welcome)
+        XCTAssertTrue(flow.advance(from: .points))
+        XCTAssertFalse(flow.advance(from: .points))
+        XCTAssertFalse(flow.advance(from: .done))
+        XCTAssertEqual(finishes, 1)
+        XCTAssertEqual(counting.completedWrites, 1)
+        XCTAssertTrue(counting.bool(forKey: FirstRunGate.completedKey))
+        XCTAssertTrue(flow.hasFinished)
+    }
+
+    func testLateWrittenSignalAfterGetStartedIsIgnored() {
+        let flow = FirstRunFlow(defaults: defaults) {}
+        flow.advance(from: .welcome)
+        flow.wordmarkDidFinishWriting()
+        XCTAssertFalse(flow.isWordmarkWritten)
+        XCTAssertEqual(flow.stage, .points)
     }
 
     // MARK: - Copy and resources
 
-    func testCopyIsTheSpecWording() throws {
+    func testCopyIsTheApprovedWording() throws {
         try skipUnlessEnglishInterface()
-        XCTAssertEqual(FirstRunCopy.points, [
-            "Free, and everything stays on your device.",
-            "Your files stay in iCloud, and sync with Lineform on your Mac if you use it there.",
-            "Markdown, styled PDFs, and AI only if you connect your own.",
+        XCTAssertEqual(FirstRunCopy.pointItems.map(\.title), [
+            "Free and private", "Real files, in iCloud", "More than text", "Made to be read",
         ])
-        XCTAssertEqual(FirstRunCopy.heading, "What to expect")
+        XCTAssertEqual(FirstRunCopy.pointItems.map(\.text), [
+            "No account, nothing to sign up for. Your writing stays with you.",
+            "Plain Markdown files that sync with Lineform for Mac and open anywhere.",
+            "Images, tables, math and diagrams. Export styled PDFs in a tap.",
+            "Reading themes, accessible fonts and read aloud. AI only if you connect your own.",
+        ])
+        XCTAssertEqual(FirstRunCopy.tagline, "Simple markdown editing")
+        XCTAssertEqual(FirstRunCopy.getStarted, "Get Started")
         XCTAssertEqual(FirstRunCopy.startWriting, "Start Writing")
+        XCTAssertEqual(FirstRunCopy.allStrings.count, 3 + 2 * FirstRunCopy.pointItems.count)
     }
 
     func testIntroResourcesAreBundled() {
@@ -88,9 +152,7 @@ final class FirstRunTests: XCTestCase {
 
     func testCopyIsTranslated() throws {
         try skipUnlessEnglishInterface()
-        let keys = [FirstRunCopy.heading] + FirstRunCopy.points + [
-            FirstRunCopy.startWriting, "Continue", "Welcome to Lineform", "Simple markdown editing",
-        ]
+        let keys = FirstRunCopy.allStrings + ["Welcome to Lineform"]
         for language in ["es", "fr", "de", "ja", "zh-Hans"] {
             let path = try XCTUnwrap(Bundle.main.path(forResource: language, ofType: "lproj"), "no \(language).lproj")
             let bundle = try XCTUnwrap(Bundle(path: path))
@@ -101,36 +163,101 @@ final class FirstRunTests: XCTestCase {
         }
     }
 
-    func testReduceMotionHoldsTheFinishedLineShorter() throws {
-        let normal = try XCTUnwrap(FirstRunStage.line.autoAdvanceDelay(reduceMotion: false))
-        let reduced = try XCTUnwrap(FirstRunStage.line.autoAdvanceDelay(reduceMotion: true))
-        XCTAssertLessThan(reduced, normal)
+    func testEveryPointHasItsOwnSymbol() {
+        XCTAssertEqual(FirstRunCopy.pointItems.count, 4)
+        for point in FirstRunCopy.pointItems {
+            XCTAssertNotNil(UIImage(systemName: point.symbol), "'\(point.symbol)' is not an SF Symbol")
+            XCTAssertFalse(point.title.isEmpty)
+            XCTAssertFalse(point.text.isEmpty)
+        }
+        XCTAssertNotNil(UIImage(systemName: "arrow.right"), "Get Started's arrow")
     }
 
-    // MARK: - Line timing
+    // MARK: - Layout
 
-    func testLineHoldRunsFromThePagesFirstFrame() throws {
-        let start = ContinuousClock.now
-        let ready = start + .seconds(1)
-        let deadline = try XCTUnwrap(FirstRunTiming.deadline(for: .line, stageStart: start, lineReadyAt: ready, reduceMotion: false))
-        XCTAssertEqual(deadline, ready + .milliseconds(2600))
-        let reduced = try XCTUnwrap(FirstRunTiming.deadline(for: .line, stageStart: start, lineReadyAt: ready, reduceMotion: true))
-        XCTAssertEqual(reduced, ready + .milliseconds(1200))
-    }
-
-    func testLineAdvancesAtTheCapWhenThePageNeverPaintsOrPaintsLate() {
-        let start = ContinuousClock.now
-        XCTAssertEqual(FirstRunTiming.deadline(for: .line, stageStart: start, lineReadyAt: nil, reduceMotion: false), start + .seconds(4))
-        XCTAssertEqual(
-            FirstRunTiming.deadline(for: .line, stageStart: start, lineReadyAt: start + .seconds(3), reduceMotion: false),
-            start + .seconds(4)
+    func testWordmarkStartsCentredAndEndsSmallAtTheTop() {
+        // iPhone 17 Pro in portrait: 402 × 874 pt, 62 pt top and 34 pt bottom safe area.
+        let layout = FirstRunLayout(
+            size: CGSize(width: 402, height: 874 - 62 - 34),
+            safeArea: EdgeInsets(top: 62, leading: 0, bottom: 34, trailing: 0)
+        )
+        XCTAssertEqual(layout.centerY + 62, 874 / 2, accuracy: 0.001, "the screen's centre")
+        // Lifted 5 % of the screen above the centre, so the group with Get Started reads centred.
+        XCTAssertEqual(layout.wordmarkCenterY + 62, 874 / 2 - 874 * 0.05, accuracy: 0.001)
+        XCTAssertTrue(FirstRunLineView.pageAdjustmentScript.contains("translate3d(0, -5vh, 0)"),
+                      "the page lifts the wordmark by the same amount")
+        XCTAssertEqual(layout.wordmarkSize.width, 402 * 0.78, accuracy: 0.001)
+        // The web view scales about its centre: the lifted wordmark lands on the top position.
+        XCTAssertEqual(layout.centerY - layout.welcomeLift * FirstRunLayout.topScale + layout.topOffset,
+                       layout.topWordmarkCenterY, accuracy: 0.001)
+        XCTAssertLessThan(layout.topWordmarkCenterY, layout.pointsTop, "the points start below the small wordmark")
+        XCTAssertGreaterThan(
+            layout.pointsTop,
+            FirstRunLayout.topMargin + layout.wordmarkSize.height * FirstRunLayout.topScale
         )
     }
 
-    func testOtherStagesTimeFromTheirStart() {
-        let start = ContinuousClock.now
-        XCTAssertEqual(FirstRunTiming.deadline(for: .expect, stageStart: start, lineReadyAt: nil, reduceMotion: false), start + .milliseconds(1800))
-        XCTAssertNil(FirstRunTiming.deadline(for: .points, stageStart: start, lineReadyAt: nil, reduceMotion: false))
+    // MARK: - Web view
+
+    func testNavigationAllowsOnlyFiles() {
+        typealias Coordinator = FirstRunLineView.Coordinator
+        XCTAssertTrue(Coordinator.allows(URL(fileURLWithPath: "/tmp/index.html")))
+        XCTAssertFalse(Coordinator.allows(URL(string: "https://lineform.app")))
+        XCTAssertFalse(Coordinator.allows(URL(string: "http://example.com")))
+        XCTAssertFalse(Coordinator.allows(URL(string: "about:blank")))
+        XCTAssertFalse(Coordinator.allows(URL(string: "data:text/html,hi")))
+        XCTAssertFalse(Coordinator.allows(nil))
+    }
+
+    func testLocalOnlyContentRulesCompile() async throws {
+        let folder = FileManager.default.temporaryDirectory.appendingPathComponent("FirstRunRules-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: folder) }
+        let store = try XCTUnwrap(WKContentRuleListStore(url: folder))
+        let rules = try await store.compileContentRuleList(
+            forIdentifier: FirstRunLineView.contentRuleListIdentifier,
+            encodedContentRuleList: FirstRunLineView.localOnlyContentRules
+        )
+        XCTAssertNotNil(rules)
+    }
+
+    func testPageAdjustmentSlowsTheWriteAndPostsWrittenOnce() {
+        let script = FirstRunLineView.pageAdjustmentScript
+        XCTAssertTrue(script.contains("setControl('writeTime', 6, 3.5)"), "the write-on takes 3.5 s")
+        XCTAssertTrue(script.contains("messageHandlers.\(FirstRunLineView.messageName).postMessage('written')"))
+        XCTAssertTrue(script.contains("window.lineformQuiet"))
+        XCTAssertTrue(FirstRunLineView.quietScript.contains("lineformQuiet"))
+        // The page's own controls are hidden; the overlay draws the native tagline and buttons.
+        XCTAssertTrue(script.contains(".intro-tagline, .start-button, .tuning-panel { display: none !important; }"))
+        XCTAssertFalse(script.contains("http"), "the adjustment loads nothing")
+    }
+
+    /// The Mac's intro keeps its own timing and knows nothing of first run: the iPhone's changes
+    /// are the injected script plus `lineformIntroColorBoost`, which the intro treats as 1 when
+    /// absent (the Mac never sets it).
+    func testMacIntroKeepsItsOwnBehaviour() throws {
+        let folder = try XCTUnwrap(Bundle.main.url(forResource: "FirstLaunchIntro", withExtension: nil))
+        let script = try String(contentsOf: folder.appendingPathComponent("intro.js"), encoding: .utf8)
+        let html = try String(contentsOf: folder.appendingPathComponent("index.html"), encoding: .utf8)
+        XCTAssertTrue(html.contains("id=\"writeTime\" type=\"range\" min=\"0.25\" max=\"1.6\" value=\"1\""), "the Mac writes in 1 s")
+        XCTAssertFalse(script.contains("lineformFirstRun"))
+        XCTAssertTrue(script.contains("Number(window.lineformIntroColorBoost) || 1"), "no boost unless the iPhone sets it")
+    }
+
+    // MARK: - Launch
+
+    func testHostedLaunchNeverShowsFirstRun() {
+        XCTAssertTrue(LineformiOSApp.isRunningUnderTests)
+        RunLoop.main.run(until: Date().addingTimeInterval(0.3))
+        let windows = UIApplication.shared.connectedScenes
+            .compactMap { $0 as? UIWindowScene }
+            .flatMap(\.windows)
+        XCTAssertFalse(windows.isEmpty)
+        XCTAssertFalse(windows.contains { Self.containsWebView($0) }, "the test host shows no first run")
+    }
+
+    private static func containsWebView(_ view: UIView) -> Bool {
+        view is WKWebView || view.subviews.contains { containsWebView($0) }
     }
 
     // MARK: - Presentation latch
@@ -166,132 +293,6 @@ final class FirstRunTests: XCTestCase {
         XCTAssertFalse(presentation.isShowing)
         XCTAssertFalse(presentation.restored(bookmark: "", path: ""))
         XCTAssertFalse(presentation.isShowing)
-    }
-
-    // MARK: - Flow
-
-    func testDoubleAdvanceFinishesOnceAndWritesTheFlagOnce() throws {
-        let counting = try XCTUnwrap(CountingDefaults(suiteName: suiteName))
-        var finishes = 0
-        let start = ContinuousClock.now
-        let flow = FirstRunFlow(defaults: counting, now: start) { finishes += 1 }
-        flow.userAdvance(at: start + .seconds(1))
-        flow.userAdvance(at: start + .seconds(2))
-        XCTAssertEqual(flow.stage, .points)
-        XCTAssertTrue(flow.userAdvance(at: start + .seconds(3)))
-        XCTAssertFalse(flow.userAdvance(at: start + .seconds(4)))
-        XCTAssertFalse(flow.autoAdvance(from: .done, at: start + .seconds(5)))
-        XCTAssertEqual(finishes, 1)
-        XCTAssertEqual(counting.completedWrites, 1)
-        XCTAssertTrue(counting.bool(forKey: FirstRunGate.completedKey))
-        XCTAssertTrue(flow.hasFinished)
-    }
-
-    func testFlagIsWrittenOnlyOnReachingDone() {
-        let start = ContinuousClock.now
-        var finishes = 0
-        let flow = FirstRunFlow(defaults: defaults, now: start) { finishes += 1 }
-        flow.autoAdvance(from: .line, at: start + .seconds(3))
-        flow.autoAdvance(from: .expect, at: start + .seconds(5))
-        XCTAssertEqual(flow.stage, .points)
-        XCTAssertFalse(defaults.bool(forKey: FirstRunGate.completedKey))
-        XCTAssertEqual(finishes, 0)
-        flow.userAdvance(at: start + .seconds(6))
-        XCTAssertEqual(flow.stage, .done)
-        XCTAssertTrue(defaults.bool(forKey: FirstRunGate.completedKey))
-        XCTAssertEqual(finishes, 1)
-    }
-
-    func testTapRightAfterTheTimerDoesNotSkipAStage() {
-        let start = ContinuousClock.now
-        let flow = FirstRunFlow(defaults: defaults, now: start) {}
-        XCTAssertTrue(flow.autoAdvance(from: .line, at: start + .seconds(3)))
-        XCTAssertFalse(flow.userAdvance(at: start + .seconds(3) + .milliseconds(50)))
-        XCTAssertEqual(flow.stage, .expect, "the heading is not skipped")
-        XCTAssertTrue(flow.userAdvance(at: start + .seconds(3) + .milliseconds(200)))
-        XCTAssertEqual(flow.stage, .points)
-    }
-
-    func testTimerForAStageAlreadyLeftDoesNothing() {
-        let start = ContinuousClock.now
-        let flow = FirstRunFlow(defaults: defaults, now: start) {}
-        flow.userAdvance(at: start + .seconds(1))
-        XCTAssertFalse(flow.autoAdvance(from: .line, at: start + .seconds(1)))
-        XCTAssertEqual(flow.stage, .expect)
-    }
-
-    func testOnlyTheFirstReadySignalOnTheLineCounts() {
-        let start = ContinuousClock.now
-        let flow = FirstRunFlow(defaults: defaults, now: start) {}
-        flow.lineDidBecomeReady(at: start + .seconds(1))
-        flow.lineDidBecomeReady(at: start + .seconds(2))
-        XCTAssertEqual(flow.lineReadyAt, start + .seconds(1))
-        XCTAssertEqual(flow.autoAdvanceDeadline(reduceMotion: false), start + .seconds(1) + .milliseconds(2600))
-    }
-
-    // MARK: - Points
-
-    func testEveryPointHasItsOwnSymbol() {
-        XCTAssertEqual(FirstRunCopy.pointItems.map(\.text), FirstRunCopy.points)
-        XCTAssertEqual(FirstRunCopy.pointItems.count, FirstRunCopy.points.count)
-        for point in FirstRunCopy.pointItems {
-            XCTAssertNotNil(UIImage(systemName: point.symbol), "'\(point.symbol)' is not an SF Symbol")
-        }
-    }
-
-    // MARK: - Web view
-
-    func testNavigationAllowsOnlyFiles() {
-        typealias Coordinator = FirstRunLineView.Coordinator
-        XCTAssertTrue(Coordinator.allows(URL(fileURLWithPath: "/tmp/index.html")))
-        XCTAssertFalse(Coordinator.allows(URL(string: "https://lineform.app")))
-        XCTAssertFalse(Coordinator.allows(URL(string: "http://example.com")))
-        XCTAssertFalse(Coordinator.allows(URL(string: "about:blank")))
-        XCTAssertFalse(Coordinator.allows(URL(string: "data:text/html,hi")))
-        XCTAssertFalse(Coordinator.allows(nil))
-    }
-
-    func testLocalOnlyContentRulesCompile() async throws {
-        let folder = FileManager.default.temporaryDirectory.appendingPathComponent("FirstRunRules-\(UUID().uuidString)")
-        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
-        defer { try? FileManager.default.removeItem(at: folder) }
-        let store = try XCTUnwrap(WKContentRuleListStore(url: folder))
-        let rules = try await store.compileContentRuleList(
-            forIdentifier: FirstRunLineView.contentRuleListIdentifier,
-            encodedContentRuleList: FirstRunLineView.localOnlyContentRules
-        )
-        XCTAssertNotNil(rules)
-    }
-
-    func testTaglineInjectionIsEscaped() throws {
-        let hostile = "Say \"hi\" \\ it's </script><script>alert(1)</script>\nnext"
-        let script = try XCTUnwrap(FirstRunLineView.pageAdjustmentScript(tagline: hostile))
-        XCTAssertFalse(script.contains("</script>"), "a closing script tag cannot appear in the injected source")
-        let literal = try XCTUnwrap(FirstRunLineView.javaScriptStringLiteral(hostile))
-        XCTAssertTrue(script.contains("tagline.textContent = \(literal);"))
-        let decoded = try JSONDecoder().decode(String.self, from: Data(literal.utf8))
-        XCTAssertEqual(decoded, hostile, "the literal reads back as exactly the tagline")
-    }
-
-    func testReadyScriptPostsToTheRemovedHandlerName() {
-        XCTAssertTrue(FirstRunLineView.readyScript.contains("messageHandlers.\(FirstRunLineView.readyMessageName).postMessage(\"ready\")"))
-        XCTAssertTrue(FirstRunLineView.readyScript.contains("requestAnimationFrame"))
-    }
-
-    // MARK: - Launch
-
-    func testHostedLaunchNeverShowsFirstRun() {
-        XCTAssertTrue(LineformiOSApp.isRunningUnderTests)
-        RunLoop.main.run(until: Date().addingTimeInterval(0.3))
-        let windows = UIApplication.shared.connectedScenes
-            .compactMap { $0 as? UIWindowScene }
-            .flatMap(\.windows)
-        XCTAssertFalse(windows.isEmpty)
-        XCTAssertFalse(windows.contains { Self.containsWebView($0) }, "the test host shows no first run")
-    }
-
-    private static func containsWebView(_ view: UIView) -> Bool {
-        view is WKWebView || view.subviews.contains { containsWebView($0) }
     }
 }
 

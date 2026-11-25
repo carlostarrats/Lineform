@@ -604,12 +604,17 @@ struct AIReviewOverlay: UIViewRepresentable {
     static let offsetHoldDelays: [TimeInterval] = [0, 0.05, 0.15, 0.3, 0.5]
 
     private static func holdOffset(_ offset: CGPoint, of editor: UIScrollView) {
+        // Held as a distance below the top inset, not a raw offset: the inset moves while the
+        // keyboard arrives (the safe area changes under it), and a raw offset re-asserted then
+        // landed that much off the handed-back line.
+        let belowTop = offset.y + editor.adjustedContentInset.top
         func reassert() {
-            guard !editor.isTracking, !editor.isDecelerating,
-                  abs(editor.contentOffset.y - offset.y) > 0.5 else { return }
             let top = -editor.adjustedContentInset.top
+            let target = belowTop + top
+            guard !editor.isTracking, !editor.isDecelerating,
+                  abs(editor.contentOffset.y - target) > 0.5 else { return }
             let maximum = max(top, editor.contentSize.height + editor.adjustedContentInset.bottom - editor.bounds.height)
-            editor.setContentOffset(CGPoint(x: editor.contentOffset.x, y: min(max(top, offset.y), maximum)), animated: false)
+            editor.setContentOffset(CGPoint(x: editor.contentOffset.x, y: min(max(top, target), maximum)), animated: false)
         }
         reassert()
         for delay in offsetHoldDelays {

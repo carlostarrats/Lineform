@@ -7,7 +7,7 @@ these are the same load-bearing notes, not a summary. Read this file before chan
 in this area.
 
 - Settings: **Lineform › Settings… (⌘,)** presents `SettingsModal` (`Lineform/App/SettingsView.swift`) as a **Muse-style in-window modal** (a `MuseModalChrome` light card over a `MuseModalScrim`, close button, Esc/outside-click dismissal), deliberately **not** a native `Settings { }` scene or window, so every modal in the app matches. `MuseModalScrim` (and the presented card, via `View.modalArrowCursor()` / `onContinuousHover`) actively reasserts the **arrow cursor** while a modal is up, so the editor `NSTextView`'s I-beam doesn't linger over the scrim or buttons (suppressing it at the text view was tried and didn't work — the text view's `cursorUpdate` doesn't fire over the on-top modal; the cursor was simply stuck, so it must be re-set over the modal surfaces). `onContinuousHover` alone is **not enough over AppKit-backed controls**: the settings switches and the header's close button swallow the mouse-moved stream, so the stuck I-beam survived on exactly the things you click. Those two surfaces additionally carry `CursorRectView(cursor: .arrow)` (`Lineform/Editor/EditorFloatingControlSupport.swift`) — a zero-hit-test layer whose tracking area is **geometric**, so it keeps reporting under controls layered above it, and which seeds its hover state from the pointer's current position in `updateTrackingAreas` (a tracking area installed while the pointer is already inside sends no `mouseEntered`, so ⌘, under a resting pointer would otherwise keep the I-beam until the user moved). It is deliberately attached to `MuseModalHeader` and the settings rows, **never** to `MuseModalCard` itself: ⌘K's search field shares that card and must keep its I-beam. The menu item lives in `AppCommands` (`CommandGroup(replacing: .appInfo)`) and posts `LineformAppNotification.showSettings` (no payload); the **main** window's `EditorContainerView` presents the modal (main-window matching, not key-window payloads — it still works when a panel like About is key and can't match several windows at once). With zero documents open, the menu item creates a new document first (what ⌘N would do) so ⌘, always works. The card width clamps to the window (`SettingsModal.cardWidth(availableWidth:)`) so narrow windows don't clip it. State lives in `LineformSettingsStore` (`Lineform/App/LineformSettings.swift`) — a shared `ObservableObject` backed by `UserDefaults` (`Lineform.settings.*` keys) via `@Published didSet`, **not** `@AppStorage`, mirroring `HiddenFoldersMenuState`; init reads backing storage directly (didSet fires on init assignments) with explicit fallbacks so absent keys yield the intended defaults. Three sidebar/launch prefs (plus Automatic Dark Mode, below, and the announcements and default-app rows): **Show sidebar on launch** (default on — a deliberate change from the old always-closed-on-launch behavior; seeds `EditorContainerView.isShowingOutline` at window construction, governing new windows only); **Allow root folders to expand and collapse** (tri-state, default nil/adaptive: `allowRootFolderCollapseChoice` is nil until the user touches the toggle, and the effective behavior — `LineformSettingsStore.effectiveAllowRootFolderCollapse(choice:iCloudRootVisible:)` — adapts: with no explicit choice, a lone Workspace root (iCloud unavailable or hidden) auto-locks open since one section has nothing to collapse against, so the EFFECTIVE default is off on Debug/signed-out Macs and on when iCloud shows; an explicit choice is persisted and always wins, and clearing it to nil `removeObject`s the key so a reset actually sticks. The "iCloud root visible" input is `OutlineFileBrowserStore.lastKnownICloudAvailable` — a **persisted** last-known fact every iCloud scan records (`Lineform.outline.lastKnownICloudAvailable`, optimistic true when never recorded) — NOT live root state, which is `.unavailable` until the deferred Files-tab scan and would flash locked geometry on first tab reveals; `ICloudSettingViewModel` seeds from the same persisted fact so the Settings toggle and sidebar agree from frame one. Locked geometry: locking only hides the root's disclosure chevron — the chevron slot is **always reserved** so root/file/folder icons stay pinned to the shared sidebar icon column (`OutlineSidebarView.sidebarIconColumnLeading`, 24pt) whether or not a chevron is drawn (no section left-shift on lock; the older `filesLockedDescendantShift` reclaim was removed when the sidebar adopted the unified icon column in the 2026-07-17 nav cleanup). The whole root header — chevron, icon, title — is the collapse click target, not just the title); and **Show iCloud in sidebar** (a **hide-only** persisted toggle that never writes to or deletes anything in iCloud Drive; hiding is render-only, so a live Files tab still scans/watches the container as usual — trivial cost since the folder must be empty to hide, and deliberately simpler than gating the store on the setting). The settings store is **injected down the view tree** (`EditorContainerView` → `OutlineSidebarView` → `OutlineFileBrowserView`, defaulting to `.shared` in production) so tests isolate it on their own defaults suite; the two sidebar prefs apply **live** via observation (no notification plumbing), composed through pure, tested helpers `OutlineSidebarView.iCloudRootVisible` / `rootDisclosureVisible` / `rootIsCollapsed`. The iCloud toggle is gated by `ICloudFolderProbe` (behind the `ICloudFolderProbing` protocol, read-only, resolves the container via the same `lineformICloudDocumentsURL` helper the sidebar uses, and checks emptiness with `OutlineFileBrowserStore.documentsFolderIsEmpty` — **conservative**: hidden/dot-folder content counts as non-empty regardless of the Show Hidden Folders setting; top-level-only scan since directories count regardless of contents; run **off-main** in a `Task.detached` fired only from the modal's `.task`) surfaced as an inline **"Checking…"** note through `ICloudSettingViewModel` (caches the last-known status across opens; latest-wins generation guard on refresh): the row is **always visible** — when iCloud is unavailable (Debug / not signed in) it renders disabled with "iCloud is not available on this Mac." (hiding it entirely read as a missing feature) — and the toggle is otherwise disabled only to block turning **off** a non-empty folder; re-showing a hidden root is always allowed (`ICloudSettingViewModel.isToggleDisabled(currentlyShown:)`), so a user can never get stuck unable to bring iCloud back. This preserves the iCloud-laziness invariant: the probe is self-contained, touches no window's `OutlineFileBrowserStore`, and never runs at launch/construction. Hosted editor motion tests inject an isolated store with `showSidebarOnLaunch=false` so the default-open sidebar doesn't perturb their geometry.
-- Settings ▸ **Clear History** (2026-11-12): a row whose `.bordered` `.small` **Clear…** button (matching Make Default, with the same `CursorRectView`) opens a destructive confirmation alert — Cancel is the Return default, as for sidebar Delete. Confirming calls `SettingsModal.clearHistory(store:)` → `DocumentHistoryController.clearAllHistory(in:)`, which empties the History store and refreshes every open editor (see `editor-behavior.md` § History). Document files are never touched.
+- Settings ▸ **Clear Version History** (2026-11-12; renamed from Clear History 2026-11-24 so it never sounds like it deletes documents): a row whose `.bordered` `.small` **Clear…** button (matching Make Default, with the same `CursorRectView`) opens a destructive confirmation alert — Cancel is the Return default, as for sidebar Delete. Confirming calls `SettingsModal.clearHistory(store:)` → `DocumentHistoryController.clearAllHistory(in:)`, which empties the History store and refreshes every open editor (see `editor-behavior.md` § History). Document files are never touched.
 
 **iCloud setting behavior (2026-08-13):** **Show iCloud in sidebar** is always allowed whenever iCloud is available, including when the Lineform iCloud folder has files: hiding it changes neither the files nor their availability in a native Save panel, so an emptiness gate only traps the user in the on state. When it is off, File ▸ Save / Save As for an untitled tab proposes the workspace folder, or the user Documents folder if no workspace exists, instead of Lineform iCloud. This is only an initial location — a writer can still explicitly choose iCloud. Untitled tabs also keep their `NSDocument` change count clear while typing, so AppKit cannot auto-save or show a save panel; `DocumentTab.hasUnsavedWork` and `WindowCloseController` retain the user-initiated Save / Don't Save / Cancel close flow. Existing files continue to use native autosave.
 
@@ -96,6 +96,13 @@ Mac-conventional place and flagged that — moving it is one line in `AppCommand
 
 ## Bring your own AI (2026-11-12)
 
+> **2026-11-24:** the writer talks to the AI in a conversation — the Mac's right-side drawer (in
+> Reading Experience's inspector slot) and the iPhone's sheet — with quick actions, curated prompt
+> words, answers to questions, versions and blanks. The connection, the wire and the Keychain are
+> unchanged; questions add one request shape (`questionPrompt`, JSON `answer`), and Custom edits
+> may return `answer` or `assumptions`. Nothing is sent while typing. Details: `editor-behavior.md`
+> § The AI drawer and sheet.
+
 `Packages/LineformCore/Sources/LineformCore/AI/` (model, prompts, clients, Keychain, review composition) and
 `Lineform/AI/` (`AIActionController`, `AISentenceSplitter`, the review and Connect views). What an action does to the document is in `editor-behavior.md` § AI actions and
 review; this is the connection, the wire, and the rules around them.
@@ -117,14 +124,19 @@ review; this is the connection, the wire, and the rules around them.
   OpenAI-compatible address, optional key and model). Return in any field connects; there is no
   default button. ⌘W is Close Tab as with Settings up (the old window-closing special case,
   `closeTabClosesWindowDirectly`, went with the window).
-- **Consent IS the Connect button's label.** It names what is sent and to whom:
-  "Connect — Lineform will send the text you choose to Anthropic / OpenAI / Google / <host>"
-  ("…to that address" before a host is typed), above the privacy note ("Lineform sends only the
-  text you act on, only when you choose an AI action, directly to the provider you connected, under
-  your account and that provider's terms. Lineform's developer receives nothing.") and the billing
-  note (a Claude/ChatGPT/Gemini subscription does not cover API use). This is the App Review 5.1.2(i)
-  disclosure and explicit permission — see `docs/release/app-store-release.md` §6. Do not shorten
-  the label to a bare "Connect" or move the disclosure out of the button.
+- **Consent is the Connect button and the small text directly under it** (the owner's review,
+  2026-11-24; both apps, `ConnectAIPresentation.connectTitle` / `consentNote`). The button says
+  "Connect"; under it, in small secondary text, "Lineform will send the text you choose to
+  Anthropic / OpenAI / Google / <host>." ("…to that address." before a host is typed), then the
+  privacy note ("Lineform sends only the text you act on, only when you choose an AI action,
+  directly to the provider you connected, under your account and that provider's terms.
+  Lineform's developer receives nothing."). VoiceOver reads the same text as the button's hint. The
+  billing note (a Claude/ChatGPT/Gemini subscription does not cover API use) sits at the top of the
+  pane. This is the App Review 5.1.2(i) disclosure and explicit permission — see
+  `docs/release/app-store-release.md` §6. Never move the disclosure away from the button.
+- **The Model picker names the models** by product name ("Claude Haiku 5.5", "GPT-6.1 Terra",
+  "Gemini 4 Hydrogen": `AIModelOption.displayName`, never translated). The stored choice is the
+  model ID (see Models below).
 - **Connecting sends nothing.** `connect`/`connectOther` validate locally, write the Keychain and
   defaults, and return. The key is not tested — a bad or expired key surfaces as "The key wasn't
   accepted. It may have expired." on the first action. One connection at a time: connecting deletes every other provider's key.
@@ -140,20 +152,32 @@ review; this is the connection, the wire, and the rules around them.
   do as little as possible (`ConnectAIPresentation.keyGuidance`): ChatGPT — Restricted, Model
   capabilities set to Request, everything else off; Claude and Google — a key just for Lineform
   with a monthly spend limit. Other has none.
-- **Model tiers.** Each big-three provider has two tiers, `AIModelTier.standard` (default) and
-  `.higherQuality`, picked with a segmented control that shows the model ID under it (IDs are
-  verbatim, never localized; no cost text). Stored per provider as the raw value under
-  `Lineform.ai.tier.<provider.rawValue>`; changeable while connected, no key re-entry, takes effect
-  at the next action (`resolvedConnection()` reads it). `AIProvider.model(for:)` is the one table:
-  | Provider | Standard | Higher quality |
-  |---|---|---|
-  | Claude | `claude-haiku-5-5` | `claude-sonnet-5-5` |
-  | ChatGPT | `gpt-6-luna` | `gpt-6.1-terra` |
-  | Google | `gemini-3.5-flash-lite` | `gemini-3.8-flash` |
-  Verified 2026-11-13: OpenAI's model pages list `v1/chat/completions` as supported for both GPT
-  models; the Gemini IDs are the stable codes on Google's model list (aistudio.google.com/docs/models,
-  the redirect target of ai.google.dev/gemini-api/docs/models). Google's OpenAI-compatibility page
-  does not enumerate which models it serves — re-check if a Google request returns 404.
+- **Models.** The writer picks any model in the provider's list (owner decision 2026-11-24: their
+  choice, not ours, but the default is the cheapest). `AIProvider.models` is the one curated, static
+  table (no network fetch), cheapest first; the first is the default. It lists the provider's
+  current general-purpose chat models and leaves out the top tier (Claude Fable / Mythos, GPT
+  Astra and any `-pro`, Gemini 4 Carbon and Argon, which Google prices and positions as Carbon's
+  efficient variant) and every non-chat model (embedding, image, audio, TTS, live, transcription).
+  Picked with a plain menu picker (Mac `.menu`, iPhone the word menu's `Menu`). Stored per provider
+  as the model ID under `Lineform.ai.model.<provider.rawValue>`; changeable while connected, no key
+  re-entry, takes effect at the next action (`resolvedConnection()` reads it). A saved ID no longer
+  in the list falls back to the default. Other has no list (its model is typed).
+  | Provider | Models, cheapest first (default first) |
+  |---|---|
+  | Claude | `claude-haiku-5-5`, `claude-sonnet-5-5`, `claude-opus-5-5` |
+  | ChatGPT | `gpt-6-luna`, `gpt-6.1-terra`, `gpt-6.2-sol` |
+  | Google | `gemini-3.5-flash-lite`, `gemini-3.8-flash`, `gemini-4-hydrogen`, `gemini-4-neon` |
+  Verified 2026-11-24 against platform.claude.com/docs/en/about-claude/models/overview,
+  developers.openai.com/api/docs/models (the redirect target of platform.openai.com/docs/models;
+  each GPT model page lists `v1/chat/completions` as supported) and aistudio.google.com/docs/models
+  plus its pricing and choosing-a-model pages (all four Gemini IDs stable; Google's
+  OpenAI-compatibility page uses `gemini-4-hydrogen` in its chat examples but does not enumerate
+  which models it serves — re-check if a Google request returns 404).
+  **Migration:** the earlier two-tier choice (`Lineform.ai.tier.<provider>`, `standard` /
+  `higherQuality`) is converted once at `AIConnectionStore.init` — `standard` → the default,
+  `higherQuality` → the model it sent (`claude-sonnet-5-5`, `gpt-6.1-terra`, `gemini-3.8-flash`,
+  fixed in `AIProvider.migratedModelID(fromTier:)`) — and the tier key removed; a model already
+  saved wins.
 - **Endpoints** (one constant each on `AIProvider`):
   - Claude: `https://api.anthropic.com/v1/messages`, `anthropic-version: 2026-10-21`,
     `x-api-key`. Raw HTTP, no SDK. Per the claude-api skill the body opts into

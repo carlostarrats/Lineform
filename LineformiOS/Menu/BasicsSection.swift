@@ -40,88 +40,220 @@ final class BasicsCopyState {
     }
 }
 
-/// The Menu sheet's Markdown Basics: the package's `MarkdownReference` sections, with the Mac
-/// view's section headers and row layout (the syntax, monospaced for a code row, over its
-/// explanation), as a List. Tapping a code row copies its Markdown and shows "Copied" for 1 s.
+/// The word menu's Markdown Basics, as in the mockup (`word-menu.html`, `.mdgroup`): each group is
+/// its own grey card (the soft fill, radius 14) under its small label, with a clear gap between
+/// groups. Rows sit inside with hairline dividers; a code row has a copy button on the right that
+/// turns into a blue check for a moment after copying its Markdown.
+///
+/// The rows are the package's `MarkdownReference` (the Mac's reference, word for word). Its long
+/// first section is split here, on iPhone only, into the mockup's groups (Headings, Emphasis,
+/// Lists, Links & images, Blocks); the other sections (Diagrams, Math, Spelling, Search) follow
+/// as their own groups.
 struct BasicsSection: View {
     @State private var state = BasicsCopyState()
-    @Environment(\.menuTheme) private var theme
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.wordMenuPalette) private var palette
 
     static var sections: [MarkdownReference.Section] { MarkdownReference.sections }
     static let copiedDuration: Duration = .seconds(1)
     static var copiedText: String { String(localized: "Copied") }
 
-    var body: some View {
-        List {
-            ForEach(Self.sections) { section in
-                Section {
-                    ForEach(section.rows) { row in
-                        rowView(row)
-                            .listRowBackground(Color.clear)
-                    }
-                } header: {
-                    Text(section.title)
-                        .font(.footnote.weight(.medium))
-                        .textCase(nil)
-                        .accessibilityAddTraits(.isHeader)
-                }
+    /// One group on the page: its label and its rows.
+    struct BasicsGroup: Identifiable {
+        var id: String
+        var title: String
+        var rows: [MarkdownReference.Row]
+    }
+
+    /// The first section's rows by the mockup's groups (row identities, never translated text).
+    static let basicsGroupRowIDs: [(id: String, rowIDs: [String])] = [
+        ("headings", ["# Title", "## Section"]),
+        ("emphasis", ["**bold**", "_italic_", "~~text~~", "`code`"]),
+        ("lists", ["- bullet", "1. item", "  - nested", "- [ ] to do", "- [x] done"]),
+        ("links", ["[text](url)", "![alt](url)"]),
+        ("blocks", ["> quote", "> [!NOTE]", "```swift", "---", "| a | b |", "tab", "block-spacing"]),
+    ]
+
+    static func groupTitle(_ id: String) -> String {
+        switch id {
+        case "headings": String(localized: "Headings")
+        case "emphasis": String(localized: "Emphasis")
+        case "lists": String(localized: "Lists")
+        case "links": String(localized: "Links & images")
+        default: String(localized: "Blocks")
+        }
+    }
+
+    /// Every group in order. Every row of the reference appears exactly once: a first-section row
+    /// no group names joins Blocks.
+    static var groups: [BasicsGroup] {
+        var result: [BasicsGroup] = []
+        for section in sections {
+            guard section.id == "basics" else {
+                result.append(BasicsGroup(id: section.id, title: section.title, rows: section.rows))
+                continue
+            }
+            let named = Set(basicsGroupRowIDs.flatMap(\.rowIDs))
+            for (id, rowIDs) in basicsGroupRowIDs {
+                var rows = rowIDs.compactMap { rowID in section.rows.first { $0.id == rowID } }
+                if id == "blocks" { rows += section.rows.filter { !named.contains($0.id) } }
+                if !rows.isEmpty { result.append(BasicsGroup(id: id, title: groupTitle(id), rows: rows)) }
             }
         }
-        .listStyle(.plain)
-        .scrollContentBackground(.hidden)
+        return result
+    }
+
+    /// The gap from one group's card to the next group's label (the owner's review of 2026-11-24:
+    /// the groups sat too close). A label keeps its own card close (8 pt).
+    static let groupGap: CGFloat = 30
+    /// The first label's gap under the page title.
+    static let firstGroupGap: CGFloat = 14
+
+    /// The space a group adds above its label, on top of the page's `rowSpacing`.
+    static func topPadding(isFirst: Bool) -> CGFloat {
+        (isFirst ? firstGroupGap : groupGap) - WordMenuMetrics.rowSpacing
+    }
+
+    var body: some View {
+        let groups = Self.groups
+        WordMenuPageScaffold(title: WordMenuItem.basics.title) {
+            ForEach(groups) { group in
+                VStack(alignment: .leading, spacing: 8) {
+                    WordMenuGroupLabel(title: group.title, isTight: true)
+                    VStack(spacing: 0) {
+                        ForEach(Array(group.rows.enumerated()), id: \.element.id) { index, row in
+                            if index > 0 {
+                                Rectangle()
+                                    .fill(palette.color(palette.hair).opacity(0.7))
+                                    .frame(height: 1)
+                            }
+                            rowView(row)
+                        }
+                    }
+                    .background(
+                        RoundedRectangle(cornerRadius: WordMenuMetrics.rowRadius, style: .continuous)
+                            .fill(palette.color(palette.soft))
+                    )
+                    .clipShape(RoundedRectangle(cornerRadius: WordMenuMetrics.rowRadius, style: .continuous))
+                }
+                // With the page's 8 pt: `groupGap` from one card to the next label.
+                .padding(.top, Self.topPadding(isFirst: group.id == groups.first?.id))
+            }
+        }
     }
 
     @ViewBuilder
     private func rowView(_ row: MarkdownReference.Row) -> some View {
-        let ink = PhoneInk.menu(theme)
-        let content = HStack(alignment: .firstTextBaseline, spacing: 8) {
-            VStack(alignment: .leading, spacing: 3) {
-                Text(verbatim: row.syntax)
-                    .font(row.rendersSyntaxAsCode ? .system(.callout, design: .monospaced) : .callout)
-                Text(verbatim: row.explanation)
-                    .font(.footnote)
-                    .foregroundStyle(ink.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-            Spacer(minLength: 8)
-            if row.copyAffordance() != nil {
-                if state.copiedRowID == row.id {
-                    Text(Self.copiedText)
-                        .font(.caption.weight(.medium))
-                        .foregroundStyle(ink.secondary)
-                        .transition(.opacity)
-                } else {
-                    Image(systemName: "doc.on.doc")
-                        .font(.caption)
-                        .foregroundStyle(ink.icon)
-                        .accessibilityHidden(true)
+        let isCopied = state.copiedRowID == row.id
+        HStack(alignment: .center, spacing: 8) {
+            // The mockup's row: the name, then the Markdown (monospaced, grey). A label row (Tab,
+            // Spelling…) has no Markdown to show: its explanation takes that column.
+            BasicsRowColumns {
+                Text(verbatim: Self.name(for: row))
+                    .font(.subheadline)
+                    .foregroundStyle(palette.color(palette.ink))
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                Group {
+                    if row.rendersSyntaxAsCode {
+                        Text(verbatim: row.syntax)
+                            .font(.system(.footnote, design: .monospaced))
+                    } else {
+                        Text(verbatim: row.explanation)
+                            .font(.footnote)
+                    }
                 }
+                .foregroundStyle(palette.color(palette.secondary))
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .contentShape(Rectangle())
-        .animation(EditorMotionPolicy.animation(.easeOut(duration: 0.15), reduceMotion: reduceMotion), value: state.copiedRowID)
-
-        // Only a code row is a button: a label row has nothing to copy. One element for
-        // VoiceOver: the explanation, then the syntax; the copy is its action, named by the
-        // affordance's own localized label.
-        if let copy = row.copyAffordance() {
-            Button {
-                state.copy(row)
-            } label: {
-                content
-            }
-            .buttonStyle(.plain)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            // One element for VoiceOver: the explanation, then the syntax.
             .accessibilityElement(children: .ignore)
             .accessibilityLabel(Text(verbatim: row.accessibilityLabel()))
-            .accessibilityValue(state.copiedRowID == row.id ? Text(Self.copiedText) : Text(verbatim: ""))
-            .accessibilityHint(Text(verbatim: copy.label))
-            .accessibilityAddTraits(.isButton)
-        } else {
-            content
-                .accessibilityElement(children: .ignore)
-                .accessibilityLabel(Text(verbatim: row.accessibilityLabel()))
+            if let copy = row.copyAffordance() {
+                Button {
+                    state.copy(row)
+                } label: {
+                    Image(systemName: isCopied ? "checkmark" : "doc.on.doc")
+                        .font(.system(size: 13, weight: .regular))
+                        .foregroundStyle(palette.color(isCopied ? palette.blueMark : palette.icon))
+                        .frame(width: 36, height: 36)
+                        .frame(width: WordMenuMetrics.minimumTarget, height: WordMenuMetrics.minimumTarget)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(Text(verbatim: copy.label))
+                .accessibilityValue(isCopied ? Text(Self.copiedText) : Text(verbatim: ""))
+            }
+        }
+        .padding(.leading, 14)
+        .padding(.trailing, 2)
+        .padding(.vertical, 2)
+        .frame(minHeight: 48)
+    }
+
+    /// A row's short name, as in the mockup ("Title", "Bold", "Bullets"). A label row's own label
+    /// (Tab, Block Spacing, Spelling…) is its name. The full explanation stays in VoiceOver's label.
+    static func name(for row: MarkdownReference.Row) -> String {
+        guard row.rendersSyntaxAsCode else { return row.syntax }
+        switch row.id {
+        case "# Title": return String(localized: "Title")
+        case "## Section": return String(localized: "Section")
+        case "**bold**": return String(localized: "Bold")
+        case "_italic_": return String(localized: "Italic")
+        case "~~text~~": return String(localized: "Strikethrough")
+        case "`code`": return String(localized: "Code")
+        case "- bullet": return String(localized: "Bullets")
+        case "1. item": return String(localized: "Numbers")
+        case "  - nested": return String(localized: "Nested")
+        case "- [ ] to do": return String(localized: "Checkbox")
+        case "- [x] done": return String(localized: "Checked")
+        case "> quote": return String(localized: "Quote")
+        case "> [!NOTE]": return String(localized: "Callout")
+        case "```swift": return String(localized: "Code block")
+        case "---": return String(localized: "Divider")
+        case "| a | b |": return String(localized: "Table")
+        case "[text](url)": return String(localized: "Link")
+        case "![alt](url)": return String(localized: "Image")
+        case "```mermaid": return String(localized: "Diagram")
+        case let id where id.hasPrefix("flowchart"): return String(localized: "Flowchart")
+        case "$x^2 + y^2$": return String(localized: "Inline math")
+        case "$$…$$": return String(localized: "Equation")
+        case #"\(x^2\)  \[…\]"#: return String(localized: "AI-style math")
+        case #"\frac{a}{b}"#: return "LaTeX"
+        case "it costs $5": return String(localized: "Dollar amounts")
+        // A row added to the reference later: its explanation's first phrase.
+        default: return row.explanation.components(separatedBy: ".").first ?? row.explanation
+        }
+    }
+}
+
+/// A Basics row's two text columns in the mockup's proportions (`grid-template-columns: 1fr
+/// 1.2fr`, 8 pt apart): the name, then the Markdown. Each takes its share of the width and wraps
+/// inside it; the row is as tall as the taller one, both top-aligned.
+private struct BasicsRowColumns: Layout {
+    static let spacing: CGFloat = 8
+    static let shares: [CGFloat] = [1, 1.2]
+
+    private func widths(for total: CGFloat) -> [CGFloat] {
+        let available = max(0, total - Self.spacing)
+        let sum = Self.shares.reduce(0, +)
+        return Self.shares.map { available * $0 / sum }
+    }
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        let total = proposal.width ?? 300
+        let height = zip(subviews, widths(for: total)).map { subview, width in
+            subview.sizeThatFits(ProposedViewSize(width: width, height: nil)).height
+        }.max() ?? 0
+        return CGSize(width: total, height: height)
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        var x = bounds.minX
+        for (subview, width) in zip(subviews, widths(for: bounds.width)) {
+            subview.place(at: CGPoint(x: x, y: bounds.minY), anchor: .topLeading,
+                          proposal: ProposedViewSize(width: width, height: nil))
+            x += width + Self.spacing
         }
     }
 }
