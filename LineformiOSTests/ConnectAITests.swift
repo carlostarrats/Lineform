@@ -27,15 +27,15 @@ final class ConnectAITests: XCTestCase {
         let (form, _, _) = makeForm()
         XCTAssertEqual(form.connectTitle, "Connect")
         form.select(.claude)
-        XCTAssertTrue(form.consentNote.hasPrefix("Lineform will send the text you choose to Anthropic. "))
+        XCTAssertTrue(form.consentNote.hasPrefix("Lineform will send the passage you select, or the whole document when you choose Ask AI for it, to Anthropic. "))
         form.select(.chatGPT)
-        XCTAssertTrue(form.consentNote.hasPrefix("Lineform will send the text you choose to OpenAI. "))
+        XCTAssertTrue(form.consentNote.hasPrefix("Lineform will send the passage you select, or the whole document when you choose Ask AI for it, to OpenAI. "))
         form.select(.google)
-        XCTAssertTrue(form.consentNote.hasPrefix("Lineform will send the text you choose to Google. "))
+        XCTAssertTrue(form.consentNote.hasPrefix("Lineform will send the passage you select, or the whole document when you choose Ask AI for it, to Google. "))
         form.select(.other)
-        XCTAssertTrue(form.consentNote.hasPrefix("Lineform will send the text you choose to that address. "))
+        XCTAssertTrue(form.consentNote.hasPrefix("Lineform will send the passage you select, or the whole document when you choose Ask AI for it, to that address. "))
         form.address = "https://ai.example.com/v1"
-        XCTAssertTrue(form.consentNote.hasPrefix("Lineform will send the text you choose to ai.example.com. "))
+        XCTAssertTrue(form.consentNote.hasPrefix("Lineform will send the passage you select, or the whole document when you choose Ask AI for it, to ai.example.com. "))
         XCTAssertTrue(form.consentNote.hasSuffix(ConnectAIPresentation.privacyNote))
 
         // On screen: the "Connect" button, and the note under it.
@@ -44,7 +44,7 @@ final class ConnectAITests: XCTestCase {
         try await spin { Self.element("Connect", in: window) != nil }
         let button = try XCTUnwrap(Self.element("Connect", in: window))
         XCTAssertTrue(button.accessibilityTraits.contains(.button))
-        XCTAssertNotNil(Self.element("Lineform will send the text you choose to Anthropic.", in: window, containing: true))
+        XCTAssertNotNil(Self.element("Lineform will send the passage you select, or the whole document when you choose Ask AI for it, to Anthropic.", in: window, containing: true))
     }
 
     /// The Model row lists each provider's models by name, cheapest first, and starts on the
@@ -190,18 +190,22 @@ final class ConnectAITests: XCTestCase {
         }
     }
 
-    /// The Settings note says everything that can be sent: the passage or the whole document, the
-    /// comment typed, and for Find the sentences involved (fix after the step 8 review), in every
-    /// language.
-    func testSettingsNoteNamesCommentAndFindSentences() throws {
+    /// The page's intro is one short sentence (owner review 4); what is sent, naming both cases
+    /// (the passage you select, or the whole document when you choose Ask AI for it), is the
+    /// consent note under Connect, which App Review 5.1.2(i) needs. Both in every language.
+    func testIntroIsShortAndTheConsentNoteNamesBothCases() throws {
         try skipUnlessEnglishInterface()
         let note = ConnectAISection.note
-        XCTAssertEqual(note, "Rewrite and proofread with an AI account of your own. Only the passage you select is sent, or the whole document when you choose Ask AI for it, with any comment you type. For Find, that is each whole sentence your selection touches, or every sentence of the document. Nothing is sent until you choose an action.")
+        XCTAssertEqual(note, "Use your own AI account to rewrite and proofread. Nothing is sent until you choose an action.")
         for language in ["es", "fr", "de", "ja", "zh-Hans"] {
             let bundle = try XCTUnwrap(Bundle.main.path(forResource: language, ofType: "lproj").flatMap(Bundle.init(path:)))
             let localized = bundle.localizedString(forKey: note, value: nil, table: nil)
             XCTAssertNotEqual(localized, note, "\(language) has the new note")
             XCTAssertFalse(localized.contains("Mac"), language)
+        }
+        for provider in AIProvider.allCases {
+            let consent = ConnectAIPresentation.consentNote(for: provider, otherHost: nil)
+            XCTAssertTrue(consent.contains("the passage you select, or the whole document when you choose Ask AI for it"), consent)
         }
     }
 

@@ -887,8 +887,11 @@ puts the keyboard away first.
   blue round button with a white +, the New Document pill's blue (`WordMenuRoundButton`, 30 pt
   drawn, a 44 pt target, "New Document in iCloud"; owner review 2, 2026-11-24) — that
   makes a new document in that root (`OpenDocument.newDocument(in:)`), then its folders as plain
-  rows (folder icon close to the name, the count of its documents on the right, a chevron). After
-  both roots, **Recent**: both roots' own documents as cards, newest first
+  rows (folder icon close to the name, the count of its documents on the right, a chevron), then
+  its own documents as cards, iCloud placeholders included (opening one downloads it). An empty
+  root is its heading and "+" alone: no "No Markdown files" (owner review 4, 2026-11-24; before
+  it a root listed only its folders, so an iCloud folder of documents and no folders showed
+  nothing under its heading while Recent listed them). After both roots, **Recent**: both roots' own documents as cards, newest first
   (`recentDocuments(acrossRoots:)`). A folder's page shows its subfolders as rows, its documents
   as cards, and **New Document** as the blue pill, which saves in that folder.
 - **Room for the corner button.** Every page and list keeps `WordMenuMetrics.bottomClearance`
@@ -1051,13 +1054,14 @@ History mode is up, so nothing sits behind Done.
 ### Connect Your AI
 
 `ConnectAISection` over the Mac's `ConnectAIPresentation` and `AIConnectionStore`, with a
-`ConnectAIFormModel` made fresh each time the page appears (a typed key never outlives it). What is
-sent ("Only the passage you select is sent, or the whole document when you choose Ask AI for it,
-with any comment you type. For Find, …"), the providers as rows (the picked one ticked), the
+`ConnectAIFormModel` made fresh each time the page appears (a typed key never outlives it). One
+short sentence ("Use your own AI account to rewrite and proofread. Nothing is sent until you
+choose an action."; owner review 4 shortened it), the providers as rows (the picked one ticked), the
 billing note, then the key field (Other: address, optional key, model), the Model row and the
 blue pill, which says just **Connect** (owner review 2, 2026-11-24). Under it, in small secondary
-text, the consent: what is sent and to whom ("Lineform will send the text you choose to
-Anthropic.", or the typed host, or "that address"), then the privacy note
+text, the consent: what is sent and to whom ("Lineform will send the passage you select, or the
+whole document when you choose Ask AI for it, to Anthropic.", or the typed host, or "that
+address"), then the privacy note
 (`ConnectAIPresentation.consentNote`; VoiceOver reads it as the button's hint). The **Model** row
 lists the provider's models by name, cheapest first (`AIProvider.models`, the Mac's table; default
 the cheapest, e.g. "Claude Haiku 5.5"); the stored choice is the model ID (`app-integration.md` §

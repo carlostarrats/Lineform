@@ -438,7 +438,7 @@ iPhone only. Details: `docs/architecture/iphone-app.md`.
   fixed 40 pt field, no clear button): its scope button picks All documents (cards) or the open
   document by its file name (count, ↑/↓, matches as rows, Replace / All through `EditorCommands`,
   Replace All one undo step); replace never reaches another file. Files shows only the search, "iCloud" and "On My iPhone"
-  (each with its folders and a Lineform-blue round "+" making a document there), then Recent — no Workspace (the
+  (each with its folders, its own documents as cards and a Lineform-blue round "+" making a document there; an empty root shows no empty-state text), then Recent — no Workspace (the
   store's root stays dormant, `FilesSection.phoneRoots`), no Open from Files…, no New Folder. On My
   iPhone always shows beside iCloud, and New Document in a folder saves there
   (`OpenDocument.newDocument(in:)`). Convert to
