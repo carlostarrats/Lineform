@@ -5627,42 +5627,42 @@
         }
       }
     },
-    "Return to accept · Esc to reject · ← → to move" : {
+    "Return to accept · Esc to reject · arrow keys to move" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Return to accept · Esc to reject · ← → to move"
+            "value" : "Return to accept · Esc to reject · arrow keys to move"
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Return para aceptar · Esc para rechazar · ← → para moverte"
+            "value" : "Return para aceptar · Esc para rechazar · teclas de flecha para moverte"
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Return pour accepter · Échap pour refuser · ← → pour naviguer"
+            "value" : "Return pour accepter · Échap pour refuser · touches fléchées pour naviguer"
           }
         },
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Return zum Annehmen · Esc zum Ablehnen · ← → zum Wechseln"
+            "value" : "Return zum Annehmen · Esc zum Ablehnen · Pfeiltasten zum Wechseln"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Return で承認 · Esc で却下 · ← → で移動"
+            "value" : "Return で承認 · Esc で却下 · 矢印キーで移動"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Return 接受 · Esc 拒绝 · ← → 切换"
+            "value" : "Return 接受 · Esc 拒绝 · 方向键切换"
           }
         }
       }

@@ -37,7 +37,7 @@ public enum AIReviewCardPresentation {
     }
 
     static func proofreadHint(bundle: Bundle = .module) -> String {
-        String(localized: "Return to accept · Esc to reject · ← → to move", bundle: bundle)
+        String(localized: "Return to accept · Esc to reject · arrow keys to move", bundle: bundle)
     }
 
     /// Accept All is offered only while two or more corrections are left.

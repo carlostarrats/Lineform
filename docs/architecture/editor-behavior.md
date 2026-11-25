@@ -1569,7 +1569,7 @@ the app's one `AIConnectionStore.shared`).
   message (steps aside after 8 s) or Find's count ("3 sentences found", "Esc clears highlights").
   `AIReviewCard`: "Rephrase ready" / "Simpler version ready" / "More formal version ready" / "More
   casual version ready" / "Trim ready" / "Cut ready" / "Word ready", "Return to accept · Esc to
-  reject"; Proofread "Proofread · 2 of 4", "Return to accept · Esc to reject · ← → to move"
+  reject"; Proofread "Proofread · 2 of 4", "Return to accept · Esc to reject · arrow keys to move"
   (`title(for: session)`, `reviewHint(for:)`). Then Try Again (a small bordered icon button,
   `arrow.clockwise`, label and tooltip "Try Again"), Reject (bordered), Accept All (Proofread,
   2+ left; `offersAcceptAll`) + Accept (prominent). The row is a `ViewThatFits`: when it does not

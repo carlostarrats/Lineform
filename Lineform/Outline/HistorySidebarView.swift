@@ -120,9 +120,21 @@ enum HistorySidebarPresentation {
     @MainActor static let rowLayout = RowLayout()
 
     static let emptySelectionText = String(localized: "Click a highlighted passage to see its versions.")
-    static let hintText = String(localized: "Click to select · ← → switch version · Esc closes")
+    /// The footer hint's spoken form (VoiceOver): the arrow keys are named in words, never as
+    /// arrow characters (owner rule: no text arrows in the UI).
+    static let hintText = String(localized: "Click to select · arrow keys switch version · Esc closes")
     /// With a passage selected, Esc (or a click on ordinary text) returns to the overview.
-    static let selectedHintText = String(localized: "Click to select · ← → switch version · Esc deselects")
+    static let selectedHintText = String(localized: "Click to select · arrow keys switch version · Esc deselects")
+    /// The visible hint draws the Left and Right Arrow keys as SF Symbols, inline at the hint's size.
+    static let previousVersionKeySymbol = "arrow.left"
+    static let nextVersionKeySymbol = "arrow.right"
+    static func hintLabel(selected: Bool) -> Text {
+        let left = Image(systemName: previousVersionKeySymbol)
+        let right = Image(systemName: nextVersionKeySymbol)
+        return selected
+            ? Text("Click to select · \(left) \(right) switch version · Esc deselects")
+            : Text("Click to select · \(left) \(right) switch version · Esc closes")
+    }
     static let deleteVersionTitle = String(localized: "Delete from History")
     static let exitTitle = String(localized: "Exit")
     /// The section row's Add button: its accessibility label (the visible text is "Add" + plus).
@@ -267,7 +279,7 @@ struct HistorySidebarView: View {
                 Spacer(minLength: 0)
             }
 
-            Text(model.hasSelection ? HistorySidebarPresentation.selectedHintText : HistorySidebarPresentation.hintText)
+            HistorySidebarPresentation.hintLabel(selected: model.hasSelection)
                 .font(.system(size: 11))
                 .foregroundStyle(OutlineSidebarView.secondaryTextColor(usesDarkChrome: usesDarkChrome))
                 .lineLimit(2)
@@ -276,6 +288,8 @@ struct HistorySidebarView: View {
                 .padding(.leading, HistorySidebarPresentation.textInset)
                 .padding(.trailing, HistorySidebarPresentation.trailingInset)
                 .padding(.vertical, 10)
+                .accessibilityLabel(model.hasSelection ? HistorySidebarPresentation.selectedHintText
+                                                       : HistorySidebarPresentation.hintText)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         // Another passage (or none) is selected — a click in the text, a level button (which takes

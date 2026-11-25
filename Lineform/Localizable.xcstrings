@@ -9107,36 +9107,70 @@
         }
       }
     },
-    "Click to select · ← → switch version · Esc closes": {
+    "Click to select · arrow keys switch version · Esc closes": {
       "localizations": {
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Klicken zum Wählen · ← → Version wechseln · Esc schließt"
+            "value": "Klicken zum Wählen · Pfeiltasten wechseln Version · Esc schließt"
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Clic para elegir · ← → cambia de versión · Esc cierra"
+            "value": "Clic para elegir · teclas de flecha cambian de versión · Esc cierra"
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Cliquer pour choisir · ← → changer de version · Échap ferme"
+            "value": "Cliquer pour choisir · touches fléchées pour changer de version · Échap ferme"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "クリックで選択 · ← → でバージョン切替 · Esc で閉じる"
+            "value": "クリックで選択 · 矢印キーでバージョン切替 · Esc で閉じる"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "点按选择 · ← → 切换版本 · Esc 关闭"
+            "value": "点按选择 · 方向键切换版本 · Esc 关闭"
+          }
+        }
+      }
+    },
+"Click to select · %@ %@ switch version · Esc closes": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Klicken zum Wählen · %1$@ %2$@ Version wechseln · Esc schließt"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Clic para elegir · %1$@ %2$@ cambia de versión · Esc cierra"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cliquer pour choisir · %1$@ %2$@ changer de version · Échap ferme"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "クリックで選択 · %1$@ %2$@ でバージョン切替 · Esc で閉じる"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "点按选择 · %1$@ %2$@ 切换版本 · Esc 关闭"
           }
         }
       }
@@ -9749,36 +9783,70 @@
         }
       }
     },
-    "Click to select · ← → switch version · Esc deselects": {
+    "Click to select · arrow keys switch version · Esc deselects": {
       "localizations": {
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Clic para elegir · ← → cambia de versión · Esc deselecciona"
+            "value": "Clic para elegir · teclas de flecha cambian de versión · Esc deselecciona"
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Cliquer pour choisir · ← → changer de version · Échap désélectionne"
+            "value": "Cliquer pour choisir · touches fléchées pour changer de version · Échap désélectionne"
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Klicken zum Wählen · ← → Version wechseln · Esc hebt Auswahl auf"
+            "value": "Klicken zum Wählen · Pfeiltasten wechseln Version · Esc hebt Auswahl auf"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "クリックで選択 · ← → でバージョン切替 · Esc で選択解除"
+            "value": "クリックで選択 · 矢印キーでバージョン切替 · Esc で選択解除"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "点按选择 · ← → 切换版本 · Esc 取消选择"
+            "value": "点按选择 · 方向键切换版本 · Esc 取消选择"
+          }
+        }
+      }
+    },
+"Click to select · %@ %@ switch version · Esc deselects": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Clic para elegir · %1$@ %2$@ cambia de versión · Esc deselecciona"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cliquer pour choisir · %1$@ %2$@ changer de version · Échap désélectionne"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Klicken zum Wählen · %1$@ %2$@ Version wechseln · Esc hebt Auswahl auf"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "クリックで選択 · %1$@ %2$@ でバージョン切替 · Esc で選択解除"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "点按选择 · %1$@ %2$@ 切换版本 · Esc 取消选择"
           }
         }
       }
