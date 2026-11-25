@@ -134,10 +134,9 @@ review; this is the connection, the wire, and the rules around them.
   billing note (a Claude/ChatGPT/Gemini subscription does not cover API use) sits at the top of the
   pane. This is the App Review 5.1.2(i) disclosure and explicit permission — see
   `docs/release/app-store-release.md` §6. Never move the disclosure away from the button.
-- **The Model picker names the models** ("Claude Haiku 5.5" / "Claude Sonnet 5.5", "GPT-6 Luna" /
-  "GPT-6.1 Terra", "Gemini 3.5 Flash-Lite" / "Gemini 3.8 Flash": `AIProvider.modelDisplayName(for:)`,
-  derived from the tier → model id mapping, never translated). The stored choice is still the tier
-  (`AIModelTier` raw values `standard` / `higherQuality`, unchanged).
+- **The Model picker names the models** by product name ("Claude Haiku 5.5", "GPT-6.1 Terra",
+  "Gemini 4 Hydrogen": `AIModelOption.displayName`, never translated). The stored choice is the
+  model ID (see Models below).
 - **Connecting sends nothing.** `connect`/`connectOther` validate locally, write the Keychain and
   defaults, and return. The key is not tested — a bad or expired key surfaces as "The key wasn't
   accepted. It may have expired." on the first action. One connection at a time: connecting deletes every other provider's key.
@@ -153,20 +152,32 @@ review; this is the connection, the wire, and the rules around them.
   do as little as possible (`ConnectAIPresentation.keyGuidance`): ChatGPT — Restricted, Model
   capabilities set to Request, everything else off; Claude and Google — a key just for Lineform
   with a monthly spend limit. Other has none.
-- **Model tiers.** Each big-three provider has two tiers, `AIModelTier.standard` (default) and
-  `.higherQuality`, picked with a segmented control that shows the model ID under it (IDs are
-  verbatim, never localized; no cost text). Stored per provider as the raw value under
-  `Lineform.ai.tier.<provider.rawValue>`; changeable while connected, no key re-entry, takes effect
-  at the next action (`resolvedConnection()` reads it). `AIProvider.model(for:)` is the one table:
-  | Provider | Standard | Higher quality |
-  |---|---|---|
-  | Claude | `claude-haiku-5-5` | `claude-sonnet-5-5` |
-  | ChatGPT | `gpt-6-luna` | `gpt-6.1-terra` |
-  | Google | `gemini-3.5-flash-lite` | `gemini-3.8-flash` |
-  Verified 2026-11-13: OpenAI's model pages list `v1/chat/completions` as supported for both GPT
-  models; the Gemini IDs are the stable codes on Google's model list (aistudio.google.com/docs/models,
-  the redirect target of ai.google.dev/gemini-api/docs/models). Google's OpenAI-compatibility page
-  does not enumerate which models it serves — re-check if a Google request returns 404.
+- **Models.** The writer picks any model in the provider's list (owner decision 2026-11-24: their
+  choice, not ours, but the default is the cheapest). `AIProvider.models` is the one curated, static
+  table (no network fetch), cheapest first; the first is the default. It lists the provider's
+  current general-purpose chat models and leaves out the top tier (Claude Fable / Mythos, GPT
+  Astra and any `-pro`, Gemini 4 Carbon and Argon, which Google prices and positions as Carbon's
+  efficient variant) and every non-chat model (embedding, image, audio, TTS, live, transcription).
+  Picked with a plain menu picker (Mac `.menu`, iPhone the word menu's `Menu`). Stored per provider
+  as the model ID under `Lineform.ai.model.<provider.rawValue>`; changeable while connected, no key
+  re-entry, takes effect at the next action (`resolvedConnection()` reads it). A saved ID no longer
+  in the list falls back to the default. Other has no list (its model is typed).
+  | Provider | Models, cheapest first (default first) |
+  |---|---|
+  | Claude | `claude-haiku-5-5`, `claude-sonnet-5-5`, `claude-opus-5-5` |
+  | ChatGPT | `gpt-6-luna`, `gpt-6.1-terra`, `gpt-6.2-sol` |
+  | Google | `gemini-3.5-flash-lite`, `gemini-3.8-flash`, `gemini-4-hydrogen`, `gemini-4-neon` |
+  Verified 2026-11-24 against platform.claude.com/docs/en/about-claude/models/overview,
+  developers.openai.com/api/docs/models (the redirect target of platform.openai.com/docs/models;
+  each GPT model page lists `v1/chat/completions` as supported) and aistudio.google.com/docs/models
+  plus its pricing and choosing-a-model pages (all four Gemini IDs stable; Google's
+  OpenAI-compatibility page uses `gemini-4-hydrogen` in its chat examples but does not enumerate
+  which models it serves — re-check if a Google request returns 404).
+  **Migration:** the earlier two-tier choice (`Lineform.ai.tier.<provider>`, `standard` /
+  `higherQuality`) is converted once at `AIConnectionStore.init` — `standard` → the default,
+  `higherQuality` → the model it sent (`claude-sonnet-5-5`, `gpt-6.1-terra`, `gemini-3.8-flash`,
+  fixed in `AIProvider.migratedModelID(fromTier:)`) — and the tier key removed; a model already
+  saved wins.
 - **Endpoints** (one constant each on `AIProvider`):
   - Claude: `https://api.anthropic.com/v1/messages`, `anthropic-version: 2026-10-21`,
     `x-api-key`. Raw HTTP, no SDK. Per the claude-api skill the body opts into

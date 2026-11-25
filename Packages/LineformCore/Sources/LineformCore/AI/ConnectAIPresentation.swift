@@ -78,7 +78,7 @@ public enum ConnectAIPresentation {
         }
     }
 
-    public static var modelTierLabel: String { String(localized: "Model", bundle: .module) }
+    public static var modelLabel: String { String(localized: "Model", bundle: .module) }
 
     /// The consent step's button: just "Connect". What is sent and to whom is the small text
     /// under it (`consentNote`).

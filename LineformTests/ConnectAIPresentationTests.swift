@@ -33,11 +33,15 @@ final class ConnectAIPresentationTests: XCTestCase {
     }
 
     func testModelPickerShowsModelNames() {
-        XCTAssertEqual(AIProvider.claude.modelDisplayName(for: .standard), "Claude Haiku 5.5")
-        XCTAssertEqual(AIProvider.claude.modelDisplayName(for: .higherQuality), "Claude Sonnet 5.5")
-        XCTAssertEqual(AIProvider.chatGPT.modelDisplayName(for: .higherQuality), "GPT-6.1 Terra")
-        XCTAssertEqual(AIProvider.google.modelDisplayName(for: .standard), "Gemini 3.5 Flash-Lite")
-        XCTAssertNil(AIProvider.other.modelDisplayName(for: .standard))
+        XCTAssertEqual(AIProvider.claude.models.map(\.displayName),
+                       ["Claude Haiku 5.5", "Claude Sonnet 5.5", "Claude Opus 5.5"])
+        XCTAssertEqual(AIProvider.chatGPT.models.map(\.displayName), ["GPT-6 Luna", "GPT-6.1 Terra", "GPT-6.2 Sol"])
+        XCTAssertEqual(AIProvider.google.models.map(\.displayName),
+                       ["Gemini 3.5 Flash-Lite", "Gemini 3.8 Flash", "Gemini 4 Hydrogen", "Gemini 4 Neon"])
+        XCTAssertEqual(AIProvider.claude.defaultModel?.displayName, "Claude Haiku 5.5")
+        XCTAssertEqual(AIProvider.chatGPT.defaultModel?.displayName, "GPT-6 Luna")
+        XCTAssertEqual(AIProvider.google.defaultModel?.displayName, "Gemini 3.5 Flash-Lite")
+        XCTAssertNil(AIProvider.other.defaultModel)
     }
 
     func testBillingNoteSaysSubscriptionDoesNotCoverIt() {
@@ -89,14 +93,12 @@ final class ConnectAIPresentationTests: XCTestCase {
     func testEveryProviderHasEndpointModelAndKeyPage() {
         for provider in [AIProvider.claude, .chatGPT, .google] {
             XCTAssertNotNil(provider.endpoint, "\(provider)")
-            for tier in AIModelTier.allCases {
-                XCTAssertNotNil(provider.model(for: tier), "\(provider) \(tier)")
-            }
+            XCTAssertFalse(provider.models.isEmpty, "\(provider)")
             XCTAssertNotNil(provider.createKeyURL, "\(provider)")
             XCTAssertNotNil(provider.companyName, "\(provider)")
         }
         XCTAssertNil(AIProvider.other.endpoint)
-        XCTAssertNil(AIProvider.other.model(for: .standard))
+        XCTAssertTrue(AIProvider.other.models.isEmpty)
         XCTAssertNil(AIProvider.other.createKeyURL)
     }
 
@@ -110,11 +112,7 @@ final class ConnectAIPresentationTests: XCTestCase {
         XCTAssertNil(ConnectAIPresentation.keyGuidance(for: .other))
     }
 
-    func testTierTitlesAndUnauthorizedCopy() {
-        XCTAssertEqual(AIModelTier.standard.title, "Standard")
-        XCTAssertEqual(AIModelTier.higherQuality.title, "Higher quality")
-        XCTAssertEqual(AIModelTier.standard.rawValue, "standard")
-        XCTAssertEqual(AIModelTier.higherQuality.rawValue, "higherQuality")
+    func testUnauthorizedCopy() {
         XCTAssertEqual(AIClientError.unauthorized.message,
                        "The key wasn't accepted. It may have expired. Check it in Connect Your AI.")
         XCTAssertTrue(AIClientError.unauthorized.message.contains(ConnectAIPresentation.title))

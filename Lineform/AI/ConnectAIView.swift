@@ -238,32 +238,32 @@ struct ConnectAIView: View {
                     .accessibilityIdentifier("connectAI.key")
                     .onSubmit(connect)
             }
-            tierPicker
+            modelPicker
         }
     }
 
-    /// The model, by its product name ("Claude Sonnet 5.5"): each tier is shown as the model it
-    /// sends; the tier stays the stored choice. Changing it while connected takes effect at the
+    /// The model, by its product name ("Claude Sonnet 5.5"), from the provider's list, cheapest
+    /// first; the model ID is the stored choice. Changing it while connected takes effect at the
     /// next action and needs no key.
     @ViewBuilder
-    private var tierPicker: some View {
+    private var modelPicker: some View {
         let provider = selection
-        if provider.model(for: .standard) != nil {
-            labeledField(ConnectAIPresentation.modelTierLabel) {
+        if !provider.models.isEmpty {
+            labeledField(ConnectAIPresentation.modelLabel) {
                 VStack(alignment: .leading, spacing: 5) {
-                    Picker(ConnectAIPresentation.modelTierLabel, selection: Binding(
-                        get: { store.tier(for: provider) },
-                        set: { store.setTier($0, for: provider) }
+                    Picker(ConnectAIPresentation.modelLabel, selection: Binding(
+                        get: { store.model(for: provider) },
+                        set: { picked in if let picked { store.setModel(picked, for: provider) } }
                     )) {
-                        ForEach(AIModelTier.allCases) { tier in
-                            Text(verbatim: provider.modelDisplayName(for: tier) ?? "").tag(tier)
+                        ForEach(provider.models) { option in
+                            Text(verbatim: option.displayName).tag(Optional(option))
                         }
                     }
-                    .pickerStyle(.segmented)
+                    .pickerStyle(.menu)
                     .labelsHidden()
                     .fixedSize()
                     .background(CursorRectView(cursor: .arrow))
-                    .accessibilityIdentifier("connectAI.tier")
+                    .accessibilityIdentifier("connectAI.modelPicker")
                 }
             }
         }
@@ -286,7 +286,7 @@ struct ConnectAIView: View {
         Label(ConnectAIPresentation.connectedText, systemImage: "checkmark.circle.fill")
             .font(.callout.weight(.semibold))
             .foregroundStyle(.green)
-        tierPicker
+        modelPicker
         if selection == .other, let endpoint = store.otherEndpoint {
             Text(verbatim: endpoint.absoluteString)
                 .font(.callout)

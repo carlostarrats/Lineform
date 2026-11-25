@@ -57,48 +57,60 @@ public enum AIProvider: String, CaseIterable, Codable, Identifiable, Sendable {
         }
     }
 
-    /// The model each tier sends. Verified 2026-11-13 against the providers' own model lists:
-    /// both OpenAI models support `v1/chat/completions`, and the Gemini IDs are the stable
-    /// codes on Google's model page (used through its OpenAI-compatible endpoint).
-    public func model(for tier: AIModelTier) -> String? {
-        switch (self, tier) {
-        case (.claude, .standard): return "claude-haiku-5-5"
-        case (.claude, .higherQuality): return "claude-sonnet-5-5"
-        case (.chatGPT, .standard): return "gpt-6-luna"
-        case (.chatGPT, .higherQuality): return "gpt-6.1-terra"
-        case (.google, .standard): return "gemini-3.5-flash-lite"
-        case (.google, .higherQuality): return "gemini-3.8-flash"
-        case (.other, _): return nil
+    /// The models the writer can pick, cheapest first; the first is the default. A curated
+    /// static list (no network fetch) of each provider's current general-purpose chat models,
+    /// leaving out the top tier (Claude Fable, GPT Astra, Gemini 4 Carbon and its Argon variant)
+    /// and every non-chat model (embedding, image, audio, TTS, live). Verified 2026-11-24 against
+    /// platform.claude.com/docs/en/about-claude/models/overview, developers.openai.com/api/docs/models
+    /// (each GPT page lists `v1/chat/completions` as supported) and aistudio.google.com/docs/models
+    /// with its pricing page (all stable; served through Google's OpenAI-compatible endpoint).
+    /// Display names are product names, never translated.
+    public var models: [AIModelOption] {
+        switch self {
+        case .claude:
+            return [
+                AIModelOption(id: "claude-haiku-5-5", displayName: "Claude Haiku 5.5"),
+                AIModelOption(id: "claude-sonnet-5-5", displayName: "Claude Sonnet 5.5"),
+                AIModelOption(id: "claude-opus-5-5", displayName: "Claude Opus 5.5"),
+            ]
+        case .chatGPT:
+            return [
+                AIModelOption(id: "gpt-6-luna", displayName: "GPT-6 Luna"),
+                AIModelOption(id: "gpt-6.1-terra", displayName: "GPT-6.1 Terra"),
+                AIModelOption(id: "gpt-6.2-sol", displayName: "GPT-6.2 Sol"),
+            ]
+        case .google:
+            return [
+                AIModelOption(id: "gemini-3.5-flash-lite", displayName: "Gemini 3.5 Flash-Lite"),
+                AIModelOption(id: "gemini-3.8-flash", displayName: "Gemini 3.8 Flash"),
+                AIModelOption(id: "gemini-4-hydrogen", displayName: "Gemini 4 Hydrogen"),
+                AIModelOption(id: "gemini-4-neon", displayName: "Gemini 4 Neon"),
+            ]
+        case .other:
+            return []
         }
     }
 
-    /// The model a tier sends, by its product name ("Claude Sonnet 5.5"), for the Model picker.
-    /// Brand and product names, never translated; the tier's raw value stays the persisted
-    /// identity.
-    public func modelDisplayName(for tier: AIModelTier) -> String? {
-        model(for: tier).map(Self.displayName(forModelID:))
+    /// The cheapest model; what a writer gets until they choose. Nil for Other, whose model is
+    /// what the writer types.
+    public var defaultModel: AIModelOption? { models.first }
+
+    /// The listed model with this ID, or nil when it is not (or no longer) in the list.
+    public func model(withID id: String) -> AIModelOption? {
+        models.first { $0.id == id }
     }
 
-    /// A provider model identifier as its product name: "claude-sonnet-5-5" → "Claude Sonnet 5.5",
-    /// "gpt-6.1-terra" → "GPT-6.1 Terra", "gemini-3.5-flash-lite" → "Gemini 3.5 Flash-Lite".
-    static func displayName(forModelID id: String) -> String {
-        let parts = id.split(separator: "-").map(String.init)
-        func word(_ part: String) -> String { part.prefix(1).uppercased() + part.dropFirst() }
-        switch parts.first {
-        case "claude":
-            // claude-<name>-<major>-<minor>
-            let rest = parts.dropFirst()
-            let names = rest.filter { !$0.allSatisfy(\.isNumber) }.map(word)
-            let version = rest.filter { $0.allSatisfy(\.isNumber) }.joined(separator: ".")
-            return ([word(parts[0])] + names + (version.isEmpty ? [] : [version])).joined(separator: " ")
-        case "gpt" where parts.count >= 2:
-            // gpt-<version>-<name>
-            return (["GPT-" + parts[1]] + parts.dropFirst(2).map(word)).joined(separator: " ")
-        case "gemini" where parts.count >= 3:
-            // gemini-<version>-<name>[-lite]
-            return [word(parts[0]), parts[1], parts.dropFirst(2).map(word).joined(separator: "-")].joined(separator: " ")
-        default:
-            return id
+    /// The model a saved two-tier choice (`Lineform.ai.tier.<provider>`, before the full list)
+    /// sent: "standard" is the default, "higherQuality" the model that tier sent then. Fixed
+    /// here so later list changes cannot move a migrated choice. Nil for anything else.
+    func migratedModelID(fromTier tier: String) -> String? {
+        switch (self, tier) {
+        case (.other, _): return nil
+        case (_, "standard"): return defaultModel?.id
+        case (.claude, "higherQuality"): return "claude-sonnet-5-5"
+        case (.chatGPT, "higherQuality"): return "gpt-6.1-terra"
+        case (.google, "higherQuality"): return "gemini-3.8-flash"
+        default: return nil
         }
     }
 
@@ -107,20 +119,11 @@ public enum AIProvider: String, CaseIterable, Codable, Identifiable, Sendable {
     }
 }
 
-/// Which of a provider's two models a writer chose. The raw values are persisted identity
-/// (UserDefaults) and are never localized; `title` is the chrome.
-public enum AIModelTier: String, CaseIterable, Identifiable {
-    case standard
-    case higherQuality
-
-    public var id: String { rawValue }
-
-    public var title: String {
-        switch self {
-        case .standard: return String(localized: "Standard", bundle: .module)
-        case .higherQuality: return String(localized: "Higher quality", bundle: .module)
-        }
-    }
+/// One model the Model picker offers: the ID sent on the wire (persisted identity in
+/// UserDefaults) and its product name, never translated.
+public struct AIModelOption: Identifiable, Equatable, Hashable, Sendable {
+    public let id: String
+    public let displayName: String
 }
 
 /// Everything an action needs to make one request. Resolved at action time only.
