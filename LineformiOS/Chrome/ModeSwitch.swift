@@ -334,6 +334,31 @@ final class DocumentNameTag: UIButton {
 
     var onRename: (() -> Void)?
 
+    /// How far below the text's baseline the dashes run.
+    static let dashOffset: CGFloat = 3
+
+    private lazy var dashLayer: CAShapeLayer = {
+        let dashes = CAShapeLayer()
+        dashes.lineWidth = 1
+        dashes.lineDashPattern = [3, 2]
+        dashes.fillColor = nil
+        layer.addSublayer(dashes)
+        return dashes
+    }()
+
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        guard let label = titleLabel, let font = label.font else { return }
+        let text = label.frame
+        let baseline = text.minY + font.ascender
+        let y = (baseline + Self.dashOffset).rounded() + 0.5
+        let path = UIBezierPath()
+        path.move(to: CGPoint(x: text.minX, y: y))
+        path.addLine(to: CGPoint(x: text.maxX, y: y))
+        dashLayer.frame = bounds
+        dashLayer.path = path.cgPath
+    }
+
     static func make() -> DocumentNameTag {
         let tag = DocumentNameTag(type: .system)
         tag.contentHorizontalAlignment = .leading
@@ -354,12 +379,13 @@ final class DocumentNameTag: UIButton {
             .font: UIFont.preferredFont(forTextStyle: .footnote),
             .foregroundColor: ink,
         ]
-        if canRename {
-            attributes[.underlineStyle] = NSUnderlineStyle([.single, .patternDash]).rawValue
-            attributes[.underlineColor] = ink.withAlphaComponent(0.6)
-        }
         let title = NSAttributedString(string: name, attributes: attributes)
         if attributedTitle(for: .normal) != title { setAttributedTitle(title, for: .normal) }
+        // The dashes are drawn, not a text underline, so they sit a little below the letters
+        // (owner review 5: the text underline sat too tight).
+        dashLayer.strokeColor = ink.withAlphaComponent(0.6).cgColor
+        dashLayer.isHidden = !canRename
+        setNeedsLayout()
         isUserInteractionEnabled = canRename
         accessibilityLabel = name
         accessibilityHint = canRename ? String(localized: "Rename…") : nil
