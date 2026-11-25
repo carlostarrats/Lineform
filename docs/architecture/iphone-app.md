@@ -1669,6 +1669,26 @@ in the iPhone catalog with the Mac's translations.
   Mac's rule: without it no `Metadata.appintents` is emitted and the actions silently never
   register. `PhoneAppIntentsTests.testAppIntentsMetadataIsEmittedIntoTheApp` asserts the file is
   in the built app.
+- **Notes as entities (iPhone only, 2026-11-25).** `LineformNoteEntity` is a note in iCloud's
+  Lineform folder or On My iPhone (never the Workspace or `Documents/Inbox`): id = root + path
+  inside it (`device:Folder/Note.md`), title = file name without extension, subtitle = "iCloud" /
+  "On My iPhone". `LineformNoteQuery` (suggestions, ids, name search) and `PhoneNoteLibrary` scan
+  with Files' own `FilesStore.liveScanner`; an id that leaves its root resolves to nothing.
+  **Add to Lineform Note** appends on a line of its own in the file's own line ending
+  (`PhoneNoteText.appending`). It never writes behind the open document's back: the note on screen
+  takes it through the editor (`applyIntentEdit`, one undo step, refused during an AI review or
+  marked text) and is flushed; any other note is one coordinated read-and-write
+  (`.forMerging`, `MarkdownFileCodec` both ways). While a scene is connected but its document has
+  not attached, Add and Get wait for it (10 s at most). **Get Note Text** returns the on-screen
+  text for the open note, else the coordinated read. **Find Notes** matches names as Search does
+  and, only when asked, contents through `CrossFileSearchFileReader` (no iCloud download, 1 MB
+  cap). **Open Lineform Note** is an `OpenIntent` through `PhoneIntentRouter.handle(.open)`.
+  The four are iPhone-only; their phrases sit in the Mac's `AppShortcuts.xcstrings` beside the
+  shared ones.
+- **Spotlight.** `PhoneSpotlightIndex` indexes the entities (`IndexedEntity`): title and location
+  only, never text. Debounced refresh on scene active, on `document.url` changes and on a Files
+  rescan of a note root; the first refresh in a process replaces everything, later ones send only
+  the diff. Inert under XCTest. A tap runs Open Lineform Note.
 ## Accessibility
 
 Every iPhone screen supports Dynamic Type up to the largest accessibility size (AX5), VoiceOver,

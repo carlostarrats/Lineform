@@ -39,6 +39,9 @@ struct LineformiOSApp: App {
             if PhoneAnnouncementStore.checksOnSceneChange(to: phase, isRunningUnderTests: Self.isRunningUnderTests) {
                 Task { await PhoneAnnouncementStore.shared.checkIfNeeded(isEnabled: AppSettings.shared.checksForAnnouncements) }
             }
+            // Spotlight's note titles catch up with files changed while the app was away (titles
+            // and locations only, on the device). Never in the test host, at this call site.
+            if phase == .active, !Self.isRunningUnderTests { PhoneSpotlightIndex.shared.scheduleRefresh() }
         }
     }
 }

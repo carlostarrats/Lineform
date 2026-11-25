@@ -446,6 +446,8 @@ struct DocumentScreen: View {
         }
         .onChange(of: document.url) {
             openDocumentBookmark = document.storedBookmark
+            // A new file, a first-line rename or a deleted file: Spotlight's titles follow.
+            PhoneSpotlightIndex.shared.scheduleRefresh()
             if document.url != nil {
                 withAnimation(firstRunFade) {
                     endFirstRun(firstRun.documentOpened())
