@@ -631,7 +631,8 @@ struct FilesSection: View {
                     .frame(minHeight: WordMenuMetrics.minimumTarget)
                     .contentShape(Rectangle())
                 }
-                .buttonStyle(.plain)
+                // No press dimming: the heading and its icon stay steady; only the chevron turns.
+                .buttonStyle(SteadyButtonStyle())
                 .accessibilityLabel(Text(heading.title))
                 .accessibilityValue(Text(collapsed ? Self.collapsedValue : Self.expandedValue))
                 .accessibilityHint(Text(collapsed ? Self.expandHint : Self.collapseHint))
@@ -1047,4 +1048,9 @@ private struct NoEditorCommands: EditorCommands {
     func reformatTable() {}
     func replace(range: NSRange, with replacement: String) -> Bool { false }
     func replaceAll(ranges: [NSRange], with replacement: String) -> Bool { false }
+}
+
+/// A button that draws its label exactly as it is, pressed or not.
+struct SteadyButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View { configuration.label }
 }
