@@ -103,6 +103,8 @@ private struct ExportDocumentPicker: View {
     var files: FilesStore
     @State private var isOpen = false
     @State private var rootID: FilesRootID?
+    /// The document the wheel is turned to, until Select.
+    @State private var pending: URL?
     @Environment(\.wordMenuPalette) private var palette
 
     private var roots: [FilesRoot] { FilesSection.phoneRoots(files.roots).filter(\.hasScanned) }
@@ -149,47 +151,47 @@ private struct ExportDocumentPicker: View {
             .accessibilityValue(Text(verbatim: name))
             .accessibilityIdentifier("export.document")
         }
-        // The native wheel, rising from the bottom of the screen as iOS's own pickers do, never
-        // drawn in the page (owner review 5). A location choice first, only when both exist.
+        // The wheel rises from the bottom of the screen: the location switch at the top (only
+        // when iCloud and On My iPhone both show), iOS's wheel with the turned-to name on a
+        // Lineform-blue band (the app's selection colour, not iOS's grey), and Select at the
+        // bottom, which opens that document (owner review 5).
         .sheet(isPresented: $isOpen) {
-            VStack(spacing: 8) {
-                HStack {
-                    Spacer()
-                    Button(String(localized: "Done")) { isOpen = false }
-                        .fontWeight(.semibold)
-                }
-                .padding(.horizontal, 20)
-                .padding(.top, 14)
+            let items = documents(in: currentRootID)
+            VStack(spacing: 12) {
                 if roots.count > 1 {
-                    Picker(String(localized: "File name"), selection: Binding(get: { currentRootID }, set: { rootID = $0 })) {
+                    Picker(String(localized: "File name"), selection: Binding(get: { currentRootID }, set: { rootID = $0; pending = nil })) {
                         ForEach(roots) { root in
                             Text(FilesSection.heading(for: root).title).tag(Optional(root.id))
                         }
                     }
                     .pickerStyle(.segmented)
-                    .padding(.horizontal, 20)
                 }
-                let items = documents(in: currentRootID)
-                Picker(String(localized: "File name"), selection: Binding(
-                    get: { document.url?.standardizedFileURL },
-                    set: { url in
-                        guard let url, url != document.url?.standardizedFileURL else { return }
-                        Task { await document.openReportingFailure(url) }
-                    }
-                )) {
-                    if document.url.map({ url in !items.contains { $0.url.standardizedFileURL == url.standardizedFileURL } }) ?? true {
-                        Text(verbatim: name).tag(document.url?.standardizedFileURL)
-                    }
-                    ForEach(items) { item in
-                        Text(verbatim: item.url.deletingPathExtension().lastPathComponent)
-                            .tag(Optional(item.url.standardizedFileURL))
-                    }
+                FileWheel(
+                    names: items.map { $0.url.deletingPathExtension().lastPathComponent },
+                    selection: Binding(
+                        get: {
+                            let target = pending ?? document.url?.standardizedFileURL
+                            return items.firstIndex { $0.url.standardizedFileURL == target } ?? 0
+                        },
+                        set: { index in if items.indices.contains(index) { pending = items[index].url.standardizedFileURL } }
+                    ),
+                    band: palette.color(palette.blueFill).opacity(0.16)
+                )
+                .frame(height: 180)
+                WordMenuPrimaryButton(title: String(localized: "Select")) {
+                    let chosen = pending ?? items.first?.url.standardizedFileURL
+                    isOpen = false
+                    pending = nil
+                    guard let chosen, chosen != document.url?.standardizedFileURL else { return }
+                    Task { await document.openReportingFailure(chosen) }
                 }
-                .pickerStyle(.wheel)
-                Spacer(minLength: 0)
+                .disabled(items.isEmpty)
             }
-            .presentationDetents([.height(roots.count > 1 ? 330 : 290)])
-            .presentationDragIndicator(.hidden)
+            .padding(.horizontal, 20)
+            .padding(.top, 24)
+            .padding(.bottom, 12)
+            .environment(\.wordMenuPalette, palette)
+            .presentationDetents([.height(roots.count > 1 ? 360 : 320)])
         }
         .onChange(of: isOpen) { _, open in
             files.setVisible(open, for: .chooser)
@@ -197,5 +199,52 @@ private struct ExportDocumentPicker: View {
         }
         .onDisappear { files.setVisible(false, for: .chooser) }
         .transaction { $0.animation = nil }
+    }
+}
+
+/// iOS's wheel (`UIPickerView`) with its grey selection band replaced by the app's blue band.
+private struct FileWheel: UIViewRepresentable {
+    var names: [String]
+    @Binding var selection: Int
+    var band: Color
+
+    func makeCoordinator() -> Coordinator { Coordinator(self) }
+
+    func makeUIView(context: Context) -> BandedPicker {
+        let picker = BandedPicker()
+        picker.dataSource = context.coordinator
+        picker.delegate = context.coordinator
+        return picker
+    }
+
+    func updateUIView(_ picker: BandedPicker, context: Context) {
+        context.coordinator.parent = self
+        picker.band = UIColor(band)
+        picker.reloadAllComponents()
+        if names.indices.contains(selection), picker.selectedRow(inComponent: 0) != selection {
+            picker.selectRow(selection, inComponent: 0, animated: false)
+        }
+    }
+
+    final class Coordinator: NSObject, UIPickerViewDataSource, UIPickerViewDelegate {
+        var parent: FileWheel
+        init(_ parent: FileWheel) { self.parent = parent }
+        func numberOfComponents(in pickerView: UIPickerView) -> Int { 1 }
+        func pickerView(_ pickerView: UIPickerView, numberOfRowsInComponent component: Int) -> Int { parent.names.count }
+        func pickerView(_ pickerView: UIPickerView, titleForRow row: Int, forComponent component: Int) -> String? { parent.names[row] }
+        func pickerView(_ pickerView: UIPickerView, didSelectRow row: Int, inComponent component: Int) {
+            parent.selection = row
+        }
+    }
+
+    /// Clears the system's grey band and draws the given colour in its place.
+    final class BandedPicker: UIPickerView {
+        var band: UIColor = .clear { didSet { setNeedsLayout() } }
+        override func layoutSubviews() {
+            super.layoutSubviews()
+            for view in subviews where view.bounds.height > 20 && view.bounds.height < 60 {
+                view.backgroundColor = band
+            }
+        }
     }
 }
