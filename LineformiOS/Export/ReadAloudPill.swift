@@ -1,7 +1,7 @@
 import LineformCore
 import SwiftUI
 
-/// Read aloud's pill on the page: on the ⋯ button's line, from the left margin up to it. "Reading
+/// Read aloud's pill on the page, on Liquid Glass: on the ⋯ button's line, from the left margin up to it. "Reading
 /// aloud" (or "Paused"), then pause/play and ✕ (which ends reading and closes the pill), each on a
 /// round background (the page colour; a lighter circle on a dark page, `PhoneInk.readAloudButton`).
 /// All glyphs are SF Symbols at one weight. Shown while `ExportCommands.readAloudPill` is not
@@ -66,32 +66,11 @@ struct ReadAloudPill: View {
         .padding(.leading, 18)
         .padding(.trailing, 2)
         .frame(height: Self.height)
-        .background(Capsule().fill(Color(uiColor: ink.searchFieldWash)))
-        .background(Capsule().fill(Color(uiColor: ink.page)))
-        .overlay(
-            Capsule().strokeBorder(
-                theme.usesDarkChrome
-                    ? Color.white.opacity(LineformDesign.FloatingCard.hairlineOpacityDark)
-                    : Color.black.opacity(LineformDesign.FloatingCard.hairlineOpacityLight),
-                lineWidth: LineformDesign.FloatingCard.hairlineWidth
-            )
-        )
-        // A softer shadow than the round buttons' (owner review 4: the wide pill's full floating
-        // shadow read far too heavy, in dark especially): a third of the opacity, half the blur.
-        .shadow(
-            color: .black.opacity(
-                (theme.usesDarkChrome ? LineformDesign.FloatingCard.shadowOpacityDark : LineformDesign.FloatingCard.shadowOpacityLight)
-                    * Self.shadowStrength
-            ),
-            radius: LineformDesign.FloatingCard.shadowRadius / 2,
-            x: 0,
-            y: LineformDesign.FloatingCard.shadowOffset.height / 2
-        )
+        // Liquid Glass (iOS 26), in the theme's light or dark so the words read on it.
+        .glassEffect(.regular, in: Capsule())
+        .environment(\.colorScheme, theme.usesDarkChrome ? .dark : .light)
         .accessibilityElement(children: .contain)
     }
-
-    /// How much of the floating chrome's shadow the pill keeps.
-    static let shadowStrength = 0.35
 
     /// A 36 pt circle (`PhoneInk.readAloudButton`) inside a 44 pt target.
     private func roundButton(systemImage: String, label: String, ink: PhoneInk, action: @escaping () -> Void) -> some View {

@@ -39,17 +39,8 @@ struct SelectionToolbarRoot: View {
                 .onEnded { model.onDrag($0.translation, true) }
         )
         .environment(\.colorScheme, model.usesDarkChrome ? .dark : .light)
-        .background(
-            RoundedRectangle(cornerRadius: LineformDesign.Radius.floatingCard, style: .continuous)
-                .fill(model.usesDarkChrome ? Color(white: 0.17) : Color(white: 0.99))
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: LineformDesign.Radius.floatingCard, style: .continuous)
-                .strokeBorder(model.usesDarkChrome ? Color.white.opacity(0.12) : Color.black.opacity(0.08))
-        )
-        .clipShape(RoundedRectangle(cornerRadius: LineformDesign.Radius.floatingCard, style: .continuous))
+        .modifier(SelectionToolbarSurface(usesDarkChrome: model.usesDarkChrome))
         // Room for the shadow inside the hosting view's bounds.
-        .shadow(color: .black.opacity(model.usesDarkChrome ? 0.45 : 0.16), radius: 12, y: 4)
         .padding(SelectionToolbarHostingView.shadowInset)
         .fixedSize()
         // Pinned to the top: while the card grows (a note wrapping onto another line) the hosting
@@ -57,6 +48,25 @@ struct SelectionToolbarRoot: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         // The hosting view's own (flipped) coordinates: menus anchor to button frames read here.
         .coordinateSpace(name: SelectionToolbarHostingView.coordinateSpaceName)
+    }
+}
+
+/// The card's material. macOS 26: Liquid Glass in the card's shape. Earlier: the two-variant
+/// fill, its hairline and the shadow.
+private struct SelectionToolbarSurface: ViewModifier {
+    let usesDarkChrome: Bool
+
+    func body(content: Content) -> some View {
+        let shape = RoundedRectangle(cornerRadius: LineformDesign.Radius.floatingCard, style: .continuous)
+        if #available(macOS 26, *) {
+            content.glassEffect(.regular, in: shape)
+        } else {
+            content
+                .background(shape.fill(usesDarkChrome ? Color(white: 0.17) : Color(white: 0.99)))
+                .overlay(shape.strokeBorder(usesDarkChrome ? Color.white.opacity(0.12) : Color.black.opacity(0.08)))
+                .clipShape(shape)
+                .shadow(color: .black.opacity(usesDarkChrome ? 0.45 : 0.16), radius: 12, y: 4)
+        }
     }
 }
 

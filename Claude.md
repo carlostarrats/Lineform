@@ -430,8 +430,8 @@ iPhone only, portrait only (owner, 2026-11-24). Details: `docs/architecture/ipho
   search) opens its document INSTANTLY: the menu closes straight to the page, no expansion or
   fade (owner review 3, 2026-11-24). After a card or search result opens a document, a round
   ← (`ResumeMenuButton`, ⋯'s twin at the bottom left, "Back to Files") reopens the menu exactly
-  where the writer was (`WordMenuSession`: page, search text and scope, scroll); it fades (0.22 s, as one
-  layer: `compositingGroup`) after 4 s or at the first keystroke, and never on a timer while VoiceOver runs. Markdown Basics is the
+  where the writer was (`WordMenuSession`: page, search text and scope, scroll); it fades (0.22 s, glass and
+  arrow as one view) after 4 s or at the first keystroke, and never on a timer while VoiceOver runs. Markdown Basics is the
   mockup's grouped cards (name · Markdown · copy), exactly its rows (no label rows, Spelling or
   Search on iPhone); the Themes sheet has no title, says "Reset to Theme", and closes on a tap on
   its grabber or the page above it; Settings is single-line rows with no visible notes (each note
@@ -468,7 +468,7 @@ iPhone only, portrait only (owner, 2026-11-24). Details: `docs/architecture/ipho
   `PhonePrintRenderer`'s `numberOfPages`/`drawPage` OFF main: never hop to main there; render on
   main beforehand. `OpenDocument.onDocumentSwap` is the only place read aloud stops on a swap.
 - **Selection row, the AI sheet and AI.** The format row is the owner's format-row option 1
-  exactly (`format-row-options.html`, `.b1`): a full-width 50 pt bar in the keyboard's colour docked
+  exactly (`format-row-options.html`, `.b1`): a full-width 50 pt bar on Liquid Glass docked
   on the keyboard as the editor's `inputAccessoryView` (`FormatBarAccessoryView`; never a floating
   capsule), every command its own light chip (36 pt, 8 pt corners, 4 pt apart, 44 pt targets), shown
   scrolled to its start on a fresh show or a caret ↔ selection switch (a command that only changes

@@ -62,7 +62,7 @@ struct PreviewSplit<Editor: View, Reader: View>: View {
 /// Preview's link button, the Mac's `splitScrollLinkButton` in the iPhone's floating chrome: a
 /// circle the ⋯ button's size (48 pt, its own touch target) with the `link` symbol, system blue on a blue wash while linked, struck through in
 /// the page ink while unlinked. It sits at the bottom right of the Read pane, left of the Menu
-/// button, and shares the Menu button's `LineformDesign` floating chrome (fill, hairline, shadow).
+/// button, and shares the Menu button's Liquid Glass.
 /// A phone has no hover: the Mac's hover values are the pressed state.
 struct PreviewLinkButton: View {
     /// The ⋯ button's size, so the two round buttons side by side match (owner, 2026-11-24).
@@ -105,7 +105,7 @@ extension PreviewLinkButton {
         return 0
     }
 
-    /// The blue ring's opacity; 0 for an unlinked button at rest (the hairline shows instead).
+    /// The blue ring's opacity; 0 for an unlinked button at rest (the glass edge shows instead).
     static func ringOpacity(isLinked: Bool, isPressed: Bool) -> Double {
         if isLinked { return isPressed ? 0.95 : 0.72 }
         return isPressed ? 0.55 : 0
@@ -153,31 +153,16 @@ private struct LinkButtonBody: View {
         .font(.system(size: PreviewLinkButton.symbolSize, weight: .semibold))
         .foregroundStyle(ink)
         .frame(width: PreviewLinkButton.diameter, height: PreviewLinkButton.diameter)
+        // The blue wash and ring mark the linked (and pressed) state on the glass.
         .background {
-            ZStack {
-                Circle().fill(Color(uiColor: theme.backgroundColor))
-                Circle().fill(blue.opacity(PreviewLinkButton.washOpacity(isLinked: isLinked, isPressed: isPressed, isDark: isDark)))
-            }
+            Circle().fill(blue.opacity(PreviewLinkButton.washOpacity(isLinked: isLinked, isPressed: isPressed, isDark: isDark)))
         }
         .overlay {
-            ZStack {
-                Circle()
-                    .strokeBorder(
-                        isDark
-                            ? Color.white.opacity(LineformDesign.FloatingCard.hairlineOpacityDark)
-                            : Color.black.opacity(LineformDesign.FloatingCard.hairlineOpacityLight),
-                        lineWidth: LineformDesign.FloatingCard.hairlineWidth
-                    )
-                    .opacity(ringOpacity > 0 ? 0 : 1)
-                Circle().strokeBorder(blue.opacity(ringOpacity), lineWidth: 1.25)
-            }
+            Circle().strokeBorder(blue.opacity(ringOpacity), lineWidth: 1.25)
         }
-        .shadow(
-            color: .black.opacity(isDark ? LineformDesign.FloatingCard.shadowOpacityDark : LineformDesign.FloatingCard.shadowOpacityLight),
-            radius: LineformDesign.FloatingCard.shadowRadius,
-            x: LineformDesign.FloatingCard.shadowOffset.width,
-            y: LineformDesign.FloatingCard.shadowOffset.height
-        )
+        // Liquid Glass (iOS 26), as the ⋯ button beside it, in the theme's light or dark.
+        .glassEffect(.regular, in: Circle())
+        .environment(\.colorScheme, isDark ? .dark : .light)
         // The touch target around the circle (the same size at 48 pt); the row's spacing gives any difference back.
         .frame(width: PreviewLinkButton.touchSide, height: PreviewLinkButton.touchSide)
         .contentShape(Rectangle())
