@@ -45,7 +45,8 @@ final class ConnectAIFormModel: ObservableObject, Identifiable {
     }
 
     /// The consent step: the button says "Connect"; the small text under it names what is sent and
-    /// to whom ("Lineform will send the text you choose to Anthropic."), then the privacy note.
+    /// to whom ("Lineform will send the passage you select, or the whole document when you choose Ask
+    /// AI for it, to Anthropic."), then the privacy note.
     var connectTitle: String { ConnectAIPresentation.connectTitle }
 
     var consentNote: String {
@@ -139,8 +140,10 @@ struct ConnectAISection: View {
     // MARK: - Copy
 
     static var title: String { WordMenuItem.connectAI.title }
+    /// One short sentence (owner review 4). What is sent (the passage you select, or the whole
+    /// document when you choose Ask AI for it) is the consent note under Connect.
     static var note: String {
-        String(localized: "Rewrite and proofread with an AI account of your own. Only the passage you select is sent, or the whole document when you choose Ask AI for it, with any comment you type. For Find, that is each whole sentence your selection touches, or every sentence of the document. Nothing is sent until you choose an action.")
+        String(localized: "Use your own AI account to rewrite and proofread. Nothing is sent until you choose an action.")
     }
     static var askAITitle: String { String(localized: "Ask AI…") }
     static var askAINote: String { String(localized: "Sends the whole document to your AI, with any comment you type.") }

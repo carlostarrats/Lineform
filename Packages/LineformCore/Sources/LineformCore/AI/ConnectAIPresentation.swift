@@ -90,13 +90,15 @@ public enum ConnectAIPresentation {
         recipientNote(for: provider, otherHost: otherHost) + " " + privacyNote
     }
 
-    /// What is sent and to whom: "Lineform will send the text you choose to Anthropic."
+    /// What is sent and to whom, naming both cases (CLAUDE.md; App Review 5.1.2(i)): "Lineform will
+    /// send the passage you select, or the whole document when you choose Ask AI for it, to
+    /// Anthropic."
     public static func recipientNote(for provider: AIProvider, otherHost: String?, bundle: Bundle = .lineformCore) -> String {
         let host = otherHost?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         guard let recipient = provider.companyName ?? (host.isEmpty ? nil : host) else {
-            return String(localized: "Lineform will send the text you choose to that address.", bundle: bundle)
+            return String(localized: "Lineform will send the passage you select, or the whole document when you choose Ask AI for it, to that address.", bundle: bundle)
         }
-        return String(localized: "Lineform will send the text you choose to \(recipient).", bundle: bundle)
+        return String(localized: "Lineform will send the passage you select, or the whole document when you choose Ask AI for it, to \(recipient).", bundle: bundle)
     }
 
     /// The host of what the writer has typed into Other's Address field, for the consent

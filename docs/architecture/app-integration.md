@@ -126,8 +126,9 @@ review; this is the connection, the wire, and the rules around them.
   `closeTabClosesWindowDirectly`, went with the window).
 - **Consent is the Connect button and the small text directly under it** (the owner's review,
   2026-11-24; both apps, `ConnectAIPresentation.connectTitle` / `consentNote`). The button says
-  "Connect"; under it, in small secondary text, "Lineform will send the text you choose to
-  Anthropic / OpenAI / Google / <host>." ("…to that address." before a host is typed), then the
+  "Connect"; under it, in small secondary text, "Lineform will send the passage you select, or
+  the whole document when you choose Ask AI for it, to Anthropic / OpenAI / Google / <host>."
+  (both cases named, owner review 4, 2026-11-24) ("…to that address." before a host is typed), then the
   privacy note ("Lineform sends only the text you act on, only when you choose an AI action,
   directly to the provider you connected, under your account and that provider's terms.
   Lineform's developer receives nothing."). VoiceOver reads the same text as the button's hint. The

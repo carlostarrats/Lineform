@@ -9525,82 +9525,82 @@
         }
       }
     },
-    "Lineform will send the text you choose to %@." : {
+    "Lineform will send the passage you select, or the whole document when you choose Ask AI for it, to %@." : {
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Lineform sendet den gewählten Text an %@."
+            "value" : "Lineform sendet die Passage, die du auswählst, oder das ganze Dokument, wenn du dafür „KI fragen“ wählst, an %@."
           }
         },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Lineform will send the text you choose to %@."
+            "value" : "Lineform will send the passage you select, or the whole document when you choose Ask AI for it, to %@."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Lineform enviará el texto que elijas a %@."
+            "value" : "Lineform enviará el pasaje que seleccionas, o el documento entero cuando eliges Preguntar a la IA para él, a %@."
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Lineform enverra le texte choisi à %@."
+            "value" : "Lineform enverra le passage que vous sélectionnez, ou le document entier si vous choisissez Demander à l’IA pour lui, à %@."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "選んだテキストを %@ に送信します。"
+            "value" : "選択した部分を、文書全体に「AI に依頼」を選んだときは文書全体を、%@ に送信します。"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Lineform 会将你选择的文本发送给 %@。"
+            "value" : "Lineform 会将你选中的段落发送给 %@；若你对整个文稿选择“询问 AI”，则发送整个文稿。"
           }
         }
       }
     },
-    "Lineform will send the text you choose to that address." : {
+    "Lineform will send the passage you select, or the whole document when you choose Ask AI for it, to that address." : {
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Lineform sendet den gewählten Text an diese Adresse."
+            "value" : "Lineform sendet die Passage, die du auswählst, oder das ganze Dokument, wenn du dafür „KI fragen“ wählst, an diese Adresse."
           }
         },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Lineform will send the text you choose to that address."
+            "value" : "Lineform will send the passage you select, or the whole document when you choose Ask AI for it, to that address."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Lineform enviará el texto que elijas a esa dirección."
+            "value" : "Lineform enviará el pasaje que seleccionas, o el documento entero cuando eliges Preguntar a la IA para él, a esa dirección."
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Lineform enverra le texte choisi à cette adresse."
+            "value" : "Lineform enverra le passage que vous sélectionnez, ou le document entier si vous choisissez Demander à l’IA pour lui, à cette adresse."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "選んだテキストをそのアドレスに送信します。"
+            "value" : "選択した部分を、文書全体に「AI に依頼」を選んだときは文書全体を、そのアドレスに送信します。"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Lineform 会将你选择的文本发送到该地址。"
+            "value" : "Lineform 会将你选中的段落发送到该地址；若你对整个文稿选择“询问 AI”，则发送整个文稿。"
           }
         }
       }

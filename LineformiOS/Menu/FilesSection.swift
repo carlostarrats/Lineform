@@ -110,8 +110,9 @@ private struct FilesItemAlerts: ViewModifier {
 
 /// The word menu's Files, as in the owner's mockup (2026-11-24): the search field at the top
 /// (with its scope button; results are document cards with the matching line), then the "iCloud"
-/// heading (cloud icon) with its folders as plain rows (icon, name, count, chevron), the "On My
-/// iPhone" heading (phone icon) with its folders, then "Recent": both roots' own documents as
+/// heading (cloud icon) with its folders as plain rows (icon, name, count, chevron) and its own
+/// documents as cards, the "On My iPhone" heading (phone icon) with its folders and documents,
+/// then "Recent": both roots' own documents as
 /// cards, newest first. Each root's heading has a "+" on a grey round background that makes a new
 /// document in that root. A folder opens its page of cards; a card opens its document and the
 /// menu closes.
@@ -226,6 +227,14 @@ struct FilesSection: View {
     /// The roots the iPhone shows, in order: iCloud, then On My iPhone. Never the Workspace.
     static func phoneRoots(_ roots: [FilesRoot]) -> [FilesRoot] {
         roots.filter { $0.id != .workspace }
+    }
+
+    /// What a root lists under its folders: its own documents (not those in its folders), newest
+    /// first, iCloud placeholders included. Before owner review 4 a root listed only its folders,
+    /// so an iCloud folder holding documents and no folders showed nothing under its heading
+    /// while Recent listed those documents.
+    static func documents(in root: FilesRoot) -> [OutlineFileTreeItem] {
+        root.hasScanned ? recentDocuments(in: root.items) : []
     }
 
     /// Recent: every shown root's own documents (not those in its folders), newest first.
@@ -585,13 +594,23 @@ struct FilesSection: View {
             ProgressView()
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.horizontal, 4)
-        } else if root.items.isEmpty {
-            Text(String(localized: "No Markdown files"))
-                .font(.subheadline)
-                .foregroundStyle(palette.color(palette.secondary))
-                .padding(.horizontal, 4)
         } else {
+            // An empty root is its heading and "+" alone: no empty-state text (owner review 4).
             FilesFolderRows(items: root.items, store: store, actions: actions, onOpenFolder: onOpenFolder)
+            rootDocumentCards(root)
+        }
+    }
+
+    /// The root's own documents as cards, as a folder's page shows them, iCloud placeholders
+    /// included (opening one downloads it).
+    @ViewBuilder
+    private func rootDocumentCards(_ root: FilesRoot) -> some View {
+        let documents = Self.documents(in: root)
+        if !documents.isEmpty {
+            WordMenuCardGrid(items: documents) { item in
+                DocumentCard(item: item, document: document, store: store, actions: actions) { open(item.url) }
+            }
+            .padding(.top, 4)
         }
     }
 

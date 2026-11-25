@@ -224,8 +224,9 @@ service changes.
       explicit permission before doing so." Lineform meets it this way:
       - **Disclosure + permission = the Connect button and the text directly under it.** Since the
         owner's 2026-11-24 review the button says just "Connect"; the small text immediately under
-        it names what and to whom — "Lineform will send the text you choose to Anthropic." (OpenAI /
-        Google / the typed host) — followed by the privacy note: "Lineform sends only the text you
+        it names what and to whom — "Lineform will send the passage you select, or the whole
+        document when you choose Ask AI for it, to Anthropic." (OpenAI / Google / the typed host;
+        both cases named since owner review 4) — followed by the privacy note: "Lineform sends only the text you
         act on, only when you choose an AI action, directly to the provider you connected, under
         your account and that provider's terms. Lineform's developer receives nothing." VoiceOver
         reads the same text as the button's hint. Clicking it (or Return in a field) is the

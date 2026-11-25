@@ -330,6 +330,38 @@ final class FilesStoreTests: XCTestCase {
         XCTAssertEqual(switchedOff.roots.map(\.id), [.device, .workspace], "the setting hides iCloud")
     }
 
+    /// Owner review 4 (build 43, real iCloud): the iCloud heading showed nothing while Recent
+    /// listed its documents, because a root listed only its FOLDERS. The root now lists what is
+    /// there: its folders and its own documents, a not-downloaded placeholder under its real
+    /// name. The root is the very folder new documents save into (`<container>/Documents`).
+    func testICloudRootListsItsDocumentsFoldersAndPlaceholders() async throws {
+        let device = try makeFolder("Device")
+        let iCloud = try makeFolder("Container/Documents")
+        try write("Draft", to: iCloud.appendingPathComponent("Draft.md"))
+        try write("stub", to: iCloud.appendingPathComponent(".Evicted.md.icloud"))
+        try write("Chapter", to: iCloud.appendingPathComponent("Book/Chapter.md"))
+        let resolver = DocumentFolderResolver(ubiquityDocumentsURL: { iCloud }, localDocumentsURL: device)
+        let store = makeStore(device: device, iCloud: { iCloud }, log: FilesScanLog())
+        store.setVisible(true)
+        await store.scanIfVisible()
+
+        let root = try XCTUnwrap(store.root(.icloud))
+        XCTAssertEqual(root.folderURL.map { FilesStore.key($0) }, FilesStore.key(resolver.saveFolder()),
+                       "iCloud lists the folder new documents save into (OpenDocument saves to `saveFolder()`)")
+        XCTAssertEqual(root.items.filter(\.isDirectory).map(\.name), ["Book"])
+        let documents = FilesSection.documents(in: root)
+        XCTAssertEqual(Set(documents.map(\.name)), ["Draft.md", "Evicted.md"], "the root lists its own documents, not only its folders")
+        let placeholder = try XCTUnwrap(documents.first { $0.name == "Evicted.md" })
+        XCTAssertTrue(placeholder.isICloudPlaceholder, "a document not downloaded yet still lists")
+        XCTAssertEqual(placeholder.url.lastPathComponent, "Evicted.md", "opening it downloads the real file")
+        XCTAssertEqual(Set(FilesSection.recentDocuments(acrossRoots: store.roots).map(\.name)), ["Draft.md", "Evicted.md"],
+                       "Recent and the iCloud root agree")
+
+        let empty = try XCTUnwrap(store.root(.device))
+        XCTAssertTrue(empty.hasScanned)
+        XCTAssertEqual(FilesSection.documents(in: empty), [], "an empty root lists nothing (no empty-state text either)")
+    }
+
     // MARK: - Watching
 
     func testSubfolderChangeRefreshes() async throws {

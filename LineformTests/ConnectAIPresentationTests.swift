@@ -26,7 +26,7 @@ final class ConnectAIPresentationTests: XCTestCase {
         XCTAssertTrue(ConnectAIPresentation.consentNote(for: .chatGPT, otherHost: nil).contains("OpenAI"))
         XCTAssertTrue(ConnectAIPresentation.consentNote(for: .google, otherHost: nil).contains("Google"))
         XCTAssertTrue(ConnectAIPresentation.consentNote(for: .other, otherHost: "localhost").contains("localhost"))
-        XCTAssertTrue(ConnectAIPresentation.consentNote(for: .claude, otherHost: nil).contains("text you choose"))
+        XCTAssertTrue(ConnectAIPresentation.consentNote(for: .claude, otherHost: nil).contains("the passage you select, or the whole document when you choose Ask AI for it"))
         XCTAssertTrue(ConnectAIPresentation.consentNote(for: .other, otherHost: nil).contains("that address"))
         XCTAssertTrue(ConnectAIPresentation.consentNote(for: .other, otherHost: "  ").contains("that address"))
         XCTAssertTrue(ConnectAIPresentation.consentNote(for: .claude, otherHost: nil).hasSuffix(ConnectAIPresentation.privacyNote))
@@ -60,8 +60,8 @@ final class ConnectAIPresentationTests: XCTestCase {
             let privacy = ConnectAIPresentation.privacyNote(bundle: bundle)
             XCTAssertNotEqual(title, "Connect Your AI", language)
             XCTAssertNotEqual(privacy, "Lineform sends only the text you act on, only when you choose an AI action, directly to the provider you connected, under your account and that provider's terms. Lineform's developer receives nothing.", language)
-            for key in ["Connect", "Lineform will send the text you choose to %@.",
-                        "Lineform will send the text you choose to that address."] {
+            for key in ["Connect", "Lineform will send the passage you select, or the whole document when you choose Ask AI for it, to %@.",
+                        "Lineform will send the passage you select, or the whole document when you choose Ask AI for it, to that address."] {
                 let consent = bundle.localizedString(forKey: key, value: nil, table: nil)
                 XCTAssertNotEqual(consent, key, "\(language): consent label untranslated")
                 if key.contains("%@") {
