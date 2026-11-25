@@ -1783,16 +1783,38 @@ structured), energy 6 (punchier, engaging, enthusiastic, persuasive, creative, p
 (better, cleaner, academic, humanize), audience 3 (beginners, experts, executives) — each with 4–7
 refinements (a chip label and an explicit, checkable direction) and two defaults, chosen from the
 2026-11-24 vocabulary research. `AIPromptLexiconTests` pins the shape and that nothing crude or
-offensive is in it. `matches(in:)` runs on every keystroke, on the device: longest forms first,
-case- and diacritic-insensitive, whole words, UTF-16 ranges. Matched words get a dotted underline
+offensive is in it. `matches(in:)` runs on every keystroke, on the device, against a table
+compiled once per conversation (`AIPromptTable`: every form, longest first, with its comparison
+and boundary rules and a two-character folded opening that skips most forms without a search;
+about 2 ms for 320 characters in unoptimized Debug): never overlapping, UTF-16 ranges. Matched words get a dotted underline
 at once (solid once applied; washed while their card is open). Sent as
 `AIPromptLexicon.instruction`: the typed text, a "Directions:" block (“more professional” means: …,
 the chosen refinements or, for a word never opened, its defaults) and the fixed keep-constraint
 ("Keep the meaning, facts, numbers and every Markdown mark; change only the selected passage.").
-The sent bubble is the typed text only. Only English ships: `words(forLanguage:)` returns no words
-for the other five languages (each needs its own list built from how people write requests in it,
-not a translation), so those interfaces underline nothing; the lexicon is English data, exempt from
-the localization sweep for that reason.
+The sent bubble is the typed text only.
+
+**Prompt words in six languages (2026-11-24).** Each word also carries forms writers type in German,
+French, Spanish, Japanese and Simplified Chinese (`AIPromptLexicon.formTables`; e.g. "kürzer",
+"plus court", "acórtalo", "もっと短く", "更短"), chosen for how requests are phrased in that
+language. ALL languages are matched whatever the interface language — a German writer on an
+English iPhone still gets "kürzer" underlined — because every form was vetted against English and
+the other languages: a form that is also an everyday word elsewhere is dropped or kept only inside
+a phrase (French "court", "structuré" ≈ English "structure", "imagé" ≈ "image"; German
+"natürlich" = "of course", "bestimmter", bare "direkt"/"knapp"; Spanish "claro", "de tú",
+"legos"). Rules per form: English, French and Spanish are case- and accent-insensitive; German
+is case-insensitive but umlaut-sensitive ("kurzer" ≠ "kürzer"); English "brief" and "kinder"
+(German Brief, Kinder) match capitalized only at a sentence start; Latin-script forms need a word
+boundary on each Latin edge, while a Japanese or Chinese edge needs none (no spaces) — instead
+those lists prefer multi-character forms, the longest form wins ("非正式" is casual, not
+"正式"), and a few `blockers` claim unrelated longer words (流れ星, 得体の知れ…, 正式版, 扩展名).
+The options card is in the INTERFACE language: questions and chip labels are package-catalog
+keys (English text, six languages, `extractionState: manual` because they are looked up through a
+variable), resolved by `words(forLanguage:)` (a `.lproj`; `current` for the running app).
+`Refinement.key` is the English label (stable identity); `label` is what the chip shows. What is
+sent stays as it was for English: the typed word in the writer's own language and the English
+direction ("“kürzer” means: Make it about half as long."), which every connected model follows;
+the reply's language comes from the passage itself. Translations for native review:
+`docs/notes/translations-to-review.md` § prompt words.
 
 **The options card.** Inside the drawer / sheet, just above the input (and above the pills) —
 never a popover. The question as heading, chips (white with a hairline and a soft shadow, black
