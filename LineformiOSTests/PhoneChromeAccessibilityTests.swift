@@ -116,8 +116,8 @@ final class PhoneChromeAccessibilityTests: XCTestCase {
     }
 
     func testLinkButtonTouchSquareKeepsTheCircleWhereItWas() {
-        XCTAssertEqual(PreviewLinkButton.diameter, 38, "the drawn circle is unchanged")
-        XCTAssertEqual(PreviewLinkButton.touchSide, 44)
+        XCTAssertEqual(PreviewLinkButton.diameter, MoreButton.diameter, "the circle matches ⋯")
+        XCTAssertGreaterThanOrEqual(PreviewLinkButton.touchSide, 44)
         XCTAssertEqual(PreviewLinkButton.horizontalTouchOutset, 3)
         XCTAssertEqual(DocumentScreen.bottomChromeClearance, MarkdownEditor.chromeMargin + MoreButton.diameter + 8)
     }

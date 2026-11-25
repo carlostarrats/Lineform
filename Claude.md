@@ -419,7 +419,7 @@ iPhone only. Details: `docs/architecture/iphone-app.md`.
   Settings, Export & Print, Read Aloud, History (only with history), Connect Your AI, About
   Lineform. Opening it and navigation are INSTANT (no motion; `WordMenuTiming` measures the open,
   and nothing on that path may walk the document text — `WordMenuStatusCounts`,
-  `MarkdownEditor.Coordinator.knownText`); the corner button is ✕ on the words and ← in a page, and
+  `MarkdownEditor.Coordinator.knownText`); the corner button is ✕ on the words and ← in a page (where a round page button at the bottom left goes straight back to the document, owner's option A in `mockups/back-to-document.html`); the name in the status line is tappable and offers Rename… (Files' rename, so the document follows and stops naming itself from its first line); and
   every page keeps `WordMenuMetrics.bottomClearance` below its last item. A card (Recent, folder,
   search) opens its document INSTANTLY: the menu closes straight to the page, no expansion or
   fade (owner review 3, 2026-11-24). After a card or search result opens a document, a round

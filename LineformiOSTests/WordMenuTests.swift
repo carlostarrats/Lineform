@@ -223,7 +223,7 @@ final class WordMenuTests: XCTestCase {
     func testBottomClearanceUsesMoreButtonSize() {
         XCTAssertEqual(MoreButton.diameter, 48)
         XCTAssertGreaterThanOrEqual(MoreButton.diameter, WordMenuMetrics.minimumTarget)
-        XCTAssertGreaterThan(MoreButton.diameter, PreviewLinkButton.diameter, "the ⋯ button is the taller one")
+        XCTAssertEqual(MoreButton.diameter, PreviewLinkButton.diameter, "the link and ⋯ buttons are the same size")
         XCTAssertEqual(DocumentScreen.bottomChromeClearance, MarkdownEditor.chromeMargin + MoreButton.diameter + 8)
     }
 

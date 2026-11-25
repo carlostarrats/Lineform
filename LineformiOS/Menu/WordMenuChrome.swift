@@ -641,13 +641,14 @@ struct WordMenuCardGrid<Item: Identifiable, Card: View>: View {
 /// document) or the menu's surfaces (in the menu).
 struct WordMenuCornerButton: View {
     enum Glyph {
-        case more, close, back
+        case more, close, back, document
 
         var systemImage: String {
             switch self {
             case .more: "ellipsis"
             case .close: "xmark"
             case .back: "arrow.left"
+            case .document: "doc.text"
             }
         }
 
@@ -656,6 +657,7 @@ struct WordMenuCornerButton: View {
             case .more: String(localized: "Menu")
             case .close: String(localized: "Close menu")
             case .back: String(localized: "Back")
+            case .document: String(localized: "Back to the document")
             }
         }
     }

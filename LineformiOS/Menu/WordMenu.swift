@@ -140,6 +140,23 @@ struct WordMenu: View {
             }
             .allowsHitTesting(false)
             .accessibilityHidden(true)
+            // In a page: the way straight back to the document, at the bottom left (the
+            // owner's option A, `mockups/back-to-document.html`); the ← keeps the right.
+            if !navigation.isOnWordList {
+                WordMenuCornerButton(
+                    glyph: .document,
+                    fill: palette.card,
+                    ink: palette.ink,
+                    isDark: palette.isDark,
+                    action: { onClose() }
+                )
+                .accessibilityIdentifier("wordMenu.document")
+                .padding(MarkdownEditor.chromeMargin)
+                .opacity(isKeyboardUp ? 0 : 1)
+                .allowsHitTesting(!isKeyboardUp)
+                .accessibilityHidden(isKeyboardUp)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
+            }
             WordMenuCornerButton(
                 glyph: navigation.isOnWordList ? .close : .back,
                 fill: palette.card,
@@ -237,8 +254,17 @@ struct WordMenu: View {
         let saveState = Self.saveStateText(for: document)
         let text = document.text
         let statistics = WordMenuStatusCounts.cached(for: text)
-        var line = AttributedString(title + " · ")
-        line.foregroundColor = palette.color(palette.secondary)
+        let canRename = document.url != nil
+        var line = AttributedString(title)
+        line.foregroundColor = palette.color(canRename ? palette.ink : palette.secondary)
+        if canRename {
+            // The name is tappable (Rename…): a dotted Lineform-blue underline says so
+            // (`mockups/back-to-document.html`, option A).
+            line.underlineStyle = Text.LineStyle(pattern: .dot, color: palette.color(palette.blueMark))
+        }
+        var separator = AttributedString(" · ")
+        separator.foregroundColor = palette.color(palette.secondary)
+        line += separator
         var state = AttributedString(saveState)
         state.foregroundColor = Self.isSaved(document) ? palette.color(palette.saved) : palette.color(palette.secondary)
         line += state
@@ -249,12 +275,33 @@ struct WordMenu: View {
         }
         let label = statistics.map { Self.statusAccessibilityLabel(title: title, saveState: saveState, statistics: $0) }
             ?? "\(title), \(saveState)"
-        return Text(line)
+        let lineText = Text(line)
             .font(.subheadline)
             .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 2)
-            .accessibilityElement(children: .ignore)
-            .accessibilityLabel(Text(verbatim: label))
-            .accessibilityIdentifier("wordMenu.status")
+            .multilineTextAlignment(.leading)
+        return Group {
+            if let url = document.url {
+                // Untitled has no file to rename: the line stays plain text then.
+                Menu {
+                    Button(FilesRowAction.rename.title, systemImage: FilesRowAction.rename.systemImage) {
+                        fileActions.perform(.rename, on: OutlineFileTreeItem(
+                            url: url, name: url.lastPathComponent, isDirectory: false, children: []
+                        ))
+                    }
+                } label: {
+                    lineText
+                }
+                .menuStyle(.button)
+                .buttonStyle(.plain)
+            } else {
+                lineText
+            }
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(Text(verbatim: label))
+        .accessibilityHint(canRename ? Text(FilesRowAction.rename.title) : Text(verbatim: ""))
+        .accessibilityAddTraits(canRename ? .isButton : [])
+        .accessibilityIdentifier("wordMenu.status")
             .task(id: statistics == nil) {
                 guard statistics == nil else { return }
                 await WordMenuStatusCounts.count(text)

@@ -355,7 +355,7 @@ above the keyboard, split by a hairline (theme ink at 0.15 through `readableInk`
   layout pass sets (render, refit, width change, content growing) never drives the editor. A Read
   pane entered before it had content aligns to the editor once after its first render, while
   linked.
-- **The link button** (`PreviewLinkButton`) is a 38 pt circle with the `link` symbol, 12 pt left of
+- **The link button** (`PreviewLinkButton`) is a 48 pt circle (the ⋯ button's size, owner 2026-11-24) with the `link` symbol, 12 pt left of
   the Menu button, in Preview only, with the Menu button's floating-card chrome. Linked it is
   systemBlue on a blue wash; unlinked it is struck through in the ink at 0.62. The press animates
   like the mode control's (every layer drawn, only opacities change). Labels are the Mac's
