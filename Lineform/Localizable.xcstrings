@@ -9107,36 +9107,70 @@
         }
       }
     },
-    "Click to select · ← → switch version · Esc closes": {
+    "Click to select · arrow keys switch version · Esc closes": {
       "localizations": {
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Klicken zum Wählen · ← → Version wechseln · Esc schließt"
+            "value": "Klicken zum Wählen · Pfeiltasten wechseln Version · Esc schließt"
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Clic para elegir · ← → cambia de versión · Esc cierra"
+            "value": "Clic para elegir · teclas de flecha cambian de versión · Esc cierra"
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Cliquer pour choisir · ← → changer de version · Échap ferme"
+            "value": "Cliquer pour choisir · touches fléchées pour changer de version · Échap ferme"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "クリックで選択 · ← → でバージョン切替 · Esc で閉じる"
+            "value": "クリックで選択 · 矢印キーでバージョン切替 · Esc で閉じる"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "点按选择 · ← → 切换版本 · Esc 关闭"
+            "value": "点按选择 · 方向键切换版本 · Esc 关闭"
+          }
+        }
+      }
+    },
+    "Click to select · %@ %@ switch version · Esc closes": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Klicken zum Wählen · %1$@ %2$@ Version wechseln · Esc schließt"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Clic para elegir · %1$@ %2$@ cambia de versión · Esc cierra"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cliquer pour choisir · %1$@ %2$@ changer de version · Échap ferme"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "クリックで選択 · %1$@ %2$@ でバージョン切替 · Esc で閉じる"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "点按选择 · %1$@ %2$@ 切换版本 · Esc 关闭"
           }
         }
       }
@@ -9749,36 +9783,70 @@
         }
       }
     },
-    "Click to select · ← → switch version · Esc deselects": {
+    "Click to select · arrow keys switch version · Esc deselects": {
       "localizations": {
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Clic para elegir · ← → cambia de versión · Esc deselecciona"
+            "value": "Clic para elegir · teclas de flecha cambian de versión · Esc deselecciona"
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Cliquer pour choisir · ← → changer de version · Échap désélectionne"
+            "value": "Cliquer pour choisir · touches fléchées pour changer de version · Échap désélectionne"
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Klicken zum Wählen · ← → Version wechseln · Esc hebt Auswahl auf"
+            "value": "Klicken zum Wählen · Pfeiltasten wechseln Version · Esc hebt Auswahl auf"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "クリックで選択 · ← → でバージョン切替 · Esc で選択解除"
+            "value": "クリックで選択 · 矢印キーでバージョン切替 · Esc で選択解除"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "点按选择 · ← → 切换版本 · Esc 取消选择"
+            "value": "点按选择 · 方向键切换版本 · Esc 取消选择"
+          }
+        }
+      }
+    },
+    "Click to select · %@ %@ switch version · Esc deselects": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Clic para elegir · %1$@ %2$@ cambia de versión · Esc deselecciona"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cliquer pour choisir · %1$@ %2$@ changer de version · Échap désélectionne"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Klicken zum Wählen · %1$@ %2$@ Version wechseln · Esc hebt Auswahl auf"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "クリックで選択 · %1$@ %2$@ でバージョン切替 · Esc で選択解除"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "点按选择 · %1$@ %2$@ 切换版本 · Esc 取消选择"
           }
         }
       }
@@ -10217,6 +10285,516 @@
           "stringUnit": {
             "state": "translated",
             "value": "所有文稿中段落的早期版本将被移除。此操作无法撤销。你的文稿不会被更改。"
+          }
+        }
+      }
+    },
+    "Everything Lineform can do, in one page.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Alles, was Lineform kann, auf einer Seite."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Todo lo que Lineform puede hacer, en una sola página."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tout ce que Lineform sait faire, sur une seule page."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lineformでできることを1ページにまとめました。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lineform 的全部功能，尽在一页。"
+          }
+        }
+      }
+    },
+    "Free and private": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kostenlos und privat"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gratis y privado"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gratuit et privé"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "無料でプライベート"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "免费且私密"
+          }
+        }
+      }
+    },
+    "Images, tables, math and diagrams. Export styled PDFs in a click.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bilder, Tabellen, Formeln und Diagramme. Gestaltete PDFs mit einem Klick exportieren."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Imágenes, tablas, fórmulas y diagramas. Exporta PDF con estilo con un clic."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Images, tableaux, formules et diagrammes. Exportez des PDF mis en forme en un clic."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "画像、表、数式、図。スタイル付きPDFもワンクリックで書き出せます。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "图片、表格、公式和图表。点一下即可导出带样式的 PDF。"
+          }
+        }
+      }
+    },
+    "Made to be read": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Zum Lesen gemacht"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hecho para leerse"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Conçu pour être lu"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "読むためのデザイン"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "为阅读而生"
+          }
+        }
+      }
+    },
+    "More than text": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mehr als Text"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Más que texto"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Plus que du texte"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "テキスト以上のもの"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "不止于文字"
+          }
+        }
+      }
+    },
+    "Next": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Weiter"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Siguiente"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Suivant"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "次へ"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "下一个"
+          }
+        }
+      }
+    },
+    "No account, nothing to sign up for. Your writing stays with you.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kein Konto, keine Anmeldung. Deine Texte bleiben bei dir."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sin cuenta y sin registro. Lo que escribes se queda contigo."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aucun compte, aucune inscription. Vos textes restent avec vous."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "アカウントも登録も不要。書いたものはあなたの手元に残ります。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "无需账户，无需注册。你写的内容始终属于你。"
+          }
+        }
+      }
+    },
+    "Not now": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Jetzt nicht"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ahora no"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pas maintenant"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "今はしない"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "以后再说"
+          }
+        }
+      }
+    },
+    "Open the Guide": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Handbuch öffnen"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Abrir la guía"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ouvrir le guide"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ガイドを開く"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "打开使用手册"
+          }
+        }
+      }
+    },
+    "Plain Markdown files that sync with Lineform for iPhone and open anywhere.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Einfache Markdown-Dateien, die mit Lineform für iPhone synchronisiert werden und sich überall öffnen lassen."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Archivos Markdown sencillos que se sincronizan con Lineform para iPhone y se abren en cualquier lugar."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Des fichiers Markdown simples, synchronisés avec Lineform pour iPhone et lisibles partout."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "シンプルなMarkdownファイルがLineform for iPhoneと同期し、どこでも開けます。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "纯 Markdown 文件，与 Lineform for iPhone 同步，随处都能打开。"
+          }
+        }
+      }
+    },
+    "Reading themes, accessible fonts and read aloud. AI only if you connect your own.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lesethemen, barrierefreie Schriften und Vorlesen. KI nur, wenn du deine eigene verbindest."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Temas de lectura, fuentes accesibles y lectura en voz alta. IA solo si conectas la tuya."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Thèmes de lecture, polices accessibles et lecture à voix haute. L’IA seulement si vous connectez la vôtre."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "読書テーマ、読みやすいフォント、読み上げ。AIはご自身で接続した場合のみ。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "阅读主题、无障碍字体和朗读。仅在你自行连接时才启用 AI。"
+          }
+        }
+      }
+    },
+    "Real files, in iCloud": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Echte Dateien, in iCloud"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Archivos reales, en iCloud"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "De vrais fichiers, dans iCloud"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "本物のファイルをiCloudに"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "真实文件，存于 iCloud"
+          }
+        }
+      }
+    },
+    "Step %lld of 2": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Schritt %lld von 2"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Paso %lld de 2"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Étape %lld sur 2"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ステップ %lld/2"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "第 %lld 步，共 2 步"
+          }
+        }
+      }
+    },
+    "The Guide": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Das Handbuch"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La guía"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Le guide"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ガイド"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "使用手册"
+          }
+        }
+      }
+    },
+    "You can find the guide anytime in Help ▸ Lineform Guide.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Das Handbuch findest du jederzeit unter Hilfe ▸ Lineform-Handbuch."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Encontrarás la guía en cualquier momento en Ayuda ▸ Guía de Lineform."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vous trouverez le guide à tout moment dans Aide ▸ Guide Lineform."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ガイドは「ヘルプ ▸ Lineformガイド」からいつでも開けます。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "你可以随时在“帮助 ▸ Lineform 使用手册”中找到它。"
           }
         }
       }

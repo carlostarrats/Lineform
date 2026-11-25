@@ -1322,8 +1322,8 @@ of `render()`), rebuilt value for value on 2026-11-24 and checked side by side i
   capsule, no shadow, no gap, scrolling sideways. Its height is 50 pt while `phase == .row` and 0
   otherwise. iOS 26's keyboard is a
   floating glass panel with rounded top corners, and a `.keyboard` `UIInputView` no longer draws
-  its colour, so the bar fills itself with the keyboard's colour over a Lineform page
-  (`keyboardColor`: #E2E4E8 light, #212122 dark, sampled from the simulator) and the fill runs on
+  its colour, so the bar draws its own Liquid Glass (`UIGlassEffect`, in the theme's light or
+  dark; until 2026-11-25 an opaque sampled keyboard colour) and the glass runs on
   44 pt under the keyboard's top edge (`fillOverlap`), filling the corners it rounds off; the
   keyboard's glass rim stays faintly visible. A theme change while typing re-renders the bar
   (`editorProfileDidChange`) and reloads the input views when the darkness changes, so the
@@ -1669,6 +1669,26 @@ in the iPhone catalog with the Mac's translations.
   Mac's rule: without it no `Metadata.appintents` is emitted and the actions silently never
   register. `PhoneAppIntentsTests.testAppIntentsMetadataIsEmittedIntoTheApp` asserts the file is
   in the built app.
+- **Notes as entities (iPhone only, 2026-11-25).** `LineformNoteEntity` is a note in iCloud's
+  Lineform folder or On My iPhone (never the Workspace or `Documents/Inbox`): id = root + path
+  inside it (`device:Folder/Note.md`), title = file name without extension, subtitle = "iCloud" /
+  "On My iPhone". `LineformNoteQuery` (suggestions, ids, name search) and `PhoneNoteLibrary` scan
+  with Files' own `FilesStore.liveScanner`; an id that leaves its root resolves to nothing.
+  **Add to Lineform Note** appends on a line of its own in the file's own line ending
+  (`PhoneNoteText.appending`). It never writes behind the open document's back: the note on screen
+  takes it through the editor (`applyIntentEdit`, one undo step, refused during an AI review or
+  marked text) and is flushed; any other note is one coordinated read-and-write
+  (`.forMerging`, `MarkdownFileCodec` both ways). While a scene is connected but its document has
+  not attached, Add and Get wait for it (10 s at most). **Get Note Text** returns the on-screen
+  text for the open note, else the coordinated read. **Find Notes** matches names as Search does
+  and, only when asked, contents through `CrossFileSearchFileReader` (no iCloud download, 1 MB
+  cap). **Open Lineform Note** is an `OpenIntent` through `PhoneIntentRouter.handle(.open)`.
+  The four are iPhone-only; their phrases sit in the Mac's `AppShortcuts.xcstrings` beside the
+  shared ones.
+- **Spotlight.** `PhoneSpotlightIndex` indexes the entities (`IndexedEntity`): title and location
+  only, never text. Debounced refresh on scene active, on `document.url` changes and on a Files
+  rescan of a note root; the first refresh in a process replaces everything, later ones send only
+  the diff. Inert under XCTest. A tap runs Open Lineform Note.
 ## Accessibility
 
 Every iPhone screen supports Dynamic Type up to the largest accessibility size (AX5), VoiceOver,

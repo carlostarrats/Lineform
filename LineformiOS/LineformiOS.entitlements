@@ -16,5 +16,9 @@
 	<array>
 		<string>iCloud.com.lineform.app</string>
 	</array>
+	<key>com.apple.security.application-groups</key>
+	<array>
+		<string>group.com.lineform.app</string>
+	</array>
 </dict>
 </plist>

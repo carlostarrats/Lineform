@@ -642,6 +642,20 @@ struct EditorSidebarToggleButton: View {
     }
 }
 
+/// The mode control's capsule: on macOS 26 the toolbar already sets the item on its own Liquid
+/// Glass, so nothing is drawn (a second glass capsule showed a doubled edge); the drawn frost before.
+private struct EditorModeControlSurface: ViewModifier {
+    let usesDarkChrome: Bool
+
+    func body(content: Content) -> some View {
+        if #available(macOS 26, *) {
+            content
+        } else {
+            content.background { EditorModeSegmentedControl.legacyCapsule(usesDarkChrome: usesDarkChrome) }
+        }
+    }
+}
+
 struct EditorModeSegmentedControl: View {
     struct LiquidBridge: Equatable {
         var from: EditorDisplayMode
@@ -711,22 +725,25 @@ struct EditorModeSegmentedControl: View {
             }
         }
         .padding(controlPadding)
-        .background {
-            Capsule()
-                .fill(.ultraThinMaterial)
-                .overlay {
-                    Capsule()
-                        .fill(Self.backgroundFillColor(usesDarkChrome: usesDarkChrome).opacity(usesDarkChrome ? 0.92 : 0.82))
-                }
-                .overlay {
-                    Capsule()
-                        .stroke((usesDarkChrome ? Color.white.opacity(0.10) : Color.white.opacity(0.72)), lineWidth: 0.5)
-                }
-                .shadow(color: .black.opacity(0.035), radius: Self.shadowRadius, y: 1)
-        }
+        .modifier(EditorModeControlSurface(usesDarkChrome: usesDarkChrome))
         .fixedSize(horizontal: true, vertical: true)
         .accessibilityElement(children: .contain)
         .accessibilityLabel("Editor mode")
+    }
+
+    /// The capsule's material before macOS 26: the frost, the fill, the edge and the shadow.
+    fileprivate static func legacyCapsule(usesDarkChrome: Bool) -> some View {
+        Capsule()
+            .fill(.ultraThinMaterial)
+            .overlay {
+                Capsule()
+                    .fill(Self.backgroundFillColor(usesDarkChrome: usesDarkChrome).opacity(usesDarkChrome ? 0.92 : 0.82))
+            }
+            .overlay {
+                Capsule()
+                    .stroke((usesDarkChrome ? Color.white.opacity(0.10) : Color.white.opacity(0.72)), lineWidth: 0.5)
+            }
+            .shadow(color: .black.opacity(0.035), radius: Self.shadowRadius, y: 1)
     }
 
     private var selectedPill: some View {

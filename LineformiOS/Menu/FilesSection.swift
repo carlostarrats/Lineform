@@ -609,7 +609,10 @@ struct FilesSection: View {
         // Each root is a card holding its rows; a tap on its heading collapses it, so a long root
         // does not have to be scrolled past (owner review 4). No motion: it opens and closes at once.
         let heading = Self.heading(for: root)
-        let collapsed = isCollapsed(root.id)
+        // An empty root (scanned, nothing in it) has nothing to show: no chevron, nothing to
+        // expand; its "+" still works (owner review 6).
+        let isEmpty = root.hasScanned && root.items.isEmpty
+        let collapsed = isEmpty || isCollapsed(root.id)
         let shape = RoundedRectangle(cornerRadius: WordMenuMetrics.rowRadius + 4, style: .continuous)
         VStack(alignment: .leading, spacing: 8) {
             HStack(alignment: .center, spacing: 8) {
@@ -620,12 +623,14 @@ struct FilesSection: View {
                         WordMenuGroupLabel(title: heading.title, systemImage: heading.systemImage, isTight: true)
                         // One chevron that turns (right when collapsed, down when open), never a
                         // crossfade between two symbols.
-                        Image(systemName: "chevron.right")
-                            .font(.caption2.weight(.semibold))
-                            .foregroundStyle(palette.color(palette.tertiary))
-                            .rotationEffect(.degrees(collapsed ? 0 : 90))
-                            .animation(.easeInOut(duration: 0.2), value: collapsed)
-                            .accessibilityHidden(true)
+                        if !isEmpty {
+                            Image(systemName: "chevron.right")
+                                .font(.caption2.weight(.semibold))
+                                .foregroundStyle(palette.color(palette.tertiary))
+                                .rotationEffect(.degrees(collapsed ? 0 : 90))
+                                .animation(.easeInOut(duration: 0.2), value: collapsed)
+                                .accessibilityHidden(true)
+                        }
                         Spacer(minLength: 0)
                     }
                     .frame(minHeight: WordMenuMetrics.minimumTarget)
@@ -633,9 +638,10 @@ struct FilesSection: View {
                 }
                 // No press dimming: the heading and its icon stay steady; only the chevron turns.
                 .buttonStyle(SteadyButtonStyle())
+                .disabled(isEmpty)
                 .accessibilityLabel(Text(heading.title))
-                .accessibilityValue(Text(collapsed ? Self.collapsedValue : Self.expandedValue))
-                .accessibilityHint(Text(collapsed ? Self.expandHint : Self.collapseHint))
+                .accessibilityValue(Text(isEmpty ? "" : (collapsed ? Self.collapsedValue : Self.expandedValue)))
+                .accessibilityHint(Text(isEmpty ? "" : (collapsed ? Self.expandHint : Self.collapseHint)))
                 .accessibilityAddTraits(.isHeader)
                 .accessibilityIdentifier("files.root.\(root.id.rawValue)")
                 if let folder = root.folderURL, root.state == .available {
@@ -904,6 +910,9 @@ private struct FilesSwipeActions: ViewModifier {
             content
         } else {
             ZStack(alignment: .trailing) {
+                // Drawn only while the item is swiped open: hidden under the card, the buttons
+                // were still read by the accessibility audit (text behind a card, low contrast).
+                if offset < 0 {
                 HStack(spacing: Self.spacing) {
                     ForEach(actions) { action in
                         Button {
@@ -931,7 +940,7 @@ private struct FilesSwipeActions: ViewModifier {
                         .accessibilityHidden(true)
                     }
                 }
-                .opacity(offset < 0 ? 1 : 0)
+                }
                 content
                     .offset(x: offset)
                     .overlay {

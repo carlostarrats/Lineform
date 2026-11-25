@@ -350,31 +350,23 @@ private struct FormatChipStyle: ButtonStyle {
 /// and the keyboard's frame is the keyboard's alone).
 ///
 /// iOS 26's keyboard is a floating panel with rounded top corners, and a `.keyboard` input view
-/// no longer draws the keyboard's colour. So the bar fills itself with that colour
-/// (`keyboardColor`, sampled from the system keyboard over the page in light and dark), sits at
-/// the accessory's top edge (above the home indicator with a hardware keyboard), and its
-/// fill runs on under the keyboard's top edge, filling the corners the keyboard rounds off: the
-/// bar and the keyboard read as one block, as in the mockup.
+/// no longer draws the keyboard's colour. So the bar draws its own Liquid Glass (iOS 26, in the
+/// theme's light or dark), sits at the accessory's top edge (above the home indicator with a
+/// hardware keyboard), and its glass runs on under the keyboard's top edge, filling the corners
+/// the keyboard rounds off: the bar and the keyboard read as one block, as in the mockup.
 final class FormatBarAccessoryView: UIInputView {
     /// The reading profile the row draws for (`SelectionController.showRowNow` sets it).
     final class Style: ObservableObject {
         @Published var profile: ReadingProfile = .original
     }
 
-    /// The system keyboard's colour over a Lineform page (iOS 26): light #E2E4E8, dark #212122.
-    static func keyboardColor(isDark: Bool) -> UIColor {
-        isDark
-            ? UIColor(red: 0x21 / 255, green: 0x21 / 255, blue: 0x22 / 255, alpha: 1)
-            : UIColor(red: 0xE2 / 255, green: 0xE4 / 255, blue: 0xE8 / 255, alpha: 1)
-    }
-
-    /// How far the fill runs on under the keyboard's top edge (past its rounded corners).
+    /// How far the glass runs on under the keyboard's top edge (past its rounded corners).
     static let fillOverlap: CGFloat = 44
 
     let style = Style()
     private weak var controller: SelectionController?
     private let host: UIHostingController<FormatBarContent>
-    private let fill = UIView()
+    private let fill = UIVisualEffectView(effect: UIGlassEffect(style: .regular))
     private var phaseObservation: AnyCancellable?
     private var styleObservation: AnyCancellable?
     /// The row shows: the view is `SelectionRow.height` tall.
@@ -421,7 +413,7 @@ final class FormatBarAccessoryView: UIInputView {
     }
 
     private func applyColor(for profile: ReadingProfile) {
-        fill.backgroundColor = Self.keyboardColor(isDark: Theme.theme(for: profile).usesDarkChrome)
+        fill.overrideUserInterfaceStyle = Theme.theme(for: profile).usesDarkChrome ? .dark : .light
     }
 
     @available(*, unavailable)

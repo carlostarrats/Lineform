@@ -5,5 +5,9 @@
 <!-- Debug carries no iCloud entitlement, like the Mac's LineformDebug.entitlements: Debug
      builds always save into the on-device Documents folder and never touch the real
      iCloud container. -->
+	<key>com.apple.security.application-groups</key>
+	<array>
+		<string>group.com.lineform.app</string>
+	</array>
 </dict>
 </plist>

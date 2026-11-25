@@ -232,9 +232,10 @@ struct DefaultMarkdownAppCard: View {
     }
 }
 
-/// The chrome every floating bottom card shares (announcement, default app, AI): an opaque
-/// two-variant fill, a hairline, the corner, the shadow, and the arrow cursor. One definition, so
-/// the cards cannot drift apart. `usesDarkChrome` is THREADED from the theme.
+/// The chrome every floating bottom card shares (announcement, default app, AI): Liquid Glass on
+/// macOS 26 (before it, an opaque two-variant fill, a hairline and the shadow), the corner, and
+/// the arrow cursor. One definition, so the cards cannot drift apart. `usesDarkChrome` is THREADED
+/// from the theme.
 struct FloatingCardChrome: ViewModifier {
     let usesDarkChrome: Bool
 
@@ -243,36 +244,46 @@ struct FloatingCardChrome: ViewModifier {
             // Pin the controls to the matching appearance so every glyph reads against the
             // card, whichever page theme is active.
             .environment(\.colorScheme, usesDarkChrome ? .dark : .light)
-            // An OPAQUE fill, matching `findReplaceBar`'s two-variant treatment. A
-            // `.regularMaterial` was tried underneath and removed: the fill above it is fully
-            // opaque, so the material was completely occluded — it drew nothing and cost a blur
-            // layer. Opacity is also what keeps the card legible over dense text.
-            .background(
-                RoundedRectangle(cornerRadius: AnnouncementCard.cornerRadius, style: .continuous)
-                    .fill(usesDarkChrome ? Color(white: 0.17) : Color(white: 0.99))
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: AnnouncementCard.cornerRadius, style: .continuous)
-                    .strokeBorder(
+            .modifier(FloatingCardSurface(usesDarkChrome: usesDarkChrome))
+            // The card floats over the text view, whose I-beam otherwise wins the cursor over
+            // the whole content area (see CursorRectView — it tracks geometrically).
+            .background(CursorRectView(cursor: .arrow))
+    }
+}
+
+/// The floating card's material. macOS 26: Liquid Glass in the card's shape, in the pinned light
+/// or dark. Earlier: an OPAQUE fill, matching `findReplaceBar`'s two-variant treatment (a
+/// `.regularMaterial` was tried underneath and removed: the opaque fill above it occluded it
+/// completely, so it drew nothing and cost a blur layer), the hairline and the soft shadow.
+private struct FloatingCardSurface: ViewModifier {
+    let usesDarkChrome: Bool
+
+    func body(content: Content) -> some View {
+        let shape = RoundedRectangle(cornerRadius: AnnouncementCard.cornerRadius, style: .continuous)
+        if #available(macOS 26, *) {
+            content.glassEffect(.regular, in: shape)
+        } else {
+            content
+                .background(shape.fill(usesDarkChrome ? Color(white: 0.17) : Color(white: 0.99)))
+                .overlay(
+                    shape.strokeBorder(
                         usesDarkChrome
                             ? Color.white.opacity(LineformDesign.FloatingCard.hairlineOpacityDark)
                             : Color.black.opacity(LineformDesign.FloatingCard.hairlineOpacityLight),
                         lineWidth: LineformDesign.FloatingCard.hairlineWidth
                     )
-            )
-            .clipShape(RoundedRectangle(cornerRadius: AnnouncementCard.cornerRadius, style: .continuous))
-            .shadow(
-                color: .black.opacity(
-                    usesDarkChrome
-                        ? LineformDesign.FloatingCard.shadowOpacityDark
-                        : LineformDesign.FloatingCard.shadowOpacityLight
-                ),
-                radius: LineformDesign.FloatingCard.shadowRadius,
-                x: LineformDesign.FloatingCard.shadowOffset.width,
-                y: LineformDesign.FloatingCard.shadowOffset.height
-            )
-            // The card floats over the text view, whose I-beam otherwise wins the cursor over
-            // the whole content area (see CursorRectView — it tracks geometrically).
-            .background(CursorRectView(cursor: .arrow))
+                )
+                .clipShape(shape)
+                .shadow(
+                    color: .black.opacity(
+                        usesDarkChrome
+                            ? LineformDesign.FloatingCard.shadowOpacityDark
+                            : LineformDesign.FloatingCard.shadowOpacityLight
+                    ),
+                    radius: LineformDesign.FloatingCard.shadowRadius,
+                    x: LineformDesign.FloatingCard.shadowOffset.width,
+                    y: LineformDesign.FloatingCard.shadowOffset.height
+                )
+        }
     }
 }

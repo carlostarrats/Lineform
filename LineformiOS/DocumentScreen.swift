@@ -271,6 +271,9 @@ struct DocumentScreen: View {
             // card replaces them all, the ⋯ button included, so nothing sits behind its Done.
             if !isHistoryModeActive,
                SelectionController.showsBottomButtons(phase: selection.phase, aiState: selection.aiState) {
+                // The bottom row's glass (←, Read aloud's pill, the link button, ⋯) renders as one
+                // set; a spacing of 0 keeps each piece its own shape (none blends into another).
+                GlassEffectContainer(spacing: 0) {
                 // The link button's touch square is wider than its circle: the gap to ⋯ shrinks
                 // by the difference, so the circles stay `bottomChromeSpacing` apart.
                 HStack(spacing: Self.bottomChromeSpacing - PreviewLinkButton.horizontalTouchOutset) {
@@ -297,6 +300,7 @@ struct DocumentScreen: View {
                         }
                     }
                     MoreButton(profile: profile) { openWordMenu() }
+                }
                 }
                 .padding(MarkdownEditor.chromeMargin)
                 .modifier(SelectionRowClearance(keyboard: selection.keyboard, rowShows: selection.phase == .row))
@@ -446,6 +450,8 @@ struct DocumentScreen: View {
         }
         .onChange(of: document.url) {
             openDocumentBookmark = document.storedBookmark
+            // A new file, a first-line rename or a deleted file: Spotlight's titles follow.
+            PhoneSpotlightIndex.shared.scheduleRefresh()
             if document.url != nil {
                 withAnimation(firstRunFade) {
                     endFirstRun(firstRun.documentOpened())

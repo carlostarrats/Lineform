@@ -5,10 +5,10 @@ import UIKit
 /// The Write / Read / Preview pill, built from the Mac's `EditorModeSegmentedControl`
 /// (`Lineform/Editor/EditorChromeAndControls.swift`) with its values: 78 × 30 segments, 3 pt
 /// padding, a 3 pt divider slot holding a 1 × 18 divider at 0.45 shown only between two unselected
-/// segments, 14 pt regular labels, the capsule's material, fill, stroke and shadow, the light and
-/// dark colours, and the liquid bridge (a spring of 0.24 / 0.78 that stretches the selected pill
+/// segments, 14 pt regular labels, the light and dark colours, and the liquid bridge (a spring of 0.24 / 0.78 that stretches the selected pill
 /// over both segments, then after 0.16 s a spring of 0.30 / 0.82 that settles it). Reduce Motion
-/// skips the bridge and every animation (`EditorMotionPolicy`).
+/// skips the bridge and every animation (`EditorMotionPolicy`). The capsule is Liquid Glass
+/// (iOS 26), in the theme's light or dark; the system makes it opaque under Reduce Transparency.
 ///
 /// A phone has no hover, so the Mac's hover pill (0.48 of the selected fill) is the pressed state.
 /// It floats at the top centre of the page (`DocumentScreen`); there is no bar behind it.
@@ -29,23 +29,9 @@ struct ModeSwitch: View {
     static let selectedFillAlpha: CGFloat = 0.74
     static let darkSelectedFillComponent: CGFloat = 0.20
     static let darkSelectedFillAlpha: CGFloat = 0.92
-    static let backgroundFillComponent: CGFloat = 1.0
-    static let backgroundFillOpacity: Double = 0.82
-    static let darkBackgroundFillComponent: CGFloat = {
-        var white: CGFloat = 0
-        var alpha: CGFloat = 0
-        LineformColors.darkControlBackground.getWhite(&white, alpha: &alpha)
-        return white
-    }()
-    static let darkBackgroundFillOpacity: Double = 0.92
     static let textFillComponent: CGFloat = 0.18
     static let darkTextFillComponent: CGFloat = 0.92
     static let strokeWidth: CGFloat = 0.5
-    static let strokeOpacity: Double = 0.72
-    static let darkStrokeOpacity: Double = 0.10
-    static let shadowOpacity: Double = 0.035
-    static let shadowRadius: CGFloat = 5
-    static let shadowY: CGFloat = 1
     /// The Mac's hover fill: this share of the selected fill, here while a segment is pressed.
     static let pressedFillShare: Double = 0.48
     static let bridgeAnimation = Animation.spring(response: 0.24, dampingFraction: 0.78)
@@ -67,7 +53,6 @@ struct ModeSwitch: View {
     var usesDarkChrome = false
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
     @State private var liquidBridge: LiquidBridge?
     @State private var liquidTransitionID = 0
 
@@ -120,21 +105,9 @@ struct ModeSwitch: View {
         // 36 pt, centred in the 44 pt band.
         .padding(.horizontal, Self.controlPadding)
         .background {
-            Capsule()
-                .fill(.ultraThinMaterial)
-                .overlay {
-                    // Under Reduce Transparency the fill is opaque, so nothing shows through.
-                    Capsule()
-                        .fill(Self.backgroundFillColor(usesDarkChrome: usesDarkChrome)
-                            .opacity(Self.backgroundFillOpacity(usesDarkChrome: usesDarkChrome, reduceTransparency: reduceTransparency)))
-                }
-                .overlay {
-                    Capsule()
-                        .stroke(Color.white.opacity(usesDarkChrome ? Self.darkStrokeOpacity : Self.strokeOpacity),
-                                lineWidth: Self.strokeWidth)
-                }
-                .shadow(color: .black.opacity(Self.shadowOpacity), radius: Self.shadowRadius, y: Self.shadowY)
+            Color.clear
                 .frame(height: Self.intrinsicSize.height)
+                .glassEffect(.regular, in: Capsule())
         }
         .environment(\.colorScheme, usesDarkChrome ? .dark : .light)
         .fixedSize(horizontal: true, vertical: true)
@@ -228,16 +201,6 @@ struct ModeSwitch: View {
             : Color(white: selectedFillComponent, opacity: selectedFillAlpha)
     }
 
-    /// The fill's opacity over the material; opaque under Reduce Transparency.
-    static func backgroundFillOpacity(usesDarkChrome: Bool, reduceTransparency: Bool) -> Double {
-        if reduceTransparency { return 1 }
-        return usesDarkChrome ? darkBackgroundFillOpacity : backgroundFillOpacity
-    }
-
-    static func backgroundFillColor(usesDarkChrome: Bool) -> Color {
-        Color(white: usesDarkChrome ? darkBackgroundFillComponent : backgroundFillComponent)
-    }
-
     static func textFillColor(usesDarkChrome: Bool) -> Color {
         Color(white: usesDarkChrome ? darkTextFillComponent : textFillComponent)
     }
@@ -327,12 +290,17 @@ extension UIScrollView {
 /// Write and Read both keep `DocumentNameTag.topSpace` above the first line, so the text does not
 /// move between the modes.
 final class DocumentNameTag: UIButton {
-    /// The name's line and the gap below it to the first line of text.
-    static let height: CGFloat = 20
+    /// The name's line (20 pt at the default text size, the footnote line plus 4 pt at larger
+    /// text sizes) and the gap below it to the first line of text.
+    static var height: CGFloat {
+        max(20, (UIFont.preferredFont(forTextStyle: .footnote).lineHeight + 4).rounded(.up))
+    }
     static let gap: CGFloat = 10
     static var topSpace: CGFloat { height + gap }
 
     var onRename: (() -> Void)?
+    /// The last name shown, so a text-size change can redraw it in the new size.
+    private var shown: (name: String, ink: UIColor, canRename: Bool)?
 
     /// How far below the text's baseline the dashes run.
     static let dashOffset: CGFloat = 3
@@ -363,11 +331,19 @@ final class DocumentNameTag: UIButton {
         let tag = DocumentNameTag(type: .system)
         tag.contentHorizontalAlignment = .leading
         tag.titleLabel?.font = UIFont.preferredFont(forTextStyle: .footnote)
-        tag.titleLabel?.adjustsFontForContentSizeCategory = false
+        tag.titleLabel?.adjustsFontForContentSizeCategory = true
         tag.titleLabel?.lineBreakMode = .byTruncatingMiddle
         tag.accessibilityIdentifier = "document.name"
         // A tap opens Rename at once (owner review 4: a menu first was one tap too many).
         tag.addAction(UIAction { [weak tag] _ in tag?.onRename?() }, for: .primaryActionTriggered)
+        // The name follows the text size setting live (the accessibility audit: a fixed size read
+        // as "Dynamic Type partially unsupported").
+        tag.registerForTraitChanges([UITraitPreferredContentSizeCategory.self]) { (tag: DocumentNameTag, _: UITraitCollection) in
+            guard let shown = tag.shown else { return }
+            tag.shown = nil
+            tag.update(name: shown.name, ink: shown.ink, canRename: shown.canRename)
+            tag.superview?.setNeedsLayout()
+        }
         return tag
     }
 
@@ -381,6 +357,7 @@ final class DocumentNameTag: UIButton {
         ]
         let title = NSAttributedString(string: name, attributes: attributes)
         if attributedTitle(for: .normal) != title { setAttributedTitle(title, for: .normal) }
+        shown = (name, ink, canRename)
         // The dashes are drawn, not a text underline, so they sit a little below the letters
         // (owner review 5: the text underline sat too tight).
         dashLayer.strokeColor = ink.withAlphaComponent(0.6).cgColor

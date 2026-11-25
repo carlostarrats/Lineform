@@ -166,6 +166,12 @@ final class LocalizationCatalogTests: XCTestCase {
         // Note the cost: an exemption is matched on the WHOLE key, so it silences the
         // glossary check for EVERY term in that string, not just the one that collided.
         "Inside a table, moves to the next cell. Shift-Tab goes back.",
+        // The Mac's first-launch "what you get" card reuses the iPhone first run's four points,
+        // word for word and with the iPhone's approved translations (owner, 2026-11-25, §32).
+        // "Read" here is the ordinary verb ("made to be read", "read aloud"), not Read mode, so
+        // the mode's noun ("Lectura", "Lecture", "閲覧") would be wrong in these sentences.
+        "Made to be read",
+        "Reading themes, accessible fonts and read aloud. AI only if you connect your own.",
     ]
 
     /// An exemption names a catalog key VERBATIM, so a reworded key leaves a dead entry behind and

@@ -7,6 +7,12 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		1F00F1000000000000000011 /* LineformWidgets.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00F1000000000000000001 /* LineformWidgets.swift */; };
+		1F00F1000000000000000012 /* WidgetRecents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00F1000000000000000002 /* WidgetRecents.swift */; };
+		1F00F1000000000000000013 /* WidgetRecents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F00F1000000000000000002 /* WidgetRecents.swift */; };
+		1F00F1000000000000000014 /* LineformWidgets.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 1F00F1000000000000000005 /* LineformWidgets.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		1F00F1000000000000000015 /* Localizable.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = 1F0000400000000000000007 /* Localizable.xcstrings */; };
+		1F00F1000000000000000016 /* AppIntents.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 1F00000200000000000004B0 /* AppIntents.framework */; };
 		5A839C22877B7EB4411DE850 /* AISheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A47F9DC751DD1320BB3F7EB /* AISheet.swift */; };
 		5A887F12973FB166ADCF34B3 /* AIDrawer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5ABCCAA792D6F63D9C08158D /* AIDrawer.swift */; };
 		5A598B2A6129D1AFF88833F2 /* AIConversationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A3AADDC9DDDE4D1390D60CF /* AIConversationView.swift */; };
@@ -293,6 +299,13 @@
 /* End PBXBuildFile section */
 
  /* Begin PBXContainerItemProxy section */
+		1F00F1000000000000000036 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 1F0000040000000000000001 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 1F00F1000000000000000031;
+			remoteInfo = LineformWidgets;
+		};
  		1F0000030000000000000001 /* PBXContainerItemProxy */ = {
  			isa = PBXContainerItemProxy;
  			containerPortal = 1F0000040000000000000001 /* Project object */;
@@ -324,6 +337,11 @@
  /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		1F00F1000000000000000001 /* LineformWidgets.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LineformWidgets.swift; sourceTree = "<group>"; };
+		1F00F1000000000000000002 /* WidgetRecents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetRecents.swift; sourceTree = "<group>"; };
+		1F00F1000000000000000003 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		1F00F1000000000000000004 /* LineformWidgets.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = LineformWidgets.entitlements; sourceTree = "<group>"; };
+		1F00F1000000000000000005 /* LineformWidgets.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = LineformWidgets.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		5A47F9DC751DD1320BB3F7EB /* AISheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AISheet.swift; sourceTree = "<group>"; };
 		5ABCCAA792D6F63D9C08158D /* AIDrawer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIDrawer.swift; sourceTree = "<group>"; };
 		5A3AADDC9DDDE4D1390D60CF /* AIConversationView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIConversationView.swift; sourceTree = "<group>"; };
@@ -611,6 +629,14 @@
  /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
+		1F00F1000000000000000033 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				1F00F1000000000000000016 /* AppIntents.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		1F0000060000000000000001 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
@@ -660,6 +686,16 @@
  /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		1F00F1000000000000000021 /* LineformWidgets */ = {
+			isa = PBXGroup;
+			children = (
+				1F00F1000000000000000001 /* LineformWidgets.swift */,
+				1F00F1000000000000000003 /* Info.plist */,
+				1F00F1000000000000000004 /* LineformWidgets.entitlements */,
+			);
+			path = LineformWidgets;
+			sourceTree = "<group>";
+		};
 		1F0001C20000000000000001 /* Integration */ = {
 			isa = PBXGroup;
 			children = (
@@ -668,6 +704,7 @@
 				1F0001C00000000000000003 /* PhoneAnnouncementCard.swift */,
 				1F0001C00000000000000004 /* PhoneReviewPrompt.swift */,
 				1F0001C00000000000000005 /* PhoneAppIntents.swift */,
+				1F00F1000000000000000002 /* WidgetRecents.swift */,
 			);
 			path = Integration;
 			sourceTree = "<group>";
@@ -682,6 +719,7 @@
 				1F0000420000000000000001 /* LineformiOS */,
 				1F0000420000000000000002 /* LineformiOSTests */,
 				1F0000E20000000000000003 /* LineformiOSUITests */,
+				1F00F1000000000000000021 /* LineformWidgets */,
  				1F0000070000000000000004 /* Products */,
  			);
  			sourceTree = "<group>";
@@ -921,6 +959,7 @@
 				1F0000400000000000000009 /* LineformiOS.app */,
 				1F000040000000000000000A /* LineformiOSTests.xctest */,
 				1F0000E20000000000000002 /* LineformiOSUITests.xctest */,
+				1F00F1000000000000000005 /* LineformWidgets.appex */,
  			);
  			name = Products;
  			sourceTree = "<group>";
@@ -1159,6 +1198,23 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
+		1F00F1000000000000000031 /* LineformWidgets */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 1F00F1000000000000000043 /* Build configuration list for PBXNativeTarget "LineformWidgets" */;
+			buildPhases = (
+				1F00F1000000000000000032 /* Sources */,
+				1F00F1000000000000000033 /* Frameworks */,
+				1F00F1000000000000000034 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = LineformWidgets;
+			productName = LineformWidgets;
+			productReference = 1F00F1000000000000000005 /* LineformWidgets.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
  		1F0000050000000000000001 /* Lineform */ = {
  			isa = PBXNativeTarget;
  			buildConfigurationList = 1F0000080000000000000001 /* Build configuration list for PBXNativeTarget "Lineform" */;
@@ -1223,10 +1279,12 @@
 				1F0000440000000000000001 /* Sources */,
 				1F0000440000000000000002 /* Frameworks */,
 				1F0000440000000000000003 /* Resources */,
+				1F00F1000000000000000035 /* Embed Foundation Extensions */,
 			);
 			buildRules = (
 			);
 			dependencies = (
+				1F00F1000000000000000037 /* PBXTargetDependency */,
 			);
 			name = LineformiOS;
 			packageProductDependencies = (
@@ -1282,6 +1340,9 @@
 				LastSwiftUpdateCheck = 2600;
 				LastUpgradeCheck = 2600;
 				TargetAttributes = {
+					1F00F1000000000000000031 = {
+						CreatedOnToolsVersion = 26.5;
+					};
 					1F0000050000000000000001 = {
 						CreatedOnToolsVersion = 26.5;
 						SystemCapabilities = {
@@ -1339,11 +1400,20 @@
 				1F0000430000000000000001 /* LineformiOS */,
 				1F0000430000000000000002 /* LineformiOSTests */,
 				1F0000E20000000000000008 /* LineformiOSUITests */,
+				1F00F1000000000000000031 /* LineformWidgets */,
  			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
+		1F00F1000000000000000034 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				1F00F1000000000000000015 /* Localizable.xcstrings in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		1F0000100000000000000001 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -1410,6 +1480,17 @@
  /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXCopyFilesBuildPhase section */
+		1F00F1000000000000000035 /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				1F00F1000000000000000014 /* LineformWidgets.appex in Embed Foundation Extensions */,
+			);
+			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
  		1F0000150000000000000001 /* Embed Extensions */ = {
  			isa = PBXCopyFilesBuildPhase;
  			buildActionMask = 2147483647;
@@ -1424,6 +1505,15 @@
  /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
+		1F00F1000000000000000032 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				1F00F1000000000000000011 /* LineformWidgets.swift in Sources */,
+				1F00F1000000000000000012 /* WidgetRecents.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		1F0000090000000000000001 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -1647,6 +1737,7 @@
 				1F0001C10000000000000003 /* PhoneAnnouncementCard.swift in Sources */,
 				1F0001C10000000000000004 /* PhoneReviewPrompt.swift in Sources */,
 				1F0001C10000000000000005 /* PhoneAppIntents.swift in Sources */,
+				1F00F1000000000000000013 /* WidgetRecents.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -1723,6 +1814,11 @@
  /* End PBXSourcesBuildPhase section */
 
  /* Begin PBXTargetDependency section */
+		1F00F1000000000000000037 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 1F00F1000000000000000031 /* LineformWidgets */;
+			targetProxy = 1F00F1000000000000000036 /* PBXContainerItemProxy */;
+		};
  		1F0000110000000000000001 /* PBXTargetDependency */ = {
  			isa = PBXTargetDependency;
  			target = 1F0000050000000000000001 /* Lineform */;
@@ -1746,6 +1842,62 @@
  /* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
+		1F00F1000000000000000041 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = LineformWidgets/LineformWidgets.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 45;
+				DEVELOPMENT_TEAM = "";
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = LineformWidgets/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.9.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.lineform.app.widgets;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTS_MACCATALYST = NO;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "$(inherited) LINEFORM_WIDGET";
+				SWIFT_VERSION = 6.0;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Debug;
+		};
+		1F00F1000000000000000042 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = LineformWidgets/LineformWidgets.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 45;
+				DEVELOPMENT_TEAM = TV4QZT7A7X;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = LineformWidgets/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.9.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.lineform.app.widgets;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTS_MACCATALYST = NO;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "$(inherited) LINEFORM_WIDGET";
+				SWIFT_VERSION = 6.0;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Release;
+		};
 		1F0000120000000000000001 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -1870,7 +2022,7 @@
 				CODE_SIGN_ENTITLEMENTS = Lineform/LineformDebug.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 44;
+				CURRENT_PROJECT_VERSION = 45;
 				DEVELOPMENT_TEAM = "";
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = Lineform/Info.plist;
@@ -1893,7 +2045,7 @@
 				CODE_SIGN_IDENTITY = "Apple Distribution";
 				CODE_SIGN_STYLE = Manual;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 44;
+				CURRENT_PROJECT_VERSION = 45;
 				DEVELOPMENT_TEAM = TV4QZT7A7X;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = Lineform/Info.plist;
@@ -1942,7 +2094,7 @@
 			buildSettings = {
 				CODE_SIGN_ENTITLEMENTS = LineformQuickLook/LineformQuickLook.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 44;
+				CURRENT_PROJECT_VERSION = 45;
  				DEVELOPMENT_TEAM = "";
  				GENERATE_INFOPLIST_FILE = YES;
  				INFOPLIST_FILE = LineformQuickLook/Info.plist;
@@ -1968,7 +2120,7 @@
 				CODE_SIGN_ENTITLEMENTS = LineformQuickLook/LineformQuickLook.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Distribution";
 				CODE_SIGN_STYLE = Manual;
-				CURRENT_PROJECT_VERSION = 44;
+				CURRENT_PROJECT_VERSION = 45;
 				DEVELOPMENT_TEAM = TV4QZT7A7X;
  				GENERATE_INFOPLIST_FILE = YES;
  				INFOPLIST_FILE = LineformQuickLook/Info.plist;
@@ -1996,7 +2148,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = LineformiOS/LineformiOSDebug.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 44;
+				CURRENT_PROJECT_VERSION = 45;
 				DEVELOPMENT_TEAM = "";
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = LineformiOS/Info.plist;
@@ -2025,7 +2177,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = LineformiOS/LineformiOS.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 44;
+				CURRENT_PROJECT_VERSION = 45;
 				DEVELOPMENT_TEAM = TV4QZT7A7X;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = LineformiOS/Info.plist;
@@ -2134,6 +2286,15 @@
  /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
+		1F00F1000000000000000043 /* Build configuration list for PBXNativeTarget "LineformWidgets" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				1F00F1000000000000000041 /* Debug */,
+				1F00F1000000000000000042 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
 		1F0000080000000000000001 /* Build configuration list for PBXNativeTarget "Lineform" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (

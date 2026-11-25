@@ -99,6 +99,8 @@ public final class AIConversation: ObservableObject {
     @Published public private(set) var isWorking = false
 
     public let words: [AIPromptWord]
+    /// `words` compiled once: the draft is matched against it on every keystroke.
+    private let table: AIPromptTable
     /// The editor's selection and text right now; nil when no editor can take a request.
     public var target: () -> Target? = { nil }
     /// Asks the writer before a whole document over `WholeDocumentAIPolicy.confirmWordCount`
@@ -122,6 +124,7 @@ public final class AIConversation: ObservableObject {
 
     public init(words: [AIPromptWord] = AIPromptLexicon.current) {
         self.words = words
+        table = words == AIPromptLexicon.current ? AIPromptLexicon.currentTable : AIPromptTable(words: words)
     }
 
     // MARK: - Wiring
@@ -511,7 +514,7 @@ public final class AIConversation: ObservableObject {
     }
 
     private func refreshMatches() {
-        let found = AIPromptLexicon.matches(in: draft, words: words)
+        let found = AIPromptLexicon.matches(in: draft, table: table)
         if found != matches { matches = found }
         let present = Set(found.map(\.wordID))
         let kept = choices.filter { present.contains($0.key) }

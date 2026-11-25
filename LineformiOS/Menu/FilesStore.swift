@@ -452,7 +452,11 @@ final class FilesStore {
         guard scanGenerations[id] == generation, isVisible,
               scanTargets.contains(where: { $0.id == id && Self.key($0.url) == Self.key(url) })
         else { return }
-        if itemsByRoot[id] != items { itemsByRoot[id] = items }
+        if itemsByRoot[id] != items {
+            itemsByRoot[id] = items
+            // A file added, renamed or trashed in a note root: Spotlight's titles follow.
+            if id != .workspace { PhoneSpotlightIndex.shared.scheduleRefresh() }
+        }
         scannedRoots.insert(id)
         rebuildIndex()
     }

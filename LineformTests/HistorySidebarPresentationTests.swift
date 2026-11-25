@@ -94,6 +94,11 @@ final class HistorySidebarPresentationTests: XCTestCase {
         XCTAssertEqual(HistorySidebarPresentation.exitTitle, String(localized: "Exit"))
         XCTAssertNotNil(NSImage(systemSymbolName: HistorySidebarPresentation.addAlternativeCommitSymbol,
                                 accessibilityDescription: nil))
+        // The footer hint draws the arrow keys as SF Symbols, never as text arrows.
+        for symbol in [HistorySidebarPresentation.previousVersionKeySymbol, HistorySidebarPresentation.nextVersionKeySymbol] {
+            XCTAssertNotNil(NSImage(systemSymbolName: symbol, accessibilityDescription: nil), symbol)
+        }
+        XCTAssertFalse(HistorySidebarPresentation.hintText.contains("←") || HistorySidebarPresentation.hintText.contains("→"))
         // The typed text stops 6–8pt before the return button.
         XCTAssertTrue((6...8).contains(HistorySidebarPresentation.commitButtonGap))
     }
@@ -102,7 +107,8 @@ final class HistorySidebarPresentationTests: XCTestCase {
         for language in ["es", "fr", "de", "ja", "zh-Hans"] {
             let bundle = try XCTUnwrap(Bundle.main.path(forResource: language, ofType: "lproj").flatMap(Bundle.init(path:)))
             for key in ["Add Version", "Add", "Versions of selected text", "Type a replacement", "Replace With…",
-                        "Click to select · ← → switch version · Esc deselects"] {
+                        "Click to select · arrow keys switch version · Esc deselects",
+                        "Click to select · %@ %@ switch version · Esc deselects"] {
                 XCTAssertNotEqual(bundle.localizedString(forKey: key, value: nil, table: nil), key, "\(language): \(key)")
             }
         }

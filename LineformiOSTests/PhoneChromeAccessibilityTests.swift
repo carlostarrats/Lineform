@@ -58,13 +58,6 @@ final class PhoneChromeAccessibilityTests: XCTestCase {
         }
     }
 
-    func testModeSwitchFillIsOpaqueUnderReduceTransparency() {
-        XCTAssertEqual(ModeSwitch.backgroundFillOpacity(usesDarkChrome: false, reduceTransparency: true), 1)
-        XCTAssertEqual(ModeSwitch.backgroundFillOpacity(usesDarkChrome: true, reduceTransparency: true), 1)
-        XCTAssertEqual(ModeSwitch.backgroundFillOpacity(usesDarkChrome: false, reduceTransparency: false), ModeSwitch.backgroundFillOpacity)
-        XCTAssertEqual(ModeSwitch.backgroundFillOpacity(usesDarkChrome: true, reduceTransparency: false), ModeSwitch.darkBackgroundFillOpacity)
-    }
-
     func testModeSwitchAnnouncesTheNewModeWithoutResettingTheCursor() async throws {
         let document = await preparedDocument(text: "# Title\n\nBody.\n")
         let window = try hostScreen(document: document, mode: .write)
