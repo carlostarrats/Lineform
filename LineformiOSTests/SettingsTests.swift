@@ -83,19 +83,63 @@ final class SettingsTests: XCTestCase {
         )
 
         // On screen: the editor re-renders when the appearance changes, and when the switch does.
+        // The phone's setting is the scene's (`SystemAppearance`), never the screen's own colour
+        // scheme, which follows the theme for the status bar.
         let settings = AppSettings(defaults: try makeDefaults())
-        let window = try await hostScreen(settings: settings, style: .dark)
+        let phone = SystemAppearance(style: .dark, followsWindow: false)
+        let window = try await hostScreen(settings: settings, style: .dark, phone: phone)
         let editor = try XCTUnwrap(find(LineformTextView.self, in: window))
         XCTAssertEqual(editor.profile.themeID, .quiet, "Dark appearance draws the page as Quiet")
 
-        window.overrideUserInterfaceStyle = .light
+        phone.style = .light
         try await spin { editor.profile.themeID == .system }
 
-        window.overrideUserInterfaceStyle = .dark
+        phone.style = .dark
         try await spin { editor.profile.themeID == .quiet }
 
         settings.automaticDarkMode = false
         try await spin { editor.profile.themeID == .system }
+    }
+
+    /// The status bar (the screen's colour scheme) follows the display theme, not the phone: a dark
+    /// phone with a light theme gets dark status text, a light phone with Quiet light status text.
+    /// Automatic Dark Mode still reads the phone (`SystemAppearance`, the window's own style), never the
+    /// scheme it set.
+    func testStatusBarFollowsTheDisplayTheme() async throws {
+        var quiet = ReadingProfile.original
+        quiet.themeID = .quiet
+        XCTAssertEqual(DocumentScreen.chromeColorScheme(for: .original, systemStyle: .dark), .light)
+        XCTAssertEqual(DocumentScreen.chromeColorScheme(for: quiet, systemStyle: .light), .dark)
+
+        // Phone dark, a light theme (Automatic Dark Mode off): light scheme, dark status text.
+        let settings = AppSettings(defaults: try makeDefaults())
+        settings.automaticDarkMode = false
+        let phone = SystemAppearance(style: .dark, followsWindow: false)
+        let window = try await hostScreen(settings: settings, style: .dark, phone: phone)
+        let editor = try XCTUnwrap(find(LineformTextView.self, in: window))
+        XCTAssertEqual(editor.profile.themeID, .system)
+        try await spin { editor.traitCollection.userInterfaceStyle == .light }
+        XCTAssertNotEqual(window.rootViewController?.preferredStatusBarStyle, .lightContent)
+
+        // Phone light, Quiet: dark scheme, light status text.
+        window.isHidden = true
+        let profiles = ReadingProfileStore(defaults: try makeDefaults())
+        profiles.update { $0.themeID = .quiet }
+        let lightPhone = SystemAppearance(style: .light, followsWindow: false)
+        let quietWindow = try await hostScreen(settings: settings, style: .light, phone: lightPhone, profiles: profiles)
+        let quietEditor = try XCTUnwrap(find(LineformTextView.self, in: quietWindow))
+        XCTAssertEqual(quietEditor.profile.themeID, .quiet)
+        try await spin { quietEditor.traitCollection.userInterfaceStyle == .dark }
+        XCTAssertNotEqual(quietWindow.rootViewController?.preferredStatusBarStyle, .darkContent)
+
+        // Automatic Dark Mode on: the phone going dark still turns Original into Quiet, though the
+        // screen's own scheme was light.
+        settings.automaticDarkMode = true
+        lightPhone.style = .light
+        profiles.update { $0.themeID = .system }
+        try await spin { quietEditor.profile.themeID == .system }
+        lightPhone.style = .dark
+        try await spin { quietEditor.profile.themeID == .quiet }
     }
 
     func testSpellingToggleStopsPass() async throws {
@@ -182,17 +226,19 @@ final class SettingsTests: XCTestCase {
         return try XCTUnwrap(UserDefaults(suiteName: suite))
     }
 
-    private func hostScreen(settings: AppSettings, style: UIUserInterfaceStyle, text: String = "Hello\n") async throws -> UIWindow {
+    private func hostScreen(settings: AppSettings, style: UIUserInterfaceStyle, text: String = "Hello\n",
+                            phone: SystemAppearance? = nil, profiles: ReadingProfileStore? = nil) async throws -> UIWindow {
         let folder = self.folder!
         let document = OpenDocument(folderProvider: { folder }, ubiquitousItems: SettingsTestUbiquitousItems())
         await document.prepare()
         document.edit(text)
-        let store = ReadingProfileStore(defaults: try makeDefaults())
+        let store = try profiles ?? ReadingProfileStore(defaults: makeDefaults())
         let scene = try XCTUnwrap(UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first)
         let window = UIWindow(windowScene: scene)
         window.overrideUserInterfaceStyle = style
         window.rootViewController = UIHostingController(
-            rootView: DocumentScreen(document: document, profileStore: store, settings: settings)
+            rootView: DocumentScreen(document: document, profileStore: store, settings: settings,
+                                     systemAppearance: phone ?? SystemAppearance(style: style, followsWindow: false))
         )
         window.makeKeyAndVisible()
         self.window = window

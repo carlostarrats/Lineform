@@ -227,7 +227,7 @@ struct CommentNoteView: UIViewRepresentable {
         let theme = Theme.theme(for: profile)
         view.textColor = theme.textColor
         view.tintColor = theme.caretColor
-        view.keyboardAppearance = theme.usesDarkChrome ? .dark : .default
+        view.keyboardAppearance = theme.usesDarkChrome ? .dark : .light
         // Never rewrite the text while an input method is composing.
         if view.markedTextRange == nil, view.text != controller.model.note {
             view.text = controller.model.note

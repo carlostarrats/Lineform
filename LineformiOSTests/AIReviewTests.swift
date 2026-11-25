@@ -340,7 +340,8 @@ final class AIReviewTests: XCTestCase {
         XCTAssertNotNil(overlay.accessibilityCustomActions?.first { $0.name == AIReviewCardsPresentation.accessibilityActionTitles()[0] })
 
         // The decisions are the AI sheet's (2026-11-24): no card is drawn over the page.
-        XCTAssertNil(Self.element(AIReviewCardPresentation.buttonTitles.accept, in: window))
+        // (The sheet itself, presented beside the page, holds them.)
+        XCTAssertNil(Self.element(AIReviewCardPresentation.buttonTitles.accept, in: try XCTUnwrap(window.rootViewController?.view)))
         XCTAssertEqual(selection.phase, .hidden)
 
         // Hardware keys: Return accepts.
@@ -367,6 +368,13 @@ final class AIReviewTests: XCTestCase {
                 segment.replacingOccurrences(of: "here", with: "there")
             }))
         let window = try XCTUnwrap(self.window)
+        // The sheet is up, as it is whenever a review runs (it comes back if it was not).
+        selection.isShowingAISheet = true
+        try await spin { window.rootViewController?.presentedViewController != nil }
+        for _ in 0..<15 {
+            try await Task.sleep(for: .milliseconds(20))
+            window.layoutIfNeeded()
+        }
         editor.selectedRange = NSRange(location: 0, length: 0)
         editor.setContentOffset(CGPoint(x: 0, y: -editor.adjustedContentInset.top), animated: false)
         let top = editor.contentOffset.y
@@ -377,7 +385,12 @@ final class AIReviewTests: XCTestCase {
         try await spin { Self.find(AIReviewOverlayTextView.self, in: window) != nil }
         let overlay = try XCTUnwrap(Self.find(AIReviewOverlayTextView.self, in: window))
         try await spin { overlay.isFirstResponder }
-        // The writer reads from the top of the overlay.
+        // The overlay has revealed the current change above the sheet; then the writer reads
+        // from the top of the overlay.
+        for _ in 0..<10 {
+            try await Task.sleep(for: .milliseconds(20))
+            window.layoutIfNeeded()
+        }
         overlay.setContentOffset(CGPoint(x: 0, y: -overlay.adjustedContentInset.top), animated: false)
 
         ai.handle(.acceptCurrent)
@@ -411,6 +424,53 @@ final class AIReviewTests: XCTestCase {
         XCTAssertFalse(rig.editor.isSelectionProgrammatic)
         rig.selection.editorSelectionDidChange()
         try await spin { rig.selection.phase == .row }
+    }
+
+    // MARK: - The sheet holds the decisions (review 4)
+
+    /// A request that starts without the sheet brings it back; while it runs or a suggestion
+    /// waits, the sheet cannot be swiped away; if it goes anyway (a swap), the review ends as the
+    /// sheet's End does, never leaving the overlay without its controls.
+    func testTheSheetNeverLeavesAReviewWithoutItsControls() async throws {
+        let text = "Hello world. This is fine.\n"
+        let rig = try makeRig(text, client: FakeAIClient(FakeAIClient.revising { _, segment in segment.uppercased() }))
+        XCTAssertFalse(rig.selection.isShowingAISheet)
+        XCTAssertFalse(AISheetView.locksDismissal(rig.selection.conversation))
+
+        try await review(rig, .rephrase, range: NSRange(location: 0, length: 26))
+        try await spin { rig.selection.isShowingAISheet }
+        XCTAssertTrue(AISheetView.locksDismissal(rig.selection.conversation), "a suggestion waits: no swipe-away")
+
+        // Gone by another path while the review is up: it ends (undecided changes rejected).
+        rig.selection.isShowingAISheet = false
+        XCTAssertEqual(rig.ai.state, .idle, "no read-only overlay without the sheet")
+        XCTAssertEqual(rig.editor.text, text, "nothing undecided was applied")
+        XCTAssertFalse(AISheetView.locksDismissal(rig.selection.conversation))
+        try await Task.sleep(for: .milliseconds(60))
+        XCTAssertFalse(rig.selection.isShowingAISheet, "an ended review brings nothing back")
+    }
+
+    func testTheSheetLocksWhileARequestRuns() async throws {
+        let rig = try makeRig("Hello world.\n", client: FakeAIClient(.suspend))
+        rig.ai.run(.rephrase, range: NSRange(location: 0, length: 12), text: rig.editor.string)
+        try await spin { rig.selection.isShowingAISheet }
+        XCTAssertTrue(AISheetView.locksDismissal(rig.selection.conversation), "a request runs: no swipe-away")
+        rig.ai.cancel()
+    }
+
+    /// The sheet's surface is its own (#FDFDFD light, #262626 dark), never the page, and every ink
+    /// is AA on it and on the page-coloured bubble.
+    func testAISheetSurfaceAndInks() {
+        XCTAssertEqual(AISheetView.surface(for: .system), AISheetView.lightSurface)
+        XCTAssertEqual(AISheetView.surface(for: .quiet), AISheetView.darkSurface)
+        for theme in Theme.builtIn {
+            let inks = AISheetView.Inks(theme: theme)
+            XCTAssertNotEqual(Theme.contrastRatio(inks.surface, inks.page), 1, "\(theme.id): the sheet is not the page")
+            for entry in inks.entries {
+                XCTAssertGreaterThanOrEqual(Theme.contrastRatio(entry.color, entry.surface), entry.minimumRatio,
+                                            "\(theme.id) \(entry.name)")
+            }
+        }
     }
 
     // MARK: - Helpers

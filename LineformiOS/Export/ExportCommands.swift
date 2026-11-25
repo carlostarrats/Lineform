@@ -89,6 +89,11 @@ final class ExportCommands {
     /// The text the last reading spoke, so the finished pill can read it again from the start.
     @ObservationIgnored private var lastSpokenText: String?
     @ObservationIgnored private var failureNoticeTask: Task<Void, Never>?
+    /// The audio session's interruptions (a call, an alarm, Siri). Began pauses reading and the
+    /// pill shows it paused; ended leaves it paused, even with `.shouldResume`: the writer resumes.
+    @ObservationIgnored private var interruptionObservation: (any NSObjectProtocol)?
+    /// An interruption took the audio session away since it was activated: resuming activates it again.
+    @ObservationIgnored private var wasInterrupted: Bool
 
     init(
         document: OpenDocument,
@@ -97,7 +102,8 @@ final class ExportCommands {
         // The best-sounding installed voice for the document's language (premium, then enhanced).
         speech: SpeechController = SpeechController(synthesizer: SystemSpeechSynthesizer(prefersBestQualityVoice: true)),
         regionCode: String? = Locale.current.region?.identifier,
-        audioSession: any SpeechAudioSessionControlling = LiveSpeechAudioSession()
+        audioSession: any SpeechAudioSessionControlling = LiveSpeechAudioSession(),
+        interruptions: NotificationCenter = .default
     ) {
         self.document = document
         self.profile = profile
@@ -114,10 +120,36 @@ final class ExportCommands {
         speechObservation = nil
         failureNotice = nil
         failureNoticeTask = nil
+        interruptionObservation = nil
+        wasInterrupted = false
         // `@Published` emits before it stores, with the new value, so the mirror is current by the
         // time any call into `speech` returns, including a finish from the synthesizer.
         speechObservation = speech.$state.sink { [weak self] state in
             MainActor.assumeIsolated { self?.speechStateChanged(to: state) }
+        }
+        interruptionObservation = interruptions.addObserver(
+            forName: AVAudioSession.interruptionNotification, object: nil, queue: .main
+        ) { [weak self] notification in
+            let raw = notification.userInfo?[AVAudioSessionInterruptionTypeKey] as? UInt
+            MainActor.assumeIsolated {
+                guard let raw, let type = AVAudioSession.InterruptionType(rawValue: raw) else { return }
+                self?.audioInterrupted(type)
+            }
+        }
+    }
+
+    /// An audio interruption: when it begins, reading pauses (the pill shows Paused). When it
+    /// ends, reading stays paused, `.shouldResume` or not; the pill's play resumes it.
+    func audioInterrupted(_ type: AVAudioSession.InterruptionType) {
+        switch type {
+        case .began:
+            guard isAudioSessionActive else { return }
+            wasInterrupted = true
+            if speechState == .speaking { speech.pauseOrResume() }
+        case .ended:
+            break
+        @unknown default:
+            break
         }
     }
 
@@ -213,11 +245,20 @@ final class ExportCommands {
 
     // MARK: - Read aloud
 
-    /// Reads `selection` (source coordinates) or the document aloud, by the Mac's rule.
+    /// Reads `selection` (source coordinates) or the document aloud, by the Mac's rule. A caret
+    /// with nothing to read after it (at the end, or only spaces and blank lines after it) reads
+    /// the whole document from the start, rather than doing nothing.
     func startReadingAloud(selection: NSRange?, mode: EditorDisplayMode) {
         guard let document else { return }
-        let spoken = SpeechTextExtractor.spokenText(from: Self.speechSource(text: document.text, selection: selection, mode: mode))
+        var spoken = SpeechTextExtractor.spokenText(from: Self.speechSource(text: document.text, selection: selection, mode: mode))
+        if selection?.length == 0, Self.isBlank(spoken) {
+            spoken = SpeechTextExtractor.spokenText(from: document.text)
+        }
         speak(spoken)
+    }
+
+    private static func isBlank(_ text: String) -> Bool {
+        text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
     /// The pill's pause/play: pauses or resumes; once reading has finished, reads the same text
@@ -226,6 +267,11 @@ final class ExportCommands {
         if readAloudPill == .finished {
             replayReading()
         } else {
+            // After an interruption the system took the session: it is set up again to resume.
+            if speechState == .paused, wasInterrupted {
+                wasInterrupted = false
+                audioSession.activateForSpeech()
+            }
             speech.pauseOrResume()
         }
     }
@@ -244,10 +290,11 @@ final class ExportCommands {
     }
 
     private func speak(_ spoken: String) {
-        guard !spoken.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
-        if !isAudioSessionActive {
+        guard !Self.isBlank(spoken) else { return }
+        if !isAudioSessionActive || wasInterrupted {
             audioSession.activateForSpeech()
             isAudioSessionActive = true
+            wasInterrupted = false
         }
         lastSpokenText = spoken
         speech.startSpeaking(spoken)
@@ -282,6 +329,7 @@ final class ExportCommands {
         }
         if state == .idle, isAudioSessionActive {
             isAudioSessionActive = false
+            wasInterrupted = false
             audioSession.deactivateAfterSpeech()
         }
     }

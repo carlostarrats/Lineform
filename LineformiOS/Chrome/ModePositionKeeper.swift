@@ -79,6 +79,8 @@ final class ModePositionKeeper {
             editorHadFocus = editor?.isFirstResponder ?? false
         }
         readerAwaitsAdoptedFocus = false
+        // Read's focus request is Read's alone: leaving it drops one still waiting for a window.
+        if new != .read { reader?.cancelPendingFocus() }
         let target = pendingTarget ?? topSourceLocation(in: old)
         pendingTarget = target
         currentMode = new

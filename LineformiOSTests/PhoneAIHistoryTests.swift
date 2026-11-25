@@ -208,6 +208,9 @@ final class PhoneAIHistoryTests: XCTestCase {
         rig.editor.selectedRange = sentence
         rig.ai.run(.markWeakest, range: sentence, text: rig.editor.text)
         try await spin { if case .marking = rig.ai.state { return true }; return false }
+        // The request brought the AI sheet up; the writer closes it (marks leave it free to go),
+        // and the row may rise again (none rises under the sheet).
+        rig.selection.isShowingAISheet = false
         rig.editor.selectedRange = sentence
         rig.selection.showRowNow()
         rig.selection.perform(.replaceWith)

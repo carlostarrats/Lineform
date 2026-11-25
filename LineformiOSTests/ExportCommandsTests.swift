@@ -1,3 +1,4 @@
+import AVFoundation
 import LineformCore
 import XCTest
 @testable import LineformiOS
@@ -341,6 +342,58 @@ final class ExportCommandsTests: XCTestCase {
 
         XCTAssertEqual(commands.speechState, .speaking)
         XCTAssertFalse(synthesizer.isPaused)
+    }
+
+    /// Read Aloud with the caret at the end (or only blank lines after it) reads the whole
+    /// document from its start, instead of doing nothing; the finished pill still stays.
+    func testReadAloudAtTheEndReadsTheWholeDocument() async {
+        let document = await preparedDocument()
+        let synthesizer = PhoneFakeSpeechSynthesizer()
+        let commands = commands(document, synthesizer: synthesizer)
+        let text = "First sentence.\n\nSecond one.\n\n  \n"
+        document.edit(text)
+        let length = (text as NSString).length
+        for caret in [length, (text as NSString).range(of: "  \n").location] {
+            commands.startReadingAloud(selection: NSRange(location: caret, length: 0), mode: .write)
+            XCTAssertEqual(commands.readAloudPill, .reading, "caret \(caret)")
+            XCTAssertTrue(synthesizer.spokenTexts.last?.contains("First sentence.") == true)
+            synthesizer.finish()
+            XCTAssertEqual(commands.readAloudPill, .finished, "the finished pill stays")
+        }
+        // A caret with text after it still reads from the caret.
+        let second = (text as NSString).range(of: "Second").location
+        commands.startReadingAloud(selection: NSRange(location: second, length: 0), mode: .write)
+        XCTAssertFalse(synthesizer.spokenTexts.last?.contains("First") == true)
+    }
+
+    /// An audio interruption pauses reading (the pill shows it); its end leaves it paused, even
+    /// with `.shouldResume`; the pill's play resumes, setting the session up again.
+    func testAudioInterruptionPausesAndStaysPaused() async {
+        let document = await preparedDocument()
+        let synthesizer = PhoneFakeSpeechSynthesizer()
+        let audio = PhoneFakeSpeechAudioSession()
+        let center = NotificationCenter()
+        let commands = ExportCommands(document: document, profile: { .original }, writer: PhoneExportWriter(folder: exportFolder),
+                                      speech: SpeechController(synthesizer: synthesizer), regionCode: "US",
+                                      audioSession: audio, interruptions: center)
+        document.edit("A long passage to read aloud.")
+        commands.startReadingAloud(selection: nil, mode: .read)
+        XCTAssertEqual(audio.activations, 1)
+
+        center.post(name: AVAudioSession.interruptionNotification, object: nil,
+                    userInfo: [AVAudioSessionInterruptionTypeKey: AVAudioSession.InterruptionType.began.rawValue])
+        XCTAssertEqual(commands.speechState, .paused)
+        XCTAssertEqual(commands.readAloudPill, .paused)
+
+        center.post(name: AVAudioSession.interruptionNotification, object: nil, userInfo: [
+            AVAudioSessionInterruptionTypeKey: AVAudioSession.InterruptionType.ended.rawValue,
+            AVAudioSessionInterruptionOptionKey: AVAudioSession.InterruptionOptions.shouldResume.rawValue,
+        ])
+        XCTAssertEqual(commands.readAloudPill, .paused, "the writer resumes, not the system")
+
+        commands.pauseOrResumeReading()
+        XCTAssertEqual(commands.speechState, .speaking)
+        XCTAssertEqual(audio.activations, 2, "the session is set up again after the interruption")
     }
 
     func testCommandsDoNotKeepTheDocumentAlive() async {

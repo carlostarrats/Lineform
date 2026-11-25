@@ -456,8 +456,9 @@ iPhone only. Details: `docs/architecture/iphone-app.md`.
 - **Selection row, the AI sheet and AI.** The format row is the owner's format-row option 1
   exactly (`format-row-options.html`, `.b1`): a full-width 50 pt bar in the keyboard's colour docked
   on the keyboard as the editor's `inputAccessoryView` (`FormatBarAccessoryView`; never a floating
-  capsule), every command its own light chip (36 pt, 8 pt corners, 4 pt apart, 44 pt targets), always
-  shown scrolled to its start. A settled selection raises `SelectionRow`
+  capsule), every command its own light chip (36 pt, 8 pt corners, 4 pt apart, 44 pt targets), shown
+  scrolled to its start on a fresh show or a caret ↔ selection switch (a command that only changes
+  its buttons leaves it in place). A settled selection raises `SelectionRow`
   (`SelectionController`, 0.35 s), and while the editor has the
   SOFTWARE keyboard up the row shows for a caret too (it goes with the keyboard; a hardware keyboard
   alone raises none; nothing about it changes while an input method composes). With a caret, Bold,
@@ -472,7 +473,9 @@ iPhone only. Details: `docs/architecture/iphone-app.md`.
   Another Word, and Check Spelling last. It
   never changes the system edit menu, and the app's own selections never raise it. Ask AI opens
   the AI sheet (`AISheetView`: three-quarters, drags to half or a quarter, no ✕), the Mac drawer's
-  conversation; the comment field is no longer opened.
+  conversation; the comment field is no longer opened. The sheet is never gone while its decisions
+  are needed: not swipeable while a request runs or a suggestion waits, brought back if a request
+  starts without it, and a review ends if it goes by any other path.
   The review is `AIReviewOverlayTextView`, a read-only overlay with an EMPTY undo manager, and the
   editor refuses every edit path while `isAIReviewActive`; the decisions are the sheet's. Each
   accept is ONE undo group through `applyRuleEdit`. The word menu's Connect Your AI ▸ Ask AI… sends

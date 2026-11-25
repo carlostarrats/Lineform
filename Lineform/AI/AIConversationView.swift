@@ -1086,6 +1086,12 @@ struct AIPromptTextView: UIViewRepresentable {
             text.text = conversation.draft
         }
         text.tintColor = UIColor(style.underline)
+        // The sheet's own light or dark, never the phone's (`.default` follows the phone).
+        let appearance: UIKeyboardAppearance = style.isDark ? .dark : .light
+        if text.keyboardAppearance != appearance {
+            text.keyboardAppearance = appearance
+            if text.isFirstResponder { text.reloadInputViews() }
+        }
         context.coordinator.restyle()
     }
 
