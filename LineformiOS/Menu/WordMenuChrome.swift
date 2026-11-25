@@ -211,7 +211,8 @@ enum WordMenuMetrics {
     static let headerTop: CGFloat = 14
     static let largeWordSize: CGFloat = 34
     static let smallWordSize: CGFloat = 19
-    static let smallWordMinHeight: CGFloat = 44
+    /// A small word's drawn row (§19: "slightly tighter, 40 pt rows"; the mockup's `min-height`).
+    static let smallWordRowHeight: CGFloat = 40
     static let sectionTitleSize: CGFloat = 30
     static let rowRadius: CGFloat = 14
     static let rowSpacing: CGFloat = 8
@@ -403,12 +404,15 @@ struct WordMenuRowLabel: View {
     }
 }
 
-/// A switch row: the title and its note, the switch tinted Lineform blue. VoiceOver reads the
-/// title as the label and the note as the hint. At accessibility sizes the switch goes under the
+/// A switch row: the title (and an optional note), the switch tinted Lineform blue. VoiceOver reads
+/// the title as the label and `hint` (else the note) as the hint, so a row can drop its visible
+/// note and keep the explanation for VoiceOver. At accessibility sizes the switch goes under the
 /// text.
 struct WordMenuToggleRow: View {
     var title: String
     var note: String?
+    /// Spoken only: VoiceOver's hint when no note is drawn.
+    var hint: String? = nil
     @Binding var isOn: Bool
 
     @Environment(\.wordMenuPalette) private var palette
@@ -452,7 +456,7 @@ struct WordMenuToggleRow: View {
         .accessibilityRepresentation {
             Toggle(isOn: $isOn) { Text(title) }
         }
-        .accessibilityHint(note.map { Text($0) } ?? Text(verbatim: ""))
+        .accessibilityHint((hint ?? note).map { Text($0) } ?? Text(verbatim: ""))
     }
 }
 

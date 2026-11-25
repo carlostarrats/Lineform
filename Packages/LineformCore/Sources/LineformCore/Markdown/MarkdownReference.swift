@@ -87,6 +87,22 @@ public struct MarkdownReference {
     /// `String(localized:…locale:)` cannot do this — `locale:` formats interpolated values, it
     /// does not choose the .lproj. See `testLanguageResolutionComesFromTheBundleNotTheLocale`.
     static func sections(in bundle: Bundle = .module) -> [Section] {
+        let all = allSections(in: bundle)
+        #if os(iOS)
+        // The iPhone's Markdown Basics is Markdown only (the approved mockup): no label rows (Tab,
+        // Block Spacing) and no Spelling or Search groups.
+        return all.compactMap { section in
+            guard !["spelling", "search"].contains(section.id) else { return nil }
+            var section = section
+            section.rows.removeAll { !$0.rendersSyntaxAsCode }
+            return section
+        }
+        #else
+        return all
+        #endif
+    }
+
+    private static func allSections(in bundle: Bundle) -> [Section] {
         [
         Section(id: "basics", title: String(localized: "Markdown Basics", bundle: bundle), rows: [
             Row(syntax: "# Title", explanation: titleExplanation(in: bundle)),
@@ -145,8 +161,8 @@ public struct MarkdownReference {
     // MARK: - Platform wording
 
     // The Mac's sentences are unchanged. The iPhone's say "Tap" where the Mac says "Click", name
-    // the Menu's Document section where the Mac names ⌃⌘T and ⌃⌘R, mark the heading keys as
-    // keyboard shortcuts, and describe Search by a tap (its field has no next-match Return).
+    // the format row where the Mac names ⌃⌘T and ⌃⌘R, and mark the heading keys as keyboard
+    // shortcuts. (The iPhone shows no Search row: `sections(in:)` drops it.)
 
     private static func titleExplanation(in bundle: Bundle) -> String {
         #if os(iOS)
@@ -174,23 +190,18 @@ public struct MarkdownReference {
 
     private static func tableExplanation(in bundle: Bundle) -> String {
         #if os(iOS)
-        String(localized: "Header row, then |---|---|, then rows. Colons align. Insert and tidy in Document.", bundle: bundle)
+        String(localized: "Header row, then |---|---|, then rows. Colons align. Insert from the format row.", bundle: bundle)
         #else
         String(localized: "Header row, then |---|---|, then rows. Colons align. ⌃⌘T inserts, ⌃⌘R tidies.", bundle: bundle)
         #endif
     }
 
-    /// The Search section's one row: a label row, identity `return` on both platforms.
+    /// The Search section's one row (the Mac's; the iPhone drops the section): a label row,
+    /// identity `return`.
     private static func searchRow(in bundle: Bundle) -> Row {
-        #if os(iOS)
-        Row(identifier: "return", syntax: String(localized: "Tap", bundle: bundle),
-            explanation: String(localized: "In Search, tap a match to go to it.", bundle: bundle),
-            rendersSyntaxAsCode: false)
-        #else
         Row(identifier: "return", syntax: String(localized: "Return", bundle: bundle),
             explanation: String(localized: "While searching, jumps to the next match; wraps around.", bundle: bundle),
             rendersSyntaxAsCode: false)
-        #endif
     }
 
     /// Every existing reader keeps working, so this refactor is not a churn event.

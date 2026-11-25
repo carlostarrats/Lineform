@@ -50,3 +50,22 @@ The same branch also marked 2 iPhone entries (`%@, version %lld of %lld` and
 `%@, original, version %lld of %lld`, English only) and 110 package entries `translated` where they
 were `new`. Their text did not change, so they are not new translations, but nobody had marked them
 reviewed before.
+
+## Added 2026-11-24 (review4-mockups: the build matched to the approved mockups)
+
+Written for the iPhone, not reused from the Mac (the Mac has no such strings).
+
+| Key (English) | es | fr | de | ja | zh-Hans | Where |
+|---|---|---|---|---|---|---|
+| `Export PDF…` | Exportar PDF… | Exporter en PDF… | PDF exportieren … | PDFを書き出す… | 导出 PDF… | Menu ▸ Export & Print. `PhoneExportFormat.swift` |
+| `Export HTML…` | Exportar HTML… | Exporter en HTML… | HTML exportieren … | HTMLを書き出す… | 导出 HTML… | Menu ▸ Export & Print. `PhoneExportFormat.swift` |
+| `Export Markdown…` | Exportar Markdown… | Exporter en Markdown… | Markdown exportieren … | Markdownを書き出す… | 导出 Markdown… | Menu ▸ Export & Print. `PhoneExportFormat.swift` |
+| `Reset to Theme` | Restablecer el tema | Rétablir le thème | Auf Thema zurücksetzen | テーマに戻す | 恢复主题设置 | Themes sheet's reset button. `StylingSheet.swift` |
+| `Close Themes` | Cerrar Temas | Fermer Thèmes | Themen schließen | テーマを閉じる | 关闭主题 | Themes sheet: VoiceOver name of the grabber. `StylingSheet.swift` |
+| `Version %lld/%lld` | Versión %lld/%lld | Version %lld/%lld | Version %lld/%lld | バージョン %lld/%lld | 版本 %lld/%lld | History mode's bar. `HistoryCard.swift` |
+| `Earlier version` | Versión anterior | Version précédente | Frühere Version | 前のバージョン | 较早的版本 | History bar: VoiceOver name of ‹. `HistoryCard.swift` |
+| `Later version` | Versión posterior | Version suivante | Spätere Version | 次のバージョン | 较新的版本 | History bar: VoiceOver name of ›. `HistoryCard.swift` |
+| `Sends the whole document to your AI.` | Envía todo el documento a tu IA. | Envoie tout le document à votre IA. | Sendet das ganze Dokument an deine KI. | 書類全体をあなたのAIに送信します。 | 将整篇文稿发送给你的 AI。 | Menu ▸ Connect Your AI ▸ Ask AI…'s note. `ConnectAISection.swift` |
+| `Math` (iPhone catalog; the package's own translation) | Fórmulas | Formules | Formeln | 数式 | 数学公式 | Menu ▸ Markdown Basics row name. `BasicsSection.swift` |
+| Table row (package): `…Colons align. Insert from the format row.` | …Inserta desde la barra de formato. | …Insérez via la barre de format. | …Einfügen: Formatleiste. | …挿入はフォーマットバーから。 | …在格式栏中插入。 | Markdown Basics, Table row (VoiceOver label). `MarkdownReference.swift`, iOS branch |
+| `This conversation ends when you open another document.` (package) | Esta conversación termina cuando abres otro documento. | Cette conversation prend fin quand vous ouvrez un autre document. | Diese Unterhaltung endet, wenn du ein anderes Dokument öffnest. | この会話は別の書類を開くと終了します。 | 打开其他文稿时，此对话即结束。 | AI sheet's start note, iPhone only. `AIConversationPresentation.swift` |

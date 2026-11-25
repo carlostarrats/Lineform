@@ -26,12 +26,22 @@ final class PhoneExportWriterTests: XCTestCase {
         try writer.write(format, text: text, baseName: baseName, profile: .original, paper: .usLetter, documentDirectory: nil)
     }
 
-    func testFormatsMatchTheMac() {
-        XCTAssertEqual(PhoneExportFormat.allCases, [.html, .pdf, .styledPDF, .rtf])
-        XCTAssertEqual(PhoneExportFormat.allCases.map(\.fileExtension), ["html", "pdf", "pdf", "rtf"])
-        XCTAssertEqual(PhoneExportFormat.allCases.map(\.usesPaper), [false, true, true, false])
-        XCTAssertEqual(PhoneExportFormat.html.title, "HTML")
-        XCTAssertEqual(PhoneExportFormat.rtf.title, "Rich Text (.rtf)")
+    func testFormatsMatchTheApprovedMockup() throws {
+        try skipUnlessEnglishInterface()
+        XCTAssertEqual(PhoneExportFormat.allCases, [.pdf, .html, .markdown])
+        XCTAssertEqual(PhoneExportFormat.allCases.map(\.fileExtension), ["pdf", "html", "md"])
+        XCTAssertEqual(PhoneExportFormat.allCases.map(\.usesPaper), [true, false, false])
+        // pinned-en: the mockup's rows.
+        XCTAssertEqual(PhoneExportFormat.allCases.map(\.title), ["Export PDF…", "Export HTML…", "Export Markdown…"])
+    }
+
+    func testMarkdownExportIsTheTextAsIs() throws {
+        let text = "# Heading\r\n\nSome **bold** words, `code`, and é.\n"
+        let url = try write(.markdown, text, baseName: "Trip Notes")
+        XCTAssertEqual(url.lastPathComponent, "Trip Notes.md")
+        XCTAssertEqual(try Data(contentsOf: url), Data(text.utf8), "byte for byte")
+        // An empty document exports an empty file, not a failure.
+        XCTAssertEqual(try Data(contentsOf: try write(.markdown, "")), Data())
     }
 
     func testHTMLFileHasDocumentTitle() throws {
@@ -42,24 +52,11 @@ final class PhoneExportWriterTests: XCTestCase {
         XCTAssertTrue(html.contains("Heading"))
     }
 
-    func testPDFAndStyledPDFDiffer() throws {
+    func testPDFIsTheMacsNormalPDF() throws {
         let text = "# Heading\n\nSome **bold** words."
         let normal = try XCTUnwrap(PDFDocument(url: try write(.pdf, text))?.string)
-        let styled = try XCTUnwrap(PDFDocument(url: try write(.styledPDF, text))?.string)
         XCTAssertTrue(normal.contains("**"), "Normal prints the source: \(normal)")
-        XCTAssertFalse(styled.contains("**"), "Styled renders the Markdown: \(styled)")
-        XCTAssertTrue(styled.contains("bold"))
-    }
-
-    func testRTFOpensAsRTF() throws {
-        let url = try write(.rtf, "# Heading\n\nSome **bold** words.")
-        XCTAssertEqual(url.pathExtension, "rtf")
-        let attributed = try NSAttributedString(
-            url: url, options: [.documentType: NSAttributedString.DocumentType.rtf], documentAttributes: nil
-        )
-        XCTAssertTrue(attributed.string.contains("Heading"), attributed.string)
-        XCTAssertTrue(attributed.string.contains("bold words"), attributed.string)
-        XCTAssertFalse(attributed.string.contains("**"), attributed.string)
+        XCTAssertTrue(normal.contains("bold"))
     }
 
     func testExportFileNameIsSanitizedAndUnique() throws {
@@ -93,6 +90,6 @@ final class PhoneExportWriterTests: XCTestCase {
         let leftovers = (try? FileManager.default.contentsOfDirectory(atPath: folder.path)) ?? []
         XCTAssertTrue(leftovers.isEmpty, "left behind: \(leftovers)")
         // The writer still works after clearing.
-        XCTAssertTrue(FileManager.default.fileExists(atPath: try write(.rtf, "Again.").path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: try write(.markdown, "Again.").path))
     }
 }

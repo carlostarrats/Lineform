@@ -15,8 +15,6 @@ import UIKit
 /// whole document in Read, by the Mac's rule (`ExportCommands.speechSource`).
 @MainActor
 enum ExportRows {
-    static var exportGroupTitle: String { String(localized: "Export As") }
-    static var paperSizeTitle: String { String(localized: "Paper Size") }
     static var printTitle: String { String(localized: "Print\u{2026}") }
     static var shareTitle: String { String(localized: "Share\u{2026}") }
 
@@ -66,7 +64,7 @@ enum ExportRows {
 
     // MARK: - State
 
-    /// The page's command titles, in order: the export formats, then Share and Print.
+    /// The page's command titles, in order: Export PDF…, HTML… and Markdown…, then Share and Print.
     static var rowTitles: [String] {
         PhoneExportFormat.allCases.map(\.title) + [shareTitle, printTitle]
     }

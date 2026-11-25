@@ -248,32 +248,35 @@ final class PhoneAIHistoryAccessibilityTests: XCTestCase {
         for selects in [false, true] {
             if selects { controller.moveSelection(by: 1) } else { controller.select(nil) }
             for size in [UIContentSizeCategory.large, .accessibilityExtraExtraExtraLarge] {
-                let card = HistoryCard(model: HistoryCardModel(controller: controller), profile: .original,
-                                       onSelectLevel: { _ in }, onSelectVersion: { _ in }, onDeleteVersion: { _ in },
+                let model = HistoryCardModel(controller: controller)
+                let card = HistoryCard(model: model, profile: .original,
+                                       onSelectLevel: { _ in }, onStep: { _ in },
                                        onAddReplacement: { _, _ in }, onReplacementFieldOpened: {}, onDone: {})
                 let host = try await PhoneAccessibilityHost(VStack { Spacer(); card }.padding(16), contentSize: size)
                 hosts.append(host)
                 host.assertElementsInsideWindow()
-                // Version rows are 40 pt rows on a 42 pt pitch at the default size (the whole row
-                // is the target); they grow with Dynamic Type.
-                host.assertInteractiveElementsAreLabelledAndLargeEnough(
-                    allowlist: size.isAccessibilityCategory ? [] : ["history.versionRow"]
-                )
+                host.assertInteractiveElementsAreLabelledAndLargeEnough()
                 let elements = host.elements()
                 XCTAssertNotNil(elements.first { $0.identifier == "history.done" }, "\(elements)")
-                // The card's commands are on the title, where VoiceOver lands (a container's
-                // named actions do not reach its elements).
-                let title = try XCTUnwrap(elements.first { $0.label == HistoryCardModel.title && $0.traits.contains(.header) },
-                                          "\(elements)")
-                let actions = title.object.accessibilityCustomActions?.map(\.name) ?? []
+                // The bar's commands are on its line, where VoiceOver lands (a container's named
+                // actions do not reach its elements): the version, or the hint while nothing is
+                // selected.
+                let lineLabel = selects ? try XCTUnwrap(model.announcement) : HistoryCardModel.emptySelectionText
+                let line = try XCTUnwrap(elements.first { $0.label == lineLabel && $0.traits.contains(.header) },
+                                         "\(elements)")
+                let actions = line.object.accessibilityCustomActions?.map(\.name) ?? []
                 for name in [HistoryCardModel.nextPassageTitle, HistoryCardModel.previousPassageTitle, HistoryCardModel.exitTitle] {
-                    XCTAssertTrue(actions.contains(name), "\(name) on the title: \(actions)")
+                    XCTAssertTrue(actions.contains(name), "\(name) on the line: \(actions)")
                 }
                 if selects {
-                    let add = try XCTUnwrap(elements.first { $0.identifier == "history.add" }, "\(elements)")
-                    XCTAssertGreaterThanOrEqual(add.frame.height, 44)
-                    XCTAssertGreaterThanOrEqual(add.frame.width, 44)
+                    XCTAssertTrue(line.traits.contains(.adjustable), "swipe up / down steps the versions")
+                    for identifier in ["history.previous", "history.next"] {
+                        let button = try XCTUnwrap(elements.first { $0.identifier == identifier }, "\(elements)")
+                        XCTAssertGreaterThanOrEqual(button.frame.height, 44 - 0.01)
+                        XCTAssertGreaterThanOrEqual(button.frame.width, 44 - 0.01)
+                    }
                 }
+                XCTAssertNil(elements.first { $0.identifier == "history.add" }, "no field outside Replace With…")
                 host.tearDown()
                 hosts.removeAll()
             }

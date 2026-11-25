@@ -6,6 +6,21 @@ import XCTest
 final class MarkdownReferenceSectionsTests: XCTestCase {
     private static let languages = ["en", "es", "fr", "de", "ja", "zh-Hans"]
 
+    /// The section titles, in order. The iPhone's reference is Markdown only (its approved
+    /// mockup): no Spelling or Search groups.
+    #if os(iOS)
+    private static let sectionTitles = ["Markdown Basics", "Diagrams", "Math"]
+    #else
+    private static let sectionTitles = ["Markdown Basics", "Diagrams", "Math", "Spelling", "Search"]
+    #endif
+
+    /// The label rows (a translated UI word in the syntax cell). The iPhone has none.
+    #if os(iOS)
+    private static let labelRowIDs: [String] = []
+    #else
+    private static let labelRowIDs = ["block-spacing", "return", "skipped", "spelling", "tab"]
+    #endif
+
     /// The reference's strings live in LineformCore's catalog, so its `.lproj` folders answer. Xcode
     /// emits no `en.lproj` there (English is the development language and the key is the English
     /// text), so English falls back to the test host's `en.lproj`, which holds none of these keys
@@ -31,7 +46,7 @@ final class MarkdownReferenceSectionsTests: XCTestCase {
         // The group SET is the invariant; naming the titles is how we catch a dropped section.
         // Per-language shape is covered by testSectionTitlesLocalize.
         let sections = MarkdownReference.sections(in: try englishBundle())
-        XCTAssertEqual(sections.map(\.title), ["Markdown Basics", "Diagrams", "Math", "Spelling", "Search"])
+        XCTAssertEqual(sections.map(\.title), Self.sectionTitles)
         for section in sections {
             XCTAssertFalse(section.rows.isEmpty, section.title)
         }
@@ -110,8 +125,9 @@ final class MarkdownReferenceSectionsTests: XCTestCase {
             // are prose and belong to the translator.
             // On iPhone the table commands live in the Menu's Document section, not on ⌃⌘T/⌃⌘R
             // (`testIPhoneWordingSpeaksToTouch`); the heading keys still work with a keyboard.
+            // The iPhone has no Tab row (a keycap, not Markdown), so no Shift-Tab either.
             #if os(iOS)
-            let glyphs = ["⌘1", "⌘0", "⌘2", "⌘6", "Shift-Tab"]
+            let glyphs = ["⌘1", "⌘0", "⌘2", "⌘6"]
             #else
             let glyphs = ["⌘1", "⌘0", "⌘2", "⌘6", "⌃⌘T", "⌃⌘R", "Shift-Tab"]
             #endif
@@ -139,18 +155,22 @@ final class MarkdownReferenceSectionsTests: XCTestCase {
         XCTAssertFalse(explanations.contains { $0.localizedCaseInsensitiveContains("click") }, "no row says Click on iPhone")
         XCTAssertEqual(try row("- [x] done", english).explanation, "Task, done. Tap it in Read to toggle.")
         XCTAssertEqual(try row("| a | b |", english).explanation,
-                       "Header row, then |---|---|, then rows. Colons align. Insert and tidy in Document.")
+                       "Header row, then |---|---|, then rows. Colons align. Insert from the format row.")
         XCTAssertEqual(try row("# Title", english).explanation, "Top-level heading. ⌘1 sets it, ⌘0 clears it, with a keyboard.")
         XCTAssertEqual(try row("## Section", english).explanation, "Smaller heading (more # = smaller). ⌘2 to ⌘6 with a keyboard.")
-        XCTAssertEqual(try row("return", english).syntax, "Tap")
-        XCTAssertEqual(try row("return", english).explanation, "In Search, tap a match to go to it.")
+        // Markdown only: no label rows, no Search row naming a menu that no longer exists.
+        let rows = MarkdownReference.sections(in: english).flatMap(\.rows)
+        XCTAssertTrue(rows.allSatisfy(\.rendersSyntaxAsCode), "no label rows on iPhone")
+        XCTAssertNil(rows.first { $0.id == "return" })
         // Every language has its own iPhone wording, not the Mac's sentence.
         for language in Self.languages where language != "en" {
             let bundle = try bundle(language)
             let done = try row("- [x] done", bundle).explanation
             XCTAssertNotEqual(done, String(localized: "Task, done. Click to toggle.", bundle: bundle), "\(language) kept the Mac's Click")
             XCTAssertNotEqual(done, "Task, done. Tap it in Read to toggle.", "\(language) is untranslated")
-            XCTAssertNotEqual(try row("return", bundle).explanation, "In Search, tap a match to go to it.", "\(language) is untranslated")
+            XCTAssertNotEqual(try row("| a | b |", bundle).explanation,
+                              "Header row, then |---|---|, then rows. Colons align. Insert from the format row.",
+                              "\(language) is untranslated")
         }
         #else
         // The Mac's text, byte for byte.
@@ -210,7 +230,11 @@ final class MarkdownReferenceSectionsTests: XCTestCase {
         let row = MarkdownReference.sections(in: try englishBundle())
             .flatMap(\.rows)
             .first { $0.syntax == "Block Spacing" }
+        #if os(iOS)
+        XCTAssertNil(row, "the iPhone's reference is Markdown only")
+        #else
         XCTAssertEqual(row?.rendersSyntaxAsCode, false)
+        #endif
     }
 
     func testAccessibilityLabelReadsExplanationThenSyntax() throws {
@@ -244,12 +268,15 @@ final class MarkdownReferenceSectionsTests: XCTestCase {
         let english = MarkdownReference.sections(in: try englishBundle()).map(\.title)
         let german = MarkdownReference.sections(in: try germanBundle()).map(\.title)
 
-        XCTAssertEqual(english, ["Markdown Basics", "Diagrams", "Math", "Spelling", "Search"])
+        XCTAssertEqual(english, Self.sectionTitles)
         XCTAssertEqual(german.count, english.count)
         // "Diagrams"→"Diagramme" and "Math"→"Formeln" are near-cognates; asserting the whole
         // array would just re-encode the translation. Assert that translation HAPPENED instead.
         XCTAssertNotEqual(german[0], english[0], "Markdown Basics should be translated in German")
+        XCTAssertNotEqual(german[2], english[2], "Math should be translated in German")
+        #if os(macOS)
         XCTAssertNotEqual(german[3], english[3], "Spelling should be translated in German")
+        #endif
     }
 
     /// Every label row is asserted, including the two keycaps. An inequality check could not do
@@ -289,7 +316,7 @@ final class MarkdownReferenceSectionsTests: XCTestCase {
     func testExactlyFiveRowsAreLabelsNotSyntax() throws {
         let labels = MarkdownReference.sections(in: try englishBundle())
             .flatMap(\.rows).filter { !$0.rendersSyntaxAsCode }
-        XCTAssertEqual(labels.map(\.id).sorted(), ["block-spacing", "return", "skipped", "spelling", "tab"],
+        XCTAssertEqual(labels.map(\.id).sorted(), Self.labelRowIDs,
                        "A new label row must be localized — see testLabelRowsLocalize…")
     }
 
@@ -311,7 +338,7 @@ final class MarkdownReferenceSectionsTests: XCTestCase {
         }
 
         // Every label row, by id — the same five `testExactlyFiveRowsAreLabelsNotSyntax` pins.
-        for id in ["block-spacing", "return", "skipped", "spelling", "tab"] {
+        for id in Self.labelRowIDs {
             let copyable = try XCTUnwrap(copyableByID[id], "the \(id) row disappeared")
             XCTAssertNil(copyable, "\(id) is a translated UI word and must offer no copy text")
         }
@@ -324,7 +351,7 @@ final class MarkdownReferenceSectionsTests: XCTestCase {
 
         // And nothing outside the five labels is silently withheld.
         let withoutCopy = copyableByID.filter { $0.value == nil }.keys.sorted()
-        XCTAssertEqual(withoutCopy, ["block-spacing", "return", "skipped", "spelling", "tab"])
+        XCTAssertEqual(withoutCopy, Self.labelRowIDs)
     }
 
     /// The committed catalog, read as JSON. Reading is fine; never WRITE it through a serializer.
@@ -343,14 +370,14 @@ final class MarkdownReferenceSectionsTests: XCTestCase {
             affordanceByID[row.id] = row.copyAffordance(in: bundle)
         }
 
-        for id in ["block-spacing", "return", "skipped", "spelling", "tab"] {
+        for id in Self.labelRowIDs {
             let affordance = try XCTUnwrap(affordanceByID[id], "the \(id) row disappeared")
             XCTAssertNil(affordance,
                          "\(id) is a translated UI word: no copy button and no copy action either")
         }
 
         let withoutAffordance = affordanceByID.filter { $0.value == nil }.keys.sorted()
-        XCTAssertEqual(withoutAffordance, ["block-spacing", "return", "skipped", "spelling", "tab"],
+        XCTAssertEqual(withoutAffordance, Self.labelRowIDs,
                        "a code row lost its copy affordance, which removes its VoiceOver action too")
     }
 

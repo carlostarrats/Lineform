@@ -111,10 +111,11 @@ final class HistoryModeTests: XCTestCase {
         let id = try XCTUnwrap(controller.selectedPassageID, "History opens on the new passage")
         XCTAssertEqual(controller.pendingReplacementFieldID, id)
         var model = HistoryCardModel(controller: controller)
-        XCTAssertTrue(model.opensReplacementField, "the card opens Type a replacement at once")
-        XCTAssertEqual(model.rows.map(\.text), [sentence], "the selection is kept as the original")
-        XCTAssertEqual(model.rows.first?.symbolName, "doc.text")
-        XCTAssertTrue(model.rows.first?.isCurrent == true)
+        XCTAssertTrue(model.opensReplacementField, "the bar opens Type a replacement at once")
+        XCTAssertTrue(model.showsReplacementField, "Replace With… is the field's purpose")
+        XCTAssertEqual(model.versionCount, 1, "the selection is kept as the original")
+        XCTAssertEqual(model.versionText, "Version 1/1")
+        XCTAssertEqual(controller.passage(id)?.versions.map(\.text), [sentence])
 
         controller.replacementFieldDidOpen()
         model = HistoryCardModel(controller: controller)
@@ -124,8 +125,27 @@ final class HistoryModeTests: XCTestCase {
         XCTAssertNotNil(controller.addReplacement("Alpha BETA gamma delta.", text: textView.text, for: id))
         XCTAssertEqual(textView.text, "Alpha BETA gamma delta. Epsilon zeta eta theta.")
         model = HistoryCardModel(controller: controller)
-        XCTAssertEqual(model.rows.map(\.symbolName), ["doc.text", "pencil"])
-        XCTAssertEqual(model.rows.map(\.isCurrent), [false, true])
+        XCTAssertEqual(model.versionText, "Version 2/2", "the owner's compact form")
+        XCTAssertTrue(model.canStepBack)
+        XCTAssertFalse(model.canStepForward)
+        XCTAssertTrue(model.showsReplacementField, "the field stays for the Replace With… session")
+
+        // ‹ steps back through the bar's path (the controller's step), › forward again.
+        XCTAssertNotNil(controller.step(by: -1, text: textView.text))
+        XCTAssertEqual(textView.text, text)
+        XCTAssertEqual(HistoryCardModel(controller: controller).versionText, "Version 1/2")
+        XCTAssertNotNil(controller.step(by: 1, text: textView.text))
+        XCTAssertEqual(textView.text, "Alpha BETA gamma delta. Epsilon zeta eta theta.")
+
+        // Leaving ends the session: entering again from ⋯ ▸ History shows no field.
+        controller.exitHistoryMode(text: textView.text)
+        XCTAssertFalse(controller.offersReplacementField)
+        XCTAssertTrue(controller.enterHistoryModeFromMenu(text: textView.text))
+        controller.select(controller.located.first?.id)
+        model = HistoryCardModel(controller: controller)
+        XCTAssertTrue(model.hasSelection)
+        XCTAssertFalse(model.showsReplacementField, "⋯ ▸ History steps versions only")
+        controller.exitHistoryMode(text: textView.text)
     }
 
     func testReplaceWithNotOfferedForMultiLineOrCodeSelection() {
@@ -313,13 +333,8 @@ final class HistoryModeTests: XCTestCase {
         XCTAssertTrue(textView.isEditable)
         XCTAssertTrue(store.load(for: url).isEmpty, "leaving History mode did not write the old history back")
 
-        // pinned-en: the Mac's copy, and the row joins the list.
-        // pinned-en: every row, the switches, then Clear History (the Mac's copy).
-        XCTAssertEqual(SettingsSection.rowTitles, [
-            "Automatic Dark Mode", "Show iCloud in Files", "Check spelling while typing", "In-app notifications",
-            "Clear Version History",
-        ])
-        XCTAssertEqual(SettingsSection.clearHistoryButtonTitle, "Clear…")
+        // pinned-en: the Mac's copy; the row ends the list.
+        XCTAssertEqual(SettingsSection.rowTitles.last, "Clear Version History")
         XCTAssertEqual(SettingsSection.clearHistoryConfirmTitle, "Clear version history?")
     }
 
@@ -329,10 +344,9 @@ final class HistoryModeTests: XCTestCase {
         try skipUnlessEnglishInterface()
         let keys = [
             "History", "Replace With…", "Type a replacement", "Tap a highlighted passage to see its versions.",
-            "Delete from History", "Add", "Done",
-            "%@, by you, version %lld of %lld", "%@, by AI, version %lld of %lld",
-            "%@, original, version %lld of %lld", "%@, version %lld of %lld",
-            "Clear Version History", "Clear…", "Clear version history?", "Cancel",
+            "Add", "Done", "Earlier version", "Later version",
+            "%@, version %lld of %lld",
+            "Clear Version History", "Clear version history?", "Cancel",
             "Deletes the earlier versions Lineform kept of passages you changed. Your documents stay exactly as they are.",
             "Earlier versions of passages in every document will be removed. This can't be undone. Your documents aren't changed.",
         ]
@@ -340,13 +354,13 @@ final class HistoryModeTests: XCTestCase {
         XCTAssertEqual(HistoryCardModel.title, "History")
         XCTAssertEqual(HistoryCardModel.replacementPlaceholder, "Type a replacement")
         XCTAssertEqual(HistoryCardModel.emptySelectionText, "Tap a highlighted passage to see its versions.")
-        XCTAssertEqual(HistoryCardModel.deleteVersionTitle, "Delete from History")
         XCTAssertEqual(HistoryCardModel.addTitle, "Add")
         XCTAssertEqual(HistoryCardModel.doneTitle, "Done")
-        XCTAssertEqual(SettingsSection.clearHistoryNote, keys[15])
-        XCTAssertEqual(SettingsSection.clearHistoryConfirmMessage, keys[16])
-        let row = HistoryCardRow(id: 1, text: "Tea", author: .ai, isCurrent: false)
-        XCTAssertEqual(row.accessibilityLabel(position: 2, of: 3), "Tea, by AI, version 2 of 3")
+        XCTAssertEqual(HistoryCardModel.earlierVersionTitle, "Earlier version")
+        XCTAssertEqual(HistoryCardModel.laterVersionTitle, "Later version")
+        XCTAssertEqual(HistoryCardModel.versionText(position: 2, of: 3), "Version 2/3")
+        XCTAssertEqual(SettingsSection.clearHistoryNote, keys[12])
+        XCTAssertEqual(SettingsSection.clearHistoryConfirmMessage, keys[13])
 
         let catalogURL = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent().deletingLastPathComponent()

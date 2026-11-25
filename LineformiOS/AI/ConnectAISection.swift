@@ -146,10 +146,11 @@ struct ConnectAISection: View {
         String(localized: "Use your own AI account to rewrite and proofread. Nothing is sent until you choose an action.")
     }
     static var askAITitle: String { String(localized: "Ask AI…") }
-    static var askAINote: String { String(localized: "Sends the whole document to your AI, with any comment you type.") }
+    /// What Ask AI… sends (the comment field is gone: the AI sheet takes any instruction).
+    static var askAINote: String { String(localized: "Sends the whole document to your AI.") }
 
-    /// Ask AI… shows while an AI is connected, an editor is on screen (Read has no editor to hold
-    /// the comment field, and allows no AI), and the document has text to send.
+    /// Ask AI… shows while an AI is connected, an editor is on screen (Read has no editor to
+    /// review in, and allows no AI), and the document has text to send.
     static func showsAskAI(isConnected: Bool, mode: EditorDisplayMode, hasText: Bool) -> Bool {
         isConnected && mode != .read && hasText
     }
@@ -241,7 +242,7 @@ struct ConnectAISection: View {
                 .padding(.horizontal, 4)
         }
         if Self.showsAskAI(isConnected: store.isConnected, mode: mode, hasText: hasText) {
-            WordMenuRow(title: Self.askAITitle, note: Self.askAINote, systemImage: "text.bubble", accessory: .none) {
+            WordMenuRow(title: Self.askAITitle, note: Self.askAINote, accessory: .none) {
                 onAskAI()
             }
             .accessibilityIdentifier("connectAI.askAI")

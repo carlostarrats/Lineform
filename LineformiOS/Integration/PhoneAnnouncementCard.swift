@@ -1,8 +1,9 @@
 import LineformCore
 import SwiftUI
 
-/// An announcement on iPhone: a small one-time sheet, as tall as its content, on the word menu's
-/// wash. The title, the body, the action as the full-width blue pill, and "Not now" under it as
+/// An announcement on iPhone: a small one-time sheet, as tall as its content, on the plain sheet
+/// surface the Themes sheet uses (`StylingSheet.surface(for:)`), never the word menu's wash, and
+/// with no icon (§20, §23). The title, the body, the action as the full-width blue pill, and "Not now" under it as
 /// the pill's grey twin (`WordMenuSecondaryButton`). When the action is the Lineform Guide, a
 /// footnote says where the guide lives (About Lineform). Not now, a swipe down and the action all dismiss the announcement for good
 /// (`PhoneAnnouncementStore`'s rules: dismissed ids are never pruned).
@@ -38,22 +39,24 @@ struct PhoneAnnouncementSheet: View {
     /// The sheet's height for content `height` tall: never under a small floor.
     static func detentHeight(for height: CGFloat) -> CGFloat { max(height, 180) }
 
+    /// The sheet's surface for `theme`: the plain sheet surface, a step apart from the page.
+    static func surface(for theme: Theme) -> UIColor { StylingSheet.surface(for: theme) }
+
     var body: some View {
-        let palette = WordMenuPalette.forTheme(Theme.theme(for: profile))
+        let theme = Theme.theme(for: profile)
+        let palette = WordMenuPalette.forTheme(theme)
+        // The title and body inks, measured on the sheet's own surface.
+        let inks = StylingSheet.Inks(theme: theme)
         ScrollView {
             VStack(alignment: .leading, spacing: 10) {
-                Image(systemName: "sparkles")
-                    .font(.title3.weight(.medium))
-                    .foregroundStyle(palette.color(palette.blueMark))
-                    .accessibilityHidden(true)
                 Text(verbatim: announcement.title)
                     .font(.title3.weight(.semibold))
-                    .foregroundStyle(palette.color(palette.ink))
+                    .foregroundStyle(Color(uiColor: inks.primary))
                     .fixedSize(horizontal: false, vertical: true)
                     .accessibilityAddTraits(.isHeader)
                 Text(verbatim: announcement.body)
                     .font(.body)
-                    .foregroundStyle(palette.color(palette.secondary))
+                    .foregroundStyle(Color(uiColor: inks.secondary))
                     .fixedSize(horizontal: false, vertical: true)
                 VStack(spacing: 8) {
                     if let label = announcement.actionLabel {
@@ -69,7 +72,7 @@ struct PhoneAnnouncementSheet: View {
                 if Self.isGuideAction(announcement) {
                     Text(Self.guideFootnote)
                         .font(.footnote)
-                        .foregroundStyle(palette.color(palette.tertiary))
+                        .foregroundStyle(Color(uiColor: inks.secondary))
                         .frame(maxWidth: .infinity)
                         .multilineTextAlignment(.center)
                         .fixedSize(horizontal: false, vertical: true)
@@ -87,7 +90,7 @@ struct PhoneAnnouncementSheet: View {
         .scrollBounceBehavior(.basedOnSize)
         .environment(\.wordMenuPalette, palette)
         .environment(\.colorScheme, palette.colorScheme)
-        .presentationBackground { palette.wash }
+        .presentationBackground(Color(uiColor: Self.surface(for: theme)))
         .presentationDetents([.height(Self.detentHeight(for: contentHeight))])
         .presentationDragIndicator(.visible)
         .preferredColorScheme(palette.colorScheme)

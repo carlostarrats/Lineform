@@ -1,66 +1,54 @@
 import LineformCore
 import SwiftUI
 
-/// One version in the card's list: its first line, who wrote it, and whether it is current.
-struct HistoryCardRow: Equatable, Identifiable {
-    /// The version's index in the passage.
-    let id: Int
-    let text: String
-    let author: HistoryAuthor
-    let isCurrent: Bool
-
-    /// First non-empty line, every whitespace run collapsed to one space (the Mac's rule).
-    static func displayText(for version: String) -> String {
-        let firstLine = version
-            .split(whereSeparator: \.isNewline)
-            .first { !$0.allSatisfy(\.isWhitespace) } ?? ""
-        return firstLine.split(whereSeparator: \.isWhitespace).joined(separator: " ")
-    }
-
-    /// The first version is where the passage started.
-    var isOriginal: Bool { id == 0 }
-
-    /// The Mac's icons: the original a page, the writer's versions a pencil, AI versions a sparkle.
-    var symbolName: String {
-        if isOriginal { return "doc.text" }
-        return author == .you ? "pencil" : "sparkles"
-    }
-
-    /// Spoken label (the Mac's strings). `position` is 1-based.
-    func accessibilityLabel(position: Int, of count: Int) -> String {
-        if isOriginal { return String(localized: "\(text), original, version \(position) of \(count)") }
-        switch author {
-        case .you: return String(localized: "\(text), by you, version \(position) of \(count)")
-        case .ai: return String(localized: "\(text), by AI, version \(position) of \(count)")
-        }
-    }
-}
-
-/// What the History card shows, read from the controller. Pure, so tests read it without a view.
+/// What History mode's bar shows, read from the controller. Pure, so tests read it without a view.
 struct HistoryCardModel: Equatable {
     var levels: [HistoryLevel] = []
     var currentLevel: HistoryLevel?
-    var rows: [HistoryCardRow] = []
+    /// The selected passage's versions: how many, and which one the page shows (0-based).
+    var versionCount = 0
+    var currentVersionIndex = 0
     /// The passage the versions belong to; the replacement field belongs to it alone.
     var selectedPassageID: UUID?
-    /// Replace With… asked for the field on the selected passage.
+    /// Replace With… asked for the field on the selected passage (focus it now).
     var opensReplacementField = false
+    /// History mode came from Replace With…: the bar shows "Type a replacement". Never from
+    /// ⋯ ▸ History.
+    var offersReplacementField = false
     /// Select Next / Previous Passage, for VoiceOver and Switch Control (a passage is otherwise
     /// picked by tapping its wash).
     var navigator = HistoryPassageNavigator()
-    /// VoiceOver moved the selection itself (the Passages rotor) and is reading it: the card's
+    /// VoiceOver moved the selection itself (the Passages rotor) and is reading it: the bar's
     /// announcement would talk over it.
     var announcesChanges = true
 
     var hasSelection: Bool { selectedPassageID != nil }
 
-    /// The level switcher shows only when the selected passage's group has more than one level.
+    /// The level tabs show only when the selected passage has more than one level available,
+    /// and then only the available ones (never a greyed tab).
     var showsLevelSwitcher: Bool { levels.count > 1 }
 
-    /// What VoiceOver hears when the selection or its version changes: the Mac's announcement.
+    /// The field shows on a selected passage of a Replace With… session.
+    var showsReplacementField: Bool { offersReplacementField && hasSelection }
+
+    var canStepBack: Bool { hasSelection && currentVersionIndex > 0 }
+    var canStepForward: Bool { hasSelection && currentVersionIndex < versionCount - 1 }
+
+    /// The bar's compact "Version 2/2" (owner, 2026-11-24).
+    var versionText: String? {
+        guard hasSelection, versionCount > 0 else { return nil }
+        return Self.versionText(position: currentVersionIndex + 1, of: versionCount)
+    }
+
+    static func versionText(position: Int, of count: Int) -> String {
+        String(localized: "Version \(position)/\(count)")
+    }
+
+    /// What VoiceOver hears when the selection or its version changes, and the version line's
+    /// spoken label: the Mac's announcement ("Sentence, version 2 of 2").
     var announcement: String? {
-        guard let level = currentLevel, let position = rows.firstIndex(where: \.isCurrent) else { return nil }
-        return String(localized: "\(level.title), version \(position + 1) of \(rows.count)")
+        guard let level = currentLevel, hasSelection, versionCount > 0 else { return nil }
+        return String(localized: "\(level.title), version \(currentVersionIndex + 1) of \(versionCount)")
     }
 
     init() {}
@@ -69,36 +57,33 @@ struct HistoryCardModel: Equatable {
     init(controller: PhoneHistoryController) {
         navigator = HistoryPassageNavigator(controller: controller)
         announcesChanges = !controller.selectionIsSpokenElsewhere
+        offersReplacementField = controller.isHistoryModeActive && controller.offersReplacementField
         guard controller.isHistoryModeActive, let passage = controller.selectedPassage else { return }
         selectedPassageID = passage.id
         currentLevel = passage.level
         levels = controller.levels(containing: passage.id)
-        rows = passage.versions.enumerated().map { index, version in
-            HistoryCardRow(
-                id: index,
-                text: HistoryCardRow.displayText(for: version.text),
-                author: version.author,
-                isCurrent: index == passage.currentIndex
-            )
-        }
+        versionCount = passage.versions.count
+        currentVersionIndex = passage.currentIndex
         opensReplacementField = controller.pendingReplacementFieldID == passage.id
     }
 
     // MARK: Strings (the Mac's where the Mac has the same text)
 
+    /// The bar's name for VoiceOver (it draws no title).
     static var title: String { String(localized: "History") }
     static var doneTitle: String { String(localized: "Done") }
     static var emptySelectionText: String { String(localized: "Tap a highlighted passage to see its versions.") }
     static var replacementPlaceholder: String { String(localized: "Type a replacement") }
     static var addTitle: String { String(localized: "Add") }
-    static var deleteVersionTitle: String { String(localized: "Delete from History") }
+    static var earlierVersionTitle: String { String(localized: "Earlier version") }
+    static var laterVersionTitle: String { String(localized: "Later version") }
     static var nextPassageTitle: String { String(localized: "Select Next Passage") }
     static var previousPassageTitle: String { String(localized: "Select Previous Passage") }
     static var exitTitle: String { String(localized: "Exit History") }
 }
 
-/// The card's way to the controller's passage navigation (the Mac's Select Next / Previous
-/// Passage). Weak, and equal to any other navigator: it is not something the card shows.
+/// The bar's way to the controller's passage navigation (the Mac's Select Next / Previous
+/// Passage). Weak, and equal to any other navigator: it is not something the bar shows.
 struct HistoryPassageNavigator: Equatable {
     weak var controller: PhoneHistoryController?
 
@@ -116,20 +101,27 @@ struct HistoryPassageNavigator: Equatable {
     static func == (lhs: HistoryPassageNavigator, rhs: HistoryPassageNavigator) -> Bool { true }
 }
 
-/// History mode's card (D10): at the bottom of the page, above the keyboard and the home
-/// indicator, full width inside the app's margins, in the floating-card chrome the Menu button
-/// and the quiet notice use. With nothing selected it says how to pick a passage; with one
-/// selected it shows the level switcher (only when there is more than one level), the versions
-/// (pencil = you, sparkle = AI, the current one marked), Delete on a version (its context menu and
-/// the VoiceOver actions), and the "Type a replacement" field. Done leaves History mode.
+/// History mode's bar, the approved mockup's one line (`word-menu.html`, `.hist`): at the bottom
+/// of the page, 14 pt inside the screen's sides, on the soft surface (`PhoneInk.searchFieldWash`)
+/// with 16 pt corners and a soft shadow. "Version 2/2", then ‹ › as round buttons
+/// (`PhoneInk.readAloudButton`, the Read Aloud pill's), then Done as a pill in the ink with the
+/// page colour for its text. Nothing selected, the line says how to pick a passage.
+///
+/// Above the bar, only when the selected passage has more than one level, its available levels
+/// as tabs (Paragraph · Sentence · Word). Only in a Replace With… session, "Type a replacement"
+/// sits inside the bar above the version line.
+///
+/// Fully operable without sight: the version line is adjustable (swipe up / down steps the
+/// versions) and carries Select Next / Previous Passage and Exit History; ‹ › and Done are labelled
+/// buttons; Escape leaves. A hardware keyboard's ← / → / Esc are the editor's.
 ///
 /// Its callbacks are the controller's API: the screen passes the editor's current text.
 struct HistoryCard: View {
     var model: HistoryCardModel
     var profile: ReadingProfile
     var onSelectLevel: (HistoryLevel) -> Void
-    var onSelectVersion: (Int) -> Void
-    var onDeleteVersion: (Int) -> Void
+    /// ‹ (-1) and › (+1): one version earlier or later.
+    var onStep: (Int) -> Void
     /// Return in the field: the text and the passage the field was opened for.
     var onAddReplacement: (String, UUID) -> Void
     /// Replace With…'s request for the field was met (`PhoneHistoryController.replacementFieldDidOpen`).
@@ -140,63 +132,42 @@ struct HistoryCard: View {
     /// The passage the draft belongs to; another selection clears it.
     @State private var draftPassageID: UUID?
     @FocusState private var fieldFocused: Bool
-    /// VoiceOver lands on the card's title when History mode opens.
-    @AccessibilityFocusState private var titleFocused: Bool
+    /// VoiceOver lands on the version line when History mode opens.
+    @AccessibilityFocusState private var lineFocused: Bool
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
-    /// The tallest the version list grows before it scrolls, and a row's height, at the default
-    /// size; both scale with Dynamic Type.
-    static let versionListMaxHeight: CGFloat = 176
-    static let rowHeight: CGFloat = 40
-    @ScaledMetric(relativeTo: .body) private var scaledRowHeight: CGFloat = HistoryCard.rowHeight
-    @ScaledMetric(relativeTo: .body) private var scaledListMaxHeight: CGFloat = HistoryCard.versionListMaxHeight
-    @ScaledMetric(relativeTo: .body) private var iconSize: CGFloat = 13
-    @ScaledMetric(relativeTo: .body) private var iconColumn: CGFloat = 20
-    @ScaledMetric(relativeTo: .body) private var addGlyphSize: CGFloat = 13
-
+    // The mockup's values.
+    static let sideInset: CGFloat = 14
+    static let cornerRadius: CGFloat = 16
+    static let horizontalPadding: CGFloat = 14
+    static let verticalPadding: CGFloat = 12
+    static let itemSpacing: CGFloat = 10
+    static let buttonDiameter: CGFloat = 36
+    static let shadowOpacity: CGFloat = 0.15
+    static let shadowRadius: CGFloat = 10
+    static let shadowY: CGFloat = 6
     /// The smallest touch target (Apple's 44 × 44 pt).
     static let minimumTarget: CGFloat = 44
 
+    @ScaledMetric(relativeTo: .subheadline) private var textSize: CGFloat = 14
+    @ScaledMetric(relativeTo: .body) private var addGlyphSize: CGFloat = 13
+
     var body: some View {
         let theme = Theme.theme(for: profile)
-        let ink = Color(uiColor: theme.textColor)
-        // The card forces its scheme from the theme (below), so its inks resolve for that scheme.
-        let phoneInk = PhoneInk(theme: theme, userInterfaceStyle: theme.usesDarkChrome ? .dark : .light)
-        let secondary = phoneInk.secondary
-        let stacks = dynamicTypeSize.isAccessibilitySize
-        VStack(alignment: .leading, spacing: 12) {
-            header(stacks: stacks)
-            if model.hasSelection {
-                if model.showsLevelSwitcher { levelSwitcher(ink: ink, secondary: secondary) }
-                versionList(ink: ink, theme: theme)
-                replacementField(ink: ink, secondary: secondary, edge: phoneInk.color(.controlEdge),
-                                 addGlyph: phoneInk.color(.historyAddGlyph))
-            } else {
-                Text(HistoryCardModel.emptySelectionText)
-                    .font(.subheadline)
-                    .foregroundStyle(secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-                    // The tap it asks for has a VoiceOver path: Select Next Passage, here, on the
-                    // card and on the editor, and the editor's Passages rotor.
-                    .accessibilityAction(named: Text(HistoryCardModel.nextPassageTitle)) { model.navigator.move(by: 1) }
-            }
+        // The bar forces its scheme from the theme (below), so its inks resolve for that scheme.
+        let inks = PhoneInk(theme: theme, userInterfaceStyle: theme.usesDarkChrome ? .dark : .light)
+        VStack(spacing: 8) {
+            if model.showsLevelSwitcher { levelTabs(inks) }
+            bar(inks)
         }
-        .foregroundStyle(ink)
-        .tint(ink)
-        .padding(16)
-        .background { HistoryCardBackground(theme: theme) }
         .environment(\.colorScheme, theme.usesDarkChrome ? .dark : .light)
-        // A container: its named actions would not reach the elements inside, so they sit on the
-        // title (where VoiceOver lands) instead. Escape does reach up from any element.
-        .accessibilityElement(children: .contain)
-        .accessibilityAction(.escape) { onDone() }
         .onAppear { openFieldIfRequested() }
         .task {
-            // VoiceOver moves to the card's title once it is laid out: after this appearance, and
-            // after the editor's own first-responder change on entry (queued before the card
+            // VoiceOver moves to the version line once it is laid out: after this appearance, and
+            // after the editor's own first-responder change on entry (queued before the bar
             // appeared), never on a fixed clock.
             await Task.yield()
-            titleFocused = true
+            lineFocused = true
         }
         .onChange(of: model.opensReplacementField) { _, _ in openFieldIfRequested() }
         .onChange(of: model.selectedPassageID) { _, id in
@@ -211,51 +182,123 @@ struct HistoryCard: View {
         }
     }
 
-    // MARK: - Parts
+    // MARK: - The bar
 
-    /// "History" and Done; at accessibility sizes Done goes under the title.
+    private func bar(_ inks: PhoneInk) -> some View {
+        let ink = Color(uiColor: inks.theme.textColor)
+        let shape = RoundedRectangle(cornerRadius: Self.cornerRadius, style: .continuous)
+        return VStack(alignment: .leading, spacing: Self.itemSpacing) {
+            if model.showsReplacementField { replacementField(inks) }
+            HStack(spacing: Self.itemSpacing) {
+                versionLine(inks)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                if model.hasSelection {
+                    stepButton(-1, inks)
+                    stepButton(1, inks)
+                }
+                doneButton(inks)
+            }
+        }
+        .foregroundStyle(ink)
+        .padding(.horizontal, Self.horizontalPadding)
+        .padding(.vertical, Self.verticalPadding)
+        .background(shape.fill(Color(uiColor: inks.searchFieldWash)))
+        .shadow(color: .black.opacity(Self.shadowOpacity), radius: Self.shadowRadius, x: 0, y: Self.shadowY)
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel(HistoryCardModel.title)
+        .accessibilityAction(.escape) { onDone() }
+    }
+
+    /// "Version 2/2", or the hint while nothing is selected. The bar's commands for VoiceOver sit
+    /// here, where VoiceOver lands (a container's named actions do not reach its elements).
     @ViewBuilder
-    private func header(stacks: Bool) -> some View {
-        let title = Text(HistoryCardModel.title)
-            .font(.headline)
-            .accessibilityAddTraits(.isHeader)
-            .accessibilityFocused($titleFocused)
-            .accessibilityAction(named: Text(HistoryCardModel.nextPassageTitle)) { model.navigator.move(by: 1) }
-            .accessibilityAction(named: Text(HistoryCardModel.previousPassageTitle)) { model.navigator.move(by: -1) }
-            .accessibilityAction(named: Text(HistoryCardModel.exitTitle)) { onDone() }
-        if stacks {
-            VStack(alignment: .leading, spacing: 8) {
-                title
-                doneButton(reachesPastLayout: false)
-            }
+    private func versionLine(_ inks: PhoneInk) -> some View {
+        if let versionText = model.versionText {
+            Text(versionText)
+                .font(.system(size: textSize))
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
+                // An adjustable control: its target is 44 pt tall, the reach taken back so the
+                // bar keeps the mockup's height.
+                .frame(maxWidth: .infinity, minHeight: Self.minimumTarget, alignment: .leading)
+                .contentShape(Rectangle())
+                .padding(.vertical, -(Self.minimumTarget - Self.buttonDiameter) / 2)
+                .accessibilityLabel(model.announcement ?? versionText)
+                .accessibilityAddTraits(.isHeader)
+                .accessibilityAdjustableAction { direction in
+                    switch direction {
+                    case .increment: if model.canStepForward { onStep(1) }
+                    case .decrement: if model.canStepBack { onStep(-1) }
+                    @unknown default: break
+                    }
+                }
+                .modifier(HistoryBarActions(model: model, onDone: onDone))
+                .accessibilityFocused($lineFocused)
         } else {
-            HStack(alignment: .firstTextBaseline) {
-                title
-                Spacer(minLength: 0)
-                doneButton(reachesPastLayout: true)
-            }
+            Text(HistoryCardModel.emptySelectionText)
+                .font(.system(size: textSize))
+                .foregroundStyle(inks.color(.secondaryOnSoftBar))
+                .fixedSize(horizontal: false, vertical: true)
+                .accessibilityAddTraits(.isHeader)
+                .modifier(HistoryBarActions(model: model, onDone: onDone))
+                .accessibilityFocused($lineFocused)
         }
     }
 
-    /// Done, with a 44 pt target; the reach is taken back with negative padding, so the header
-    /// lays out as it always did.
-    private func doneButton(reachesPastLayout: Bool) -> some View {
+    /// ‹ or ›: a 36 pt circle, a 44 pt target (the reach is taken back, so the bar keeps the
+    /// mockup's height).
+    private func stepButton(_ delta: Int, _ inks: PhoneInk) -> some View {
+        let enabled = delta < 0 ? model.canStepBack : model.canStepForward
+        let glyph = inks.color(.onReadAloudButton)
+        return Button { onStep(delta) } label: {
+            Image(systemName: delta < 0 ? "chevron.left" : "chevron.right")
+                .font(.system(size: 15, weight: .medium))
+                // Disabled, the glyph is exempt from the contrast floor (WCAG 1.4.11).
+                .foregroundStyle(enabled ? glyph : glyph.opacity(0.35))
+                .frame(width: Self.buttonDiameter, height: Self.buttonDiameter)
+                .background(Circle().fill(Color(uiColor: inks.readAloudButton)))
+                .frame(width: Self.minimumTarget, height: Self.minimumTarget)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .padding(-(Self.minimumTarget - Self.buttonDiameter) / 2)
+        .fixedSize()
+        .layoutPriority(1)
+        .disabled(!enabled)
+        .accessibilityLabel(delta < 0 ? HistoryCardModel.earlierVersionTitle : HistoryCardModel.laterVersionTitle)
+        .accessibilityIdentifier(delta < 0 ? "history.previous" : "history.next")
+    }
+
+    /// Done: the ink as a pill, its text in the page colour; a 44 pt target.
+    private func doneButton(_ inks: PhoneInk) -> some View {
         Button(action: onDone) {
             Text(HistoryCardModel.doneTitle)
-                .font(.body.weight(.semibold))
+                .font(.system(size: textSize))
+                .foregroundStyle(Color(uiColor: inks.page))
+                .padding(.horizontal, 14)
+                .padding(.vertical, 6)
+                .background(Capsule().fill(Color(uiColor: inks.theme.textColor)))
                 .frame(minWidth: Self.minimumTarget, minHeight: Self.minimumTarget)
                 .contentShape(Rectangle())
         }
-        .buttonStyle(.borderless)
-        .padding(.vertical, reachesPastLayout ? -11 : 0)
+        .buttonStyle(.plain)
+        .padding(.vertical, -(Self.minimumTarget - Self.buttonDiameter) / 2)
+        .fixedSize()
+        .layoutPriority(1)
         .accessibilityIdentifier("history.done")
     }
 
-    /// Paragraph · Sentence · Word in a row; one per line at accessibility sizes.
-    private func levelSwitcher(ink: Color, secondary: Color) -> some View {
-        let layout = dynamicTypeSize.isAccessibilitySize
+    // MARK: - Levels
+
+    /// The passage's available levels (Paragraph · Sentence · Word), on the bar's surface, above
+    /// it. One per line at accessibility sizes.
+    private func levelTabs(_ inks: PhoneInk) -> some View {
+        let ink = Color(uiColor: inks.theme.textColor)
+        let secondary = inks.color(.secondaryOnSoftBar)
+        let stacks = dynamicTypeSize.isAccessibilitySize
+        let layout = stacks
             ? AnyLayout(VStackLayout(alignment: .leading, spacing: 0))
-            : AnyLayout(HStackLayout(spacing: 18))
+            : AnyLayout(HStackLayout(spacing: 4))
         return layout {
             ForEach(model.levels, id: \.self) { level in
                 let isCurrent = level == model.currentLevel
@@ -263,89 +306,38 @@ struct HistoryCard: View {
                     onSelectLevel(level)
                 } label: {
                     Text(level.title)
-                        .font(.subheadline.weight(isCurrent ? .semibold : .regular))
+                        .font(.system(size: textSize, weight: isCurrent ? .semibold : .regular))
                         .foregroundStyle(isCurrent ? ink : secondary)
-                        .padding(.vertical, 4)
+                        .padding(.horizontal, 10)
                         .frame(minHeight: Self.minimumTarget)
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
-                // The 44 pt target reaches past the drawn row; the row keeps its height.
-                .padding(.vertical, dynamicTypeSize.isAccessibilitySize ? 0 : -8)
                 .accessibilityAddTraits(isCurrent ? .isSelected : [])
             }
         }
-        .frame(maxWidth: .infinity, alignment: dynamicTypeSize.isAccessibilitySize ? .leading : .center)
-    }
-
-    private func versionList(ink: Color, theme: Theme) -> some View {
-        ScrollViewReader { proxy in
-            ScrollView {
-                VStack(spacing: 2) {
-                    ForEach(Array(model.rows.enumerated()), id: \.element.id) { index, row in
-                        versionRow(row, position: index + 1, ink: ink)
-                            .id(row.id)
-                    }
-                }
-            }
-            .frame(maxHeight: min(scaledListMaxHeight, CGFloat(model.rows.count) * (scaledRowHeight + 2)))
-            .onAppear { scrollToCurrent(proxy) }
-            .onChange(of: model.rows) { _, _ in scrollToCurrent(proxy) }
-        }
-    }
-
-    private func scrollToCurrent(_ proxy: ScrollViewProxy) {
-        if let current = model.rows.first(where: \.isCurrent) { proxy.scrollTo(current.id) }
-    }
-
-    private func versionRow(_ row: HistoryCardRow, position: Int, ink: Color) -> some View {
-        HStack(spacing: 10) {
-            Image(systemName: row.symbolName)
-                .font(.system(size: iconSize, weight: .semibold))
-                .frame(width: iconColumn)
-            Text(row.text)
-                .font(.body.weight(row.isCurrent ? .semibold : .regular))
-                // At accessibility sizes a version gets room for more than a few words.
-                .lineLimit(dynamicTypeSize.isAccessibilitySize ? 3 : 1)
-                .truncationMode(.tail)
-            Spacer(minLength: 0)
-            if row.isCurrent {
-                Image(systemName: "checkmark")
-                    .font(.system(size: iconSize, weight: .semibold))
-            }
-        }
-        .padding(.horizontal, 10)
-        .frame(maxWidth: .infinity, minHeight: scaledRowHeight, alignment: .leading)
+        .padding(.horizontal, 6)
+        // The tabs' 44 pt targets reach past the drawn 36 pt surface.
         .background {
-            RoundedRectangle(cornerRadius: LineformDesign.Radius.row, style: .continuous)
-                .fill(ink.opacity(row.isCurrent ? 0.08 : 0))
+            RoundedRectangle(cornerRadius: Self.cornerRadius, style: .continuous)
+                .fill(Color(uiColor: inks.searchFieldWash))
+                .padding(.vertical, stacks ? 0 : (Self.minimumTarget - Self.buttonDiameter) / 2)
+                .shadow(color: .black.opacity(Self.shadowOpacity), radius: Self.shadowRadius, x: 0, y: Self.shadowY)
         }
-        .contentShape(Rectangle())
-        .onTapGesture { onSelectVersion(row.id) }
-        .contextMenu {
-            Button(role: .destructive) {
-                onDeleteVersion(row.id)
-            } label: {
-                Label(HistoryCardModel.deleteVersionTitle, systemImage: "trash")
-            }
-        }
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel(row.accessibilityLabel(position: position, of: model.rows.count))
-        .accessibilityAddTraits(row.isCurrent ? [.isButton, .isSelected] : [.isButton])
-        .accessibilityIdentifier("history.versionRow")
-        .accessibilityAction { onSelectVersion(row.id) }
-        // The context menu must not be the only path to Delete.
-        .accessibilityAction(named: Text(HistoryCardModel.deleteVersionTitle)) { onDeleteVersion(row.id) }
     }
 
-    private func replacementField(ink: Color, secondary: Color, edge: Color, addGlyph: Color) -> some View {
+    // MARK: - Field
+
+    private func replacementField(_ inks: PhoneInk) -> some View {
         let canCommit = !draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        let ink = Color(uiColor: inks.theme.textColor)
         return HStack(spacing: 8) {
             TextField(
                 HistoryCardModel.replacementPlaceholder,
                 text: $draft,
-                prompt: Text(HistoryCardModel.replacementPlaceholder).foregroundStyle(secondary)
+                prompt: Text(HistoryCardModel.replacementPlaceholder).foregroundStyle(inks.secondary)
             )
+            .font(.system(size: textSize + 1))
             .focused($fieldFocused)
             .submitLabel(.done)
             .onSubmit { commit() }
@@ -356,7 +348,7 @@ struct HistoryCard: View {
                 Image(systemName: "arrow.turn.down.left")
                     .font(.system(size: addGlyphSize, weight: .bold))
                     // Disabled, the glyph is exempt from the contrast floor (WCAG 1.4.11).
-                    .foregroundStyle(canCommit ? addGlyph : ink.opacity(0.35))
+                    .foregroundStyle(canCommit ? inks.color(.historyAddGlyph) : ink.opacity(0.35))
                     .frame(width: 30, height: 30)
                     .background(Circle().fill(ink.opacity(canCommit ? PhoneInk.historyAddWashAlpha : 0.05)))
                     .frame(width: Self.minimumTarget, height: Self.minimumTarget)
@@ -374,15 +366,13 @@ struct HistoryCard: View {
         .frame(minHeight: 40)
         .background {
             RoundedRectangle(cornerRadius: LineformDesign.Radius.row, style: .continuous)
-                .fill(ink.opacity(0.05))
+                .fill(Color(uiColor: inks.page))
         }
         .overlay {
             RoundedRectangle(cornerRadius: LineformDesign.Radius.row, style: .continuous)
-                .strokeBorder(edge, lineWidth: 1)
+                .strokeBorder(inks.color(.controlEdge), lineWidth: 1)
         }
     }
-
-    // MARK: - Field
 
     private func openFieldIfRequested() {
         guard model.opensReplacementField, let id = model.selectedPassageID else { return }
@@ -403,30 +393,15 @@ struct HistoryCard: View {
     }
 }
 
-/// The card's chrome: the page colour with the floating-card hairline and soft shadow.
-private struct HistoryCardBackground: View {
-    var theme: Theme
+/// The bar's commands for VoiceOver and Switch Control, on the element VoiceOver lands on.
+private struct HistoryBarActions: ViewModifier {
+    var model: HistoryCardModel
+    var onDone: () -> Void
 
-    var body: some View {
-        let isDark = theme.usesDarkChrome
-        let shape = RoundedRectangle(cornerRadius: LineformDesign.FloatingCard.radius, style: .continuous)
-        shape
-            .fill(Color(uiColor: theme.backgroundColor))
-            .overlay(
-                shape.strokeBorder(
-                    isDark
-                        ? Color.white.opacity(LineformDesign.FloatingCard.hairlineOpacityDark)
-                        : Color.black.opacity(LineformDesign.FloatingCard.hairlineOpacityLight),
-                    lineWidth: LineformDesign.FloatingCard.hairlineWidth
-                )
-            )
-            .shadow(
-                color: .black.opacity(
-                    isDark ? LineformDesign.FloatingCard.shadowOpacityDark : LineformDesign.FloatingCard.shadowOpacityLight
-                ),
-                radius: LineformDesign.FloatingCard.shadowRadius,
-                x: LineformDesign.FloatingCard.shadowOffset.width,
-                y: LineformDesign.FloatingCard.shadowOffset.height
-            )
+    func body(content: Content) -> some View {
+        content
+            .accessibilityAction(named: Text(HistoryCardModel.nextPassageTitle)) { model.navigator.move(by: 1) }
+            .accessibilityAction(named: Text(HistoryCardModel.previousPassageTitle)) { model.navigator.move(by: -1) }
+            .accessibilityAction(named: Text(HistoryCardModel.exitTitle)) { onDone() }
     }
 }

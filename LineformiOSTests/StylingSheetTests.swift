@@ -133,8 +133,19 @@ final class StylingSheetTests: XCTestCase {
             "Highlights the current line while you write.",
             "Typewriter Mode",
             "Keeps the current line centered as you write.",
-            "Reset to Default",
+            // The mockup's and §17's wording (the Mac's panel says Reset to Default).
+            "Reset to Theme",
         ])
+    }
+
+    /// §17: a tap on the grabber or on the page above the sheet closes it. The grabber is the
+    /// mockup's (36 × 5, 8 pt down) with a spoken name; the system one would only change detents.
+    /// (The taps themselves are checked in the simulator: a sheet cannot be presented here.)
+    func testGrabberMatchesTheMockup() throws {
+        try skipUnlessEnglishInterface()
+        XCTAssertEqual(StylingSheet.closeTitle, "Close Themes")
+        XCTAssertEqual(StylingSheet.grabberSize, CGSize(width: 36, height: 5))
+        XCTAssertEqual(StylingSheet.grabberTop, 8)
     }
 
     func testSixPresetsInDesktopOrder() throws {

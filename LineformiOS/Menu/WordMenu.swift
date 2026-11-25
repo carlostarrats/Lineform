@@ -248,7 +248,26 @@ struct WordMenu: View {
     /// several times that on a phone), so they are never counted while the menu opens: the last
     /// count for the same text is reused (`WordMenuStatusCounts`), and otherwise the line shows
     /// the name and save state at once and the counts follow from a background count.
+    @ViewBuilder
     private var statusLine: some View {
+        if Self.showsTitleOnly(hasFile: document.url != nil, text: document.text) {
+            // An empty page with no file: just "Untitled" (no "Not saved yet · 0 words").
+            Text(Self.documentTitle(for: nil))
+                .font(.subheadline)
+                .foregroundStyle(palette.color(palette.secondary))
+                .accessibilityIdentifier("wordMenu.status")
+        } else {
+            fullStatusLine
+        }
+    }
+
+    /// The status line is the name alone: the page is empty (nothing but white space) and has no
+    /// file. Stops at the first non-space character, so it never walks a long document.
+    static func showsTitleOnly(hasFile: Bool, text: String) -> Bool {
+        !hasFile && !text.contains { !$0.isWhitespace }
+    }
+
+    private var fullStatusLine: some View {
         _ = countsGeneration
         let title = Self.documentTitle(for: document.url)
         let saveState = Self.saveStateText(for: document)
@@ -381,6 +400,9 @@ struct WordMenuWordButton: View {
     @ScaledMetric(relativeTo: .largeTitle) private var largeSize = WordMenuMetrics.largeWordSize
     @ScaledMetric(relativeTo: .title3) private var smallSize = WordMenuMetrics.smallWordSize
 
+    /// How far a small word's target reaches past its drawn 40 pt row, above and below.
+    static let smallTargetReach = (WordMenuMetrics.minimumTarget - WordMenuMetrics.smallWordRowHeight) / 2
+
     var body: some View {
         let isSmall = item.style == .small
         Button(action: action) {
@@ -389,11 +411,15 @@ struct WordMenuWordButton: View {
                 .tracking(isSmall ? 0 : -0.68)
                 .foregroundStyle(palette.color(ink))
                 .multilineTextAlignment(.leading)
-                .padding(.vertical, isSmall ? 6 : 3)
-                .frame(minHeight: WordMenuMetrics.minimumTarget, alignment: .leading)
+                .padding(.vertical, isSmall ? 8 : 3)
+                // A small word's row is drawn 40 pt (§19); its target still reaches 44 pt, the
+                // extra 2 pt above and below taken back so the rows keep the mockup's pitch.
+                .frame(minHeight: isSmall ? WordMenuMetrics.smallWordRowHeight : WordMenuMetrics.minimumTarget, alignment: .leading)
+                .padding(.vertical, isSmall ? Self.smallTargetReach : 0)
                 .contentShape(Rectangle())
         }
         .buttonStyle(WordMenuPressStyle())
+        .padding(.vertical, isSmall ? -Self.smallTargetReach : 0)
         .accessibilityHint(item.accessibilityHint.map { Text($0) } ?? Text(verbatim: ""))
         .accessibilityIdentifier("wordMenu.\(item.rawValue)")
     }

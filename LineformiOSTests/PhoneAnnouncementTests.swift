@@ -217,6 +217,18 @@ final class PhoneAnnouncementTests: XCTestCase {
         try await spin { self.element(labelled: PhoneAnnouncementSheet.notNowTitle, in: window) == nil }
     }
 
+    /// §20 / §23: a plain sheet (the Themes sheet's surface, a step apart from the page), never the
+    /// word menu's wash; its text inks are the ones measured AA on that surface.
+    func testTheSheetIsAPlainSurface() {
+        for theme in [Theme.system, .paper, .calm, .quiet, .night] {
+            XCTAssertEqual(PhoneAnnouncementSheet.surface(for: theme), StylingSheet.surface(for: theme))
+            let inks = StylingSheet.Inks(theme: theme)
+            for color in [inks.primary, inks.secondary] {
+                XCTAssertGreaterThanOrEqual(Theme.contrastRatio(color, inks.surface), 4.5, "\(theme.id)")
+            }
+        }
+    }
+
     /// The guide footnote shows only when the action opens the Lineform Guide.
     func testGuideFootnoteOnlyForTheGuide() throws {
         XCTAssertTrue(PhoneAnnouncementSheet.isGuideURL(URL(string: LineformLinks.guideURL)))

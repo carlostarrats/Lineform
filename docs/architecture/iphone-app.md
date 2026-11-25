@@ -382,15 +382,20 @@ Roadmap step 7 (plan `2026-11-22-iphone-styling-sheet.md` in the Lineform-mobile
   width beside "Font" (shrinking to 0.85 at most, never capped). Corner radius `LineformDesign.Radius.modal`
   (20), detents medium and large, drag indicator, colour scheme forced from
   `Theme.usesDarkChrome` (never the system appearance). The page behind the medium detent is not
-  dimmed and stays usable, so every change shows live. A Reconnect tapped there closes the sheet
-  first, then opens the image picker (one view cannot present both). The sheet also sets
-  `preferredColorScheme`, so its grabber and the Font menu follow the theme too.
+  dimmed, so every change shows live; a tap on it closes the sheet (`StylingSheetTapCatcher`, the
+  mockup's `.tscrim`, §17), and so does a tap on the grabber. The grabber is the sheet's own
+  (`word-menu.html` `.grab`: 36 × 5 pt, 8 pt down, the system indicator hidden, since a tap on
+  that only changes the detent), with a 44 pt target and the VoiceOver name "Close Themes"; its ink
+  is 3:1 on the surface (`StylingSheet.Inks.grabber`). The sheet also sets `preferredColorScheme`,
+  so the Font menu follows the theme too. The sliders keep the system blue (`.tint(.systemBlue)`)
+  now that the app's AccentColor is Lineform blue.
 - **Controls.** The Mac panel (`ReadingExperiencePopover.swift`), in its order and with its values:
   header "Reading"; "Themes" with the six preset cards in three columns; Font (the available
   grouped options, so Comic Sans, a Mac system font, never shows; a retired font shows the
   default); Font Size, Line Height, Block Spacing (Read / Preview), Letter Spacing and Column
   Width sliders (continuous, no steps); Reading Ruler and Typewriter Mode with their
-  descriptions; Reset to Default (resets only the current preset). The ranges, the value wording
+  descriptions; Reset to Theme (the mockup's and §17's wording; the Mac's panel says Reset to
+  Default; it resets only the current preset). The ranges, the value wording
   and the visible font id come from the package's `ReadingExperienceControls`, which the Mac's
   panel forwards to, so the two cannot drift.
 - **Not on the sheet.** The desktop panel has no separate theme picker, margins slider or High
@@ -641,9 +646,11 @@ later launch opens straight into a fresh Untitled document, as on the Mac.
 
 ## Export, print, share and read aloud
 
-The word menu's Export & Print page (`ExportPrintSection` over `Export/ExportRows`), in the Mac's
-order: **Export As** (HTML; the Paper Size picker, PDF and Styled PDF; Rich Text), **Share…**,
-**Print…**; read aloud is its own word and pill (`ReadAloudPill`).
+The word menu's Export & Print page (`ExportPrintSection` over `Export/ExportRows`), exactly the
+approved mockup: **Export PDF… · Export HTML… · Export Markdown…**, then **Share… · Print…**, then
+Convert; read aloud is its own word and pill (`ReadAloudPill`). The Mac's Styled PDF, Rich Text,
+Paper Size picker and Save As are not on iPhone (owner, 2026-11-24): PDF uses the session's paper
+(`ExportCommands.paper`, the region's everyday sheet).
 `ExportCommands` does the work; the screen makes it once (`DocumentScreen`).
 
 ### What each format contains
@@ -654,12 +661,13 @@ renderer arguments; see `export-and-print.md`). Only the page machinery is the i
 - **HTML**: `ExportContent.htmlData`, one-to-one with the source; only math and Mermaid pictures
   are embedded.
 - **PDF (Normal)**: the raw Markdown source in a monospaced face (`ExportContent.rawSource`).
-- **Styled PDF**: the document rendered the way Read draws it (`ExportContent.styled`), with
-  tables fitted to the page, monochrome code, and local images from the document's own folder.
-  Two known differences from the Mac's Styled PDF, both matching iPhone Read: code blocks have
-  no background, and the table grid is Read's hairline grid (`LineformReadView.columnEdges`), so
-  a line can cross wrapped cell text.
-- **Rich Text**: `ExportContent.rtfData` (math and Mermaid as caption and source text).
+- **Markdown**: the document's text as it is, UTF-8 (`PhoneExportWriter`, `.md`); an empty
+  document exports an empty file rather than failing.
+- **Print** (not an export) uses the Styled layout: the document rendered the way Read draws it
+  (`ExportContent.styled`), with tables fitted to the page, monochrome code, and local images from
+  the document's own folder. Two known differences from the Mac's Styled layout, both matching
+  iPhone Read: code blocks have no background, and the table grid is Read's hairline grid
+  (`LineformReadView.columnEdges`), so a line can cross wrapped cell text.
 
 The page is always white with the light ink, whatever the app's appearance: `PhonePageLayout`
 draws inside a light `UITraitCollection`, so a dynamic colour such as a link's resolves light in
@@ -830,7 +838,8 @@ puts the keyboard away first.
   4.5:1, the large grey words 3:1 (large text), marks 3:1.
 - **Words** (`WordMenuItem`; raw values are identity, never localized), low on the screen, where
   the thumb is: **Files · Outline · Markdown Basics** large (34 pt), **Themes · Settings** large
-  and grey, then the small words (19 pt, 44 pt targets) **Export & Print · Read Aloud · History**
+  and grey, then the small words (19 pt, drawn as 40 pt rows as §19 asked, each with a 44 pt
+  target reaching 2 pt past the row: `WordMenuMetrics.smallWordRowHeight`) **Export & Print · Read Aloud · History**
   (only while the document has history) **· Connect Your AI · About Lineform**. Dynamic Type scales
   them (`@ScaledMetric`); the list scrolls when it no longer fits.
 - **Status line**, at the section title's height: "<document name> · Saved · 1,240 words". The
@@ -839,7 +848,9 @@ puts the keyboard away first.
   `text == lastSyncedText`), "Unsaved changes" in the autosave delay (or after a failed save), and
   the Mac's "Not saved yet" for text no file holds (a new document, or one detached after its file
   was deleted elsewhere). The Mac's "Autosaved" is not used: every iPhone write is an autosave.
-  The count is words ("%lld words", plural forms), or characters for predominantly CJK text.
+  The count is words ("%lld words", plural forms), or characters for predominantly CJK text. An
+  empty page with no file shows only "Untitled" (`WordMenu.showsTitleOnly`), never "Not saved yet ·
+  0 words".
   VoiceOver reads it as one element through the localized "%@, %@, %@".
 - **Navigation is instant**: no flying words, fades or staggers, either way. A tapped word shows
   its page at once (`WordMenuNavigation`, a stack). The corner button bottom right, where ⋯ was,
@@ -926,7 +937,8 @@ puts the keyboard away first.
   its own documents as cards, iCloud placeholders included (opening one downloads it). An empty
   root is its heading and "+" alone: no "No Markdown files" (owner review 4, 2026-11-24; before
   it a root listed only its folders, so an iCloud folder of documents and no folders showed
-  nothing under its heading while Recent listed them). After both roots, **Recent**: both roots' own documents as cards, newest first
+  nothing under its heading while Recent listed them). An empty folder's page is the same: no
+  empty-state text, only New Document. After both roots, **Recent**: both roots' own documents as cards, newest first
   (`recentDocuments(acrossRoots:)`). A folder's page shows its subfolders as rows, its documents
   as cards, and **New Document** as the blue pill, which saves in that folder.
 - **Room for the corner button.** Every page and list keeps `WordMenuMetrics.bottomClearance`
@@ -1003,21 +1015,22 @@ headings: the Mac's "Add # Title or ## Section to build an outline."
 
 `BasicsSection`, as `mockups/word-menu.html` (`.mdgroup`, owner review 2, 2026-11-24): each group
 is its own grey card (the soft fill, radius 14) under its small label (8 pt between them), 14 pt
-between one card and the next label. The package's `MarkdownReference` first section is split on
-iPhone into the mockup's groups — **Headings, Emphasis, Lists, Links & images, Blocks**
-(`BasicsSection.basicsGroupRowIDs`, by row identity; a row no group names joins Blocks) — then
-Diagrams, Math, Spelling and Search as their own groups; every row shows once
-(`OutlineBasicsTests.testBasicsGroupsShowEveryRowOnce`). A row is the mockup's three columns
+between one card and the next label. Exactly the mockup's groups and rows, by row identity
+(`BasicsSection.basicsGroupRowIDs`): **Headings** (Title, Section), **Emphasis** (Bold, Italic,
+Strikethrough, Code), **Lists** (Bullets, Numbers, Checkbox), **Links & images** (Link, Image) and
+**Blocks** (Quote, Table, Math, Diagram); the reference's other rows are not shown
+(`OutlineBasicsTests.testBasicsGroupsAreTheMockups`). A row is the mockup's three columns
 (1 : 1.2, then 36 pt): its short name ("Title", "Bold", "Bullets": `BasicsSection.name(for:)`),
 the Markdown in grey monospace, and the copy button (drawn 36 pt, a 44 pt target) that copies its
 `copyAffordance` text and turns into a blue check for 1 s (`BasicsCopyState`, which also announces
-"Copied"). A label row (Tab, Block Spacing, Spelling, Skipped, Tap) shows its explanation in the
-second column and copies nothing. Full-width hairlines (the hair colour at 70 %) between rows.
+"Copied"). Full-width hairlines (the hair colour at 70 %) between rows.
 VoiceOver reads one element per row, the explanation then the syntax (`Row.accessibilityLabel()`).
 
-`MarkdownReference` has iPhone wording behind `#if os(iOS)`, in all six languages: "Tap it in
-Read to toggle" for a done task, the heading shortcuts marked "with a keyboard", and the Search row
-as "Tap". The Mac's text is unchanged (`MarkdownReferenceSectionsTests.testIPhoneWordingSpeaksToTouch`).
+`MarkdownReference` has an iPhone branch behind `#if os(iOS)`, in all six languages: Markdown only
+(no label rows — Tab, Block Spacing — and no Spelling or Search sections), "Tap it in Read to
+toggle" for a done task, the heading shortcuts marked "with a keyboard", and the table row's
+"Insert from the format row." (it named the old Menu's Document section). The Mac's text is
+unchanged, byte for byte (`MarkdownReferenceSectionsTests.testIPhoneWordingSpeaksToTouch`).
 
 ### Themes
 
@@ -1032,8 +1045,12 @@ Quiet card never blends into the sheet.
 ### Settings
 
 `SettingsSection` over `AppSettings` (an `ObservableObject`, `AppSettings.shared` on
-`UserDefaults.standard`). Each value is per device, under the Mac's `Lineform.settings.*` key
-(`LineformSettingKeys`), on by default. The notes are worded for iPhone: no iPhone string names a
+`UserDefaults.standard`), as the approved mockup: single-line rows, no visible description and
+no icons ("we don't need all this text everywhere", owner 2026-11-24). Each row's explanation is
+its VoiceOver hint only (`WordMenuToggleRow.hint`). Order: the three switches, then **Files**
+(Show iCloud in Files when it resolves, Show Hidden Folders, Sort folders by), then **History**
+(Clear Version History). Each value is per device, under the Mac's `Lineform.settings.*` key
+(`LineformSettingKeys`), on by default. The hints are worded for iPhone: no iPhone string names a
 Mac or a sidebar (`SettingsTests.testNoMacOrSidebarWordingInIPhoneStrings`).
 
 - **Automatic Dark Mode** (`automaticDarkMode`). `DocumentScreen` draws with
@@ -1043,32 +1060,34 @@ Mac or a sidebar (`SettingsTests.testNoMacOrSidebarWordingInIPhoneStrings`).
 - **Show iCloud in Files** (`showICloudInSidebar`, the Mac's key). New documents still save there.
   Shown only when this device's iCloud container resolves (`FilesStore.isICloudAvailable`, looked
   up off the main thread, `lookUpICloudAvailability`, again each time Settings appears while it did
-  not resolve, and after `NSUbiquityIdentityDidChange`; `SettingsSection.shownRows`), so never in
-  Debug, which has no iCloud entitlement.
+  not resolve, and after `NSUbiquityIdentityDidChange`; `SettingsSection.shownFilesRows`), so never
+  in Debug, which has no iCloud entitlement. It is the first row of the Files group.
 - **Check spelling while typing** (`checksSpellingWhileTyping`).
 - **In-app notifications** (`checksForAnnouncements`): it gates the announcement request itself.
 - **Check Document Now** left Settings (owner review 2026-11-24): it is the format row's **Check
   Spelling** (see "The selection row and comment field").
 - **Files:** Show Hidden Folders (`FilesStore.setShowsHidden`, `Lineform.outline.showsHiddenFolders`)
-  and Sort folders by (Name, Date Created, Date Modified; one sort for every root, under both Mac
-  keys).
+  and Sort folders by (Name, Date Created, Date Modified, the value on the right, no icon; one sort
+  for every root, under both Mac keys). The owner keeps both.
 - **History: Clear Version History** (owner review 2, 2026-11-24, the same wording on the Mac so it
-  never sounds like it deletes documents): note "Deletes the earlier versions Lineform kept of
-  passages you changed. Your documents stay exactly as they are.", "Clear…", and the destructive
+  never sounds like it deletes documents), destructive, with no visible description or value (its
+  VoiceOver hint: "Deletes the earlier versions Lineform kept of passages you changed. Your
+  documents stay exactly as they are."), and the destructive
   confirmation "Clear version history?" / "Earlier versions of passages in every document will be
   removed. This can't be undone. Your documents aren't changed.":
   `SettingsSection.clearHistory(store:)` → `PhoneHistoryController.clearAllHistory(in:)`.
 
 ### Export & Print
 
-`ExportPrintSection`, the Mac's File menu plus Share, through `ExportRows` (the commands) and
-`ExportCommands`:
+`ExportPrintSection`, exactly the approved mockup (`word-menu.html`, `export`; owner 2026-11-24:
+"I don't want icons everywhere"): plain rows, no icons or chevrons, in three runs, through
+`ExportRows` (the commands) and `ExportCommands`:
 
-- **Export As:** HTML, Paper Size (above the PDFs), PDF, Styled PDF, Rich Text (.rtf). Each opens
-  the share sheet for its copy (see "Export, print, share and read aloud").
+- **Export PDF… · Export HTML… · Export Markdown…** (`PhoneExportFormat`). Each opens the share
+  sheet for its copy (see "Export, print, share and read aloud").
 - **Share…** (the document's own file, saved first; off while an Untitled document has nothing
   typed) and **Print…** (the Styled layout).
-- **Save As…** (see "Save As") and **Convert to Plain Text / Convert to Markdown**: the title
+- **Convert to Plain Text / Convert to Markdown**: the title
   follows `OpenDocument.textFormat` (the Mac's strings); the state machine is the Mac's, verbatim
   (`TextFormatConversion` over `MarkdownPlainTextConverter`), through the editor, ONE undo step.
   Convert to Markdown restores only while the converted text is unchanged. A `.txt` opened from
@@ -1119,8 +1138,9 @@ lists the provider's models by name, cheapest first (`AIProvider.models`, the Ma
 the cheapest, e.g. "Claude Haiku 5.5"); the stored choice is the model ID (`app-integration.md` §
 Models). Connecting makes no request; the key is kept in the Keychain only, and connecting
 deletes the other providers' keys. Connected: "Connected", the model, **Ask AI…** for the whole
-document (while Write or Preview is on screen and the document has text; it closes the menu, then
-runs the shared length policy, see "Ask AI for the whole document") and Disconnect.
+document (while Write or Preview is on screen and the document has text; no icon, its note "Sends
+the whole document to your AI."; it closes the menu, then runs the shared length policy, see "Ask
+AI for the whole document") and Disconnect.
 
 ### About Lineform
 
@@ -1130,7 +1150,9 @@ No repeated "Lineform" heading.
 
 ### Save As
 
-`SaveAsPicker` (`LineformiOS/Menu/SaveAsPicker.swift`) and two `OpenDocument` calls:
+Not in the iPhone menu since 2026-11-24 (the approved Export & Print has no Save As); the export
+picker (`SaveAsPicker`) is gone. `OpenDocument`'s two calls stay, tested (`PhoneSaveAsTests`), and
+`SaveAsStaging` still clears `tmp/SaveAs` at launch. What they do:
 
 - `prepareSaveAs` saves the pending text first (`flush`, so an Untitled document gets its file in
   the save folder by the ordinary autosave rules), then writes the text's exact bytes
@@ -1217,8 +1239,8 @@ History is local to this iPhone. History never writes into the document file.
   (`LineformTextView.offersReplaceWith` → `PhoneHistoryController.canAdd`: one line, no front
   matter, fenced code or math). It ends a request or review and dismisses Find's wash first
   (`AIActionController.yieldToHistory`, the Mac's show-History path), keeps the selection as the
-  passage's original, enters History mode on it, and the card opens "Type a replacement" with
-  focus; leaving without a replacement discards the passage (Mac parity). History mode is Write's:
+  passage's original, enters History mode on it, and the bar opens "Type a replacement" with
+  focus (only a Replace With… session shows that field: `PhoneHistoryController.offersReplacementField`); leaving without a replacement discards the passage (Mac parity). History mode is Write's:
   entering it from Preview switches to Write, and switching to Read or Preview leaves it (with the
   collapse).
 - **AI and History** (the Mac's semantics, `AIHistoryRecording`): `PhoneHistoryController` is the
@@ -1244,16 +1266,24 @@ History is local to this iPhone. History never writes into the document file.
   the ink outside the selected passage with layout-manager temporary attributes; iOS TextKit 1 has
   no temporary attributes, and a storage colour change would churn highlighting and undo, so the
   phone draws the wash only. Full ink on every fill is AA in every theme (`HistoryPaletteTests`).
-- **The card** (`HistoryCard`): at the bottom, above the keyboard and the home indicator, full
-  width inside the 20 pt chrome margin, in the floating-card chrome (page colour, hairline, shadow,
-  radius 12); the ⋯ button is hidden while it is up, so nothing sits behind Done. With nothing selected it reads
-  "Tap a highlighted passage to see its versions."; with a passage selected: the level switcher
-  (only when its group has more than one level), the versions (the original a page, the writer's a
-  pencil, AI a sparkle, the current one bold with a checkmark; a tap makes one current; Delete from
-  History on its context menu and as a VoiceOver action), and the "Type a replacement" field (its
-  return button is "Add"). Done leaves History mode. Each row's VoiceOver label is the Mac's ("…, by
-  you, version 2 of 3"), and every step, level change or new selection is announced with the Mac's
-  "Sentence, version 2 of 3" (`UIAccessibility.post(.announcement)`).
+- **The bar** (`HistoryCard`), the approved mockup's one line (`word-menu.html` `.hist`; owner,
+  2026-11-24): at the bottom, 14 pt inside the screen's sides, on the soft surface
+  (`PhoneInk.searchFieldWash`, the Read Aloud pill's) with 16 pt corners and the mockup's shadow
+  (0, 6, 20 at 0.15). "Version 2/2" (the owner's compact form), then ‹ › as 36 pt round buttons
+  (`PhoneInk.readAloudButton`: the page colour, a lighter circle on a dark page; glyphs 3:1,
+  `onReadAloudButton`) in 44 pt targets, off at the first / last version, then Done as a pill in the
+  ink with page-colour text. With nothing selected the line reads "Tap a highlighted passage to
+  see its versions." (`PhoneInk.Role.secondaryOnSoftBar`, AA on the bar). ABOVE the bar, only when
+  the selected passage has more than one level available, those levels as tabs (Paragraph ·
+  Sentence · Word, never a greyed one). The "Type a replacement" field (its return button "Add")
+  shows inside the bar only in a Replace With… session, never from ⋯ ▸ History. There is no version
+  list and no Delete from History on iPhone any more (not in the mockup; the controller's
+  `deleteVersion` stays). The ⋯ button is hidden while it is up, so nothing sits behind Done. For
+  VoiceOver the version line is adjustable (swipe up / down steps the versions) and carries Select
+  Next / Previous Passage and Exit History; its label is the Mac's "Sentence, version 2 of 3", and
+  every step, level change or new selection is announced with it
+  (`UIAccessibility.post(.announcement)`); ‹ › are "Earlier version" / "Later version"; Escape
+  leaves.
 - **Clear History** (Settings): the store's `clearAll()`, then `didClearAllNotification`; every
   controller on the store re-reads it, replacing its engine BEFORE leaving History mode (leaving
   saves).
@@ -1525,8 +1555,8 @@ The Mac's in-app announcements (`app-integration.md` ▸ In-app announcements) o
   `PhoneAnnouncementStore.checksOnSceneChange(to:isRunningUnderTests:)` is consulted at that call
   site, never inside `checkIfNeeded`, whose tests drive it with a spy fetcher.
 - **The sheet** (`PhoneAnnouncementSheet`, in `PhoneAnnouncementCard.swift`): a small one-time
-  sheet as tall as its content, on the word menu's wash, with drawn icons only: a sparkle, the
-  title, the body, the action as the full-width blue pill, and a quiet "Not now" under it. When the
+  sheet as tall as its content, on the plain sheet surface (`StylingSheet.surface(for:)`, never the
+  word menu's wash; §20, §23) with no icon: the title, the body, the action as the full-width blue pill, and a quiet "Not now" under it. When the
   action opens the Lineform Guide, a footnote says "You can find the guide anytime in About
   Lineform." Not now, a swipe down and the action all dismiss that announcement for good (the
   sheet's `onDisappear` calls the store's idempotent `dismiss`). Title, body and action label are
@@ -1628,6 +1658,12 @@ Read pills are measured roles too.
 definition, for every built-in theme, the high-contrast theme and the Automatic Dark Mode display
 themes. `testEveryRoleIsDrawn` fails when a role is no longer used in `LineformiOS/`. A new quiet
 ink needs a new role, not a local opacity.
+
+**Accent colour.** `LineformiOS/Assets.xcassets/AccentColor` (#2F6BDE light, #5B8DEF dark;
+`ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor` in both iPhone configurations) gives
+untinted system controls Lineform blue: alert buttons, menu checkmarks, the Font picker. Two keep
+system blue on purpose: Preview's link button (`PhoneInk.Role.linkGlyph`, to match the Mac) and
+the Styling sheet's sliders (`.tint(.systemBlue)` in `StylingSliderRow`).
 
 Increase Contrast is not mapped onto the High Contrast theme. That is a product decision for the
 owner.

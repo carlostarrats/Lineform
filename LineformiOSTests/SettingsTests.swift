@@ -52,21 +52,23 @@ final class SettingsTests: XCTestCase {
         XCTAssertFalse(reloaded.checksSpellingWhileTyping)
         XCTAssertFalse(reloaded.checksForAnnouncements)
 
-        // pinned-en: the rows, in order.
+        // pinned-en: the approved mockup's three switches, in order.
         XCTAssertEqual(SettingsSection.rows.map(\.title), [
-            "Automatic Dark Mode", "Show iCloud in Files", "Check spelling while typing", "In-app notifications",
+            "Automatic Dark Mode", "Check spelling while typing", "In-app notifications",
         ])
-        XCTAssertTrue(SettingsSection.rows.allSatisfy { !$0.note.isEmpty }, "every row explains itself")
-        // pinned-en: every row, the switches, then Clear History (the Mac's copy). Check Document
-        // Now left Settings for the format row's Check Spelling (2026-11-24).
+        // Each row still explains itself, to VoiceOver only (the hint), never as drawn text.
+        XCTAssertTrue((SettingsSection.rows + [SettingsSection.iCloudRow]).allSatisfy { !$0.note.isEmpty })
+        // pinned-en: the switches, the Files group, then Clear Version History (the Mac's copy).
+        // Check Document Now left Settings for the format row's Check Spelling (2026-11-24).
         XCTAssertEqual(SettingsSection.rowTitles, [
-            "Automatic Dark Mode", "Show iCloud in Files", "Check spelling while typing", "In-app notifications",
+            "Automatic Dark Mode", "Check spelling while typing", "In-app notifications",
+            "Show iCloud in Files", "Show Hidden Folders", "Sort folders by",
             "Clear Version History",
         ])
         XCTAssertFalse(SettingsSection.clearHistoryNote.isEmpty)
         // Show iCloud in Files only when this device's iCloud container resolves (never in Debug).
-        XCTAssertFalse(SettingsSection.shownRows(iCloudAvailable: false).contains { $0.id == "showICloud" })
-        XCTAssertEqual(SettingsSection.shownRows(iCloudAvailable: true).map(\.id), SettingsSection.rows.map(\.id))
+        XCTAssertTrue(SettingsSection.shownFilesRows(iCloudAvailable: false).isEmpty)
+        XCTAssertEqual(SettingsSection.shownFilesRows(iCloudAvailable: true).map(\.id), ["showICloud"])
     }
 
     func testAutomaticDarkModeFollowsAppearance() async throws {

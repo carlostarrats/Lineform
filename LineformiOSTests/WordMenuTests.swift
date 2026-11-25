@@ -158,6 +158,11 @@ final class WordMenuTests: XCTestCase {
         XCTAssertEqual(Set([notSavedYet, saved, unsaved]).count, 3)
 
         XCTAssertEqual(WordMenu.saveStateText(for: document), notSavedYet, "a blank new document has no file")
+        // An empty page with no file shows only its name ("Untitled"): no save state, no count.
+        XCTAssertTrue(WordMenu.showsTitleOnly(hasFile: false, text: ""))
+        XCTAssertTrue(WordMenu.showsTitleOnly(hasFile: false, text: " \n\n"))
+        XCTAssertFalse(WordMenu.showsTitleOnly(hasFile: false, text: "a"))
+        XCTAssertFalse(WordMenu.showsTitleOnly(hasFile: true, text: ""), "an empty file still says Saved")
         document.edit("one two three")
         XCTAssertEqual(WordMenu.saveStateText(for: document), notSavedYet, "a new document's text is not on disk")
         XCTAssertFalse(WordMenu.isSaved(document))
@@ -228,6 +233,12 @@ final class WordMenuTests: XCTestCase {
         settle(ticks: 5)
         XCTAssertNotNil(Self.accessibilityFrame(label: "Menu", in: window), "the ⋯ button reads as Menu")
         XCTAssertNil(Self.accessibilityFrame(label: "Reading Experience", in: window), "the Aa button is gone")
+    }
+
+    /// §19: the small words are 40 pt rows; each keeps a 44 pt target past its drawn row.
+    func testSmallWordsAreFortyPointRowsWithFullTargets() {
+        XCTAssertEqual(WordMenuMetrics.smallWordRowHeight, 40)
+        XCTAssertEqual(WordMenuMetrics.smallWordRowHeight + 2 * WordMenuWordButton.smallTargetReach, WordMenuMetrics.minimumTarget)
     }
 
     func testBottomClearanceUsesMoreButtonSize() {

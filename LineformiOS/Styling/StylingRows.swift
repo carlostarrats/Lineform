@@ -205,6 +205,9 @@ struct StylingSliderRow: View {
                 }
 
                 Slider(value: $value, in: range, onEditingChanged: onEditingChanged)
+                    // The system blue the sliders have always drawn, not the app's accent colour
+                    // (AccentColor is Lineform blue for untinted controls; the sliders keep theirs).
+                    .tint(Color(uiColor: .systemBlue))
             }
         }
         // The element's frame is the whole row, its inset included.

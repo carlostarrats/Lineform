@@ -58,11 +58,14 @@ struct SelectionRow: View {
     /// The row's text grows to here and no further; past it the Large Content Viewer takes over.
     static let maximumDynamicTypeSize: DynamicTypeSize = .xxxLarge
 
-    /// The heading levels the row offers: the mockup's five (Heading 5 and 6 stay on the
-    /// keyboard shortcuts).
+    /// The heading levels the row offers: the approved mockup's five, Title, Section, Heading 3,
+    /// Heading 4 and Body (`format-row-options.html`, option 1). Heading 5 and 6 stay on a
+    /// hardware keyboard's ⌘5 and ⌘6.
     static var rowHeadingLevels: [(level: Int?, title: String)] {
-        // Every level the Mac's Format ▸ Heading offers (Title … Heading 6, Body), as chips.
-        SelectionController.headingLevels
+        SelectionController.headingLevels.filter { entry in
+            guard let level = entry.level else { return true }
+            return level <= 4
+        }
     }
 
     /// What a change of the row's contents is keyed on: a new value rebuilds the scroll view at
