@@ -246,6 +246,10 @@ private struct FileWheel: UIViewRepresentable {
             label.accessibilityLabel = parent.names[row]
             return label
         }
+        /// The names stay 16 pt inside the band on each side (the band is inset 9 pt).
+        func pickerView(_ pickerView: UIPickerView, widthForComponent component: Int) -> CGFloat {
+            max(0, pickerView.bounds.width - 2 * (9 + 16))
+        }
         func pickerView(_ pickerView: UIPickerView, didSelectRow row: Int, inComponent component: Int) {
             parent.selection = row
         }
