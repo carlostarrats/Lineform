@@ -1,4 +1,5 @@
 import AppKit
+import LineformCore
 import SwiftUI
 import WebKit
 
@@ -92,6 +93,12 @@ final class LineformAppDelegate: NSObject, NSApplicationDelegate {
             if !AnnouncementStore.isRunningUnderTests {
                 firstLaunchIntroPresenter.openColdLaunchDocumentIfNeeded()
             }
+            #if DEBUG
+            // Checking the welcome card on its own, without the full-screen intro.
+            if ProcessInfo.processInfo.environment["LINEFORM_SHOW_FIRST_LAUNCH_WELCOME"] == "1" {
+                FirstLaunchWelcomePresenter.shared.showWhenWindowAppears()
+            }
+            #endif
         }
         ManualSaveIntentMonitor.installIfNeeded()
         MainMenuIconDecorator.installIfNeeded()
@@ -285,6 +292,8 @@ final class FirstLaunchIntroPresenter {
         // route as File ▸ New and guarantees a DocumentGroup window is requested.
         NSDocumentController.shared.newDocument(nil)
         NSApp.activate(ignoringOtherApps: true)
+        // Then the "what you get" card over that first window (§32).
+        FirstLaunchWelcomePresenter.shared.showWhenWindowAppears()
     }
 }
 
@@ -628,5 +637,265 @@ struct FirstLaunchIntroWebView: NSViewRepresentable {
 private final class FirstLaunchIntroArtworkWebView: WKWebView {
     override func hitTest(_ point: NSPoint) -> NSView? {
         nil
+    }
+}
+
+// MARK: - First-launch welcome (§32)
+
+/// The Mac's "what you get" modal (owner, 2026-11-24, §32; mockup `mac-first-launch.html`):
+/// after the intro's Start, a small card over the first editor window. Step 1 lists the iPhone's
+/// four points in its own styling (white tiles on the paper colour, the same symbols); step 2
+/// offers the guide, with a note that it is always in Help ▸ Lineform Guide. The small wordmark
+/// sits at the top of both steps, in the same place; each step is as tall as what it holds.
+enum FirstLaunchWelcomeCopy {
+    struct Point: Equatable {
+        var symbol: String
+        var title: String
+        var text: String
+    }
+
+    static var points: [Point] {
+        [
+            Point(symbol: "lock",
+                  title: String(localized: "Free and private"),
+                  text: String(localized: "No account, nothing to sign up for. Your writing stays with you.")),
+            Point(symbol: "icloud",
+                  title: String(localized: "Real files, in iCloud"),
+                  text: String(localized: "Plain Markdown files that sync with Lineform for iPhone and open anywhere.")),
+            Point(symbol: "doc.richtext",
+                  title: String(localized: "More than text"),
+                  text: String(localized: "Images, tables, math and diagrams. Export styled PDFs in a click.")),
+            Point(symbol: "accessibility",
+                  title: String(localized: "Made to be read"),
+                  text: String(localized: "Reading themes, accessible fonts and read aloud. AI only if you connect your own.")),
+        ]
+    }
+
+    static var next: String { String(localized: "Next") }
+    static var guideTitle: String { String(localized: "The Guide") }
+    static var guideText: String { String(localized: "Everything Lineform can do, in one page.") }
+    static var openGuide: String { String(localized: "Open the Guide") }
+    static var notNow: String { String(localized: "Not now") }
+    static var guideFootnote: String { String(localized: "You can find the guide anytime in Help ▸ Lineform Guide.") }
+}
+
+/// Puts the welcome card over the first editor window, once, and takes it away.
+@MainActor
+final class FirstLaunchWelcomePresenter {
+    static let shared = FirstLaunchWelcomePresenter()
+
+    private var host: NSView?
+
+    /// Waits for the first editor window (the intro's New is asynchronous), then shows the card.
+    func showWhenWindowAppears(attempt: Int = 0) {
+        guard host == nil else { return }
+        if let window = NSApp.windows.first(where: { $0.isVisible && $0.windowController?.document != nil }) {
+            show(over: window)
+        } else if attempt < 20 {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) { [weak self] in
+                self?.showWhenWindowAppears(attempt: attempt + 1)
+            }
+        }
+    }
+
+    private func show(over window: NSWindow) {
+        // Above the window's own content (SwiftUI draws its content over views added inside it).
+        guard let content = window.contentView?.superview ?? window.contentView else { return }
+        let view = FirstLaunchWelcomeKeyHost(rootView: FirstLaunchWelcomeView(
+            openGuide: { [weak self] in
+                if let url = URL(string: LineformLinks.guideURL) { NSWorkspace.shared.open(url) }
+                self?.close()
+            },
+            close: { [weak self] in self?.close() }
+        ))
+        view.frame = content.bounds
+        view.autoresizingMask = [.width, .height]
+        view.wantsLayer = true
+        content.addSubview(view, positioned: .above, relativeTo: nil)
+        host = view
+        window.makeFirstResponder(view)
+    }
+
+    private func close() {
+        guard let view = host else { return }
+        host = nil
+        let window = view.window
+        view.removeFromSuperview()
+        // Back to writing: the editor takes the keyboard again.
+        if let window, let editor = Self.firstTextView(in: window.contentView) {
+            window.makeFirstResponder(editor)
+        }
+    }
+
+    private static func firstTextView(in view: NSView?) -> NSTextView? {
+        guard let view else { return nil }
+        if let text = view as? NSTextView, text.isEditable { return text }
+        for sub in view.subviews { if let found = firstTextView(in: sub) { return found } }
+        return nil
+    }
+}
+
+/// The card's host takes the keyboard, so typing never reaches the page behind it while the card
+/// is up; Return and Esc reach its buttons.
+final class FirstLaunchWelcomeKeyHost: NSHostingView<FirstLaunchWelcomeView> {
+    override var acceptsFirstResponder: Bool { true }
+}
+
+struct FirstLaunchWelcomeView: View {
+    var openGuide: () -> Void
+    var close: () -> Void
+
+    @State private var step = 0
+
+    // The iPhone first run's colours (`FirstRunOverlay`): the card is always light, as there.
+    static let paper = Color(red: 0xF7 / 255, green: 0xF6 / 255, blue: 0xF0 / 255)
+    static let ink = Color(red: 0x14 / 255, green: 0x13 / 255, blue: 0x10 / 255)
+    static let secondaryInk = Color(red: 0x5C / 255, green: 0x5A / 255, blue: 0x54 / 255)
+    static let blue = Color(red: 0x2F / 255, green: 0x6B / 255, blue: 0xDE / 255)
+    static let quietFill = Color(red: 0xE8 / 255, green: 0xE6 / 255, blue: 0xDF / 255)
+    static let cardWidth: CGFloat = 400
+
+    var body: some View {
+        ZStack {
+            Color.black.opacity(0.18)
+                .contentShape(Rectangle())
+                .onTapGesture {}
+                .accessibilityHidden(true)
+            card
+        }
+        .environment(\.colorScheme, .light)
+    }
+
+    private var card: some View {
+        VStack(spacing: 0) {
+            Image("LineformWordmark")
+                .renderingMode(.template)
+                .resizable()
+                .aspectRatio(639.0 / 255.0, contentMode: .fit)
+                .frame(width: 112)
+                .foregroundStyle(Self.ink)
+                .padding(.bottom, 24)
+                .accessibilityLabel(Text(verbatim: "Lineform"))
+            Group {
+                if step == 0 { pointsStep } else { guideStep }
+            }
+            pager.padding(.top, 10)
+        }
+        .padding(.top, 26)
+        .padding(.horizontal, 28)
+        .padding(.bottom, 20)
+        .frame(width: Self.cardWidth)
+        .background(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .fill(Self.paper)
+                .shadow(color: .black.opacity(0.25), radius: 20, y: 18)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .strokeBorder(Color.black.opacity(0.12), lineWidth: 0.5)
+        )
+        .foregroundStyle(Self.ink)
+        .accessibilityElement(children: .contain)
+        .accessibilityAddTraits(.isModal)
+    }
+
+    private var pointsStep: some View {
+        VStack(spacing: 0) {
+            VStack(alignment: .leading, spacing: 18) {
+                ForEach(FirstLaunchWelcomeCopy.points, id: \.symbol) { point in
+                    row(point)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            VStack(spacing: 8) {
+                pill(FirstLaunchWelcomeCopy.next, primary: true) {
+                    // Straight to step 2: a crossfade showed both steps over each other.
+                    step = 1
+                }
+                .keyboardShortcut(.defaultAction)
+                // Esc on step 1 skips the guide offer too: the writer wants to write.
+                Button("", action: close).keyboardShortcut(.cancelAction).hidden().frame(width: 0, height: 0)
+            }
+            .padding(.top, 26)
+        }
+    }
+
+    private var guideStep: some View {
+        VStack(spacing: 0) {
+            VStack(spacing: 6) {
+                Text(FirstLaunchWelcomeCopy.guideTitle)
+                    .font(.system(size: 17, weight: .semibold))
+                    .accessibilityAddTraits(.isHeader)
+                Text(FirstLaunchWelcomeCopy.guideText)
+                    .font(.system(size: 13))
+                    .foregroundStyle(Self.secondaryInk)
+            }
+            .multilineTextAlignment(.center)
+            .frame(maxWidth: .infinity)
+            VStack(spacing: 8) {
+                pill(FirstLaunchWelcomeCopy.openGuide, primary: true, action: openGuide)
+                    .keyboardShortcut(.defaultAction)
+                    .accessibilityAddTraits(.isLink)
+                pill(FirstLaunchWelcomeCopy.notNow, primary: false, action: close)
+                    .keyboardShortcut(.cancelAction)
+            }
+            .padding(.top, 26)
+            Text(FirstLaunchWelcomeCopy.guideFootnote)
+                .font(.system(size: 11.5))
+                .foregroundStyle(Self.secondaryInk)
+                .multilineTextAlignment(.center)
+                .frame(maxWidth: .infinity)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.top, 12)
+        }
+    }
+
+    private func row(_ point: FirstLaunchWelcomeCopy.Point) -> some View {
+        HStack(alignment: .top, spacing: 14) {
+            Image(systemName: point.symbol)
+                .font(.system(size: 15, weight: .medium))
+                .frame(width: 40, height: 40)
+                .background(
+                    RoundedRectangle(cornerRadius: 13, style: .continuous)
+                        .fill(Color.white.opacity(0.7))
+                        .shadow(color: .black.opacity(0.05), radius: 1, y: 1)
+                )
+                .accessibilityHidden(true)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(point.title)
+                    .font(.system(size: 14, weight: .semibold))
+                Text(point.text)
+                    .font(.system(size: 12.5))
+                    .foregroundStyle(Self.secondaryInk)
+                    .lineSpacing(2)
+            }
+            .fixedSize(horizontal: false, vertical: true)
+        }
+        .accessibilityElement(children: .combine)
+    }
+
+    private func pill(_ title: String, primary: Bool, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Text(title)
+                .font(.system(size: 14, weight: .medium))
+                .foregroundStyle(primary ? Color.white : Self.ink)
+                .frame(maxWidth: .infinity, minHeight: 40)
+                .background(Capsule().fill(primary ? Self.blue : Self.quietFill))
+                .contentShape(Capsule())
+        }
+        .buttonStyle(.plain)
+    }
+
+    private var pager: some View {
+        HStack(spacing: 6) {
+            ForEach(0..<2, id: \.self) { index in
+                Circle()
+                    .fill(index == step ? Color(red: 0x7A / 255, green: 0x77 / 255, blue: 0x6F / 255)
+                                        : Color(red: 0xD2 / 255, green: 0xCF / 255, blue: 0xC7 / 255))
+                    .frame(width: 6, height: 6)
+            }
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(Text(String(localized: "Step \(step + 1) of 2")))
     }
 }

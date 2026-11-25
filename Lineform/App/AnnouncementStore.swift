@@ -155,7 +155,15 @@ final class AnnouncementStore: ObservableObject {
     ) -> Announcement? {
         announcements.first { announcement in
             !dismissedIDs.contains(announcement.id) && announcement.appliesTo(appVersion: appVersion)
+                && !isWelcomeGuide(announcement)
         }
+    }
+
+    /// The feed's welcome/guide card (ids `welcome-guide…`). The Mac offers the guide in the
+    /// first-launch modal's second step instead; this card is for real announcements only
+    /// (owner, 2026-11-24, §32).
+    static func isWelcomeGuide(_ announcement: Announcement) -> Bool {
+        announcement.id.hasPrefix("welcome-guide")
     }
 
     /// Dismiss the visible announcement permanently. Idempotent.
