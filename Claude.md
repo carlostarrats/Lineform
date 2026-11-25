@@ -330,7 +330,7 @@ A few pure-looking files still stay in the app (`AIActionController`, `AISentenc
 The iPhone app is the `LineformiOS` target in `Lineform.xcodeproj`, with its sources in
 `LineformiOS/` and tests in `LineformiOSTests/`. It shares the Mac's App Store listing, bundle
 identifier (`com.lineform.app`), version and build, and links `LineformCore`. Minimum iOS 26.0,
-iPhone only. Details: `docs/architecture/iphone-app.md`.
+iPhone only, portrait only (owner, 2026-11-24). Details: `docs/architecture/iphone-app.md`.
 
 - **Scheme and tests.** The shared `LineformiOS` scheme runs `LineformiOS.xctestplan`:
   `xcodebuild test -project Lineform.xcodeproj -scheme LineformiOS -destination 'platform=iOS Simulator,name=iPhone 16 Pro,OS=26.5'`.
