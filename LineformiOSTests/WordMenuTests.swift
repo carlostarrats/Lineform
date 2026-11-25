@@ -94,7 +94,7 @@ final class WordMenuTests: XCTestCase {
         XCTAssertEqual(session.filesQuery, "export")
         XCTAssertEqual(session.filesScope, .openDocument)
         XCTAssertEqual(session.scrollOffsets[1], 420)
-        XCTAssertEqual(DocumentScreen.resumeButtonDuration, .seconds(5))
+        XCTAssertEqual(DocumentScreen.resumeButtonDuration, .seconds(4))
     }
 
     /// A lone card spans the width; two or more are always half width.

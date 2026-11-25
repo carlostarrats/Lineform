@@ -767,7 +767,7 @@ puts the keyboard away first.
   (the page stack, Files' search and its running `SearchController`, the scroll offsets by
   depth), which the screen owns: ⋯ always starts a fresh session at the word list; a card marks
   the session (`noteOpenedDocument`) and the screen keeps it for the ←. The ← fades after
-  `DocumentScreen.resumeButtonDuration` (5 s) and at once when the writer types
+  `DocumentScreen.resumeButtonDuration` (4 s) and at once when the writer types
   (`OpenDocument.onWriterEdit`) or opens the menu; while VoiceOver runs it never times out and
   stays until the next action (CLAUDE.md: nothing a VoiceOver user needs dismisses itself). While
   it shows, the session's search keeps running; when it goes, the session ends (`end()` stops the

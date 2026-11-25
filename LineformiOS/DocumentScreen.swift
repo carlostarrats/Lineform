@@ -533,7 +533,7 @@ struct DocumentScreen: View {
     }
 
     /// How long the ← stays when it is not used.
-    static let resumeButtonDuration: Duration = .seconds(5)
+    static let resumeButtonDuration: Duration = .seconds(4)
     /// The ←'s fade in and out, as one layer (`ResumeMenuButton`).
     static let resumeFadeDuration: TimeInterval = 0.22
 
