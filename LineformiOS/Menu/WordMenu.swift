@@ -318,6 +318,9 @@ struct WordMenu: View {
         return lineText
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(Text(verbatim: label))
+        // Plain text, not a control: a grouped element has no trait of its own, and the audit
+        // then measured it as a (too small) tap target.
+        .accessibilityAddTraits(.isStaticText)
         .accessibilityIdentifier("wordMenu.status")
             .task(id: statistics == nil) {
                 guard statistics == nil else { return }

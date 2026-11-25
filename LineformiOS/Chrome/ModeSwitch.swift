@@ -290,9 +290,11 @@ extension UIScrollView {
 /// Write and Read both keep `DocumentNameTag.topSpace` above the first line, so the text does not
 /// move between the modes.
 final class DocumentNameTag: UIButton {
-    /// The name's line (20 pt at the default text size, scaled with Dynamic Type like its
-    /// footnote font) and the gap below it to the first line of text.
-    static var height: CGFloat { UIFontMetrics(forTextStyle: .footnote).scaledValue(for: 20) }
+    /// The name's line (20 pt at the default text size, the footnote line plus 4 pt at larger
+    /// text sizes) and the gap below it to the first line of text.
+    static var height: CGFloat {
+        max(20, (UIFont.preferredFont(forTextStyle: .footnote).lineHeight + 4).rounded(.up))
+    }
     static let gap: CGFloat = 10
     static var topSpace: CGFloat { height + gap }
 
@@ -329,7 +331,7 @@ final class DocumentNameTag: UIButton {
         let tag = DocumentNameTag(type: .system)
         tag.contentHorizontalAlignment = .leading
         tag.titleLabel?.font = UIFont.preferredFont(forTextStyle: .footnote)
-        tag.titleLabel?.adjustsFontForContentSizeCategory = false
+        tag.titleLabel?.adjustsFontForContentSizeCategory = true
         tag.titleLabel?.lineBreakMode = .byTruncatingMiddle
         tag.accessibilityIdentifier = "document.name"
         // A tap opens Rename at once (owner review 4: a menu first was one tap too many).

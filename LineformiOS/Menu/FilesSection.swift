@@ -910,6 +910,9 @@ private struct FilesSwipeActions: ViewModifier {
             content
         } else {
             ZStack(alignment: .trailing) {
+                // Drawn only while the item is swiped open: hidden under the card, the buttons
+                // were still read by the accessibility audit (text behind a card, low contrast).
+                if offset < 0 {
                 HStack(spacing: Self.spacing) {
                     ForEach(actions) { action in
                         Button {
@@ -937,7 +940,7 @@ private struct FilesSwipeActions: ViewModifier {
                         .accessibilityHidden(true)
                     }
                 }
-                .opacity(offset < 0 ? 1 : 0)
+                }
                 content
                     .offset(x: offset)
                     .overlay {

@@ -157,10 +157,13 @@ struct BasicsSection: View {
                 .fixedSize(horizontal: false, vertical: true)
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
+            // The row's full height (44 pt inside its 48 pt row), so the element VoiceOver and
+            // the accessibility audit see is a full-size target; the text stays centred as before.
+            .frame(maxWidth: .infinity, minHeight: WordMenuMetrics.minimumTarget, alignment: .leading)
             // One element for VoiceOver: the explanation, then the syntax.
             .accessibilityElement(children: .ignore)
             .accessibilityLabel(Text(verbatim: row.accessibilityLabel()))
+            .accessibilityAddTraits(.isStaticText)
             if let copy = row.copyAffordance() {
                 Button {
                     state.copy(row)
