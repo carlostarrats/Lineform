@@ -210,8 +210,12 @@ struct DocumentScreen: View {
     static let reconnectImageTypes: [UTType] = [.png, .jpeg, .gif, .heic, .tiff, .bmp, .image]
 
     var body: some View {
-        page
-        .ignoresSafeArea(.container)
+        KeyboardClearedPage(keyboard: selection.keyboard) { page }
+        // The page makes room for the keyboard itself (`KeyboardClearedPage`): SwiftUI's own
+        // keyboard avoidance, under `.ignoresSafeArea(.container)`, stopped the page 34 pt (the
+        // home indicator's band) above the keyboard and its format row, cutting off the lines and
+        // the selection there (owner review, 2026-11-24).
+        .ignoresSafeArea()
         // The page colour reaches under the keyboard too: without `ignoresSafeArea()` here the
         // background stopped at the keyboard's edge and the window's black showed through the
         // translucent keyboard (and in screenshots).
@@ -947,4 +951,16 @@ struct CardZoom {
     var image: UIImage
     var from: CGRect
     var to: CGRect
+}
+
+/// The page, its bottom kept clear of the keyboard (and the format row on it) by exactly the
+/// keyboard's overlap with the window, animated with the keyboard (`SelectionKeyboardTracker`).
+private struct KeyboardClearedPage<Content: View>: View {
+    @ObservedObject var keyboard: SelectionKeyboardTracker
+    @ViewBuilder var content: () -> Content
+
+    var body: some View {
+        content()
+            .padding(.bottom, keyboard.overlap)
+    }
 }

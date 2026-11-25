@@ -342,8 +342,8 @@ private struct FormatChipStyle: ButtonStyle {
 ///
 /// iOS 26's keyboard is a floating panel with rounded top corners, and a `.keyboard` input view
 /// no longer draws the keyboard's colour. So the bar fills itself with that colour
-/// (`keyboardColor`, sampled from the system keyboard over the page in light and dark), sits on
-/// the accessory's bottom edge (UIKit leaves the accessory a little taller than asked), and its
+/// (`keyboardColor`, sampled from the system keyboard over the page in light and dark), sits at
+/// the accessory's top edge (above the home indicator with a hardware keyboard), and its
 /// fill runs on under the keyboard's top edge, filling the corners the keyboard rounds off: the
 /// bar and the keyboard read as one block, as in the mockup.
 final class FormatBarAccessoryView: UIInputView {
@@ -381,6 +381,11 @@ final class FormatBarAccessoryView: UIInputView {
         fill.isHidden = true
         fill.translatesAutoresizingMaskIntoConstraints = false
         addSubview(fill)
+        // The bar's SwiftUI content must never move for the keyboard or the home indicator: a
+        // hosting controller inside the keyboard's accessory otherwise gets the keyboard's (and,
+        // with a hardware keyboard, the home indicator's) safe area and shifts its chips up out of
+        // the bar, where they were cut off and drawn over the text (owner review, 2026-11-24).
+        host.safeAreaRegions = []
         host.view.backgroundColor = .clear
         host.view.isHidden = true
         host.view.translatesAutoresizingMaskIntoConstraints = false
@@ -392,7 +397,7 @@ final class FormatBarAccessoryView: UIInputView {
             fill.bottomAnchor.constraint(equalTo: bottomAnchor, constant: Self.fillOverlap),
             host.view.leadingAnchor.constraint(equalTo: leadingAnchor),
             host.view.trailingAnchor.constraint(equalTo: trailingAnchor),
-            host.view.bottomAnchor.constraint(equalTo: bottomAnchor),
+            host.view.topAnchor.constraint(equalTo: topAnchor),
             host.view.heightAnchor.constraint(equalToConstant: SelectionRow.height),
         ])
         applyColor(for: style.profile)
@@ -411,8 +416,17 @@ final class FormatBarAccessoryView: UIInputView {
     @available(*, unavailable)
     required init?(coder: NSCoder) { nil }
 
+    /// With a hardware keyboard UIKit puts the accessory at the very bottom of the screen, over
+    /// the home indicator: the bar grows by the bottom safe area so its chips sit above it. With
+    /// the software keyboard the inset is 0.
     override var intrinsicContentSize: CGSize {
-        CGSize(width: UIView.noIntrinsicMetric, height: isShowing ? SelectionRow.height : 0)
+        CGSize(width: UIView.noIntrinsicMetric,
+               height: isShowing ? SelectionRow.height + safeAreaInsets.bottom : 0)
+    }
+
+    override func safeAreaInsetsDidChange() {
+        super.safeAreaInsetsDidChange()
+        invalidateIntrinsicContentSize()
     }
 
     private func setShowing(_ shows: Bool) {
