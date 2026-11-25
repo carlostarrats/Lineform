@@ -618,9 +618,13 @@ struct FilesSection: View {
                 } label: {
                     HStack(spacing: 6) {
                         WordMenuGroupLabel(title: heading.title, systemImage: heading.systemImage, isTight: true)
-                        Image(systemName: collapsed ? "chevron.right" : "chevron.down")
+                        // One chevron that turns (right when collapsed, down when open), never a
+                        // crossfade between two symbols.
+                        Image(systemName: "chevron.right")
                             .font(.caption2.weight(.semibold))
                             .foregroundStyle(palette.color(palette.tertiary))
+                            .rotationEffect(.degrees(collapsed ? 0 : 90))
+                            .animation(.easeInOut(duration: 0.2), value: collapsed)
                             .accessibilityHidden(true)
                         Spacer(minLength: 0)
                     }
@@ -656,9 +660,9 @@ struct FilesSection: View {
         .padding(.horizontal, 10)
         .padding(.top, 4)
         .padding(.bottom, collapsed ? 4 : 10)
-        .background(shape.fill(palette.color(palette.isDark ? palette.field : palette.card)))
-        .shadow(color: .black.opacity(palette.cardHasShadow ? 0.06 : 0), radius: 6, x: 0, y: 2)
-        .transaction { $0.animation = nil }
+        // The same surface and shadow as the document cards (`DocumentCard`).
+        .background(shape.fill(palette.color(palette.card)))
+        .shadow(color: .black.opacity(palette.cardHasShadow ? 0.07 : 0), radius: 7, x: 0, y: 3)
     }
 
     static var collapsedValue: String { String(localized: "Collapsed") }

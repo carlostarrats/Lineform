@@ -206,7 +206,7 @@ final class PhoneMenuAccessibilityTests: XCTestCase {
         for size in Self.sizes {
             let document = try await makeDocument()
             let host = try await host(
-                page(ExportPrintSection(document: document, exportCommands: ExportCommands(document: document, profile: { .original }), onDismiss: {})),
+                page(ExportPrintSection(document: document, files: .shared, exportCommands: ExportCommands(document: document, profile: { .original }), onDismiss: {})),
                 contentSize: size, tall: true
             )
             let labels = host.elements().compactMap(\.label)

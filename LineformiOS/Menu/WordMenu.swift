@@ -177,8 +177,11 @@ struct WordMenu: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
             .transaction { $0.animation = nil }
         }
-        .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillShowNotification)) { _ in
-            isKeyboardUp = true
+        .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillShowNotification)) { note in
+            // Only a real on-screen keyboard: with a hardware keyboard iOS still reports a short
+            // bar, and the corner buttons vanished with nothing covering them (owner review 5).
+            let frame = (note.userInfo?[UIResponder.keyboardFrameEndUserInfoKey] as? NSValue)?.cgRectValue ?? .zero
+            isKeyboardUp = frame.height >= 150
         }
         .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillHideNotification)) { _ in
             isKeyboardUp = false
@@ -354,7 +357,7 @@ struct WordMenu: View {
         case .settings:
             SettingsSection(settings: settings, files: files)
         case .exportPrint:
-            ExportPrintSection(document: document, exportCommands: exportCommands, onDismiss: onClose)
+            ExportPrintSection(document: document, files: files, exportCommands: exportCommands, onDismiss: onClose)
         case .history:
             HistorySection(history: document.history, text: editor.currentText) { id in
                 onShowHistoryPassage(id)

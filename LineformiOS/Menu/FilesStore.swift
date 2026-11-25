@@ -90,6 +90,8 @@ enum FilesVisibilityClient: Hashable {
     case files
     /// A search across all files.
     case search
+    /// Export & Print's document chooser.
+    case chooser
 }
 
 /// A Files root's identity. The raw value is never shown.

@@ -91,12 +91,12 @@ struct WordMenuPalette {
             hair = rgb(0x4A4A4A)
             ink = rgb(0xDBDBDB)
         } else {
-            // A step darker than the mockup's #F2F3F5 / #F1F2F4: on the tinted wash (`ChromeWash`)
-            // those rows and groups disappeared in light mode (owner review 4).
-            soft = rgb(0xE7E9ED)
+            // A step darker than the mockup's #F2F3F5 / #F1F2F4 (on the tinted wash those rows
+            // disappeared in light mode, owner review 4), and a warm grey (owner review 5).
+            soft = rgb(0xEBEAE7)
             card = rgb(0xFFFFFF)
-            field = rgb(0xE9EBEF)
-            hair = rgb(0xD3D5DA)
+            field = rgb(0xEDECE9)
+            hair = rgb(0xD8D6D2)
             ink = rgb(0x1F1F1F)
         }
         let surfaces = [washTop, washBottom, soft, card, field]
