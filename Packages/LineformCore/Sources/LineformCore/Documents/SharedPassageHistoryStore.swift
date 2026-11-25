@@ -40,12 +40,17 @@ public final class SharedPassageHistoryStore: @unchecked Sendable {
     /// Prune deletes this device's own record of a document confirmed missing only once it was
     /// last written this long ago (iCloud may still be delivering a rename).
     static let absenceGraceInterval: TimeInterval = 7 * 24 * 60 * 60
+    /// How long a move out of the container waits for one record iCloud has not downloaded.
+    static let downloadTimeout: TimeInterval = 30
 
     let containerURL: URL
     private let device: String
     private let now: @Sendable () -> Date
     private let isConfirmedMissing: (URL) -> Bool
     private let isDownloaded: (URL) -> Bool
+    /// A coordinated read that waits for iCloud to download the file, or nil once it gives up
+    /// (`downloadTimeout`). Only a move out of the container uses it, off the main thread.
+    private let fetchWaiting: @Sendable (URL) -> Data?
     private let conflicts: HistoryRecordConflicts
     private let lock = NSLock()
     private let queue = DispatchQueue(label: "com.lineform.history.shared-store", qos: .utility)
@@ -87,13 +92,19 @@ public final class SharedPassageHistoryStore: @unchecked Sendable {
 
     /// `isDownloaded` false means the record has no local data: it is never read on `load` (the
     /// read would wait for the download). `conflicts` reads and resolves iCloud conflict versions.
+    /// `fetchWaiting` reads a record that is not downloaded, waiting for iCloud (tests inject a
+    /// fake that "downloads" a `.<device>.json.icloud` stub, or never does).
     init(containerURL: URL, device: String, now: @escaping @Sendable () -> Date, isConfirmedMissing: @escaping (URL) -> Bool,
-         isDownloaded: @escaping (URL) -> Bool, conflicts: HistoryRecordConflicts) {
+         isDownloaded: @escaping (URL) -> Bool, conflicts: HistoryRecordConflicts,
+         fetchWaiting: @escaping @Sendable (URL) -> Data? = { url in
+             CoordinatedFileAccess.readWaitingForDownload(url, timeout: SharedPassageHistoryStore.downloadTimeout)
+         }) {
         self.containerURL = containerURL
         self.device = device
         self.now = now
         self.isConfirmedMissing = isConfirmedMissing
         self.isDownloaded = isDownloaded
+        self.fetchWaiting = fetchWaiting
         self.conflicts = conflicts
     }
 
@@ -144,6 +155,20 @@ public final class SharedPassageHistoryStore: @unchecked Sendable {
     /// `downloading`: also read records that are not downloaded, waiting for them (a move out of
     /// the container, which then deletes the folder).
     func load(relativePath: String, downloading: Bool) -> DocumentHistory {
+        loadReportingCompleteness(relativePath: relativePath, downloading: downloading).history
+    }
+
+    /// A move out of the container (call it off the main thread: it waits for iCloud). Every
+    /// record of the document and its former paths, those not downloaded included — a
+    /// `.<device>.json.icloud` stub or a dataless file is read through a coordinated read that
+    /// waits for the download (`fetchWaiting`, with a timeout). `complete` is false when any
+    /// record could not be read (not downloaded in time, unreadable, a newer format): the caller
+    /// must then NOT delete the folder, or that record's History is lost.
+    func loadForMove(relativePath: String) -> (history: DocumentHistory, complete: Bool) {
+        loadReportingCompleteness(relativePath: relativePath, downloading: true)
+    }
+
+    private func loadReportingCompleteness(relativePath: String, downloading: Bool) -> (history: DocumentHistory, complete: Bool) {
         let key = Self.key(for: relativePath)
         lock.lock()
         let pendingOwn = pending[key]
@@ -152,7 +177,9 @@ public final class SharedPassageHistoryStore: @unchecked Sendable {
         let floor = clearedFloor
         lock.unlock()
 
-        var records = readFolder(key, downloading: downloading).records
+        let folderRead = readFolder(key, downloading: downloading)
+        var records = folderRead.records
+        var complete = folderRead.complete
         if let pendingOwn {
             // The pending record replaces this device's record on disk (keeping its tombstones).
             let disk = records.filter { $0.device == device }
@@ -163,7 +190,9 @@ public final class SharedPassageHistoryStore: @unchecked Sendable {
         let formers = Self.orderedUnion(memoryFormers, records.flatMap(\.formerPaths)).filter { Self.key(for: $0) != key }
         // One level of former paths per load: a record another device wrote to the old path.
         for former in formers {
-            records += readFolder(Self.key(for: former), downloading: downloading).records
+            let formerRead = readFolder(Self.key(for: former), downloading: downloading)
+            records += formerRead.records
+            complete = complete && formerRead.complete
         }
         let date = now()
         let history = HistoryMerge.merge(records, clearedAt: clearedAt(floor: floor), now: date)
@@ -174,7 +203,7 @@ public final class SharedPassageHistoryStore: @unchecked Sendable {
         formerPaths[key] = formers
         paths[key] = relativePath
         lock.unlock()
-        return history
+        return (history, complete)
     }
 
     /// Queues this device's record: the passages given, and the tombstones known, pending, and
@@ -655,27 +684,60 @@ public final class SharedPassageHistoryStore: @unchecked Sendable {
     /// The readable records of one document's folder (with their unresolved conflict versions);
     /// `listed` is whether the folder exists. A record not downloaded is not read unless
     /// `downloading`: its download is started, and a later load merges it. It stays.
-    private func readFolder(_ key: String, downloading: Bool = false) -> (records: [SharedHistoryRecord], listed: Bool) {
-        guard let items = CoordinatedFileAccess.contents(of: folder(key)) else { return ([], false) }
+    ///
+    /// `downloading` (a move out of the container): a stub `.<device>.json.icloud` is mapped to its
+    /// logical `<device>.json` and read, like a dataless record, through `fetchWaiting`, which
+    /// waits for iCloud. `complete` is false when any record could not be read.
+    private func readFolder(_ key: String, downloading: Bool = false)
+        -> (records: [SharedHistoryRecord], listed: Bool, complete: Bool) {
+        guard let items = CoordinatedFileAccess.contents(of: folder(key)) else { return ([], false, true) }
         var records: [SharedHistoryRecord] = []
+        var complete = true
+        let listedNames = Set(items.map(\.lastPathComponent))
         for item in items {
-            let name = item.lastPathComponent
-            // A record not downloaded yet (`.<device>.json.icloud`): ask for it.
-            if name.hasPrefix("."), name.hasSuffix(".json.icloud") {
-                let logical = folder(key).appendingPathComponent(String(name.dropFirst().dropLast(".icloud".count)))
+            // A record not downloaded yet (`.<device>.json.icloud`): ask for it, or (moving) wait for it.
+            guard let logicalName = Self.recordName(ofStub: item.lastPathComponent) else { continue }
+            let logical = folder(key).appendingPathComponent(logicalName)
+            if downloading {
+                // Listed under both names (mid-download): the real file is read below.
+                if listedNames.contains(logicalName) { continue }
+                guard let data = fetchWaiting(logical), let record = Self.decodeRecord(data) else {
+                    complete = false
+                    continue
+                }
+                records.append(record)
+            } else {
                 try? FileManager.default.startDownloadingUbiquitousItem(at: logical)
             }
         }
         for item in items where Self.isRecordName(item) {
-            if !downloading, !isDownloaded(item) {
-                try? FileManager.default.startDownloadingUbiquitousItem(at: item)
+            if !isDownloaded(item) {
+                if downloading {
+                    guard let data = fetchWaiting(item), let record = Self.decodeRecord(data) else {
+                        complete = false
+                        continue
+                    }
+                    records.append(record)
+                    records += conflictRecords(of: item)
+                } else {
+                    try? FileManager.default.startDownloadingUbiquitousItem(at: item)
+                }
                 continue
             }
-            guard let record = readRecord(item) else { continue }
+            guard let record = readRecord(item) else {
+                complete = false
+                continue
+            }
             records.append(record)
             records += conflictRecords(of: item)
         }
-        return (records, true)
+        return (records, true, complete)
+    }
+
+    /// `<device>.json` for an iCloud stub named `.<device>.json.icloud`, else nil.
+    static func recordName(ofStub name: String) -> String? {
+        guard name.hasPrefix("."), name.hasSuffix(".json.icloud"), name.count > ".json.icloud".count + 1 else { return nil }
+        return String(name.dropFirst().dropLast(".icloud".count))
     }
 
     private func readRecord(_ item: URL) -> SharedHistoryRecord? {

@@ -149,7 +149,7 @@ file named after it carries the full story and the reasoning.
 - `DocumentHistoryController.reloadFromStore()` (Clear History) replaces the engine BEFORE leaving History mode — leaving saves, and the other order writes the cleared history straight back.
 - History in iCloud is one record per device per document, merged on read (`HistoryMerge`); a device writes only its own record, a missing passage never deletes another device's versions, and only an explicit Delete Version writes a tombstone (`noteVersionDeleted`, called by Delete Version with the history from before the delete — the engine removes a two-version passage whole, which alone writes none).
 - Every History file access goes through `CoordinatedFileAccess`.
-- Never fold another device's History record into your own: a move or former-path retire MOVES each record file under its own name, and document absence never deletes another device's record (only its 30-day `writtenAt` does). This device's engine drops passages it cannot locate, so a record it writes may lack them — add-wins holds only while every record stays separate. Shared writes run on the shared store's queue; `load` never reads a record that is not downloaded.
+- Never fold another device's History record into your own: a move or former-path retire MOVES each record file under its own name, and document absence never deletes another device's record (only its 30-day `writtenAt` does). This device's engine drops passages it cannot locate, so a record it writes may lack them — add-wins holds only while every record stays separate. Shared writes run on the shared store's queue; `load` never reads a record that is not downloaded. A move OUT of the container is the exception: it reads every record, waiting for iCloud off the main thread (`loadForMove`, stubs mapped to their logical names), and never deletes the shared folder while any record could not be read.
 
 **AI actions** (`editor-behavior.md` § AI, `app-integration.md` § Bring your own AI)
 - AI NEVER changes Markdown structure. Only `MarkdownStructureMap` prose segments are sent; every revision passes `MarkdownStructureGuard.admissibleRevisions` (no line terminator, no `Cc`, no new `Cf`, same structure punctuation, same block signature); the composed whole-document signature is verified, and so is EVERY accept against the current text (a subset of a verified reply can still change structure: `$5`→`5$` accepted half-way is `$5$`). A new `MarkdownTokenKind` or `MarkdownBlock` case needs a protection rule (`protection(of:)` switches exhaustively, so a new case stops the build; `MarkdownStructureInventoryTests` pins each existing case's classification — classify the new one deliberately, never as plain prose by default).
@@ -351,7 +351,10 @@ iPhone only, portrait only (owner, 2026-11-24). Details: `docs/architecture/ipho
   shows. An open file deleted elsewhere, or moved into a Trash folder, keeps its text on screen and
   is never written back; the next change saves it as a new document. A new file is created with a
   non-replacing write. Every open reads off the main thread; a file with no local copy is downloaded
-  first, and an outdated local copy opens at once while the newer version downloads. A reload read that a save overtook is read again, never applied stale. After iOS ends the app, `@SceneStorage` reopens the open file from its
+  first (the current document stays until the new text is in hand; an iCloud download error or 30 s
+  ends the wait with a notice, and every exit of the open clears `downloadingName`), and an outdated
+  local copy opens at once while the newer version downloads. Becoming active re-reads the open file
+  (`reconcileWithDisk`). A reload read that a save overtook is read again, never applied stale. After iOS ends the app, `@SceneStorage` reopens the open file from its
   bookmark.
 - **TextKit 1.** The editor is `UITextView(usingTextLayoutManager: false)`, matching the Mac
   editor's TextKit 1 stack. Do not switch it to TextKit 2.

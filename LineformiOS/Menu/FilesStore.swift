@@ -9,11 +9,33 @@ import os
 protocol FilesFileOperating: Sendable {
     func moveItem(at source: URL, to destination: URL) throws
     func trashItem(at url: URL) throws
+    /// Whether `url` is in iCloud (an item in the container, or the container's own folder).
+    func isUbiquitous(_ url: URL) -> Bool
+    /// `FileManager.setUbiquitous(_:itemAt:destinationURL:)`: moves an item into iCloud (`true`,
+    /// `destination` inside the container) or out of it (`false`). It coordinates the move itself,
+    /// so it is never wrapped in another coordinator, and it must never run on the main thread.
+    func setUbiquitous(_ flag: Bool, itemAt url: URL, destinationURL destination: URL) throws
+}
+
+extension FilesFileOperating {
+    /// Doubles see no iCloud: a move between the roots is the coordinated move.
+    func isUbiquitous(_ url: URL) -> Bool { false }
+    func setUbiquitous(_ flag: Bool, itemAt url: URL, destinationURL destination: URL) throws {
+        try moveItem(at: url, to: destination)
+    }
 }
 
 struct LiveFilesFileOperations: FilesFileOperating {
     func moveItem(at source: URL, to destination: URL) throws {
         try FileManager.default.moveItem(at: source, to: destination)
+    }
+
+    func isUbiquitous(_ url: URL) -> Bool {
+        FileManager.default.isUbiquitousItem(at: url)
+    }
+
+    func setUbiquitous(_ flag: Bool, itemAt url: URL, destinationURL destination: URL) throws {
+        try FileManager.default.setUbiquitous(flag, itemAt: url, destinationURL: destination)
     }
 
     /// `FileManager.trashItem(at:resultingItemURL:)`. Some providers refuse it; the error goes to
@@ -173,12 +195,16 @@ final class FilesStore {
     @ObservationIgnored private let deviceFolder: URL
     @ObservationIgnored private let bookmarks: any WorkspaceBookmarking
     @ObservationIgnored private let fileOperations: any FilesFileOperating
+    /// Whether an iCloud item is downloaded and current, and starting its download (the
+    /// document's `LiveUbiquitousItems`; tests inject a fake).
+    @ObservationIgnored private let ubiquitousItems: any UbiquitousItemAccessing
     @ObservationIgnored private let scanner: Scanner
     @ObservationIgnored private var heldScopeURL: URL?
     @ObservationIgnored private var scanGenerations: [FilesRootID: Int] = [:]
     @ObservationIgnored private var monitors: [FilesRootID: (url: URL, monitor: DocumentFolderMonitor)] = [:]
     @ObservationIgnored private let log = Logger(subsystem: "com.lineform.app", category: "files")
     @ObservationIgnored private var settingsObserver: (any NSObjectProtocol)?
+    @ObservationIgnored private var identityObserver: (any NSObjectProtocol)?
 
     /// - Parameters:
     ///   - iCloudFolder: Lineform's iCloud Documents folder, or nil. Called off the main thread,
@@ -191,6 +217,7 @@ final class FilesStore {
         deviceFolder: URL,
         bookmarks: any WorkspaceBookmarking,
         fileOperations: any FilesFileOperating,
+        ubiquitousItems: any UbiquitousItemAccessing = LiveUbiquitousItems(),
         scanner: @escaping Scanner = FilesStore.liveScanner
     ) {
         self.defaults = defaults
@@ -198,6 +225,7 @@ final class FilesStore {
         self.deviceFolder = deviceFolder
         self.bookmarks = bookmarks
         self.fileOperations = fileOperations
+        self.ubiquitousItems = ubiquitousItems
         self.scanner = scanner
         showsHidden = defaults.bool(forKey: LineformSettingKeys.showsHiddenFolders)
         // The Mac reconciles its two keys the same way, preferring the Workspace value.
@@ -216,10 +244,34 @@ final class FilesStore {
                 Task { @MainActor in self?.settingsChanged() }
             }
         }
+        // iCloud signed in or out, or the container came late: look it up again (only while
+        // Files is on screen, or when Settings next asks). Observing looks nothing up.
+        identityObserver = NotificationCenter.default.addObserver(
+            forName: .NSUbiquityIdentityDidChange, object: nil, queue: nil
+        ) { [weak self] _ in
+            Task { @MainActor in await self?.iCloudIdentityDidChange() }
+        }
     }
 
     isolated deinit {
         if let settingsObserver { NotificationCenter.default.removeObserver(settingsObserver) }
+        if let identityObserver { NotificationCenter.default.removeObserver(identityObserver) }
+    }
+
+    /// iCloud was signed into or out of, or the container became available: what Files knows
+    /// about iCloud is forgotten, and looked up again at once when Files is on screen (a rescan),
+    /// otherwise when Files or Settings next appears.
+    func iCloudIdentityDidChange() async {
+        isICloudAvailable = nil
+        if isVisible {
+            await scanIfVisible()
+        } else {
+            hasLookedUpICloud = false
+            iCloudURL = nil
+            itemsByRoot[.icloud] = nil
+            scannedRoots.remove(.icloud)
+            rebuildIndex()
+        }
     }
 
     // MARK: - Roots
@@ -251,6 +303,19 @@ final class FilesStore {
     /// A scanned folder's contents, or nil for a folder the last scan did not see.
     func children(of folder: URL) -> [OutlineFileTreeItem]? {
         childrenByFolder[Self.key(folder)]
+    }
+
+    /// The file at `url` as Files would list it: the last scan's row (with its real iCloud
+    /// placeholder flag) when it saw one, otherwise a row made now, flagged a placeholder when
+    /// only its `.Name.icloud` stub is there. Search results use it, so their actions know.
+    func listedItem(at url: URL) -> OutlineFileTreeItem {
+        let key = Self.key(url)
+        if let row = children(of: url.deletingLastPathComponent())?.first(where: { Self.key($0.url) == key }) {
+            return row.withoutChildren
+        }
+        var item = OutlineFileTreeItem(url: url, name: url.lastPathComponent, isDirectory: false, children: [])
+        item.isICloudPlaceholder = Self.isPlaceholder(item)
+        return item
     }
 
     static var workspaceTitle: String { String(localized: "Workspace") }
@@ -337,10 +402,12 @@ final class FilesStore {
         return found
     }
 
-    /// Settings › Show iCloud in Files shows only when the container resolves: looked up once
-    /// (off the main thread), then remembered.
+    /// Settings › Show iCloud in Files shows only when the container resolves: looked up off the
+    /// main thread, and again each time Settings appears while it did not resolve (iCloud may have
+    /// come on since, or the container arrived late). A yes is remembered until the iCloud
+    /// account changes (`iCloudIdentityDidChange`).
     func lookUpICloudAvailability() async {
-        guard isICloudAvailable == nil else { return }
+        guard isICloudAvailable != true else { return }
         _ = await lookUpICloudFolder()
     }
 
@@ -519,7 +586,7 @@ final class FilesStore {
     /// Throws `FilesStoreError.invalidName` for a name the shared rule refuses (nothing touches
     /// the disk), or the move's own error, which also sets `notice`.
     func rename(_ item: OutlineFileTreeItem, to newName: String) async throws {
-        guard !Self.isPlaceholder(item) else { throw FilesStoreError.notDownloaded }
+        guard !Self.isPlaceholder(item) else { throw refuseStillDownloading(item) }
         guard var destination = FileRenaming.validatedDestination(
             for: item.url, isDirectory: item.isDirectory, newDisplayName: newName
         ) else { throw FilesStoreError.invalidName }
@@ -570,7 +637,7 @@ final class FilesStore {
     /// its text on screen and lets go of the path (`OpenDocument.fileWasTrashed(at:)`).
     func trash(_ item: OutlineFileTreeItem) async throws {
         guard Self.canTrash(item) else { throw FilesStoreError.folderCannotBeDeleted }
-        guard !Self.isPlaceholder(item) else { throw FilesStoreError.notDownloaded }
+        guard !Self.isPlaceholder(item) else { throw refuseStillDownloading(item) }
         let source = item.url
         do {
             // On the main actor, for the same reason as `rename`: no autosave can write the file
@@ -601,7 +668,8 @@ final class FilesStore {
 
     /// Where `item` can move: a document or folder On My iPhone to iCloud (only while the iCloud
     /// container resolves and Files shows it), one in iCloud to On My iPhone. A Workspace item, or
-    /// a file not downloaded yet, has nowhere to go.
+    /// a file not downloaded yet, has nowhere to go. (A folder holding one, or a file whose local
+    /// copy is not current, is refused by `move` itself, which reads the disk.)
     func moveTargets(for item: OutlineFileTreeItem) -> [FilesRootID] {
         guard !Self.isPlaceholder(item) else { return [] }
         switch rootID(containing: item.url) {
@@ -626,11 +694,19 @@ final class FilesStore {
     /// Moves `item` to the top of `target` with a coordinated move that never replaces: a name
     /// already taken there gets a number ("Notes 2.md"). When it is (or holds) the open document,
     /// the document follows it, so typing goes on into the moved file. Returns where it went.
+    ///
+    /// Nothing iCloud has not fully brought here moves (a stranded placeholder, or an older local
+    /// copy replacing a newer iCloud version): a folder holding any item that is not downloaded
+    /// and current, or a file that is not, is refused with a notice (`.notDownloaded`); a file's
+    /// download is started. Into or out of iCloud the move is `FileManager.setUbiquitous`, off the
+    /// main thread, the API for that direction.
     @discardableResult
     func move(_ item: OutlineFileTreeItem, to target: FilesRootID) async throws -> URL {
+        guard Self.isPlaceholder(item) == false else { throw refuseStillDownloading(item) }
         guard moveTargets(for: item).contains(target), let destinationFolder = folder(of: target) else {
             throw FilesStoreError.cannotMove
         }
+        try await refuseUnlessDownloaded(item)
         if let document = openDocument, let before = document.url,
            Self.relocated(before, from: item.url, to: item.url) != nil {
             // Disk has everything before the file moves.
@@ -649,7 +725,20 @@ final class FilesStore {
             isDirectory: item.isDirectory
         )
         do {
-            try Self.coordinatedMove(from: source, to: destination, using: fileOperations)
+            let operations = fileOperations
+            let intoICloud = target == .icloud
+            let from = source, to = destination
+            let probe = intoICloud ? destinationFolder : source
+            let crossesICloud = await Task.detached { operations.isUbiquitous(probe) }.value
+            if crossesICloud {
+                // It coordinates itself, and must never run on the main thread. Every keystroke is
+                // on disk (the flush above) and the menu covers the page, so no autosave runs meanwhile.
+                try await Task.detached {
+                    try operations.setUbiquitous(intoICloud, itemAt: from, destinationURL: to)
+                }.value
+            } else {
+                try Self.coordinatedMove(from: source, to: destination, using: fileOperations)
+            }
         } catch {
             log.error("Move failed: \(error.localizedDescription, privacy: .public)")
             notice = String(localized: "Couldn’t move “\(item.name)”.")
@@ -661,6 +750,56 @@ final class FilesStore {
         }
         await scanIfVisible()
         return destination
+    }
+
+    /// `.notDownloaded`, with its notice: a file still downloading (its download is started).
+    private func refuseStillDownloading(_ item: OutlineFileTreeItem) -> FilesStoreError {
+        let items = ubiquitousItems
+        let url = OpenDocument.realURL(for: item.url)
+        Task.detached { try? items.startDownloading(url) }
+        notice = Self.stillDownloadingNotice(for: item.name)
+        return .notDownloaded
+    }
+
+    /// Throws `.notDownloaded` (with its notice) unless everything `item` holds is downloaded and
+    /// current. Asked fresh, off the main thread: resource values are never read from a cached URL.
+    private func refuseUnlessDownloaded(_ item: OutlineFileTreeItem) async throws {
+        let items = ubiquitousItems
+        let url = item.url
+        if item.isDirectory {
+            let blocked = await Task.detached { Self.holdsItemNotDownloaded(url, items: items) }.value
+            guard blocked else { return }
+            notice = Self.folderNotDownloadedNotice(for: item.name)
+            throw FilesStoreError.notDownloaded
+        }
+        let state = await Task.detached { items.downloadState(url) }.value
+        guard state != .current else { return }
+        throw refuseStillDownloading(item)
+    }
+
+    /// Whether anything under `folder` is not downloaded and current: a `.Name.icloud` stub (iOS
+    /// before dataless files), or a file whose `ubiquitousItemDownloadingStatus` is not current
+    /// (a dataless file, or an older local copy). Reads the disk: never on the main thread.
+    nonisolated static func holdsItemNotDownloaded(_ folder: URL, items: any UbiquitousItemAccessing) -> Bool {
+        guard let enumerator = FileManager.default.enumerator(
+            at: folder, includingPropertiesForKeys: [.isDirectoryKey], options: []
+        ) else { return false }
+        for case let entry as URL in enumerator {
+            let name = entry.lastPathComponent
+            if name.hasPrefix("."), name.hasSuffix(".icloud") { return true }
+            var isDirectory: ObjCBool = false
+            guard FileManager.default.fileExists(atPath: entry.path, isDirectory: &isDirectory) else { continue }
+            if !isDirectory.boolValue, items.downloadState(entry) != .current { return true }
+        }
+        return false
+    }
+
+    static func stillDownloadingNotice(for name: String) -> String {
+        String(localized: "“\(name)” is still downloading. Try again in a moment.")
+    }
+
+    static func folderNotDownloadedNotice(for name: String) -> String {
+        String(localized: "Some files in “\(name)” aren’t downloaded yet. Open them first, then try again.")
     }
 
     /// `name`, or "Name 2.ext", "Name 3.ext"… — the first not taken in `folder` (case- and

@@ -107,4 +107,45 @@ final class CrossFileSearchModelTests: XCTestCase {
         XCTAssertNil(reader.readSearchableText(at: huge))
         XCTAssertNil(reader.readSearchableText(at: directory.appendingPathComponent("absent.md")))
     }
+
+    /// A file with only its `.Name.icloud` stub is not downloaded (its text cannot be searched);
+    /// a file simply gone is unreadable; a local file is read.
+    func testProductionReaderTellsANotDownloadedFileApart() throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("CrossFileSearchStub-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        try Data().write(to: directory.appendingPathComponent(".Evicted.md.icloud"))
+        try Data("here".utf8).write(to: directory.appendingPathComponent("Here.md"))
+        let reader = CrossFileSearchFileReader()
+        XCTAssertEqual(reader.searchableRead(at: directory.appendingPathComponent("Evicted.md")), .notDownloaded)
+        XCTAssertEqual(reader.searchableRead(at: directory.appendingPathComponent("Gone.md")), .unreadable)
+        XCTAssertEqual(reader.searchableRead(at: directory.appendingPathComponent("Here.md")), .text("here"))
+    }
+
+    /// Files skipped because they are not downloaded are reported, so the results can say their
+    /// text was not searched; their names still match.
+    func testSearchReportsFilesSkippedBecauseNotDownloaded() async {
+        struct Reader: CrossFileSearchFileReading {
+            func readSearchableText(at url: URL) -> String? { nil }
+            func searchableRead(at url: URL) -> CrossFileSearchRead {
+                url.path == "/evicted-needle.md" ? .notDownloaded : .text("needle")
+            }
+        }
+        let model = CrossFileSearchModel(reader: Reader(), debounceInterval: 0)
+        await model.search(query: "needle", entries: [entry("/a.md"), entry("/evicted-needle.md")])?.value
+        XCTAssertTrue(model.skippedNotDownloaded)
+        XCTAssertEqual(Set(model.results.map(\.name)), ["a.md", "evicted-needle.md"])
+
+        await model.search(query: "needle", entries: [entry("/a.md")])?.value
+        XCTAssertFalse(model.skippedNotDownloaded)
+        model.reset()
+        XCTAssertFalse(model.skippedNotDownloaded)
+    }
+
+    func testReadersWithoutTheNewMethodNeverReportNotDownloaded() async {
+        let model = CrossFileSearchModel(reader: StubReader(texts: [:]), debounceInterval: 0)
+        await model.search(query: "launch", entries: [entry("/launch-plan.md")])?.value
+        XCTAssertFalse(model.skippedNotDownloaded)
+    }
 }

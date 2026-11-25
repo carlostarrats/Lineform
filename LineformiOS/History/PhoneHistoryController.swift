@@ -79,6 +79,10 @@ final class PhoneHistoryController {
     @ObservationIgnored private var aiResume: AIResume?
     private struct AIResume { let selectedID: UUID? }
     @ObservationIgnored private var clearAllObservation: AnyCancellable?
+    @ObservationIgnored private var movedOutObservation: AnyCancellable?
+    /// A move out of iCloud downloaded History this engine never saw (another device's record):
+    /// folded into the engine at the next save outside History mode, so that save keeps it.
+    @ObservationIgnored private var pendingMovedHistory: DocumentHistory?
 
     #if DEBUG
     /// How many edits and whole-text replacements the text view reported (tests).
@@ -146,6 +150,26 @@ final class PhoneHistoryController {
                     self.reloadFromStore(text: self.editor?.textStorage.string ?? self.modeText ?? "")
                 }
             }
+        movedOutObservation = notificationCenter
+            .publisher(for: RoutingPassageHistoryStore.didMoveHistoryOutNotification)
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] note in
+                guard let url = note.userInfo?[RoutingPassageHistoryStore.movedHistoryURLKey] as? URL,
+                      let history = note.userInfo?[RoutingPassageHistoryStore.movedHistoryKey] as? DocumentHistory else { return }
+                MainActor.assumeIsolated { self?.adoptMovedHistory(history, for: url) }
+            }
+    }
+
+    /// The document moved out of iCloud and the router read every shared record (downloading the
+    /// ones this iPhone did not have): they join this engine, so the next save keeps them instead
+    /// of writing the local copy back without them. In History mode it waits for the next save.
+    func adoptMovedHistory(_ history: DocumentHistory, for movedURL: URL) {
+        guard url != nil, Self.sameFile(url, movedURL), !history.isEmpty else { return }
+        pendingMovedHistory = (pendingMovedHistory ?? DocumentHistory(passages: [])).merging(history, now: now())
+        // Without the editor's text the passages cannot be located: the next save folds it in.
+        guard !isHistoryModeActive, let text = editor?.textStorage.string else { return }
+        persistNow(text: text)
+        bump()
     }
 
     /// Settings ▸ Clear History: removes every document's history from `store` and refreshes
@@ -180,6 +204,7 @@ final class PhoneHistoryController {
     func open(url: URL?, text: String) {
         endHistoryModeWithoutEdit()
         self.url = url
+        pendingMovedHistory = nil
         documentToken = UUID()
         selectedPassageID = nil
         rememberedPassageID = nil
@@ -736,6 +761,7 @@ final class PhoneHistoryController {
     }
 
     private func persistNow(text: String) {
+        foldInMovedHistory()
         guard url != nil, !engine.history.isEmpty || hasStoreEntry else { return }
         if !engine.history.isEmpty {
             located = engine.locateAll(in: text)
@@ -745,9 +771,18 @@ final class PhoneHistoryController {
     }
 
     private func save() {
+        foldInMovedHistory()
         guard let url, !engine.history.isEmpty || hasStoreEntry else { return }
         store.save(engine.history, for: url)
         hasStoreEntry = !engine.history.isEmpty
+    }
+
+    private func foldInMovedHistory() {
+        guard let moved = pendingMovedHistory, !isHistoryModeActive else { return }
+        pendingMovedHistory = nil
+        engine = DocumentHistoryEngine(history: engine.history.merging(moved, now: now()), now: now)
+        hasStoreEntry = true
+        located = []
     }
 
     private func pruneOnce() {
