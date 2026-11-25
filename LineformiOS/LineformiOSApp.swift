@@ -66,6 +66,9 @@ struct LineformiOSApp: App {
             }
             // The widget's list: on launch and whenever the app leaves (after the save).
             if !Self.isRunningUnderTests, phase != .inactive { Self.refreshWidgetRecents() }
+            // Spotlight's note titles catch up with files changed while the app was away (titles
+            // and locations only, on the device). Never in the test host, at this call site.
+            if phase == .active, !Self.isRunningUnderTests { PhoneSpotlightIndex.shared.scheduleRefresh() }
         }
     }
 }
