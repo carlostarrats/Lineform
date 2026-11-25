@@ -55,9 +55,7 @@ struct DocumentCard: View {
     var open: () -> Void
 
     @State private var preview: String?
-    @State private var frameBox = CardFrameBox()
     @Environment(\.wordMenuPalette) private var palette
-    @Environment(\.cardOpenTransition) private var cardTransition
 
     private var isOpenDocument: Bool {
         guard let url = document.url else { return false }
@@ -86,11 +84,8 @@ struct DocumentCard: View {
     var body: some View {
         let shape = RoundedRectangle(cornerRadius: WordMenuMetrics.rowRadius, style: .continuous)
         ZStack(alignment: .topTrailing) {
-            Button {
-                // A downloaded file expands into the page; a placeholder downloads first (no card).
-                if !item.isICloudPlaceholder { cardTransition?.record(url: item.url, frame: frameBox.frame) }
-                open()
-            } label: {
+            // The document opens at once: the menu closes straight to the page, with no motion.
+            Button(action: open) {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(verbatim: Self.title(for: item))
                         .font(.subheadline.weight(.semibold))
@@ -144,7 +139,6 @@ struct DocumentCard: View {
             }
         }
         .filesSwipeActions(FilesSwipeAction.actions(for: item, store: store))
-        .recordsCardFrame(frameBox)
         .task(id: PreviewKey(url: item.url, modified: item.modifiedAt, isOpen: isOpenDocument)) {
             if isOpenDocument {
                 preview = DocumentCardPreview.excerpt(from: document.text)

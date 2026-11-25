@@ -495,6 +495,36 @@ struct WordMenuPrimaryButton: View {
     }
 }
 
+/// The primary pill's quiet twin (an announcement's Not now): the same height, width and capsule,
+/// in a light grey with the ink (the row grey in dark). The light rows' grey (#F2F3F5) all but
+/// vanishes on the wash, so light mode takes a clearly visible #E6E7EA.
+struct WordMenuSecondaryButton: View {
+    var title: String
+    var action: () -> Void
+    @Environment(\.wordMenuPalette) private var palette
+
+    static let lightFill = UIColor(red: 0xE6 / 255, green: 0xE7 / 255, blue: 0xEA / 255, alpha: 1)
+
+    private var fill: Color {
+        palette.isDark ? palette.color(palette.soft) : Color(uiColor: Self.lightFill)
+    }
+
+    var body: some View {
+        Button(action: action) {
+            Text(title)
+                .multilineTextAlignment(.center)
+                .font(.body.weight(.semibold))
+                .foregroundStyle(palette.color(palette.ink))
+                .padding(.horizontal, 18)
+                .padding(.vertical, 12)
+                .frame(maxWidth: .infinity, minHeight: 48)
+                .background(Capsule().fill(fill))
+                .contentShape(Capsule())
+        }
+        .buttonStyle(WordMenuPressStyle())
+    }
+}
+
 /// A small round Lineform-blue button with a white glyph (a root's "+" in Files, the same blue as
 /// the New Document pill): drawn 30 pt, a 44 pt target.
 struct WordMenuRoundButton: View {
@@ -677,93 +707,9 @@ struct ResumeMenuButton: View {
             label: label,
             action: action
         )
+        // One layer: the round fill, its hairline and shadow and the arrow fade in and out
+        // together (without it each faded on its own, the arrow apart from the circle).
+        .compositingGroup()
         .accessibilityIdentifier("document.backToMenu")
     }
-}
-
-
-// MARK: - Opening a document from a card
-
-/// The card a document is being opened from, for the expansion into the page (2026-11-24). A card
-/// records itself (`record`) just before its action opens the document and closes the menu; the
-/// screen takes it (`take`) when the menu closes and, instead of jumping, expands the card into
-/// the page (`CardZoomView`). A plain reference: recording never re-renders anything.
-@MainActor
-final class CardOpenTransition {
-    struct Card {
-        /// The document the card opens; nil for the open document (a search result in it).
-        var url: URL?
-        /// The card's frame on screen (global coordinates).
-        var frame: CGRect
-    }
-
-    private var pending: Card?
-
-    func record(url: URL?, frame: CGRect) {
-        guard frame.width > 0, frame.height > 0 else { return }
-        pending = Card(url: url, frame: frame)
-    }
-
-    func take() -> Card? {
-        defer { pending = nil }
-        return pending
-    }
-}
-
-extension EnvironmentValues {
-    /// Where the menu's cards record themselves before they open a document (nil: no expansion).
-    @Entry var cardOpenTransition: CardOpenTransition? = nil
-}
-
-/// Holds a card's last frame on screen without re-rendering the card when it moves (a scroll).
-final class CardFrameBox {
-    var frame: CGRect = .zero
-}
-
-extension View {
-    /// Keeps `box.frame` at the view's frame on screen.
-    func recordsCardFrame(_ box: CardFrameBox) -> some View {
-        onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { box.frame = $0 }
-    }
-}
-
-/// The card expanding into the page: a picture of the page (already showing the opened document)
-/// grows from the card's frame to the page's, its corners easing from the card's to square, while
-/// the menu fades underneath. The page itself is live from the start; this is only a picture over
-/// it, removed when the animation ends.
-struct CardZoomView: View, @MainActor Animatable {
-    var image: UIImage
-    var from: CGRect
-    var to: CGRect
-    /// 0 at the card, 1 at the page.
-    var progress: CGFloat
-
-    var animatableData: CGFloat {
-        get { progress }
-        set { progress = newValue }
-    }
-
-    private func mix(_ a: CGFloat, _ b: CGFloat) -> CGFloat { a + (b - a) * progress }
-
-    var body: some View {
-        let width = mix(from.width, to.width)
-        let height = mix(from.height, to.height)
-        // The page keeps its proportions: scaled to the frame's width, its top shown.
-        let scale = width / max(to.width, 1)
-        Image(uiImage: image)
-            .resizable()
-            .frame(width: to.width * scale, height: to.height * scale)
-            .frame(width: width, height: height, alignment: .top)
-            .clipShape(RoundedRectangle(cornerRadius: mix(WordMenuMetrics.rowRadius, 0), style: .continuous))
-            .shadow(color: .black.opacity(0.12 * (1 - progress)), radius: 10, x: 0, y: 4)
-            .position(x: mix(from.midX, to.midX), y: mix(from.minY, to.minY) + height / 2)
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-            .ignoresSafeArea()
-            .allowsHitTesting(false)
-            .accessibilityHidden(true)
-    }
-
-    /// How long the expansion takes, and its curve.
-    static let duration: TimeInterval = 0.3
-    static var animation: Animation { .easeInOut(duration: duration) }
 }

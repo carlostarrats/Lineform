@@ -192,4 +192,56 @@ final class SpeechVoiceResolverTests: XCTestCase {
             .keepSystemDefault
         )
     }
+
+    // MARK: - Best-quality voice (iPhone Read Aloud)
+
+    private let qualityVoices: [SpeechVoiceCandidate] = [
+        SpeechVoiceCandidate(identifier: "compact.en-US.Samantha", language: "en-US"),
+        SpeechVoiceCandidate(identifier: "novelty.en-US.Zarvox", language: "en-US", quality: .premium, isNovelty: true),
+        SpeechVoiceCandidate(identifier: "enhanced.en-GB.Daniel", language: "en-GB", quality: .enhanced),
+        SpeechVoiceCandidate(identifier: "enhanced.en-US.Evan", language: "en-US", quality: .enhanced),
+        SpeechVoiceCandidate(identifier: "premium.en-AU.Lee", language: "en-AU", quality: .premium),
+        SpeechVoiceCandidate(identifier: "premium.fr-FR.Audrey", language: "fr-FR", quality: .premium),
+    ]
+
+    private func best(
+        _ language: String,
+        systemDefault: String? = nil,
+        region: String? = "US",
+        voices: [SpeechVoiceCandidate]? = nil
+    ) -> String? {
+        SpeechVoiceResolver.bestQualityVoice(
+            for: language,
+            systemDefaultIdentifier: systemDefault,
+            preferredRegion: region,
+            among: voices ?? qualityVoices
+        )?.identifier
+    }
+
+    func testPremiumBeatsEnhancedBeatsStandardAndNoveltyNeverCounts() {
+        XCTAssertEqual(best("en", systemDefault: "compact.en-US.Samantha"), "premium.en-AU.Lee")
+        let noPremium = qualityVoices.filter { voice in !voice.identifier.hasPrefix("premium") }
+        // Enhanced in the user's region before enhanced elsewhere; the novelty premium is skipped.
+        XCTAssertEqual(best("en", voices: noPremium), "enhanced.en-US.Evan")
+    }
+
+    func testAnEnhancedSystemDefaultWins() {
+        XCTAssertEqual(best("en-US", systemDefault: "enhanced.en-GB.Daniel"), "enhanced.en-GB.Daniel")
+    }
+
+    func testAStandardSystemDefaultWinsOnlyAmongStandardVoices() {
+        let standard = [
+            SpeechVoiceCandidate(identifier: "compact.en-GB.Daniel", language: "en-GB"),
+            SpeechVoiceCandidate(identifier: "compact.en-US.Samantha", language: "en-US"),
+        ]
+        XCTAssertEqual(best("en", systemDefault: "compact.en-GB.Daniel", voices: standard), "compact.en-GB.Daniel")
+        XCTAssertEqual(best("en", systemDefault: "compact.en-US.Samantha"), "premium.en-AU.Lee")
+    }
+
+    func testOnlyTheDocumentsLanguageCounts() {
+        XCTAssertEqual(best("fr"), "premium.fr-FR.Audrey")
+        XCTAssertNil(best("de"))
+        XCTAssertNil(best(""))
+        XCTAssertNil(best("en", voices: [qualityVoices[1]]))
+    }
 }

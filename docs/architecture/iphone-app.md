@@ -754,13 +754,10 @@ puts the keyboard away first.
   lengths agree). Simulator, 1 MB document: about 75 ms before, 7–9 ms after (keyboard down) and
   about 18 ms with the keyboard up; the first open after launch is about 55 ms (SwiftUI building
   the menu once).
-- **Opening a document from a card** (Recent, a folder or search results) expands the card into
-  the page (`CardOpenTransition`, `CardZoomView`): the card records its frame before it opens the
-  document; the menu stays until the editor holds the opened text (at most 0.6 s, else it simply
-  closes), then a picture of the page grows from the card's frame to the page's (0.3 s,
-  ease-in-out, corners easing square) while the menu fades underneath. The document opens exactly
-  as before; only the picture waits. Under Reduce Motion the menu crossfades to the page. An
-  iCloud placeholder (downloads first) and the in-document match rows close the menu plainly.
+- **Opening a document from a card** (Recent, a folder or search results) is instant (owner
+  review 3, 2026-11-24): the menu closes straight to the page with no motion. The card expansion
+  of review 2 (`CardOpenTransition`, `CardZoomView`, a page picture growing from the card in
+  0.3 s) was removed as too slow; do not bring it back. The ← (below) still shows.
 - **Back to where I was** (owner review 2, 2026-11-24). After a card or search result (Recent, a
   folder's card, a search card or an in-document match) opens a document, a round ← shows at the
   bottom LEFT of the document, the ⋯ button's twin mirrored (`ResumeMenuButton`: same 48 pt,

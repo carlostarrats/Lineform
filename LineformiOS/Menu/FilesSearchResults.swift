@@ -115,7 +115,6 @@ struct FilesSearchResults: View {
     var onDismiss: () -> Void
 
     @Environment(\.wordMenuPalette) private var palette
-    @Environment(\.cardOpenTransition) private var cardTransition
     @Environment(\.wordMenuSession) private var session
 
     /// The file a card stands for, for its swipe actions: another document's, or this one's.
@@ -199,8 +198,7 @@ struct FilesSearchResults: View {
             }
             WordMenuCardGrid(items: cards) { card in
                 let actions = item(for: card).map { FilesSwipeAction.actions(for: $0, store: store) } ?? []
-                SearchResultCardView(card: card) { frame in
-                    cardTransition?.record(url: card.row.url, frame: frame)
+                SearchResultCardView(card: card) {
                     session?.noteOpenedDocument()
                     controller.activate(card.row, dismiss: onDismiss)
                 }
@@ -271,16 +269,12 @@ private struct SearchMatchRowView: View {
 
 private struct SearchResultCardView: View {
     var card: SearchResultCard
-    /// Opens the card's document; given the card's frame on screen.
-    var action: (CGRect) -> Void
-    @State private var frameBox = CardFrameBox()
+    var action: () -> Void
     @Environment(\.wordMenuPalette) private var palette
 
     var body: some View {
         let shape = RoundedRectangle(cornerRadius: WordMenuMetrics.rowRadius, style: .continuous)
-        Button {
-            action(frameBox.frame)
-        } label: {
+        Button(action: action) {
             VStack(alignment: .leading, spacing: 2) {
                 Text(verbatim: card.title)
                     .font(.subheadline.weight(.semibold))
@@ -309,7 +303,6 @@ private struct SearchResultCardView: View {
         }
         .buttonStyle(WordMenuPressStyle())
         .accessibilityElement(children: .combine)
-        .recordsCardFrame(frameBox)
     }
 
     /// The snippet with its match in bold, in the ink.
