@@ -37,6 +37,11 @@ final class ConnectAITests: XCTestCase {
         form.address = "https://ai.example.com/v1"
         XCTAssertTrue(form.consentNote.hasPrefix("Lineform will send the passage you select, or the whole document when you choose Ask AI for it, to ai.example.com. "))
         XCTAssertTrue(form.consentNote.hasSuffix(ConnectAIPresentation.privacyNote))
+        // What shows under Connect is short: who gets what, then one line; the full note is the
+        // button's VoiceOver hint.
+        XCTAssertTrue(form.shortConsentNote.hasPrefix("Lineform will send the passage you select, or the whole document when you choose Ask AI for it, to ai.example.com. "))
+        XCTAssertTrue(form.shortConsentNote.hasSuffix(String(localized: "Lineform’s developer never sees it.")))
+        XCTAssertLessThan(form.shortConsentNote.count, form.consentNote.count)
 
         // On screen: the "Connect" button, and the note under it.
         form.select(.claude)

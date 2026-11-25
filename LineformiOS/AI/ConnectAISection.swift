@@ -53,6 +53,16 @@ final class ConnectAIFormModel: ObservableObject, Identifiable {
         ConnectAIPresentation.consentNote(for: selection, otherHost: ConnectAIPresentation.host(fromAddress: address))
     }
 
+    /// The small text under Connect, kept short (owner review 4: "too much text"): what is sent
+    /// and to whom (the shared two-case wording App Review 5.1.2(i) needs), then one short line.
+    /// The full consent note stays the button's VoiceOver hint; the Mac shows its own wording.
+    var shortConsentNote: String {
+        let recipient = ConnectAIPresentation.recipientNote(
+            for: selection, otherHost: ConnectAIPresentation.host(fromAddress: address)
+        )
+        return recipient + " " + String(localized: "Lineform’s developer never sees it.")
+    }
+
     /// Other is an address, an optional key and a model; the big three are a key and a model
     /// picked from a list.
     var showsAddressAndModelFields: Bool { selection == .other }
@@ -300,7 +310,7 @@ struct ConnectAISection: View {
             .accessibilityHint(Text(form.consentNote))
             .accessibilityIdentifier("connectAI.connect")
         // What is sent, to whom, and the privacy note: small secondary text under the button.
-        Text(form.consentNote)
+        Text(form.shortConsentNote)
             .font(.footnote)
             .foregroundStyle(palette.color(palette.secondary))
             .fixedSize(horizontal: false, vertical: true)
