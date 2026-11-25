@@ -290,12 +290,15 @@ extension UIScrollView {
 /// Write and Read both keep `DocumentNameTag.topSpace` above the first line, so the text does not
 /// move between the modes.
 final class DocumentNameTag: UIButton {
-    /// The name's line and the gap below it to the first line of text.
-    static let height: CGFloat = 20
+    /// The name's line (20 pt at the default text size, scaled with Dynamic Type like its
+    /// footnote font) and the gap below it to the first line of text.
+    static var height: CGFloat { UIFontMetrics(forTextStyle: .footnote).scaledValue(for: 20) }
     static let gap: CGFloat = 10
     static var topSpace: CGFloat { height + gap }
 
     var onRename: (() -> Void)?
+    /// The last name shown, so a text-size change can redraw it in the new size.
+    private var shown: (name: String, ink: UIColor, canRename: Bool)?
 
     /// How far below the text's baseline the dashes run.
     static let dashOffset: CGFloat = 3
@@ -331,6 +334,14 @@ final class DocumentNameTag: UIButton {
         tag.accessibilityIdentifier = "document.name"
         // A tap opens Rename at once (owner review 4: a menu first was one tap too many).
         tag.addAction(UIAction { [weak tag] _ in tag?.onRename?() }, for: .primaryActionTriggered)
+        // The name follows the text size setting live (the accessibility audit: a fixed size read
+        // as "Dynamic Type partially unsupported").
+        tag.registerForTraitChanges([UITraitPreferredContentSizeCategory.self]) { (tag: DocumentNameTag, _: UITraitCollection) in
+            guard let shown = tag.shown else { return }
+            tag.shown = nil
+            tag.update(name: shown.name, ink: shown.ink, canRename: shown.canRename)
+            tag.superview?.setNeedsLayout()
+        }
         return tag
     }
 
@@ -344,6 +355,7 @@ final class DocumentNameTag: UIButton {
         ]
         let title = NSAttributedString(string: name, attributes: attributes)
         if attributedTitle(for: .normal) != title { setAttributedTitle(title, for: .normal) }
+        shown = (name, ink, canRename)
         // The dashes are drawn, not a text underline, so they sit a little below the letters
         // (owner review 5: the text underline sat too tight).
         dashLayer.strokeColor = ink.withAlphaComponent(0.6).cgColor

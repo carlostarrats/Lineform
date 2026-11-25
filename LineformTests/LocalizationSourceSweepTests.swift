@@ -39,6 +39,8 @@ final class LocalizationSourceSweepTests: XCTestCase {
             "Every literal is a LocalizedStringResource / IntentDescription / @Parameter title / AppShortcut phrase. Those types localize a bare literal by construction and extract into Localizable.xcstrings and AppShortcuts.xcstrings, where LocalizationCatalogTests covers them.",
         "AIPromptLexicon.swift":
             "The curated prompt-word vocabulary: its forms in six languages are matched against the typed instruction (never drawn), its directions are sent to the AI model (never drawn), and its questions and chip labels are catalog KEYS resolved at run time through `String(localized: String.LocalizationValue(key), bundle:)` (package catalog, six languages, `extractionState: manual`). The `Directions:` header and keep-constraint are model instructions. AIPromptLexiconTests and AIPromptLexiconLanguageTests pin it.",
+        "WidgetRecents.swift":
+            "The widget's Control Center intent (`NewLineformNoteControlIntent`): LocalizedStringResource / IntentDescription literals that localize by construction from the iPhone catalog, which holds both keys in all six languages.",
         "PhoneAppIntents.swift":
             "The iPhone's copy of LineformAppIntents.swift: the same LocalizedStringResource / IntentDescription / @Parameter / AppShortcut literals, which localize by construction from the iPhone catalog and the Mac's AppShortcuts.xcstrings (by reference). PhoneAppIntentsTests.testTheIntentStringsAreLocalized checks every language.",
     ]
@@ -78,6 +80,7 @@ final class LocalizationSourceSweepTests: XCTestCase {
         "AnnouncementFetcher.swift|Accept": "HTTP request header field name.",
         "AppUpdateCheck.swift|Accept": "HTTP request header field name.",
         "OutlineSidebarView.swift|Lineform": "The app name — never translated (plan Global Constraints).",
+        "FirstLaunchIntroOverlay.swift|Lineform": "The welcome card's wordmark, spoken by VoiceOver: the app name — never translated.",
         "FilesStore.swift|Lineform": "The iPhone Files section's iCloud root: the app name, as on the Mac — never translated.",
         "OutlineSidebarView.swift|Documents": "The `Documents` path component of the iCloud container URL.",
         "DocumentFolderResolver.swift|Documents": "The `Documents` path component of the iCloud container URL.",
