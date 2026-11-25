@@ -40,6 +40,10 @@ public enum ChromeWash {
         }
     }
 
+    /// The whole wash (base and diagonals) is laid at this opacity over the page, so a tenth of
+    /// the page shows through: the Mac over a blur of the document, the iPhone over the page colour.
+    public static let fieldOpacity: Double = 0.90
+
     // MARK: Diagonals
 
     public static let diagonalLightTop = RGB(0.957, 0.957, 0.957)   // #F4F4F4

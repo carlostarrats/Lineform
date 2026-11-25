@@ -253,7 +253,7 @@ struct MuseModalScrim: View {
     static let scrimTransitionStyle = EditorAuxiliaryTransitionStyle.instant
 
     /// Mostly solid: the document survives only as a faint ghost.
-    static let fieldOpacity: CGFloat = 0.90
+    static let fieldOpacity = CGFloat(ChromeWash.fieldOpacity)
 
     /// The stops are `ChromeWash`'s (LineformCore), the one definition the iPhone's word menu
     /// draws from too; `Color(red:green:blue:)` is sRGB, as before.

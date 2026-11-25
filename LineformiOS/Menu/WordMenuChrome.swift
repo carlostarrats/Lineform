@@ -14,6 +14,8 @@ struct WordMenuPalette {
     let isDark: Bool
     /// The theme whose hue the light wash takes (`Theme.chromeTintID`).
     let tintID: ThemeID
+    /// The page colour the wash is laid over at `ChromeWash.fieldOpacity`, as the Mac's field is.
+    let page: UIColor
 
     // MARK: Surfaces
 
@@ -54,15 +56,26 @@ struct WordMenuPalette {
 
     var cardHasShadow: Bool { !isDark }
 
-    init(isDark: Bool, tintID: ThemeID = .system) {
+    init(isDark: Bool, tintID: ThemeID = .system, page: UIColor? = nil) {
         self.isDark = isDark
         self.tintID = tintID
+        let pageColor = page ?? (isDark ? Theme.quiet.backgroundColor : .white)
+        self.page = pageColor
         func washColor(_ c: ChromeWash.RGB) -> UIColor {
             UIColor(red: CGFloat(c.red), green: CGFloat(c.green), blue: CGFloat(c.blue), alpha: 1)
         }
+        // The surfaces the inks are measured on are the wash as it lands: the base at
+        // `fieldOpacity` over the page.
         let base = ChromeWash.base(for: tintID, usesDarkChrome: isDark)
-        washTop = washColor(base.top)
-        washBottom = washColor(base.bottom)
+        func landed(_ c: ChromeWash.RGB) -> UIColor {
+            var r: CGFloat = 0, g: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
+            pageColor.getRed(&r, green: &g, blue: &b, alpha: &a)
+            let f = CGFloat(ChromeWash.fieldOpacity)
+            return UIColor(red: CGFloat(c.red) * f + r * (1 - f), green: CGFloat(c.green) * f + g * (1 - f),
+                           blue: CGFloat(c.blue) * f + b * (1 - f), alpha: 1)
+        }
+        washTop = landed(base.top)
+        washBottom = landed(base.bottom)
         func rgb(_ hex: UInt32) -> UIColor {
             UIColor(
                 red: CGFloat((hex >> 16) & 0xFF) / 255,
@@ -110,7 +123,7 @@ struct WordMenuPalette {
     }
 
     static func forTheme(_ theme: Theme) -> WordMenuPalette {
-        WordMenuPalette(isDark: theme.usesDarkChrome, tintID: theme.chromeTintID)
+        WordMenuPalette(isDark: theme.usesDarkChrome, tintID: theme.chromeTintID, page: theme.backgroundColor)
     }
 
     var colorScheme: ColorScheme { isDark ? .dark : .light }
@@ -128,9 +141,14 @@ struct WordMenuPalette {
             LinearGradient(colors: [swatch(diagonal.top), swatch(diagonal.bottom)], startPoint: start, endPoint: end)
                 .opacity(ChromeWash.diagonalOpacity)
         }
-        return LinearGradient(colors: [color(washTop), color(washBottom)], startPoint: .top, endPoint: .bottom)
+        let base = ChromeWash.base(for: tintID, usesDarkChrome: isDark)
+        // Full height and corner to corner, as the Mac's field; the whole wash at
+        // `fieldOpacity` over the page.
+        return LinearGradient(colors: [swatch(base.top), swatch(base.bottom)], startPoint: .top, endPoint: .bottom)
             .overlay { crossing(.topLeading, .bottomTrailing) }
             .overlay { crossing(.bottomLeading, .topTrailing) }
+            .opacity(ChromeWash.fieldOpacity)
+            .background(color(page))
             .allowsHitTesting(false)
     }
 
