@@ -259,8 +259,8 @@ final class LineformTextView: UITextView {
         hasAppliedProfile = true
         let theme = Theme.theme(for: profile)
         backgroundColor = theme.backgroundColor
-        // On iOS the tint colours both the caret and the selection.
-        tintColor = theme.caretColor
+        // On iOS the tint colours the caret and the selection handles: the highlighter's blue.
+        tintColor = HighlighterSelection.caretColor(for: theme)
         keyboardAppearance = theme.usesDarkChrome ? .dark : .default
         typingAttributes = MarkdownTextStyle.baseAttributes(for: profile)
         updateTextContainerInset()

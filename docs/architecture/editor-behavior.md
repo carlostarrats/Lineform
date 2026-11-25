@@ -1615,6 +1615,10 @@ the app's one `AIConnectionStore.shared`).
 
 ## Highlighter selection (2026-11-24)
 
+The caret is the highlighter's blue on both apps (owner review 2, 2026-11-24): the Mac's
+`insertionPointColor` and the iPhone's `tintColor` (which also colours the selection handles) are
+`HighlighterSelection.caretColor(for:)` — #2F6BDE on a light page, #6F9BFF on a dark one.
+
 The editors' selection is a calm marker stroke instead of the system's flat fill (iPhone TestFlight
 feedback §21; mockup `Lineform-mobile/docs/mockups/selection.html`). Both apps share the shape and
 colour (`Packages/LineformCore/.../Editor/HighlighterSelection.swift`) and the line measuring

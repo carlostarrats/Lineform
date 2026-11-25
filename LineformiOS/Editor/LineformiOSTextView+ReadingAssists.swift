@@ -64,7 +64,9 @@ extension LineformTextView {
     }
 
     func updateReadingRulerColor() {
-        readingRulerView?.backgroundColor = tintColor.withAlphaComponent(Self.readingRulerFillOpacity)
+        // The theme's ink, as on the Mac (the tint is the caret's blue).
+        readingRulerView?.backgroundColor = Theme.theme(for: profile).caretColor
+            .withAlphaComponent(Self.readingRulerFillOpacity)
     }
 
     /// The current line's enclosing rects (every visual line of a wrapped line), widened to the

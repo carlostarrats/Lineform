@@ -116,6 +116,7 @@ struct FilesSearchResults: View {
 
     @Environment(\.wordMenuPalette) private var palette
     @Environment(\.cardOpenTransition) private var cardTransition
+    @Environment(\.wordMenuSession) private var session
 
     /// The file a card stands for, for its swipe actions: another document's, or this one's.
     private func item(for card: SearchResultCard) -> OutlineFileTreeItem? {
@@ -124,10 +125,21 @@ struct FilesSearchResults: View {
     }
 
     var body: some View {
-        switch scope {
-        case .allDocuments: cardList
-        case .openDocument: matchList
+        Group {
+            switch scope {
+            case .allDocuments: cardList
+            case .openDocument: matchList
+            }
         }
+        // Measured: the results on screen after a keystroke or a scope switch.
+        .onChange(of: controller.rows, initial: true) { resultsShown() }
+        .onChange(of: controller.statusText) { resultsShown() }
+        .onChange(of: scope) { resultsShown() }
+    }
+
+    private func resultsShown() {
+        WordMenuTiming.end(.search)
+        WordMenuTiming.end(.scope)
     }
 
     /// The open document's matches, one row each, the current one outlined in Lineform blue. A
@@ -150,6 +162,7 @@ struct FilesSearchResults: View {
                         isCurrent: controller.activeIndex == index,
                         position: String(localized: "\(index + 1) of \(count)")
                     ) {
+                        session?.noteOpenedDocument()
                         controller.activate(row, dismiss: onDismiss)
                     }
                 }
@@ -188,6 +201,7 @@ struct FilesSearchResults: View {
                 let actions = item(for: card).map { FilesSwipeAction.actions(for: $0, store: store) } ?? []
                 SearchResultCardView(card: card) { frame in
                     cardTransition?.record(url: card.row.url, frame: frame)
+                    session?.noteOpenedDocument()
                     controller.activate(card.row, dismiss: onDismiss)
                 }
                 .filesSwipeAccessibilityActions(actions)
@@ -212,7 +226,7 @@ private struct SearchMatchRowView: View {
         Button(action: action) {
             Group {
                 if let snippet = row.snippet {
-                    Text(Self.marked(snippet, wash: palette.color(palette.blueFill).opacity(0.18)))
+                    Text(Self.marked(snippet, wash: palette.color(palette.blueFill).opacity(0.42)))
                 } else {
                     Text(verbatim: "")
                 }
@@ -224,13 +238,16 @@ private struct SearchMatchRowView: View {
             .padding(.horizontal, 12)
             .padding(.vertical, 10)
             .frame(maxWidth: .infinity, minHeight: WordMenuMetrics.minimumTarget, alignment: .leading)
-            .background(shape.fill(palette.color(palette.card)))
             .overlay {
                 if isCurrent {
                     shape.strokeBorder(palette.color(palette.blueMark), lineWidth: 1.5)
                 }
             }
-            .shadow(color: .black.opacity(palette.cardHasShadow ? 0.07 : 0), radius: 7, x: 0, y: 3)
+            .background(
+                shape.fill(palette.color(palette.card))
+                    .shadow(color: .black.opacity(palette.cardHasShadow ? 0.06 : 0), radius: 1, x: 0, y: 1)
+                    .shadow(color: .black.opacity(palette.cardHasShadow ? 0.07 : 0), radius: 7, x: 0, y: 4)
+            )
             .contentShape(shape)
         }
         .buttonStyle(WordMenuPressStyle())
@@ -239,9 +256,9 @@ private struct SearchMatchRowView: View {
         .accessibilityAddTraits(isCurrent ? .isSelected : [])
     }
 
-    /// The line with its match in bold on a light blue wash.
+    /// The line with its match on the blue wash (the mockup's `mark.hit.now`), not bold.
     static func marked(_ snippet: CrossFileSearchSnippet, wash: Color) -> AttributedString {
-        var attributed = SearchResultCardView.emphasized(snippet)
+        var attributed = AttributedString(snippet.lineText)
         let text = snippet.lineText
         if let range = Range(snippet.matchRange, in: text),
            let lower = AttributedString.Index(range.lowerBound, within: attributed),

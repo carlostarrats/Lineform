@@ -41,6 +41,13 @@ struct DocumentScreen: View {
         settings.displayProfile(profileStore.activeProfile, userInterfaceStyle: UIUserInterfaceStyle(colorScheme))
     }
     @State private var isShowingMenu = false
+    /// Where the writer is in the word menu: fresh for every ⋯ open, kept after a card opens a
+    /// document so the ← at the bottom left can reopen the menu exactly there.
+    @State private var menuSession = WordMenuSession()
+    /// The session the ← reopens, while it shows (nil: no ←).
+    @State private var resumeSession: WordMenuSession?
+    /// Hides the ← after `resumeButtonDuration` (never while VoiceOver runs).
+    @State private var resumeHideTask: Task<Void, Never>?
     /// Where the menu's cards record themselves before opening a document.
     @State private var cardTransition = CardOpenTransition()
     /// The card expanding into the page while the menu fades (nil otherwise).
@@ -254,10 +261,20 @@ struct DocumentScreen: View {
                 // The link button's touch square is wider than its circle: the gap to ⋯ shrinks
                 // by the difference, so the circles stay `bottomChromeSpacing` apart.
                 HStack(spacing: Self.bottomChromeSpacing - PreviewLinkButton.horizontalTouchOutset) {
+                    // The way back to the word menu, mirroring ⋯ at the bottom left.
+                    if let resumeSession {
+                        ResumeMenuButton(profile: profile, label: resumeSession.resumeAccessibilityLabel) {
+                            resumeWordMenu()
+                        }
+                        .padding(.trailing, PreviewLinkButton.horizontalTouchOutset)
+                        .transition(.opacity)
+                    }
                     // Read aloud's pill: on the ⋯ button's line, from the left margin up to it.
                     if let exportCommands, exportCommands.speechState != .idle {
                         ReadAloudPill(commands: exportCommands, profile: profile)
                             .padding(.trailing, PreviewLinkButton.horizontalTouchOutset)
+                    } else if resumeSession != nil {
+                        Spacer(minLength: 0)
                     }
                     if displayMode == .split {
                         PreviewLinkButton(isLinked: arePanesLinked, profile: profile) {
@@ -275,6 +292,10 @@ struct DocumentScreen: View {
         .animation(
             EditorMotionPolicy.animation(.easeOut(duration: LineformDesign.Motion.standard), reduceMotion: reduceMotion),
             value: selection.phase
+        )
+        .animation(
+            EditorMotionPolicy.animation(.easeOut(duration: 0.3), reduceMotion: reduceMotion),
+            value: resumeSession == nil
         )
         .animation(
             EditorMotionPolicy.animation(.easeOut(duration: LineformDesign.Motion.standard), reduceMotion: reduceMotion),
@@ -506,12 +527,61 @@ struct DocumentScreen: View {
     private func openWordMenu() {
         WordMenuTiming.tapped()
         positionKeeper.editor?.resignFirstResponder()
+        // ⋯ starts at the word list; the ← (if it showed) goes, and its session with it.
+        endResumeOffer()
+        menuSession = WordMenuSession()
         isShowingMenu = true
+    }
+
+    /// The ←: the menu opens again on the session the writer left it in (page, search, scroll).
+    private func resumeWordMenu() {
+        guard let session = resumeSession else { return }
+        WordMenuTiming.tapped()
+        resumeHideTask?.cancel()
+        resumeHideTask = nil
+        resumeSession = nil
+        positionKeeper.editor?.resignFirstResponder()
+        session.resumed()
+        menuSession = session
+        isShowingMenu = true
+    }
+
+    /// How long the ← stays when it is not used.
+    static let resumeButtonDuration: Duration = .seconds(5)
+
+    /// The menu closed after a card or search result opened a document: the ← shows at the bottom
+    /// left. It fades after `resumeButtonDuration`, or at once when the writer types; while
+    /// VoiceOver runs it never times out and stays until the next action.
+    private func offerResume(_ session: WordMenuSession) {
+        resumeHideTask?.cancel()
+        resumeSession = session
+        document.onWriterEdit = { endResumeOffer() }
+        guard !UIAccessibility.isVoiceOverRunning else {
+            resumeHideTask = nil
+            return
+        }
+        resumeHideTask = Task { @MainActor in
+            try? await Task.sleep(for: Self.resumeButtonDuration)
+            guard !Task.isCancelled else { return }
+            endResumeOffer()
+        }
+    }
+
+    /// The ← goes, and the search it would have reopened stops.
+    private func endResumeOffer() {
+        resumeHideTask?.cancel()
+        resumeHideTask = nil
+        document.onWriterEdit = nil
+        guard let session = resumeSession else { return }
+        resumeSession = nil
+        session.end()
     }
 
     /// Closes the menu at once, or, when a card just opened a document, expands the card into the
     /// page (`expandFromCard`).
     private func closeWordMenu() {
+        // A card or search result opened a document: the ← offers the way back.
+        if menuSession.openedDocument { offerResume(menuSession) } else { menuSession.end() }
         guard let card = cardTransition.take() else {
             isShowingMenu = false
             return
@@ -536,9 +606,11 @@ struct DocumentScreen: View {
     private func expandFromCard(_ card: CardOpenTransition.Card) async {
         let deadline = Date().addingTimeInterval(Self.cardWaitLimit)
         while !pageShows(card.url), Date() < deadline {
-            try? await Task.sleep(for: .milliseconds(8))
+            // Short steps: the page shows the opened text within a frame of it landing.
+            try? await Task.sleep(for: .milliseconds(2))
         }
         guard pageShows(card.url) else { return finishClosingMenu() }
+        WordMenuTiming.end(.openCard)
         // One more turn: the editor (and the Read view) take the new text.
         await Task.yield()
         if reduceMotion {
@@ -598,6 +670,7 @@ struct DocumentScreen: View {
             updateCommand: updateCommand,
             onClose: { closeWordMenu() },
             onThemes: {
+                WordMenuTiming.begin(.themes)
                 closeWordMenu()
                 isShowingStyling = true
             },
@@ -607,7 +680,8 @@ struct DocumentScreen: View {
                 closeWordMenu()
                 // Once the menu is gone: the policy may ask for a confirmation.
                 Task { @MainActor in selection.askAIForWholeDocument() }
-            }
+            },
+            session: menuSession
         )
     }
 

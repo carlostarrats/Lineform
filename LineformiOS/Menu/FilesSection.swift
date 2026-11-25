@@ -129,11 +129,31 @@ struct FilesSection: View {
     var onOpenFolder: (FilesFolderRoute) -> Void
     var onDismiss: () -> Void
 
-    @State private var search: SearchController?
-    @State private var query = ""
-    @State private var scope: FilesSearchScope = .allDocuments
-    @State private var isReplaceShown = false
-    @State private var replacement = ""
+    /// The search's text, scope, replace row and controller live in the menu's session, so the
+    /// menu reopens on them (the ← after a card opened a document).
+    var externalSession: WordMenuSession?
+    @State private var ownSession = WordMenuSession()
+    private var session: WordMenuSession { externalSession ?? ownSession }
+    private var search: SearchController? {
+        get { session.search }
+        nonmutating set { session.search = newValue }
+    }
+    private var query: String {
+        get { session.filesQuery }
+        nonmutating set { session.filesQuery = newValue }
+    }
+    private var scope: FilesSearchScope {
+        get { session.filesScope }
+        nonmutating set { session.filesScope = newValue }
+    }
+    private var isReplaceShown: Bool {
+        get { session.isReplaceShown }
+        nonmutating set { session.isReplaceShown = newValue }
+    }
+    private var replacementBinding: Binding<String> {
+        Binding(get: { session.replacement }, set: { session.replacement = $0 })
+    }
+    private var replacement: String { session.replacement }
     @FocusState private var isSearchFocused: Bool
     @FocusState private var isReplaceFocused: Bool
     @Environment(\.wordMenuPalette) private var palette
@@ -143,6 +163,7 @@ struct FilesSection: View {
         document: OpenDocument,
         editor: (any EditorCommands)? = nil,
         actions: FilesItemActions = FilesItemActions(),
+        session: WordMenuSession? = nil,
         onOpenFolder: @escaping (FilesFolderRoute) -> Void = { _ in },
         onDismiss: @escaping () -> Void
     ) {
@@ -150,6 +171,7 @@ struct FilesSection: View {
         self.document = document
         self.editor = editor
         self.actions = actions
+        self.externalSession = session
         self.onOpenFolder = onOpenFolder
         self.onDismiss = onDismiss
     }
@@ -233,37 +255,66 @@ struct FilesSection: View {
 
     var body: some View {
         WordMenuPageScaffold(title: WordMenuItem.files.title) {
+            // Option C's page: the box, the scope pill and the results 10 pt apart.
             searchBox
+                .padding(.bottom, 2)
             scopeButton
+                .padding(.bottom, 2)
             if hasQuery, let search {
                 FilesSearchResults(controller: search, scope: scope, document: document, store: store, onDismiss: onDismiss)
-            } else {
+            } else if !searchesOpenDocument {
+                // With the open document as the scope and nothing typed, nothing shows under the
+                // box and the scope pill (option C).
                 roots
                 recent
             }
         }
         .onChange(of: document.text) { search?.textChanged() }
         .onChange(of: store.roots) { search?.rootsChanged() }
-        .onDisappear { search?.stop() }
+        .onAppear {
+            // Reopened on this session (the ← after a card): the search catches up with the
+            // document and the folders now on screen.
+            search?.textChanged()
+            search?.rootsChanged()
+        }
+        // The search keeps running while the menu may be reopened on it; the session ends it.
+        .onDisappear { if !session.openedDocument { search?.stop() } }
     }
 
     private var hasQuery: Bool { !query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
 
     private var searchesOpenDocument: Bool { scope == .openDocument }
 
-    /// The search field's row (with the open document as the scope: the replace button on its
-    /// left, the count inside it and the arrows on its right), and the replace row under it.
+    /// Option C's box (2026-11-24 mockup, `.cbox`): ONE card (the card colour, radius 16, padding
+    /// 6, a soft shadow) holding the search field's row and, under it, the replace row. With the
+    /// open document as the scope the row is the replace button on the left, the field (with the
+    /// count) and the up/down arrows on the right. The field is a fixed 40 pt tall, so nothing in
+    /// the row moves when typing starts.
     private var searchBox: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack(spacing: 2) {
+        VStack(alignment: .leading, spacing: Self.boxSpacing) {
+            HStack(spacing: Self.boxSpacing) {
                 if searchesOpenDocument { replaceToggle }
                 searchField
                 if searchesOpenDocument { stepButtons }
             }
             if searchesOpenDocument, isReplaceShown { replaceRow }
         }
-        .padding(.bottom, 2)
+        .padding(Self.boxSpacing)
+        .background(
+            RoundedRectangle(cornerRadius: Self.boxRadius, style: .continuous)
+                .fill(palette.color(palette.card))
+                .shadow(color: .black.opacity(palette.cardHasShadow ? 0.06 : 0), radius: 1, x: 0, y: 1)
+                .shadow(color: .black.opacity(palette.cardHasShadow ? 0.07 : 0), radius: 7, x: 0, y: 4)
+        )
     }
+
+    // The mockup's measurements for the box and what is inside it.
+    static let boxRadius: CGFloat = 16
+    static let boxSpacing: CGFloat = 6
+    static let fieldHeight: CGFloat = 40
+    static let fieldRadius: CGFloat = 10
+    /// The replace button and the arrows: drawn 36 pt (radius 10), each with a 44 pt target.
+    static let iconButtonSize: CGFloat = 36
 
     private var replaceToggle: some View {
         Button {
@@ -271,14 +322,14 @@ struct FilesSection: View {
             if isReplaceShown { isReplaceFocused = true }
         } label: {
             Image(systemName: "arrow.left.arrow.right")
-                .font(.body.weight(.medium))
-                .foregroundStyle(palette.color(isReplaceShown ? palette.blueMark : palette.icon))
-                .frame(width: WordMenuMetrics.minimumTarget, height: WordMenuMetrics.minimumTarget)
+                .font(.system(size: 16, weight: .regular))
+                .foregroundStyle(palette.color(isReplaceShown ? palette.blueMark : palette.ink))
+                .frame(width: Self.iconButtonSize, height: Self.iconButtonSize)
                 .background(
-                    RoundedRectangle(cornerRadius: 10, style: .continuous)
-                        .fill(palette.color(palette.blueFill).opacity(isReplaceShown ? 0.14 : 0))
+                    RoundedRectangle(cornerRadius: Self.fieldRadius, style: .continuous)
+                        .fill(palette.color(palette.blueFill).opacity(isReplaceShown ? 0.12 : 0))
                 )
-                .contentShape(Rectangle())
+                .contentShape(Rectangle().inset(by: -4))
         }
         .buttonStyle(.plain)
         .accessibilityLabel(isReplaceShown ? Self.hideReplaceTitle : Self.showReplaceTitle)
@@ -303,34 +354,34 @@ struct FilesSection: View {
     ) -> some View {
         Button(action: action) {
             Image(systemName: systemImage)
-                .font(.body.weight(.medium))
-                .foregroundStyle(palette.color(palette.icon))
-                .frame(width: WordMenuMetrics.minimumTarget, height: WordMenuMetrics.minimumTarget)
-                .contentShape(Rectangle())
+                .font(.system(size: 14, weight: .medium))
+                .foregroundStyle(palette.color(palette.ink))
+                .frame(width: Self.iconButtonSize, height: Self.iconButtonSize)
+                .contentShape(Rectangle().inset(by: -4))
         }
         .buttonStyle(WordMenuPressStyle())
         .accessibilityLabel(label)
         .accessibilityIdentifier(identifier)
     }
 
-    /// Replace with, Replace (the current match) and All (every match, one undo step). Side by
-    /// side, or stacked when the text size leaves no room.
+    /// Replace with, Replace (the current match) and All (every match, one undo step), inside the
+    /// box. Side by side, or stacked when the text size leaves no room.
     private var replaceRow: some View {
         ViewThatFits(in: .horizontal) {
-            HStack(spacing: 6) {
+            HStack(spacing: Self.boxSpacing) {
                 replaceField
                 replaceButtons
             }
-            VStack(alignment: .leading, spacing: 6) {
+            VStack(alignment: .leading, spacing: Self.boxSpacing) {
                 replaceField
-                HStack(spacing: 6) { replaceButtons }
+                HStack(spacing: Self.boxSpacing) { replaceButtons }
             }
         }
     }
 
     private var replaceField: some View {
         TextField(
-            text: $replacement,
+            text: replacementBinding,
             prompt: Text(Self.replaceWithPrompt).foregroundStyle(palette.color(palette.tertiary))
         ) {
             Text(Self.replaceWithPrompt)
@@ -338,8 +389,9 @@ struct FilesSection: View {
         .focused($isReplaceFocused)
         .textInputAutocapitalization(.never)
         .autocorrectionDisabled()
+        .font(.body)
         .foregroundStyle(palette.color(palette.ink))
-        .wordMenuField()
+        .boxField()
         .frame(minWidth: 120)
         .accessibilityIdentifier("files.search.replacement")
     }
@@ -352,13 +404,13 @@ struct FilesSection: View {
             search.replace()
         } label: {
             Text(Self.replaceTitle)
-                .font(.subheadline.weight(.medium))
+                .font(.subheadline)
                 .foregroundStyle(palette.color(palette.ink))
                 .lineLimit(1)
                 .padding(.horizontal, 14)
-                .frame(minHeight: WordMenuMetrics.minimumTarget)
+                .frame(height: Self.iconButtonSize)
                 .background(Capsule().fill(palette.color(palette.field)))
-                .contentShape(Capsule())
+                .contentShape(Capsule().inset(by: -4))
         }
         .buttonStyle(WordMenuPressStyle())
         .disabled(!(search?.canReplace ?? false) || !hasQuery)
@@ -371,13 +423,13 @@ struct FilesSection: View {
             search.replaceAll()
         } label: {
             Text(Self.replaceAllShortTitle)
-                .font(.subheadline.weight(.semibold))
+                .font(.subheadline)
                 .foregroundStyle(.white)
                 .lineLimit(1)
-                .padding(.horizontal, 16)
-                .frame(minHeight: WordMenuMetrics.minimumTarget)
+                .padding(.horizontal, 14)
+                .frame(height: Self.iconButtonSize)
                 .background(Capsule().fill(palette.color(palette.blueFill)))
-                .contentShape(Capsule())
+                .contentShape(Capsule().inset(by: -4))
         }
         .buttonStyle(WordMenuPressStyle())
         .disabled(!(search?.canReplaceAll ?? false) || !hasQuery)
@@ -429,17 +481,21 @@ struct FilesSection: View {
 
     private func setScope(_ newScope: FilesSearchScope) {
         guard newScope != scope else { return }
+        WordMenuTiming.begin(.scope)
         scope = newScope
         // Replace only ever touches the open document: leaving its scope closes the replace row.
         if newScope == .allDocuments { isReplaceShown = false }
         search?.setFilter(newScope.filter)
     }
 
+    /// The field inside the box: the glass (only while empty; typed text starts where it was), the
+    /// text and, with the open document as the scope, the count ("1/5"). A fixed 40 pt tall: no
+    /// clear button or anything else that could change its height (the mockup has none).
     private var searchField: some View {
-        HStack(spacing: 8) {
-            // The glass shows only while the field is empty; typed text takes its place.
+        HStack(spacing: Self.boxSpacing) {
             if !hasQuery {
                 Image(systemName: "magnifyingglass")
+                    .font(.system(size: 15))
                     .foregroundStyle(palette.color(palette.secondary))
                     .accessibilityHidden(true)
             }
@@ -456,6 +512,7 @@ struct FilesSection: View {
             .onSubmit {
                 if searchesOpenDocument { search?.selectNext() }
             }
+            .font(.body)
             .foregroundStyle(palette.color(palette.ink))
             .accessibilityIdentifier("files.search.field")
             if searchesOpenDocument, let position = search?.positionText {
@@ -467,26 +524,15 @@ struct FilesSection: View {
                     .accessibilityLabel(Text(verbatim: search?.positionAccessibilityText ?? position))
                     .accessibilityIdentifier("files.search.count")
             }
-            if hasQuery {
-                Button {
-                    setQuery("")
-                } label: {
-                    Image(systemName: "xmark.circle.fill")
-                        .foregroundStyle(palette.color(palette.icon))
-                        .frame(width: 32, height: 32)
-                        .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel(String(localized: "Clear search"))
-            }
         }
-        .wordMenuField()
+        .boxField()
     }
 
     /// The search is made on the first query (never in `init`). In All documents it reaches every
     /// file and this document (`SearchFilter.all`); with the open document as the scope, only
     /// this document (`.document`), and nothing is scanned.
     private func setQuery(_ newQuery: String) {
+        if !newQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { WordMenuTiming.begin(.search) }
         query = newQuery
         if search == nil, !newQuery.isEmpty {
             let made = SearchController(
@@ -559,8 +605,29 @@ struct FilesSection: View {
     /// Opens a file and closes the menu. A file iCloud has not downloaded is downloaded first;
     /// the document shows its downloading state meanwhile.
     private func open(_ url: URL) {
+        session.noteOpenedDocument()
         Task { await document.openReportingFailure(url) }
         onDismiss()
+    }
+}
+
+extension View {
+    /// A field inside Files' search box: the field colour, radius 10, a fixed 40 pt height.
+    fileprivate func boxField() -> some View { modifier(FilesBoxField()) }
+}
+
+private struct FilesBoxField: ViewModifier {
+    @Environment(\.wordMenuPalette) private var palette
+
+    func body(content: Content) -> some View {
+        content
+            .padding(.horizontal, 10)
+            .frame(height: FilesSection.fieldHeight)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(
+                RoundedRectangle(cornerRadius: FilesSection.fieldRadius, style: .continuous)
+                    .fill(palette.color(palette.field))
+            )
     }
 }
 

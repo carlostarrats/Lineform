@@ -20,14 +20,24 @@ final class ConnectAIPresentationTests: XCTestCase {
         return defaults
     }
 
-    func testConnectButtonNamesWhatIsSentAndToWhom() {
-        XCTAssertTrue(ConnectAIPresentation.connectButtonTitle(for: .claude, otherHost: nil).contains("Anthropic"))
-        XCTAssertTrue(ConnectAIPresentation.connectButtonTitle(for: .chatGPT, otherHost: nil).contains("OpenAI"))
-        XCTAssertTrue(ConnectAIPresentation.connectButtonTitle(for: .google, otherHost: nil).contains("Google"))
-        XCTAssertTrue(ConnectAIPresentation.connectButtonTitle(for: .other, otherHost: "localhost").contains("localhost"))
-        XCTAssertTrue(ConnectAIPresentation.connectButtonTitle(for: .claude, otherHost: nil).contains("text you choose"))
-        XCTAssertTrue(ConnectAIPresentation.connectButtonTitle(for: .other, otherHost: nil).contains("that address"))
-        XCTAssertTrue(ConnectAIPresentation.connectButtonTitle(for: .other, otherHost: "  ").contains("that address"))
+    func testConnectButtonIsConnectAndTheNoteNamesWhatIsSentAndToWhom() {
+        XCTAssertEqual(ConnectAIPresentation.connectTitle, "Connect")
+        XCTAssertTrue(ConnectAIPresentation.consentNote(for: .claude, otherHost: nil).contains("Anthropic"))
+        XCTAssertTrue(ConnectAIPresentation.consentNote(for: .chatGPT, otherHost: nil).contains("OpenAI"))
+        XCTAssertTrue(ConnectAIPresentation.consentNote(for: .google, otherHost: nil).contains("Google"))
+        XCTAssertTrue(ConnectAIPresentation.consentNote(for: .other, otherHost: "localhost").contains("localhost"))
+        XCTAssertTrue(ConnectAIPresentation.consentNote(for: .claude, otherHost: nil).contains("text you choose"))
+        XCTAssertTrue(ConnectAIPresentation.consentNote(for: .other, otherHost: nil).contains("that address"))
+        XCTAssertTrue(ConnectAIPresentation.consentNote(for: .other, otherHost: "  ").contains("that address"))
+        XCTAssertTrue(ConnectAIPresentation.consentNote(for: .claude, otherHost: nil).hasSuffix(ConnectAIPresentation.privacyNote))
+    }
+
+    func testModelPickerShowsModelNames() {
+        XCTAssertEqual(AIProvider.claude.modelDisplayName(for: .standard), "Claude Haiku 5.5")
+        XCTAssertEqual(AIProvider.claude.modelDisplayName(for: .higherQuality), "Claude Sonnet 5.5")
+        XCTAssertEqual(AIProvider.chatGPT.modelDisplayName(for: .higherQuality), "GPT-6.1 Terra")
+        XCTAssertEqual(AIProvider.google.modelDisplayName(for: .standard), "Gemini 3.5 Flash-Lite")
+        XCTAssertNil(AIProvider.other.modelDisplayName(for: .standard))
     }
 
     func testBillingNoteSaysSubscriptionDoesNotCoverIt() {
@@ -46,11 +56,11 @@ final class ConnectAIPresentationTests: XCTestCase {
             let privacy = ConnectAIPresentation.privacyNote(bundle: bundle)
             XCTAssertNotEqual(title, "Connect Your AI", language)
             XCTAssertNotEqual(privacy, "Lineform sends only the text you act on, only when you choose an AI action, directly to the provider you connected, under your account and that provider's terms. Lineform's developer receives nothing.", language)
-            for key in ["Connect — Lineform will send the text you choose to %@",
-                        "Connect — Lineform will send the text you choose to that address"] {
+            for key in ["Connect", "Lineform will send the text you choose to %@.",
+                        "Lineform will send the text you choose to that address."] {
                 let consent = bundle.localizedString(forKey: key, value: nil, table: nil)
                 XCTAssertNotEqual(consent, key, "\(language): consent label untranslated")
-                if key.hasSuffix("%@") {
+                if key.contains("%@") {
                     XCTAssertTrue(consent.contains("%@"), "\(language): \"\(consent)\" lost the recipient")
                 }
             }

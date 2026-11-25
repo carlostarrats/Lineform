@@ -196,6 +196,12 @@ struct WordMenuPageScaffold<Content: View>: View {
     @ViewBuilder var content: () -> Content
     @Environment(\.wordMenuPalette) private var palette
     @ScaledMetric(relativeTo: .largeTitle) private var titleSize = WordMenuMetrics.sectionTitleSize
+    @Environment(\.wordMenuSession) private var session
+    @Environment(\.wordMenuPageDepth) private var depth
+    /// Kept in the session as the page scrolls, and restored when the page comes back (the ←
+    /// after a card opened a document, or back from a folder).
+    @State private var position = ScrollPosition(edge: .top)
+    @State private var hasRestoredScroll = false
 
     var body: some View {
         ScrollView {
@@ -213,6 +219,27 @@ struct WordMenuPageScaffold<Content: View>: View {
             .padding(.horizontal, WordMenuMetrics.pageInset)
             .padding(.bottom, WordMenuMetrics.bottomClearance)
             .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .scrollPosition($position)
+        .onScrollGeometryChange(for: CGFloat.self) { geometry in
+            geometry.contentOffset.y + geometry.contentInsets.top
+        } action: { _, offset in
+            // Until the kept offset is back, the page's first layout (at the top) is not news.
+            guard let session, depth > 0, hasRestoredScroll else { return }
+            session.scrollOffsets[depth] = max(0, offset)
+        }
+        .onAppear {
+            WordMenuTiming.end(.openPage)
+            guard let offset = session?.scrollOffsets[depth], offset > 0 else {
+                hasRestoredScroll = true
+                return
+            }
+            // After the first layout, so the content is tall enough to scroll there.
+            Task { @MainActor in
+                position.scrollTo(y: offset)
+                await Task.yield()
+                hasRestoredScroll = true
+            }
         }
         .scrollDismissesKeyboard(.interactively)
     }
@@ -397,6 +424,8 @@ struct WordMenuToggleRow: View {
 struct WordMenuGroupLabel: View {
     var title: String
     var systemImage: String? = nil
+    /// No space above or below (a label whose group sets its own gaps, as Markdown Basics does).
+    var isTight = false
     @Environment(\.wordMenuPalette) private var palette
 
     var body: some View {
@@ -412,8 +441,8 @@ struct WordMenuGroupLabel: View {
         .font(.caption.weight(.medium))
         .foregroundStyle(palette.color(palette.tertiary))
         .padding(.horizontal, 4)
-        .padding(.top, 10)
-        .padding(.bottom, 2)
+        .padding(.top, isTight ? 0 : 10)
+        .padding(.bottom, isTight ? 0 : 2)
         .accessibilityElement(children: .combine)
         .accessibilityAddTraits(.isHeader)
     }
@@ -466,8 +495,8 @@ struct WordMenuPrimaryButton: View {
     }
 }
 
-/// A small round icon button on the field's grey (a root's "+" in Files): drawn 30 pt, a 44 pt
-/// target. Text-free actions get this grey so they read as buttons.
+/// A small round Lineform-blue button with a white glyph (a root's "+" in Files, the same blue as
+/// the New Document pill): drawn 30 pt, a 44 pt target.
 struct WordMenuRoundButton: View {
     var systemImage: String
     var label: String
@@ -480,9 +509,9 @@ struct WordMenuRoundButton: View {
         Button(action: action) {
             Image(systemName: systemImage)
                 .font(.system(size: 13, weight: .semibold))
-                .foregroundStyle(palette.color(palette.ink))
+                .foregroundStyle(.white)
                 .frame(width: Self.drawnDiameter, height: Self.drawnDiameter)
-                .background(Circle().fill(palette.color(palette.field)))
+                .background(Circle().fill(palette.color(palette.blueFill)))
                 .frame(width: WordMenuMetrics.minimumTarget, height: WordMenuMetrics.minimumTarget)
                 .contentShape(Rectangle())
         }
@@ -569,6 +598,8 @@ struct WordMenuCornerButton: View {
     var fill: UIColor
     var ink: UIColor
     var isDark: Bool
+    /// VoiceOver's name, when it says more than the glyph's ("Back to Files").
+    var label: String? = nil
     var action: () -> Void
 
     static let diameter = WordMenuMetrics.cornerButtonDiameter
@@ -599,10 +630,10 @@ struct WordMenuCornerButton: View {
                 .contentShape(Circle())
         }
         .buttonStyle(.plain)
-        .accessibilityLabel(glyph.accessibilityLabel)
+        .accessibilityLabel(label ?? glyph.accessibilityLabel)
         // Fixed-size floating chrome: a long press at accessibility sizes shows it enlarged.
         .accessibilityShowsLargeContentViewer {
-            Label(glyph.accessibilityLabel, systemImage: glyph.systemImage)
+            Label(label ?? glyph.accessibilityLabel, systemImage: glyph.systemImage)
         }
     }
 }
@@ -625,6 +656,28 @@ struct MoreButton: View {
             action: action
         )
         .accessibilityIdentifier("document.more")
+    }
+}
+
+/// The ← at the bottom left of the document after a card or search result in the word menu opened
+/// a document: it reopens the menu where the writer was. The ⋯ button's twin (same size, look and
+/// margins), mirrored to the other corner. VoiceOver reads "Back to Files" (or the page's name).
+struct ResumeMenuButton: View {
+    var profile: ReadingProfile
+    var label: String
+    var action: () -> Void
+
+    var body: some View {
+        let theme = Theme.theme(for: profile)
+        WordMenuCornerButton(
+            glyph: .back,
+            fill: theme.backgroundColor,
+            ink: theme.textColor,
+            isDark: theme.usesDarkChrome,
+            label: label,
+            action: action
+        )
+        .accessibilityIdentifier("document.backToMenu")
     }
 }
 

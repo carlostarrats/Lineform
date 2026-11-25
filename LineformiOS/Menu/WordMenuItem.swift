@@ -1,4 +1,5 @@
 import Foundation
+import SwiftUI
 
 /// The words of the word menu, in the order the list shows them: three large words, two large grey
 /// words (things you set rather than places you go), then the small words. The raw value is
@@ -139,4 +140,52 @@ struct WordMenuNavigation: Equatable {
         stack.removeLast()
         return true
     }
+}
+
+/// Where the writer is in the word menu, kept apart from the menu's view so the menu can be
+/// reopened exactly there: the page stack, Files' search (its text, scope, replace row and the
+/// running search) and each page's scroll position. The screen makes a fresh one for every ⋯
+/// open; after a card or search result opens a document it keeps this one, and the round ← at
+/// the bottom left (`ResumeMenuButton`) reopens the menu on it.
+@MainActor
+@Observable
+final class WordMenuSession {
+    var navigation = WordMenuNavigation()
+    var filesQuery = ""
+    var filesScope: FilesSearchScope = .allDocuments
+    var isReplaceShown = false
+    var replacement = ""
+    /// Files' search, made on the first query.
+    var search: SearchController?
+    /// Each page's scroll offset, by its depth in the stack (1 = the first page).
+    @ObservationIgnored var scrollOffsets: [Int: CGFloat] = [:]
+    /// A card or search result opened a document from this menu: the way back is offered.
+    @ObservationIgnored private(set) var openedDocument = false
+
+    /// A card, a search result or a match is opening a document (or a place in this one).
+    func noteOpenedDocument() {
+        openedDocument = true
+        WordMenuTiming.begin(.openCard)
+    }
+
+    /// The menu is shown again on this session.
+    func resumed() { openedDocument = false }
+
+    /// The session is over: Files' search stops scanning and searching.
+    func end() {
+        search?.stop()
+    }
+
+    /// The page the way back returns to, for VoiceOver: "Back to Files" (or the folder's name).
+    var resumeAccessibilityLabel: String {
+        let title = navigation.top?.title ?? WordMenuItem.files.title
+        return String(localized: "Back to \(title)")
+    }
+}
+
+extension EnvironmentValues {
+    /// The menu's session, for the cards that note an open and the pages that keep their scroll.
+    @Entry var wordMenuSession: WordMenuSession? = nil
+    /// The depth of the page on screen in the menu's stack (0: none).
+    @Entry var wordMenuPageDepth: Int = 0
 }

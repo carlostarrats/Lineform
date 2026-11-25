@@ -80,13 +80,23 @@ public enum ConnectAIPresentation {
 
     public static var modelTierLabel: String { String(localized: "Model", bundle: .module) }
 
-    /// The consent step: the button names what is sent and to whom.
-    public static func connectButtonTitle(for provider: AIProvider, otherHost: String?) -> String {
+    /// The consent step's button: just "Connect". What is sent and to whom is the small text
+    /// under it (`consentNote`).
+    public static var connectTitle: String { String(localized: "Connect", bundle: .module) }
+
+    /// The small text under Connect: what is sent and to whom (the company, or Other's host),
+    /// then the privacy note.
+    public static func consentNote(for provider: AIProvider, otherHost: String?) -> String {
+        recipientNote(for: provider, otherHost: otherHost) + " " + privacyNote
+    }
+
+    /// What is sent and to whom: "Lineform will send the text you choose to Anthropic."
+    public static func recipientNote(for provider: AIProvider, otherHost: String?, bundle: Bundle = .lineformCore) -> String {
         let host = otherHost?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         guard let recipient = provider.companyName ?? (host.isEmpty ? nil : host) else {
-            return String(localized: "Connect — Lineform will send the text you choose to that address", bundle: .module)
+            return String(localized: "Lineform will send the text you choose to that address.", bundle: bundle)
         }
-        return String(localized: "Connect — Lineform will send the text you choose to \(recipient)", bundle: .module)
+        return String(localized: "Lineform will send the text you choose to \(recipient).", bundle: bundle)
     }
 
     /// The host of what the writer has typed into Other's Address field, for the consent

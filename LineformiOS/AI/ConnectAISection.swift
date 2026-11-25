@@ -44,10 +44,12 @@ final class ConnectAIFormModel: ObservableObject, Identifiable {
         ConnectAIPresentation.paneState(for: selection, connectedProvider: store.connectedProvider, keyMissing: keyMissing)
     }
 
-    /// The consent step names what is sent and to whom, in full: "Connect — Lineform will send the
-    /// text you choose to …".
-    var connectTitle: String {
-        ConnectAIPresentation.connectButtonTitle(for: selection, otherHost: ConnectAIPresentation.host(fromAddress: address))
+    /// The consent step: the button says "Connect"; the small text under it names what is sent and
+    /// to whom ("Lineform will send the text you choose to Anthropic."), then the privacy note.
+    var connectTitle: String { ConnectAIPresentation.connectTitle }
+
+    var consentNote: String {
+        ConnectAIPresentation.consentNote(for: selection, otherHost: ConnectAIPresentation.host(fromAddress: address))
     }
 
     /// Other is an address, an optional key and a model; the big three are a key and a tier.
@@ -89,7 +91,8 @@ final class ConnectAIFormModel: ObservableObject, Identifiable {
             ConnectAIPresentation.optionalModelLabel, ConnectAIPresentation.connectedText,
             ConnectAIPresentation.disconnectTitle, ConnectAIPresentation.reconnectNote,
             ConnectAIPresentation.privacyNote, ConnectAIPresentation.modelTierLabel,
-            ConnectAIPresentation.connectButtonTitle(for: .other, otherHost: nil),
+            ConnectAIPresentation.connectTitle,
+            ConnectAIPresentation.recipientNote(for: .other, otherHost: nil),
             AIActionController.reconnectMessage,
             ConnectAISection.title, ConnectAISection.note,
         ]
@@ -98,7 +101,7 @@ final class ConnectAIFormModel: ObservableObject, Identifiable {
             strings.append(ConnectAIPresentation.billingNote(for: provider))
             if let guidance = ConnectAIPresentation.keyGuidance(for: provider) { strings.append(guidance) }
             if provider != .other {
-                strings.append(ConnectAIPresentation.connectButtonTitle(for: provider, otherHost: nil))
+                strings.append(ConnectAIPresentation.recipientNote(for: provider, otherHost: nil))
             }
         }
         strings += AIModelTier.allCases.map(\.title)
@@ -110,8 +113,9 @@ final class ConnectAIFormModel: ObservableObject, Identifiable {
 /// The word menu's Connect Your AI: what is sent, the providers as rows (Claude, ChatGPT, Google,
 /// Other; the picked one ticked), its billing note, then either "Connected" with the tier,
 /// Disconnect and Ask AI… for the whole document, or the key field (Other: address, optional key,
-/// model), the privacy note and the blue Connect pill (the consent step: "Connect — Lineform will
-/// send the text you choose to …"). Connecting makes no request.
+/// model) and the blue Connect pill, with what is sent, to whom and the privacy note in small text
+/// under it (the consent step). The Model row names the models ("Claude Sonnet 5.5"). Connecting
+/// makes no request.
 struct ConnectAISection: View {
     @StateObject private var form: ConnectAIFormModel
     /// Observed too: the connection and the tier live in the store.
@@ -289,36 +293,44 @@ struct ConnectAISection: View {
                 .accessibilityIdentifier("connectAI.error")
         }
         WordMenuPrimaryButton(title: form.connectTitle) { connect() }
+            .accessibilityHint(Text(form.consentNote))
             .accessibilityIdentifier("connectAI.connect")
-        WordMenuNote(text: ConnectAIPresentation.privacyNote)
-            .padding(.top, 4)
+        // What is sent, to whom, and the privacy note: small secondary text under the button.
+        Text(form.consentNote)
+            .font(.footnote)
+            .foregroundStyle(palette.color(palette.secondary))
+            .fixedSize(horizontal: false, vertical: true)
+            .padding(.horizontal, 4)
+            .padding(.top, 2)
+            .accessibilityIdentifier("connectAI.consentNote")
     }
 
-    /// Standard or Higher quality, with the model that tier sends under it (provider identifiers,
-    /// shown verbatim). A change while connected takes effect at the next action; no key is read.
+    /// The model, by its product name ("Claude Sonnet 5.5"): each tier is listed by the model it
+    /// sends. The tier stays the stored choice. A change while connected takes effect at the next
+    /// action; no key is read.
     @ViewBuilder
     private var tierPicker: some View {
         let provider = form.selection
+        let current = provider.modelDisplayName(for: store.tier(for: provider)) ?? ""
         Menu {
             Picker(ConnectAIPresentation.modelTierLabel, selection: Binding(
                 get: { store.tier(for: provider) },
                 set: { store.setTier($0, for: provider) }
             )) {
                 ForEach(AIModelTier.allCases) { tier in
-                    Text(tier.title).tag(tier)
+                    Text(verbatim: provider.modelDisplayName(for: tier) ?? "").tag(tier)
                 }
             }
             .pickerStyle(.inline)
         } label: {
             WordMenuRowLabel(
                 title: ConnectAIPresentation.modelTierLabel,
-                note: provider.model(for: store.tier(for: provider)),
-                accessory: .text(store.tier(for: provider).title)
+                accessory: .text(current)
             )
         }
         .buttonStyle(WordMenuPressStyle())
         .accessibilityLabel(ConnectAIPresentation.modelTierLabel)
-        .accessibilityValue(store.tier(for: provider).title)
+        .accessibilityValue(Text(verbatim: current))
         .accessibilityIdentifier("connectAI.tier")
     }
 
