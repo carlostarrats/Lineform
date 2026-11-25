@@ -77,7 +77,9 @@ for line alike. Do not switch it to TextKit 2.
 
 - **Reading profile.** `LineformTextView.profile` applies the base attributes
   (`MarkdownTextStyle.baseAttributes(for:)`) over the whole document, the typing attributes, the
-  page colour, the caret and selection (`tintColor`) from `Theme.theme(for:)`, and the column
+  page colour, the caret and selection handles (`tintColor`: the highlighter's blue, #2F6BDE on
+  light, #6F9BFF on dark, `HighlighterSelection.caretColor(for:)`; the Reading Ruler keeps the
+  theme's ink), and the column
   insets from `EditorReadingLayout` (`profile.columnWidth` centred, never under
   `profile.marginWidth`; 20 pt top and bottom). The profile comes from the per-device
   `ReadingProfileStore` (`UserDefaults.standard`, never synced), which `DocumentScreen` observes,
@@ -139,7 +141,8 @@ for line alike. Do not switch it to TextKit 2.
   text view's `UITextSelectionDisplayInteraction`; its `highlightView` is public and settable
   (iOS 17+), so the editor installs `HiddenSelectionHighlightView` — hidden, draws nothing, and
   reports each new set of selection rects so the strokes follow UIKit's own updates. The caret
-  (`cursorView`), grabber handles, loupe and edit menu stay the system's. The strokes are
+  (`cursorView`), grabber handles, loupe and edit menu stay the system's, tinted the highlighter's
+  blue (`tintColor`, owner review 2, 2026-11-24; the Read view's handles too). The strokes are
   `CAShapeLayer`s (one per line; one shape under Increase Contrast) in `HighlighterSelectionView`,
   a subview BEHIND the text (above the Reading Ruler and History's wash), built from TextKit 1
   line fragments of the VISIBLE part of the selection only: Select All on 1 MB draws one screenful
@@ -757,7 +760,30 @@ puts the keyboard away first.
   closes), then a picture of the page grows from the card's frame to the page's (0.3 s,
   ease-in-out, corners easing square) while the menu fades underneath. The document opens exactly
   as before; only the picture waits. Under Reduce Motion the menu crossfades to the page. An
-  iCloud placeholder (downloads first) and the in-document match rows close the menu plainly. Design source: the owner's TestFlight review, §14–§20 of
+  iCloud placeholder (downloads first) and the in-document match rows close the menu plainly.
+- **Back to where I was** (owner review 2, 2026-11-24). After a card or search result (Recent, a
+  folder's card, a search card or an in-document match) opens a document, a round ← shows at the
+  bottom LEFT of the document, the ⋯ button's twin mirrored (`ResumeMenuButton`: same 48 pt,
+  look and margins; SF Symbol `arrow.left`; VoiceOver "Back to Files", or "Back to <folder>").
+  Tapping it reopens the menu exactly where the writer was: the same page, Files' search text,
+  scope and replace row, and each page's scroll position. That state lives in `WordMenuSession`
+  (the page stack, Files' search and its running `SearchController`, the scroll offsets by
+  depth), which the screen owns: ⋯ always starts a fresh session at the word list; a card marks
+  the session (`noteOpenedDocument`) and the screen keeps it for the ←. The ← fades after
+  `DocumentScreen.resumeButtonDuration` (5 s) and at once when the writer types
+  (`OpenDocument.onWriterEdit`) or opens the menu; while VoiceOver runs it never times out and
+  stays until the next action (CLAUDE.md: nothing a VoiceOver user needs dismisses itself). While
+  it shows, the session's search keeps running; when it goes, the session ends (`end()` stops the
+  search and its scan).
+- **Measured** (`WordMenuTiming`, signposts and one log line each, `category == "WordMenuTiming"`):
+  the open, a page opening, the Files search results after a keystroke, a scope switch, a document
+  opened from a card and the Themes sheet. Each ends on the main queue's next turn after its frame
+  is committed (a sheet's slide animation is not counted). Simulator, Debug, after warm-up: open
+  7–21 ms, a page 20–40 ms, search results 8–37 ms per keystroke, scope 35 ms, a card 35–51 ms,
+  Themes 40–60 ms (the first open after launch is slower: 60–120 ms). The file-content search waits
+  `SearchController.fileSearchDebounce` (0.1 s; the Mac's 0.3 s made results lag the typing), the
+  card open polls the editor every 2 ms, and the menu loads the Themes sheet's fonts off the main
+  thread while it is open (`WordMenuWarmUp`). Design source: the owner's TestFlight review, §14–§20 of
 `Lineform-mobile/docs/2026-11-23-iphone-testflight-feedback.md`, and `mockups/word-menu.html`.
 
 - **Surface.** The Mac Settings window's wash (`EditorChromeAndControls.cardGradient…`): white →
@@ -804,7 +830,14 @@ puts the keyboard away first.
   `init`). Search stays here, in ⋯ ▸ Files: there is never a find bar on the document page
   (owner's option C, §24 of the TestFlight feedback, `mockups/find-replace.html`). Under the field,
   the **scope button** (`FilesSearchScope`: a pill with a chevron, a native menu with checkmarks)
-  picks one of two scopes, and only that scope's results show:
+  picks one of two scopes, and only that scope's results show. The field sits in **one white card
+  with the field and the replace row inside** (option C's `.cbox`: the card colour, radius 16,
+  6 pt padding, a soft two-layer shadow; the field and the replace field on the field colour,
+  radius 10, a FIXED 40 pt tall, so the row never moves when typing starts — there is no clear
+  button), the replace button (drawn 36 pt, radius 10) on its left, the count inside and the
+  arrows (36 pt) on its right; the scope pill under the card; results under the pill, 10 pt
+  apart. With the open document as the scope and nothing typed, nothing shows under the pill
+  (no folders, no Recent):
   - **All documents** (the default; prompt "Search all documents"; `SearchFilter.all`): this
     document's matches, file-name matches (`QuickOpenIndex`) and matches inside other files
     (`CrossFileSearchModel`), grouped into ONE card per document (`SearchResultCard.cards`) with
@@ -820,8 +853,9 @@ puts the keyboard away first.
     alone while no match is current after a replacement, "0" for none), with ↑ / ↓
     (`chevron.up`/`chevron.down`, wrapping; Return in the field is ↓) that move the CURRENT
     match in the list only. The matches are rows (up to `SearchController.maximumDocumentRows`,
-    500; the count and arrows reach every match), the line with the match in bold on a light blue
-    wash, the current one outlined in Lineform blue. The **replace button** on the field's left
+    500; the count and arrows reach every match), each its own white card with a soft shadow
+    (radius 12), the match on a blue wash (Lineform blue at 0.42, `mark.hit.now`), the current
+    one outlined in Lineform blue (1.5 pt). The **replace button** on the field's left
     (`arrow.left.arrow.right`, tinted blue while open) toggles a second row: "Replace with",
     **Replace** (the current match, then on to the next: `SearchController.replace`, which
     re-resolves against the live text) and **All** (blue pill, VoiceOver "Replace All";
@@ -848,8 +882,10 @@ puts the keyboard away first.
   (`FilesSection.phoneRoots`; the store still models one, dormant, and Files' search skips it), no
   Open from Files…, no New Document row and no New Folder (the Mac has none) — owner review
   2026-11-24, matching `mockups/word-menu.html`.
-- **Each root**: its heading (cloud or phone icon) with a **+** on the field's grey round
-  background (`WordMenuRoundButton`, 30 pt drawn, a 44 pt target, "New Document in iCloud") that
+- **Each root**: its heading (cloud or phone icon; On My iPhone's heading has the mockup's iCloud
+  styling: 12 pt uppercase, tertiary ink, the icon beside it) with a **+** in Lineform blue — a
+  blue round button with a white +, the New Document pill's blue (`WordMenuRoundButton`, 30 pt
+  drawn, a 44 pt target, "New Document in iCloud"; owner review 2, 2026-11-24) — that
   makes a new document in that root (`OpenDocument.newDocument(in:)`), then its folders as plain
   rows (folder icon close to the name, the count of its documents on the right, a chevron). After
   both roots, **Recent**: both roots' own documents as cards, newest first
@@ -917,11 +953,19 @@ headings: the Mac's "Add # Title or ## Section to build an outline."
 
 ### Markdown Basics
 
-`BasicsSection`: the package's `MarkdownReference` sections, each a grey card (no shadow) under its
-group label, with room between label and card. A row shows the syntax (monospaced for a code row)
-over its explanation; a code row has a copy button on the right (44 pt) that copies its
+`BasicsSection`, as `mockups/word-menu.html` (`.mdgroup`, owner review 2, 2026-11-24): each group
+is its own grey card (the soft fill, radius 14) under its small label (8 pt between them), 14 pt
+between one card and the next label. The package's `MarkdownReference` first section is split on
+iPhone into the mockup's groups — **Headings, Emphasis, Lists, Links & images, Blocks**
+(`BasicsSection.basicsGroupRowIDs`, by row identity; a row no group names joins Blocks) — then
+Diagrams, Math, Spelling and Search as their own groups; every row shows once
+(`OutlineBasicsTests.testBasicsGroupsShowEveryRowOnce`). A row is the mockup's three columns
+(1 : 1.2, then 36 pt): its short name ("Title", "Bold", "Bullets": `BasicsSection.name(for:)`),
+the Markdown in grey monospace, and the copy button (drawn 36 pt, a 44 pt target) that copies its
 `copyAffordance` text and turns into a blue check for 1 s (`BasicsCopyState`, which also announces
-"Copied"). Label rows copy nothing. VoiceOver reads one element per row (`Row.accessibilityLabel()`).
+"Copied"). A label row (Tab, Block Spacing, Spelling, Skipped, Tap) shows its explanation in the
+second column and copies nothing. Full-width hairlines (the hair colour at 70 %) between rows.
+VoiceOver reads one element per row, the explanation then the syntax (`Row.accessibilityLabel()`).
 
 `MarkdownReference` has iPhone wording behind `#if os(iOS)`, in all six languages: "Tap it in
 Read to toggle" for a done task, the heading shortcuts marked "with a keyboard", and the Search row
@@ -931,7 +975,9 @@ as "Tap". The Mac's text is unchanged (`MarkdownReferenceSectionsTests.testIPhon
 
 The word closes the menu and opens the Styling sheet (see "Styling sheet"): the Mac's Reading
 Experience panel, the Mac's six presets (Original, Quiet, Paper, Code, Calm, Focus), selecting the
-preset the profile matches. On a dark theme the sheet is a step darker than the page (#1F1F1F,
+preset the profile matches. The sheet has no title (owner review 2): it starts with the small
+"Themes" label (13 pt semibold, secondary ink, 27 pt below the top: the mockup's padding, grabber and
+gap) and the preset cards, then the controls (`word-menu.html` `openThemes()`). On a dark theme the sheet is a step darker than the page (#1F1F1F,
 `StylingSheet.surface(for:)`) and every preset card has a visible light edge (white at 0.26), so the
 Quiet card never blends into the sheet.
 
@@ -947,6 +993,9 @@ Mac or a sidebar (`SettingsTests.testNoMacOrSidebarWordingInIPhoneStrings`).
   with "dark" read from the trait collection's `userInterfaceStyle`. In Dark appearance a light
   theme draws as Quiet. The stored profile keeps the writer's theme.
 - **Show iCloud in Files** (`showICloudInSidebar`, the Mac's key). New documents still save there.
+  Shown only when this device's iCloud container resolves (`FilesStore.isICloudAvailable`, looked
+  up once off the main thread, `lookUpICloudAvailability`; `SettingsSection.shownRows`), so never
+  in Debug, which has no iCloud entitlement.
 - **Check spelling while typing** (`checksSpellingWhileTyping`).
 - **In-app notifications** (`checksForAnnouncements`): it gates the announcement request itself.
 - **Check Document Now** left Settings (owner review 2026-11-24): it is the format row's **Check
@@ -954,8 +1003,12 @@ Mac or a sidebar (`SettingsTests.testNoMacOrSidebarWordingInIPhoneStrings`).
 - **Files:** Show Hidden Folders (`FilesStore.setShowsHidden`, `Lineform.outline.showsHiddenFolders`)
   and Sort folders by (Name, Date Created, Date Modified; one sort for every root, under both Mac
   keys).
-- **History: Clear History** (the Mac's row, note, "Clear…" and destructive confirmation "Clear all
-  history?"): `SettingsSection.clearHistory(store:)` → `PhoneHistoryController.clearAllHistory(in:)`.
+- **History: Clear Version History** (owner review 2, 2026-11-24, the same wording on the Mac so it
+  never sounds like it deletes documents): note "Deletes the earlier versions Lineform kept of
+  passages you changed. Your documents stay exactly as they are.", "Clear…", and the destructive
+  confirmation "Clear version history?" / "Earlier versions of passages in every document will be
+  removed. This can't be undone. Your documents aren't changed.":
+  `SettingsSection.clearHistory(store:)` → `PhoneHistoryController.clearAllHistory(in:)`.
 
 ### Export & Print
 
@@ -980,7 +1033,10 @@ Insert Table and Reformat Table left the menu (they belong with the selection ro
 `ReadAloudPill`, while `ExportCommands.speechState` is not idle: on the ⋯ button's line, from the
 left margin up to it. "Reading aloud" (or "Paused"), pause/play and ✕ (ends reading and closes the
 pill), each on a round page-colour background inside a 44 pt target; every glyph is an SF Symbol at
-one weight. Nothing about it times out. `OpenDocument.onDocumentSwap` still stops reading on a swap.
+one weight. The pill ALWAYS shows the words, pause/play and ✕: the two buttons keep their size
+(`fixedSize`, layout priority) and only the words shrink in a narrow pill (owner review 2: a pill
+with only the ✕ was seen; verified in the simulator: reading, paused, both buttons). Nothing about
+it times out. `OpenDocument.onDocumentSwap` still stops reading on a swap.
 
 ### History
 
@@ -998,9 +1054,14 @@ History mode is up, so nothing sits behind Done.
 `ConnectAIFormModel` made fresh each time the page appears (a typed key never outlives it). What is
 sent ("Only the passage you select is sent, or the whole document when you choose Ask AI for it,
 with any comment you type. For Find, …"), the providers as rows (the picked one ticked), the
-billing note, then the key field (Other: address, optional key, model), the tier, the privacy note
-and the blue Connect pill, whose title is the consent ("Connect — Lineform will send the text you
-choose to …"). Connecting makes no request; the key is kept in the Keychain only, and connecting
+billing note, then the key field (Other: address, optional key, model), the Model row and the
+blue pill, which says just **Connect** (owner review 2, 2026-11-24). Under it, in small secondary
+text, the consent: what is sent and to whom ("Lineform will send the text you choose to
+Anthropic.", or the typed host, or "that address"), then the privacy note
+(`ConnectAIPresentation.consentNote`; VoiceOver reads it as the button's hint). The **Model** row
+names the models ("Claude Haiku 5.5" / "Claude Sonnet 5.5", "GPT-6 Luna" / "GPT-6.1 Terra",
+"Gemini 3.5 Flash-Lite" / "Gemini 3.8 Flash": `AIProvider.modelDisplayName(for:)`, from the tier →
+model id mapping); the stored choice is still the tier (raw values unchanged). Connecting makes no request; the key is kept in the Keychain only, and connecting
 deletes the other providers' keys. Connected: "Connected", the tier, **Ask AI…** for the whole
 document (while Write or Preview is on screen and the document has text; it closes the menu, then
 runs the shared length policy, see "Ask AI for the whole document") and Disconnect.

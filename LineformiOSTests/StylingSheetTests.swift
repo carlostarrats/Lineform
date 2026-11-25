@@ -38,10 +38,12 @@ final class StylingSheetTests: XCTestCase {
         XCTAssertEqual(StylingSheet.colorScheme(for: .paper), .light)
     }
 
-    func testSheetHeaderIsReading() throws {
+    /// The mockup's sheet has no title: it starts with the small "Themes" label and the cards.
+    func testSheetStartsWithTheThemesLabel() throws {
         try skipUnlessEnglishInterface()
-        XCTAssertEqual(StylingSheet.headerTitle, "Reading")
-        XCTAssertEqual(StylingSheet.headerTitleFontSize, 15)
+        XCTAssertEqual(StylingSheet.themesTitle, "Themes")
+        XCTAssertEqual(StylingSheet.themeTitleFontSize, 13)
+        XCTAssertEqual(StylingSheet.topPadding, 27)
     }
 
     // MARK: - The controls
@@ -211,7 +213,7 @@ final class StylingSheetTests: XCTestCase {
     func testEveryStylingStringIsInSixLanguages() throws {
         try skipUnlessEnglishInterface()
         let keys = StylingSheet.controlLabels + [
-            "Reading", "Reading Experience", "%@ reading theme", "%@ %@", "On", "Off",
+            "Reading Experience", "%@ reading theme", "%@ %@", "On", "Off",
         ]
 
         // English is the source language: every key must be in the iPhone catalog itself.

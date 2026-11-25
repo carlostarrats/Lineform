@@ -222,12 +222,14 @@ service changes.
       `https://developer.apple.com/app-store/review/guidelines/`: "You must clearly disclose where
       personal data will be shared with third parties, including with third-party AI, and obtain
       explicit permission before doing so." Lineform meets it this way:
-      - **Disclosure + permission = the Connect button.** Its label names what and to whom —
-        "Connect — Lineform will send the text you choose to Anthropic" (OpenAI / Google / the typed
-        host) — directly above the privacy note: "Lineform sends only the text you act on, only when
-        you choose an AI action, directly to the provider you connected, under your account and that
-        provider's terms. Lineform's developer receives nothing." Clicking it (or Return in a field)
-        is the explicit, prior, informed act. It is translated in every shipped language.
+      - **Disclosure + permission = the Connect button and the text directly under it.** Since the
+        owner's 2026-11-24 review the button says just "Connect"; the small text immediately under
+        it names what and to whom — "Lineform will send the text you choose to Anthropic." (OpenAI /
+        Google / the typed host) — followed by the privacy note: "Lineform sends only the text you
+        act on, only when you choose an AI action, directly to the provider you connected, under
+        your account and that provider's terms. Lineform's developer receives nothing." VoiceOver
+        reads the same text as the button's hint. Clicking it (or Return in a field) is the
+        explicit, prior, informed act. It is translated in every shipped language.
       - **Nothing is shared before it.** No request at launch, on opening the window, or on Connect
         itself (the key is not tested). AI menu items do not exist until connected.
       - **Each send is user-initiated.** A request happens only when the writer selects text and
@@ -236,12 +238,12 @@ service changes.
         Privacy.md and Help.md describe what, to whom, when, the Keychain, and Disconnect.
       - **Conclusion:** no per-action prompt is required by the text of 5.1.2(i); the guideline asks
         for clear disclosure and explicit permission *before* sharing, which the consent label gives
-        once per provider, and each action is itself the writer's choice. Do NOT shorten the label
-        to a bare "Connect". If App Review asks for more (e.g. a per-action confirmation), bring it
+        once per provider, and each action is itself the writer's choice. The disclosure must stay
+        directly under (or in) the Connect button, never further away. If App Review asks for more (e.g. a per-action confirmation), bring it
         to the owner — do not add UI on review feedback alone.
       - **Review note to paste:** "Lineform has no built-in AI. Optionally, the user can connect
         their own AI provider (Lineform ▸ Connect Your AI…) with their own API key, stored in the
-        Keychain. The Connect button states which company will receive the text. Nothing is sent on
+        Keychain. The text directly under the Connect button states which company will receive the text. Nothing is sent on
         connect. Afterwards, only the prose of a selection the user chooses an AI action for (from the
         right-click menu, or the selection toolbar's comment card, with the comment the user typed)
         is sent, directly from the Mac to that provider; the developer operates no

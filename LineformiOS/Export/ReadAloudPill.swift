@@ -85,6 +85,10 @@ struct ReadAloudPill: View {
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        // The buttons never give up their room: a narrow pill (beside the ← and ⋯, or at large
+        // text sizes) shrinks the words, never pause/play or ✕.
+        .fixedSize()
+        .layoutPriority(1)
         .accessibilityLabel(label)
     }
 }

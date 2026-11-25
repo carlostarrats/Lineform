@@ -61,9 +61,12 @@ final class SettingsTests: XCTestCase {
         // Now left Settings for the format row's Check Spelling (2026-11-24).
         XCTAssertEqual(SettingsSection.rowTitles, [
             "Automatic Dark Mode", "Show iCloud in Files", "Check spelling while typing", "In-app notifications",
-            "Clear History",
+            "Clear Version History",
         ])
         XCTAssertFalse(SettingsSection.clearHistoryNote.isEmpty)
+        // Show iCloud in Files only when this device's iCloud container resolves (never in Debug).
+        XCTAssertFalse(SettingsSection.shownRows(iCloudAvailable: false).contains { $0.id == "showICloud" })
+        XCTAssertEqual(SettingsSection.shownRows(iCloudAvailable: true).map(\.id), SettingsSection.rows.map(\.id))
     }
 
     func testAutomaticDarkModeFollowsAppearance() async throws {

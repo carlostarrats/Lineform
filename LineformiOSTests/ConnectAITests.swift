@@ -20,27 +20,44 @@ final class ConnectAITests: XCTestCase {
         super.tearDown()
     }
 
-    func testConnectButtonCarriesFullConsentLabel() async throws {
+    /// The button says just "Connect"; what is sent, to whom and the privacy note are the small
+    /// text under it (the owner's review, 2026-11-24).
+    func testConnectButtonSaysConnectAndTheNoteNamesTheRecipient() async throws {
         try skipUnlessEnglishInterface()
         let (form, _, _) = makeForm()
+        XCTAssertEqual(form.connectTitle, "Connect")
         form.select(.claude)
-        XCTAssertEqual(form.connectTitle, "Connect — Lineform will send the text you choose to Anthropic")
+        XCTAssertTrue(form.consentNote.hasPrefix("Lineform will send the text you choose to Anthropic. "))
         form.select(.chatGPT)
-        XCTAssertEqual(form.connectTitle, "Connect — Lineform will send the text you choose to OpenAI")
+        XCTAssertTrue(form.consentNote.hasPrefix("Lineform will send the text you choose to OpenAI. "))
         form.select(.google)
-        XCTAssertEqual(form.connectTitle, "Connect — Lineform will send the text you choose to Google")
+        XCTAssertTrue(form.consentNote.hasPrefix("Lineform will send the text you choose to Google. "))
         form.select(.other)
-        XCTAssertEqual(form.connectTitle, "Connect — Lineform will send the text you choose to that address")
+        XCTAssertTrue(form.consentNote.hasPrefix("Lineform will send the text you choose to that address. "))
         form.address = "https://ai.example.com/v1"
-        XCTAssertEqual(form.connectTitle, "Connect — Lineform will send the text you choose to ai.example.com")
-        XCTAssertEqual(form.connectTitle, ConnectAIPresentation.connectButtonTitle(for: .other, otherHost: "ai.example.com"))
+        XCTAssertTrue(form.consentNote.hasPrefix("Lineform will send the text you choose to ai.example.com. "))
+        XCTAssertTrue(form.consentNote.hasSuffix(ConnectAIPresentation.privacyNote))
 
-        // On screen, the button carries the whole label, never a shortened one.
+        // On screen: the "Connect" button, and the note under it.
         form.select(.claude)
         let window = try host(ConnectAISection(store: form.store))
-        try await spin { Self.element("Connect — Lineform will send the text you choose to Anthropic", in: window) != nil }
-        let button = try XCTUnwrap(Self.element("Connect — Lineform will send the text you choose to Anthropic", in: window))
+        try await spin { Self.element("Connect", in: window) != nil }
+        let button = try XCTUnwrap(Self.element("Connect", in: window))
         XCTAssertTrue(button.accessibilityTraits.contains(.button))
+        XCTAssertNotNil(Self.element("Lineform will send the text you choose to Anthropic.", in: window, containing: true))
+    }
+
+    /// The Model row names the models, never "Standard" or "Higher quality".
+    func testModelRowShowsTheModelNames() {
+        XCTAssertEqual(AIProvider.claude.modelDisplayName(for: .standard), "Claude Haiku 5.5")
+        XCTAssertEqual(AIProvider.claude.modelDisplayName(for: .higherQuality), "Claude Sonnet 5.5")
+        XCTAssertEqual(AIProvider.chatGPT.modelDisplayName(for: .standard), "GPT-6 Luna")
+        XCTAssertEqual(AIProvider.chatGPT.modelDisplayName(for: .higherQuality), "GPT-6.1 Terra")
+        XCTAssertEqual(AIProvider.google.modelDisplayName(for: .standard), "Gemini 3.5 Flash-Lite")
+        XCTAssertEqual(AIProvider.google.modelDisplayName(for: .higherQuality), "Gemini 3.8 Flash")
+        XCTAssertNil(AIProvider.other.modelDisplayName(for: .standard))
+        // The stored identity is unchanged.
+        XCTAssertEqual(AIModelTier.allCases.map(\.rawValue), ["standard", "higherQuality"])
     }
 
     func testConnectingDeletesOtherKeys() throws {
@@ -188,7 +205,7 @@ final class ConnectAITests: XCTestCase {
         let (_, store, _) = makeForm()
         var asked = 0
         let window = try host(ConnectAISection(store: store, mode: .write, hasText: true, onAskAI: { asked += 1 }))
-        try await spin { Self.element(ConnectAIPresentation.connectButtonTitle(for: .claude, otherHost: nil), in: window) != nil }
+        try await spin { Self.element(ConnectAIPresentation.connectTitle, in: window) != nil }
         for provider in AIProvider.allCases {
             XCTAssertNotNil(Self.element(provider.displayName, in: window), provider.displayName)
         }

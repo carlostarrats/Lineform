@@ -73,6 +73,30 @@ final class WordMenuTests: XCTestCase {
         XCTAssertFalse(WordMenuPage.outline.showsFiles)
     }
 
+    /// The way back (2026-11-24 review): the session keeps the page, Files' search and the scroll
+    /// offsets; a card or search result marks it, and reopening clears the mark. VoiceOver reads
+    /// "Back to Files" (or the folder's name).
+    func testSessionKeepsWhereTheWriterWas() throws {
+        try skipUnlessEnglishInterface()
+        let session = WordMenuSession()
+        session.navigation.push(.files)
+        session.filesQuery = "export"
+        session.filesScope = .openDocument
+        session.scrollOffsets[1] = 420
+        XCTAssertFalse(session.openedDocument)
+        session.noteOpenedDocument()
+        XCTAssertTrue(session.openedDocument, "a card or search result opened a document")
+        XCTAssertEqual(session.resumeAccessibilityLabel, "Back to Files")
+        session.navigation.push(.folder(FilesFolderRoute(url: folder, title: "Journal")))
+        XCTAssertEqual(session.resumeAccessibilityLabel, "Back to Journal")
+        session.resumed()
+        XCTAssertFalse(session.openedDocument)
+        XCTAssertEqual(session.filesQuery, "export")
+        XCTAssertEqual(session.filesScope, .openDocument)
+        XCTAssertEqual(session.scrollOffsets[1], 420)
+        XCTAssertEqual(DocumentScreen.resumeButtonDuration, .seconds(5))
+    }
+
     /// A lone card spans the width; two or more are always half width.
     func testCardGridRule() {
         XCTAssertEqual(WordMenuCardGrid<SearchResultCard, EmptyView>.columnCount(for: 1), 1)

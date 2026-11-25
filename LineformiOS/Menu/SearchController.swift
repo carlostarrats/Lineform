@@ -109,7 +109,7 @@ final class SearchController {
         editor: any EditorCommands,
         files: FilesStore?,
         currentURL: @escaping () -> URL?,
-        fileSearch: CrossFileSearchModel = CrossFileSearchModel(),
+        fileSearch: CrossFileSearchModel = CrossFileSearchModel(debounceInterval: SearchController.fileSearchDebounce),
         open: @escaping Opener,
         announce: @escaping @MainActor (String) -> Void = SearchController.announceToVoiceOver,
         editorWait: Duration = .seconds(2)
@@ -131,6 +131,11 @@ final class SearchController {
             }
             .store(in: &subscriptions)
     }
+
+    /// How long the file-content search waits after a keystroke: 0.1 s on iPhone (the Mac's
+    /// 0.3 s made results lag behind typing; the files are read off the main thread, the latest
+    /// query winning).
+    nonisolated static let fileSearchDebounce: TimeInterval = 0.1
 
     static func announceToVoiceOver(_ text: String) {
         UIAccessibility.post(notification: .announcement, argument: text)

@@ -317,10 +317,10 @@ final class HistoryModeTests: XCTestCase {
         // pinned-en: every row, the switches, then Clear History (the Mac's copy).
         XCTAssertEqual(SettingsSection.rowTitles, [
             "Automatic Dark Mode", "Show iCloud in Files", "Check spelling while typing", "In-app notifications",
-            "Clear History",
+            "Clear Version History",
         ])
         XCTAssertEqual(SettingsSection.clearHistoryButtonTitle, "Clear…")
-        XCTAssertEqual(SettingsSection.clearHistoryConfirmTitle, "Clear all history?")
+        XCTAssertEqual(SettingsSection.clearHistoryConfirmTitle, "Clear version history?")
     }
 
     // MARK: - Strings
@@ -332,9 +332,9 @@ final class HistoryModeTests: XCTestCase {
             "Delete from History", "Add", "Done",
             "%@, by you, version %lld of %lld", "%@, by AI, version %lld of %lld",
             "%@, original, version %lld of %lld", "%@, version %lld of %lld",
-            "Clear History", "Clear…", "Clear all history?", "Cancel",
-            "Removes saved versions for every document. Your files are not changed.",
-            "Saved versions for every document will be removed. This can't be undone. Your files are not changed.",
+            "Clear Version History", "Clear…", "Clear version history?", "Cancel",
+            "Deletes the earlier versions Lineform kept of passages you changed. Your documents stay exactly as they are.",
+            "Earlier versions of passages in every document will be removed. This can't be undone. Your documents aren't changed.",
         ]
         // pinned-en: every shown string is one of these keys.
         XCTAssertEqual(HistoryCardModel.title, "History")

@@ -30,12 +30,12 @@ struct SettingsSection: View {
 
     static var filesGroupTitle: String { WordMenuItem.files.title }
     static var historyGroupTitle: String { WordMenuItem.history.title }
-    static var clearHistoryTitle: String { String(localized: "Clear History") }
-    static var clearHistoryNote: String { String(localized: "Removes saved versions for every document. Your files are not changed.") }
+    static var clearHistoryTitle: String { String(localized: "Clear Version History") }
+    static var clearHistoryNote: String { String(localized: "Deletes the earlier versions Lineform kept of passages you changed. Your documents stay exactly as they are.") }
     static var clearHistoryButtonTitle: String { String(localized: "Clear…") }
-    static var clearHistoryConfirmTitle: String { String(localized: "Clear all history?") }
+    static var clearHistoryConfirmTitle: String { String(localized: "Clear version history?") }
     static var clearHistoryConfirmMessage: String {
-        String(localized: "Saved versions for every document will be removed. This can't be undone. Your files are not changed.")
+        String(localized: "Earlier versions of passages in every document will be removed. This can't be undone. Your documents aren't changed.")
     }
     static var cancelTitle: String { String(localized: "Cancel") }
 
@@ -85,9 +85,15 @@ struct SettingsSection: View {
         ]
     }
 
+    /// The switches shown: Show iCloud in Files only when this device's iCloud container resolves
+    /// (never in Debug, which has no iCloud entitlement).
+    static func shownRows(iCloudAvailable: Bool) -> [Row] {
+        rows.filter { $0.id != "showICloud" || iCloudAvailable }
+    }
+
     var body: some View {
         WordMenuPageScaffold(title: WordMenuItem.settings.title) {
-            ForEach(Self.rows) { row in
+            ForEach(Self.shownRows(iCloudAvailable: files?.isICloudAvailable == true)) { row in
                 WordMenuToggleRow(
                     title: row.title,
                     note: row.note,
@@ -121,6 +127,7 @@ struct SettingsSection: View {
             .accessibilityHint(Text(Self.clearHistoryNote))
             .accessibilityIdentifier("settings.clearHistory")
         }
+        .task { await files?.lookUpICloudAvailability() }
         .alert(Self.clearHistoryConfirmTitle, isPresented: $isConfirmingClearHistory) {
             Button(Self.cancelTitle, role: .cancel) {}
             Button(Self.clearHistoryTitle, role: .destructive) {

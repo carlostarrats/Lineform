@@ -72,6 +72,36 @@ public enum AIProvider: String, CaseIterable, Codable, Identifiable, Sendable {
         }
     }
 
+    /// The model a tier sends, by its product name ("Claude Sonnet 5.5"), for the Model picker.
+    /// Brand and product names, never translated; the tier's raw value stays the persisted
+    /// identity.
+    public func modelDisplayName(for tier: AIModelTier) -> String? {
+        model(for: tier).map(Self.displayName(forModelID:))
+    }
+
+    /// A provider model identifier as its product name: "claude-sonnet-5-5" → "Claude Sonnet 5.5",
+    /// "gpt-6.1-terra" → "GPT-6.1 Terra", "gemini-3.5-flash-lite" → "Gemini 3.5 Flash-Lite".
+    static func displayName(forModelID id: String) -> String {
+        let parts = id.split(separator: "-").map(String.init)
+        func word(_ part: String) -> String { part.prefix(1).uppercased() + part.dropFirst() }
+        switch parts.first {
+        case "claude":
+            // claude-<name>-<major>-<minor>
+            let rest = parts.dropFirst()
+            let names = rest.filter { !$0.allSatisfy(\.isNumber) }.map(word)
+            let version = rest.filter { $0.allSatisfy(\.isNumber) }.joined(separator: ".")
+            return ([word(parts[0])] + names + (version.isEmpty ? [] : [version])).joined(separator: " ")
+        case "gpt" where parts.count >= 2:
+            // gpt-<version>-<name>
+            return (["GPT-" + parts[1]] + parts.dropFirst(2).map(word)).joined(separator: " ")
+        case "gemini" where parts.count >= 3:
+            // gemini-<version>-<name>[-lite]
+            return [word(parts[0]), parts[1], parts.dropFirst(2).map(word).joined(separator: "-")].joined(separator: " ")
+        default:
+            return id
+        }
+    }
+
     var wireProtocol: AIWireProtocol {
         self == .claude ? .anthropicMessages : .openAIChatCompletions
     }

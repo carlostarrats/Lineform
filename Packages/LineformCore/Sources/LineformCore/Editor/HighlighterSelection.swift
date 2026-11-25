@@ -133,6 +133,16 @@ public enum HighlighterSelection {
         !increasedContrast
     }
 
+    /// The caret and the selection handles: the highlighter's blue at full strength (#2F6BDE on a
+    /// light page, #6F9BFF on a dark one), so the caret, the grabbers and the stroke are one
+    /// colour instead of the theme's black or white ink.
+    public static func caretColor(for theme: Theme) -> PlatformColor {
+        let ink = theme.usesDarkChrome ? darkInk : lightInk
+        return PlatformColor.lineformSRGB(
+            red: CGFloat(ink.red) / 255, green: CGFloat(ink.green) / 255, blue: CGFloat(ink.blue) / 255, alpha: 1
+        )
+    }
+
     /// The stroke's fill for a theme.
     public static func fillColor(for theme: Theme, increasedContrast: Bool) -> PlatformColor {
         let ink = theme.usesDarkChrome ? darkInk : lightInk

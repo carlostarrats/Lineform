@@ -40,8 +40,15 @@ struct WordMenu: View {
     var onShowHistoryPassage: (UUID) -> Void
     /// Connect Your AI ▸ Ask AI… for the whole document (after the menu closes).
     var onAskAI: () -> Void
+    /// Where the writer is (the screen's, so the menu can be reopened there); nil: the menu's own.
+    var session: WordMenuSession? = nil
 
-    @State private var navigation = WordMenuNavigation()
+    @State private var ownSession = WordMenuSession()
+    private var currentSession: WordMenuSession { session ?? ownSession }
+    private var navigation: WordMenuNavigation {
+        get { currentSession.navigation }
+        nonmutating set { currentSession.navigation = newValue }
+    }
     @State private var fileActions = FilesItemActions()
     /// Bumped when a background count lands, so the status line shows it.
     @State private var countsGeneration = 0
@@ -106,6 +113,7 @@ struct WordMenu: View {
             Group {
                 if let page = navigation.top {
                     pageView(page)
+                        .environment(\.wordMenuPageDepth, navigation.stack.count)
                         .id(page)
                 } else {
                     wordList
@@ -152,6 +160,7 @@ struct WordMenu: View {
             isKeyboardUp = false
         }
         .environment(\.wordMenuPalette, palette)
+        .environment(\.wordMenuSession, currentSession)
         .environment(\.colorScheme, palette.colorScheme)
         .foregroundStyle(palette.color(palette.ink))
         .tint(palette.color(palette.blueFill))
@@ -177,16 +186,21 @@ struct WordMenu: View {
         .onAppear {
             if let initialPage, navigation.isOnWordList { navigation.push(initialPage) }
         }
+        .task { await WordMenuWarmUp.run() }
     }
 
     private var showsFiles: Bool { navigation.top?.showsFiles == true }
 
     /// ← inside a page, ✕ on the word list.
     private func back() {
-        if !navigation.back() { onClose() }
+        if !navigation.back() { return onClose() }
+        // The page left is gone: a page opened at its depth later starts at the top.
+        let depth = navigation.stack.count
+        currentSession.scrollOffsets = currentSession.scrollOffsets.filter { $0.key <= depth }
     }
 
     private func open(_ page: WordMenuPage) {
+        WordMenuTiming.begin(.openPage)
         navigation.push(page)
     }
 
@@ -275,6 +289,7 @@ struct WordMenu: View {
         case .files:
             FilesSection(
                 store: files, document: document, editor: editor, actions: fileActions,
+                session: currentSession,
                 onOpenFolder: { route in open(.folder(route)) }, onDismiss: onClose
             )
         case .folder(let route):
@@ -375,6 +390,58 @@ enum WordMenuTiming {
         logger.log("Word menu open: \(milliseconds, format: .fixed(precision: 1), privacy: .public) ms")
         self.start = nil
         self.interval = nil
+    }
+
+    // MARK: - The other menu moves
+
+    /// What else is measured, each from the tap (or keystroke) to the frame that shows its result.
+    enum Step: String {
+        case openPage = "Open menu page"
+        case search = "Files search results"
+        case scope = "Switch search scope"
+        case openCard = "Open document from card"
+        case themes = "Open Themes"
+    }
+
+    private static var steps: [Step: (start: CFTimeInterval, interval: OSSignpostIntervalState)] = [:]
+
+    /// `step` begins now (a later begin restarts it: the latest keystroke wins).
+    static func begin(_ step: Step) {
+        if let running = steps[step] { signposter.endInterval("menuStep", running.interval) }
+        steps[step] = (CACurrentMediaTime(), signposter.beginInterval("menuStep", "\(step.rawValue)"))
+    }
+
+    /// `step`'s result is in this update: the interval ends on the main queue's next turn, after
+    /// this update's frame is committed (not after any animation it starts, such as a sheet's
+    /// slide, which runs off the main thread).
+    static func end(_ step: Step) {
+        guard steps[step] != nil else { return }
+        DispatchQueue.main.async {
+            MainActor.assumeIsolated {
+                guard let running = steps.removeValue(forKey: step) else { return }
+                let milliseconds = (CACurrentMediaTime() - running.start) * 1000
+                signposter.endInterval("menuStep", running.interval)
+                logger.log("\(step.rawValue, privacy: .public): \(milliseconds, format: .fixed(precision: 1), privacy: .public) ms")
+            }
+        }
+    }
+}
+
+/// While the menu is open, the fonts the Themes sheet draws with (its preset cards and its font
+/// list) are loaded once off the main thread, so the sheet's first open does not pay for them.
+@MainActor
+enum WordMenuWarmUp {
+    private static var hasRun = false
+
+    static func run() async {
+        guard !hasRun else { return }
+        hasRun = true
+        await Task.detached(priority: .utility) {
+            _ = FontOption.availableGroupedOptions
+            for name in ["AtkinsonHyperlegible-Regular", "OpenDyslexic-Regular"] {
+                _ = UIFont(name: name, size: 17)
+            }
+        }.value
     }
 }
 

@@ -12,6 +12,7 @@ struct FolderView: View {
     var onDismiss: () -> Void
 
     @Environment(\.wordMenuPalette) private var palette
+    @Environment(\.wordMenuSession) private var session
 
     var body: some View {
         WordMenuPageScaffold(title: route.title) {
@@ -27,6 +28,7 @@ struct FolderView: View {
             if !documents.isEmpty {
                 WordMenuCardGrid(items: documents) { item in
                     DocumentCard(item: item, document: document, store: store, actions: actions) {
+                        session?.noteOpenedDocument()
                         Task { await document.openReportingFailure(item.url) }
                         onDismiss()
                     }

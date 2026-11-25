@@ -43,7 +43,7 @@ Core product principles:
 - Save As retargets the Markdown file; File ▸ Export As writes a copy as HTML, PDF, Styled PDF, or Rich Text (.rtf), plus Print (⌘P). Exported HTML is one-to-one with the source — image paths and link URLs are emitted exactly as written.
 - Read-aloud of the rendered text (Edit ▸ Speech), skipping code, math, and diagrams.
 - ⌘E toggles Write ↔ Read; Split stays on the toolbar and View menu.
-- History: per-passage versions (Paragraph · Sentence · Word) in a read-only History mode. Stored in the app container, or for documents in the Lineform iCloud folder in the container's hidden `History/` folder, shared with the user's other devices; never in the file; 30-day cleanup; Settings ▸ Clear History removes everything.
+- History: per-passage versions (Paragraph · Sentence · Word) in a read-only History mode. Stored in the app container, or for documents in the Lineform iCloud folder in the container's hidden `History/` folder, shared with the user's other devices; never in the file; 30-day cleanup; Settings ▸ Clear Version History removes everything.
 - Reading profiles for type size, line height, block spacing, margins, column width, caret width, focus, ruler, and themes.
 - Apple Books-style reader themes plus accessibility-oriented font and contrast options.
 - Native Writing Tools protection around Markdown regions such as fenced code and front matter.

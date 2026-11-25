@@ -141,6 +141,9 @@ final class OpenDocument: ImageInsertionHost {
     /// first-line rename's write); never for a save with nothing to write or a failed one. The
     /// screen counts these as use for the review prompt (`PhoneReviewPromptStore`).
     @ObservationIgnored var onConfirmedWrite: (() -> Void)?
+    /// Called for each change the writer makes (`edit`): the screen's way back to the word menu
+    /// goes as soon as the writer types.
+    @ObservationIgnored var onWriterEdit: (() -> Void)?
     @ObservationIgnored private var isPrepared = false
     /// The document's History (`PhoneHistoryController`), told about every open, swap, save,
     /// rename, move, delete and reload. Nil in tests that do not exercise History.
@@ -489,6 +492,7 @@ final class OpenDocument: ImageInsertionHost {
         guard newText != text else { return }
         text = newText
         scheduleAutosave()
+        onWriterEdit?()
     }
 
     /// The folder relative image links resolve against: the open file's. Nil for a document that

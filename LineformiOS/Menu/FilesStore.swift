@@ -159,6 +159,10 @@ final class FilesStore {
     /// The iCloud Documents folder as of the last look, or nil. Looked up only while visible.
     private var iCloudURL: URL?
     private var hasLookedUpICloud = false
+    /// Whether Lineform's iCloud container resolves on this device: nil until looked up (Files'
+    /// scan, or Settings asking with `lookUpICloudAvailability`). Never true in Debug (no iCloud
+    /// entitlement).
+    private(set) var isICloudAvailable: Bool?
     private var itemsByRoot: [FilesRootID: [OutlineFileTreeItem]] = [:]
     private var scannedRoots: Set<FilesRootID> = []
     /// Every scanned folder's contents, keyed by `key(_:)`.
@@ -316,9 +320,9 @@ final class FilesStore {
         if wasVisible, !isVisible { stopMonitors() }
     }
 
-    /// Looks up the iCloud folder, then watches and scans every root, only while Files is visible.
-    func scanIfVisible() async {
-        guard isVisible else { return }
+    /// Looks up the iCloud folder off the main thread: the container's Documents folder, made if
+    /// missing, or nil when the container does not resolve.
+    private func lookUpICloudFolder() async -> URL? {
         let lookup = iCloudFolder
         let found = await Task.detached { () -> URL? in
             guard let url = lookup() else { return nil }
@@ -328,6 +332,22 @@ final class FilesStore {
             else { return nil }
             return url
         }.value
+        let available = found != nil
+        if isICloudAvailable != available { isICloudAvailable = available }
+        return found
+    }
+
+    /// Settings › Show iCloud in Files shows only when the container resolves: looked up once
+    /// (off the main thread), then remembered.
+    func lookUpICloudAvailability() async {
+        guard isICloudAvailable == nil else { return }
+        _ = await lookUpICloudFolder()
+    }
+
+    /// Looks up the iCloud folder, then watches and scans every root, only while Files is visible.
+    func scanIfVisible() async {
+        guard isVisible else { return }
+        let found = await lookUpICloudFolder()
         guard isVisible else { return }
         if iCloudURL != found { iCloudURL = found }
         if !hasLookedUpICloud { hasLookedUpICloud = true }

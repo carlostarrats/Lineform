@@ -180,20 +180,23 @@ struct ConnectAIView: View {
                         .fixedSize(horizontal: false, vertical: true)
                         .accessibilityIdentifier("connectAI.error")
                 }
-                Text(ConnectAIPresentation.privacyNote)
+                Button(ConnectAIPresentation.connectTitle, action: connect)
+                    .buttonStyle(.borderedProminent)
+                    .background(CursorRectView(cursor: .arrow))
+                    .accessibilityHint(consentNote)
+                    .accessibilityIdentifier("connectAI.connect")
+                // What is sent, to whom, and the privacy note: small secondary text under Connect.
+                Text(consentNote)
                     .font(.system(size: 12))
                     .foregroundStyle(secondaryText)
                     .fixedSize(horizontal: false, vertical: true)
-                Button(connectTitle, action: connect)
-                    .buttonStyle(.borderedProminent)
-                    .background(CursorRectView(cursor: .arrow))
-                    .accessibilityIdentifier("connectAI.connect")
+                    .accessibilityIdentifier("connectAI.consentNote")
             }
         }
     }
 
-    private var connectTitle: String {
-        ConnectAIPresentation.connectButtonTitle(
+    private var consentNote: String {
+        ConnectAIPresentation.consentNote(
             for: selection, otherHost: ConnectAIPresentation.host(fromAddress: address))
     }
 
@@ -239,14 +242,13 @@ struct ConnectAIView: View {
         }
     }
 
-    /// Standard or Higher quality, with the model that tier sends written under it. Model
-    /// names are provider identifiers and are shown verbatim. Changing it while connected
-    /// takes effect at the next action and needs no key.
+    /// The model, by its product name ("Claude Sonnet 5.5"): each tier is shown as the model it
+    /// sends; the tier stays the stored choice. Changing it while connected takes effect at the
+    /// next action and needs no key.
     @ViewBuilder
     private var tierPicker: some View {
         let provider = selection
         if provider.model(for: .standard) != nil {
-            let tier = store.tier(for: provider)
             labeledField(ConnectAIPresentation.modelTierLabel) {
                 VStack(alignment: .leading, spacing: 5) {
                     Picker(ConnectAIPresentation.modelTierLabel, selection: Binding(
@@ -254,7 +256,7 @@ struct ConnectAIView: View {
                         set: { store.setTier($0, for: provider) }
                     )) {
                         ForEach(AIModelTier.allCases) { tier in
-                            Text(tier.title).tag(tier)
+                            Text(verbatim: provider.modelDisplayName(for: tier) ?? "").tag(tier)
                         }
                     }
                     .pickerStyle(.segmented)
@@ -262,13 +264,6 @@ struct ConnectAIView: View {
                     .fixedSize()
                     .background(CursorRectView(cursor: .arrow))
                     .accessibilityIdentifier("connectAI.tier")
-                    if let model = provider.model(for: tier) {
-                        Text(verbatim: model)
-                            .font(.caption)
-                            .foregroundStyle(secondaryText)
-                            .textSelection(.enabled)
-                            .accessibilityIdentifier("connectAI.tierModel")
-                    }
                 }
             }
         }

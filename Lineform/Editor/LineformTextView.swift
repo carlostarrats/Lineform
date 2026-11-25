@@ -384,7 +384,8 @@ final class LineformTextView: NSTextView {
         textColor = theme.textColor
         backgroundColor = theme.backgroundColor
         drawsBackground = true
-        insertionPointColor = theme.caretColor
+        // The highlighter's blue, as on iPhone (the caret and the selection are one colour).
+        insertionPointColor = HighlighterSelection.caretColor(for: theme)
         selectedTextAttributes = Self.selectedTextAttributes(usesDarkChrome: theme.usesDarkChrome)
         refreshHighlighterSelection(redrawAll: true)
         updateTextContainerLayout(for: profile)

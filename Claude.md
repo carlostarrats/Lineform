@@ -42,8 +42,8 @@ Core product principles:
 - Read/Preview rendering of Mermaid diagrams, LaTeX math (`$…$`/`$$…$$` and the AI-tool `\(…\)`/`\[…\]` spellings), GFM tables, task checkboxes, GitHub-style callouts, code-language syntax highlighting with a copy button, and local (never remote) inline images.
 - Save As retargets the Markdown file; File ▸ Export As writes a copy as HTML, PDF, Styled PDF, or Rich Text (.rtf), plus Print (⌘P). Exported HTML is one-to-one with the source — image paths and link URLs are emitted exactly as written.
 - Read-aloud of the rendered text (Edit ▸ Speech), skipping code, math, and diagrams.
-- History: right-click a selection ▸ Add to History keeps per-passage versions (Paragraph · Sentence · Word); the sidebar's History tab (shown only when the document has history) or View ▸ History (⌘Y) enters a read-only History mode that steps them. Stored in the app container, or for documents in the Lineform iCloud folder in the container's hidden `History/` folder, shared with the user's other devices; never in the file; 30-day cleanup; Settings ▸ Clear History removes everything.
-- Bring your own AI: Lineform ▸ Connect Your AI… connects Claude, ChatGPT, Google or an OpenAI-compatible server with the user's key (Keychain); a Standard (default) or Higher quality model tier per provider; the AI drawer (right side, in Reading Experience's inspector slot; Edit ▸ Ask AI…, the toolbar's AI icon, the selection toolbar's Ask) holds a session-only conversation: quick actions, typed instructions whose curated words (`AIPromptLexicon`) get a dotted underline and an options card, plain answers to questions, Accept / Reject / Try Again with versions, and blanks. Right-click Rewrite / Proofread / Find still work and open the drawer. Each suggestion is reviewed as a read-only overlay in the editor. Write mode only; absent (not disabled) when nothing is connected.
+- History: right-click a selection ▸ Add to History keeps per-passage versions (Paragraph · Sentence · Word); the sidebar's History tab (shown only when the document has history) or View ▸ History (⌘Y) enters a read-only History mode that steps them. Stored in the app container, or for documents in the Lineform iCloud folder in the container's hidden `History/` folder, shared with the user's other devices; never in the file; 30-day cleanup; Settings ▸ Clear Version History removes every kept version (never a document).
+- Bring your own AI: Lineform ▸ Connect Your AI… connects Claude, ChatGPT, Google or an OpenAI-compatible server with the user's key (Keychain); a model per provider, shown by name ("Claude Sonnet 5.5"; stored as the Standard (default) or Higher quality tier); the Connect button says "Connect" with what is sent and to whom in small text under it; the AI drawer (right side, in Reading Experience's inspector slot; Edit ▸ Ask AI…, the toolbar's AI icon, the selection toolbar's Ask) holds a session-only conversation: quick actions, typed instructions whose curated words (`AIPromptLexicon`) get a dotted underline and an options card, plain answers to questions, Accept / Reject / Try Again with versions, and blanks. Right-click Rewrite / Proofread / Find still work and open the drawer. Each suggestion is reviewed as a read-only overlay in the editor. Write mode only; absent (not disabled) when nothing is connected.
 - Selection toolbar: selecting text in the editor floats one-click formatting (Heading ▾, Bold, Italic, Strikethrough, Code, List ▾, Link) over it; while an AI is connected its Ask opens the AI drawer. Right-click and the Format menu are unchanged.
 - ⌘E toggles Write ↔ Read; Split stays on the toolbar and View menu.
 - Reading profiles for type size, line height, block spacing, margins, column width, caret width, focus, ruler, and themes.
@@ -421,15 +421,23 @@ iPhone only. Details: `docs/architecture/iphone-app.md`.
   `MarkdownEditor.Coordinator.knownText`); the corner button is ✕ on the words and ← in a page, and
   every page keeps `WordMenuMetrics.bottomClearance` below its last item. A card (Recent, folder,
   search) opens its document by expanding into the page (`CardZoomView`, 0.3 s; a crossfade under
-  Reduce Motion), never delaying the open.
+  Reduce Motion), never delaying the open. After a card or search result opens a document, a round
+  ← (`ResumeMenuButton`, ⋯'s twin at the bottom left, "Back to Files") reopens the menu exactly
+  where the writer was (`WordMenuSession`: page, search text and scope, scroll); it fades after 5 s
+  or at the first keystroke, and never on a timer while VoiceOver runs. Markdown Basics is the
+  mockup's grouped cards (name · Markdown · copy); the Themes sheet has no title; Settings' "Clear
+  Version History" (same wording on the Mac) and "Show iCloud in Files" only when the iCloud
+  container resolves. The caret and selection handles are the highlighter's blue
+  (`HighlighterSelection.caretColor`, both apps).
   Pages reach the editor only through `EditorCommands`, each command ONE undo step. Files rename,
   Trash and moves between iCloud and On My iPhone are coordinated (`.forMoving`), never replacing,
   unlike the Mac (ruling in `docs/architecture/files-sidebar.md`); Trash is `trashItem` only, and
   nothing is scanned until Files or a file search is on screen. Find & Replace lives in Files'
-  search (never a bar on the page): its scope button picks All documents (cards) or the open
+  search (never a bar on the page), in option C's one white card (field and replace row inside, a
+  fixed 40 pt field, no clear button): its scope button picks All documents (cards) or the open
   document by its file name (count, ↑/↓, matches as rows, Replace / All through `EditorCommands`,
   Replace All one undo step); replace never reaches another file. Files shows only the search, "iCloud" and "On My iPhone"
-  (each with its folders and a grey "+" making a document there), then Recent — no Workspace (the
+  (each with its folders and a Lineform-blue round "+" making a document there), then Recent — no Workspace (the
   store's root stays dormant, `FilesSection.phoneRoots`), no Open from Files…, no New Folder. On My
   iPhone always shows beside iCloud, and New Document in a folder saves there
   (`OpenDocument.newDocument(in:)`). Convert to
