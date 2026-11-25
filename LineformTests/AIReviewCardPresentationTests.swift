@@ -83,7 +83,7 @@ final class AIReviewCardPresentationTests: XCTestCase {
         var proofread = AIReviewSession(action: .proofread, changes: changes,
                                         selectionRange: NSRange(location: 0, length: ns.length), originalSelection: text)
         XCTAssertEqual(AIReviewCardPresentation.title(for: proofread), "Proofread · 1 of 2")
-        XCTAssertEqual(AIReviewCardPresentation.reviewHint(for: proofread), "Return to accept · Esc to reject · ← → to move")
+        XCTAssertEqual(AIReviewCardPresentation.reviewHint(for: proofread), "Return to accept · Esc to reject · arrow keys to move")
         XCTAssertTrue(AIReviewCardPresentation.offersAcceptAll(proofread))
         proofread.accept(0)
         XCTAssertEqual(AIReviewCardPresentation.title(for: proofread), "Proofread · 2 of 2")
