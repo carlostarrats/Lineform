@@ -792,7 +792,10 @@ struct FilesDocumentRows: View {
                     .opacity(item.isHidden ? 0.7 : 1)
                 }
                 .buttonStyle(WordMenuPressStyle())
-                .accessibilityValue(FilesRow.accessibilityValue(for: item).map { Text($0) } ?? Text(verbatim: ""))
+                // VoiceOver: the name, then when it changed and any state.
+                .accessibilityLabel(Text(verbatim: item.url.deletingPathExtension().lastPathComponent))
+                .accessibilityValue(Text(verbatim: [Self.when(item), FilesRow.accessibilityValue(for: item)]
+                    .compactMap { $0 }.joined(separator: ", ")))
                 .filesSwipeAccessibilityActions(FilesSwipeAction.actions(for: item, store: store))
                 .filesSwipeActions(FilesSwipeAction.actions(for: item, store: store))
                 .contextMenu {

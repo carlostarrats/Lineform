@@ -148,7 +148,9 @@ private struct ExportDocumentPicker: View {
                 .padding(.horizontal, 14)
                 .padding(.vertical, 9)
                 .background(Capsule().fill(palette.color(palette.soft)))
-                .contentShape(Capsule())
+                // A 44 pt target around the 38 pt pill.
+                .frame(minHeight: WordMenuMetrics.minimumTarget)
+                .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
             .accessibilityLabel(Text(String(localized: "File name")))
