@@ -644,6 +644,15 @@ final class LineformReadView: UITextView {
         applyPendingScrollIfPossible()
     }
 
+    /// A focus request that never reached a window (the writer left Read first) is dropped, so a
+    /// later mount of this view (Preview's pane) cannot take the focus from the editor.
+    func cancelPendingFocus() {
+        state.wantsFocus = false
+    }
+
+    /// Whether a focus request is waiting for a window (tests).
+    var hasPendingFocus: Bool { state.wantsFocus }
+
     /// Takes the keyboard focus (so a shake or ⌘Z reaches the document's undo), now or as soon as
     /// the view is in a window. Not editable, so no keyboard appears.
     func takeFocusWhenInWindow() {

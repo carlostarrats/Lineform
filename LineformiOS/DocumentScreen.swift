@@ -37,8 +37,13 @@ struct DocumentScreen: View {
     /// Check for Updates: its result shows here as the quiet notice when no alert could come up.
     @ObservedObject var updateCommand: PhoneUpdateCommand
     @Environment(\.colorScheme) private var colorScheme
+    /// The phone's real Light/Dark setting, from the window (`SystemAppearanceReader`). The
+    /// screen's own colour scheme follows the theme (for the status bar), so `colorScheme` stops
+    /// reporting the phone once that applies; it stands in only until the window is known.
+    @StateObject private var systemAppearance: SystemAppearance
+    private var systemStyle: UIUserInterfaceStyle { systemAppearance.style ?? UIUserInterfaceStyle(colorScheme) }
     private var profile: ReadingProfile {
-        settings.displayProfile(profileStore.activeProfile, userInterfaceStyle: UIUserInterfaceStyle(colorScheme))
+        settings.displayProfile(profileStore.activeProfile, userInterfaceStyle: systemStyle)
     }
     @State private var isShowingMenu = false
     /// Where the writer is in the word menu: fresh for every ⋯ open, kept after a card opens a
@@ -98,6 +103,7 @@ struct DocumentScreen: View {
         if document.imageSaveFailed { return String(localized: "Can't save images beside this document.") }
         if let openNotice = document.openNotice { return openNotice }
         if let updateNotice = updateCommand.notice { return updateNotice }
+        if let spellingNotice = selection.spellingNotice { return spellingNotice }
         return nil
     }
 
@@ -113,7 +119,8 @@ struct DocumentScreen: View {
         updateCommand: PhoneUpdateCommand = .shared,
         initialMode: EditorDisplayMode = .write,
         showsFirstRun: Bool = false,
-        selection: SelectionController? = nil
+        selection: SelectionController? = nil,
+        systemAppearance: SystemAppearance? = nil
     ) {
         self.document = document
         self.profileStore = profileStore
@@ -125,6 +132,7 @@ struct DocumentScreen: View {
         _storedDisplayMode = SceneStorage(wrappedValue: initialMode, "displayMode")
         _firstRun = State(initialValue: FirstRunPresentation(launchWantsFirstRun: showsFirstRun))
         _selection = StateObject(wrappedValue: selection ?? SelectionController())
+        _systemAppearance = StateObject(wrappedValue: systemAppearance ?? SystemAppearance())
     }
 
     private var presentsFirstRun: Bool {
@@ -204,6 +212,11 @@ struct DocumentScreen: View {
     var body: some View {
         page
         .modifier(KeyboardClearance(keyboard: selection.keyboard))
+        // The status bar (and the word menu over the page) follow the display theme, not the
+        // phone: a light theme on a dark phone gets dark status text. The phone's own setting is
+        // read from the window instead (`SystemAppearanceReader`), so Automatic Dark Mode still sees it.
+        .modifier(ThemeChromeScheme(systemAppearance: systemAppearance,
+                                    scheme: Self.chromeColorScheme(for: profile, systemStyle: systemStyle)))
         // The page makes room for the keyboard itself (`KeyboardClearance`): SwiftUI's own
         // keyboard avoidance, under `.ignoresSafeArea(.container)`, stopped the page 34 pt (the
         // home indicator's band) above the keyboard and its format row, cutting off the lines and
@@ -283,7 +296,7 @@ struct DocumentScreen: View {
                     MoreButton(profile: profile) { openWordMenu() }
                 }
                 .padding(MarkdownEditor.chromeMargin)
-                .padding(.bottom, selection.phase == .row ? Self.selectionRowClearance : 0)
+                .modifier(SelectionRowClearance(keyboard: selection.keyboard, rowShows: selection.phase == .row))
                 .transition(.opacity)
             }
         }
@@ -871,7 +884,9 @@ enum ChromeAnnouncer {
     }
 }
 /// The page, its bottom kept clear of the keyboard (and the format row on it) by exactly the
-/// keyboard's overlap with the window, animated with the keyboard (`SelectionKeyboardTracker`).
+/// keyboard's overlap with the window, animated with the keyboard (`SelectionKeyboardTracker`),
+/// and only while that keyboard is the editor's (`pageOverlap`): the AI sheet's field, Files'
+/// search and History's field never resize the page.
 /// A modifier, never a wrapper that rebuilds its content: rebuilding the page on every keyboard
 /// change re-ran the editor's update mid-edit and broke Preview's one undo history
 /// (`ModeSwitchTests.testPreviewTypeThenTickUndoesInOrder`).
@@ -879,6 +894,31 @@ private struct KeyboardClearance: ViewModifier {
     @ObservedObject var keyboard: SelectionKeyboardTracker
 
     func body(content: Content) -> some View {
-        content.padding(.bottom, keyboard.overlap)
+        content.padding(.bottom, keyboard.pageOverlap)
+    }
+}
+
+/// The screen's colour scheme from the display theme (`DocumentScreen.chromeColorScheme`), set on
+/// the root view controller by the reader that also keeps the phone's own style known
+/// (`SystemAppearance`).
+private struct ThemeChromeScheme: ViewModifier {
+    let systemAppearance: SystemAppearance
+    var scheme: ColorScheme
+
+    func body(content: Content) -> some View {
+        content
+            .background(SystemAppearanceReader(appearance: systemAppearance, scheme: scheme))
+    }
+}
+
+/// The bottom-trailing buttons' lift while the format row is on screen: only while it shows AND
+/// the keyboard (which carries it) is up, so a row left behind by a keyboard going down never
+/// holds the buttons off their margin.
+private struct SelectionRowClearance: ViewModifier {
+    @ObservedObject var keyboard: SelectionKeyboardTracker
+    var rowShows: Bool
+
+    func body(content: Content) -> some View {
+        content.padding(.bottom, rowShows && keyboard.overlap > 0 ? DocumentScreen.selectionRowClearance : 0)
     }
 }

@@ -113,8 +113,9 @@ for line alike. Do not switch it to TextKit 2.
   text view's lowest subview, behind UIKit's text view, so it never covers a glyph and never
   touches the text storage. **Typewriter Mode** centres the caret's line fragment with
   `setContentOffset(TypewriterScroll.origin(…), animated: false)` after each selection change and
-  edit; turning it off scrolls back to where the page was when it came on, and it waits while
-  the keyboard animates. Two UIKit facts shape it: TextKit 1 layout here is non-contiguous, so the
+  edit, never while there is a selection (a handle being dragged holds the page still; centring
+  resumes when it collapses to a caret); turning it off scrolls back to where the page was when it
+  came on, and it waits while the keyboard animates. Two UIKit facts shape it: TextKit 1 layout here is non-contiguous, so the
   prefix up to the caret is laid out first (only past `firstUnlaidGlyphIndex()`), and a scroll
   past the laid-out content is put back once while UITextView grows `contentSize`, so it is set
   a second time.
@@ -198,7 +199,20 @@ for line alike. Do not switch it to TextKit 2.
   (`keyboardWillShowNotification`), and the ⋯ button puts the keyboard away before the word menu
   (and so Themes) opens, so the two never share the screen.
 - Text set from code keeps the selection, clamped to the new text, so a live reload does not move
-  the caret.
+  the caret. Another document is not a reload: when `OpenDocument`'s identity moves on
+  (`imageInsertionDocumentIdentity`, read by `MarkdownEditor.configure`), the editor starts at its
+  top — caret at 0, nothing selected, offset at the top, reading assists placed for that caret
+  (`setDocumentText(_:isNewDocument:)`).
+- The page makes room only for the editor's own keyboard (`SelectionKeyboardTracker.pageOverlap`,
+  `SelectionController.editorOwnsKeyboard`: the editor or the review overlay it hands the focus
+  to is first responder). The AI sheet's field, Files' search and History's field never resize it.
+- The keyboard is `.light` on a light theme and `.dark` on a dark one, never `.default` (which
+  follows the phone): the editor, the comment field and the AI sheet's field.
+- The status bar follows the display theme, not the phone: `DocumentScreen.chromeColorScheme` is
+  set as the ROOT view controller's `overrideUserInterfaceStyle` by `SystemAppearanceReader`. Not
+  `.preferredColorScheme` at the root: in the app that lands on the window scene's trait overrides,
+  and Automatic Dark Mode could then never see the phone switch (measured). The phone's own style
+  (`SystemAppearance`) is read from the screen whenever the window's style changes.
 
 ## Write, Read and Preview
 
@@ -751,7 +765,10 @@ the screen's save notice shows; a failed export does the same for the export's c
 `ExportCommands` drives the package's `SpeechController` and follows the Mac's start rule
 (`speechSource`): in Write and Preview a selection reads the selection and a caret reads from the
 caret to the end; in Read (whose selection is in rendered coordinates) and with no selection it
-reads the whole document. The rows are Start Speaking, then Pause Speaking or Resume Speaking, and
+reads the whole document. A caret with nothing to read after it (at the end, or only blank lines
+after it) reads the whole document from its start. An audio interruption (a call, an alarm)
+pauses reading and the pill shows Paused; its end leaves it paused, `.shouldResume` or not, and
+the pill's play sets the session up again. The rows are Start Speaking, then Pause Speaking or Resume Speaking, and
 Stop Speaking. Speech plays through a `.playback` / `.spokenAudio` audio session, released when
 speech goes idle.
 
@@ -1345,7 +1362,13 @@ of `render()`), rebuilt value for value on 2026-11-24 and checked side by side i
   (`scheduleCaretRefresh`), never inside an edit, an undo or a resign. While an input method
   composes, the caret's row is left exactly as it is (no item, phase or anchor change, even when the
   candidate bar changes the keyboard's height), and its buttons do nothing until the composition
-  ends. Not in Read, and not under the AI sheet.
+  ends. Not in Read, and not under the AI sheet (no row of either kind while the sheet is up). A
+  selection's row goes when the keyboard goes down or the editor stops being first responder, and
+  the ⋯ button's lift above the row (`selectionRowClearance`) applies only while the keyboard is
+  up. The bar adds the home indicator's band only with a hardware keyboard, never under the
+  software one (it jumped 34 pt mid swipe-down). The row starts scrolled to its leading edge only
+  on a fresh show or a writer's switch between a caret and a selection (`rowGeneration`); a
+  command that changes its buttons (Check Spelling, Link, Table) leaves it where it is.
 - **A caret's commands** (still one undo step each, through `applyMarkdownEdit`): Bold, Italic,
   Strikethrough and Code act on the word at the caret (`wordRange(at:in:)`, the system's word
   boundaries on the caret's line) and keep the caret in the word, so a second tap removes the
@@ -1368,7 +1391,8 @@ of `render()`), rebuilt value for value on 2026-11-24 and checked side by side i
   Document Now, which left Settings: `SpellCheckPass` once over the prose of the whole document,
   `misspelledRangesInWholeDocument`, whether or not Check spelling while typing is on, in the
   keyboard's language; every misspelling is underlined and the first one after the selection
-  (wrapping) is selected, the row staying for it; no edit, so no undo step; never scheduled).
+  (wrapping) is selected, the row staying for it; no edit, so no undo step; never scheduled; with
+  nothing to find, the screen's calm notice says "No spelling mistakes found.").
 - **Heading's levels open in place** (`SelectionController.showsHeadingLevels`): the row swaps its
   buttons for ‹ (Back; the mockup's 36 pt `.back`, no chip) and the mockup's five levels as chips —
   Title, Section, Heading 3, Heading 4, Body (`SelectionRow.rowHeadingLevels`; Heading 5 and 6
@@ -1422,6 +1446,15 @@ of `render()`), rebuilt value for value on 2026-11-24 and checked side by side i
 > **2026-11-24:** `AIReviewCardsView` is gone. Progress, messages, Find's count and the decisions
 > (Accept / Reject / Try Again, versions, blanks) live in the AI sheet; the review overlay below is
 > unchanged and keeps the current change above the sheet (`aiCardTopInWindow`).
+>
+> **Review 4:** the decisions are never out of reach. Another Word opens the sheet before it runs;
+> the sheet cannot be swiped away while a request runs or a suggestion waits
+> (`AISheetView.locksDismissal`, `interactiveDismissDisabled`); a request or review that starts
+> without it brings it back; and if it goes by any other path while a review is up, the review
+> ends as the sheet's End does (`SelectionController.sheetDidClose`). The sheet draws on its own
+> surface, #FDFDFD on a light theme and #262626 on a dark one (the prompt-words mockup's
+> `--chrome`), with the page colour kept for the AI's bubble; every ink is AA on both
+> (`AISheetView.Inks`).
 
 `LineformiOS/AI/` (`LineformiOSTextView+AI.swift`, `AIReviewOverlay.swift`, `AIReviewCardsView.swift`),
 wired by `SelectionController`. The controller is the shared `AIActionController`, made on first

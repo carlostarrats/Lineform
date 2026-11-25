@@ -21,8 +21,9 @@ import UIKit
 /// Quote, Image, Table, Reformat Table (a table row only), Replace With… and Another Word (a
 /// selection only), and Check Spelling last. Without an AI the row starts with Heading. Heading
 /// opens its levels in place: a ‹ back button (no chip), then Title, Section, Heading 3,
-/// Heading 4, Body as the same chips. Whenever the row appears or its items change it starts
-/// scrolled to its leading edge.
+/// Heading 4, Body as the same chips. Whenever the row appears afresh, or turns between a caret's
+/// and a selection's row, it starts scrolled to its leading edge; a command that only changes its
+/// buttons leaves it where it is.
 ///
 /// Accessibility:
 /// - **Text size.** The row is chrome of a fixed height, like a toolbar: its text stops growing at
@@ -68,10 +69,13 @@ struct SelectionRow: View {
         }
     }
 
-    /// What a change of the row's contents is keyed on: a new value rebuilds the scroll view at
-    /// its leading edge.
+    /// What a fresh start of the row is keyed on: a new value rebuilds the scroll view at its
+    /// leading edge. Only a fresh show, a switch between the caret's and a selection's row
+    /// (`SelectionController.rowGeneration`) or the heading levels coming and going count; a
+    /// command that only changes the buttons (Check Spelling, Link, Table) leaves the row where it
+    /// is, so the next tap lands on the same button.
     private struct Contents: Hashable {
-        var items: [SelectionRowItem]
+        var generation: Int
         var showsHeadingLevels: Bool
     }
 
@@ -85,7 +89,7 @@ struct SelectionRow: View {
         let inks = PhoneInk(theme: theme, userInterfaceStyle: isDark ? .dark : .light)
         let blue = inks.color(.lineformBlue)
         let ink = isDark ? Color.white : Color(red: 0x1F / 255, green: 0x1F / 255, blue: 0x1F / 255)
-        let contents = Contents(items: controller.items, showsHeadingLevels: controller.showsHeadingLevels)
+        let contents = Contents(generation: controller.rowGeneration, showsHeadingLevels: controller.showsHeadingLevels)
         ScrollViewReader { scroller in
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: Self.itemSpacing) {
@@ -108,7 +112,9 @@ struct SelectionRow: View {
                 .frame(maxHeight: .infinity)
                 .id(Self.leadingEdge)
             }
-            .defaultScrollAnchor(.leading)
+            // Only the first offset: as a size anchor it would pull the row back to its start
+            // whenever a command adds or drops a button.
+            .defaultScrollAnchor(.leading, for: .initialOffset)
             // A new set of items (or the heading levels) is a fresh scroll view, at its start.
             .id(contents)
             .onAppear { scrollToStart(scroller) }
@@ -366,6 +372,7 @@ final class FormatBarAccessoryView: UIInputView {
     static let fillOverlap: CGFloat = 44
 
     let style = Style()
+    private weak var controller: SelectionController?
     private let host: UIHostingController<FormatBarContent>
     private let fill = UIView()
     private var phaseObservation: AnyCancellable?
@@ -375,6 +382,7 @@ final class FormatBarAccessoryView: UIInputView {
 
     init(controller: SelectionController) {
         host = UIHostingController(rootView: FormatBarContent(controller: controller, style: style))
+        self.controller = controller
         super.init(frame: CGRect(x: 0, y: 0, width: 0, height: 0), inputViewStyle: .default)
         allowsSelfSizing = true
         autoresizingMask = .flexibleHeight
@@ -421,10 +429,18 @@ final class FormatBarAccessoryView: UIInputView {
 
     /// With a hardware keyboard UIKit puts the accessory at the very bottom of the screen, over
     /// the home indicator: the bar grows by the bottom safe area so its chips sit above it. With
-    /// the software keyboard the inset is 0.
+    /// the software keyboard it never does: during an interactive swipe-down the accessory
+    /// reaches the bottom of the screen and takes the home indicator's inset mid-gesture, and
+    /// adding it there made the bar jump by 34 pt under the finger.
     override var intrinsicContentSize: CGSize {
         CGSize(width: UIView.noIntrinsicMetric,
-               height: isShowing ? SelectionRow.height + safeAreaInsets.bottom : 0)
+               height: isShowing ? SelectionRow.height + hardwareKeyboardInset : 0)
+    }
+
+    /// The bottom safe area, only while no software keyboard is up (a hardware keyboard alone).
+    var hardwareKeyboardInset: CGFloat {
+        let software = (controller?.keyboardOverlap ?? 0) >= SelectionController.minimumSoftwareKeyboardOverlap
+        return software ? 0 : safeAreaInsets.bottom
     }
 
     override func safeAreaInsetsDidChange() {

@@ -113,6 +113,34 @@ final class ReadingAssistsTests: XCTestCase {
         XCTAssertEqual(textView.contentOffset.y, 1_234, accuracy: 0.5)
     }
 
+    /// A selection (a handle being dragged) holds the page still; collapsing it to a caret centres
+    /// again.
+    func testTypewriterHoldsStillWhileASelectionIsMade() {
+        let text = Self.longDocument(lines: 400)
+        let textView = makeEditor(text, profile: Self.profile(typewriter: true))
+        let ns = text as NSString
+        let caret = ns.range(of: "line 200 ").location
+        textView.selectedRange = NSRange(location: caret, length: 0)
+        textView.refreshReadingAssists()
+        let centred = textView.contentOffset.y
+
+        // The handle drags down over many lines: no re-centring on each change.
+        for lines in [3, 12, 30] {
+            let end = ns.range(of: "line \(200 + lines) ").location
+            textView.selectedRange = NSRange(location: caret, length: end - caret)
+            textView.refreshReadingAssists()
+            XCTAssertEqual(textView.contentOffset.y, centred, accuracy: 0.5, "still while \(lines) lines are selected")
+        }
+
+        // Collapsed to a caret further down (a tap): centred on it again.
+        let later = ns.range(of: "line 230 ").location
+        textView.selectedRange = NSRange(location: later, length: 0)
+        textView.refreshReadingAssists()
+        let lineRect = Self.lineFragment(textView, at: later)
+        let visibleHeight = textView.bounds.height - textView.adjustedContentInset.top - textView.adjustedContentInset.bottom
+        XCTAssertEqual(textView.contentOffset.y + textView.adjustedContentInset.top + visibleHeight / 2, lineRect.midY, accuracy: 0.5)
+    }
+
     func testTypewriterWaitsForTheKeyboardToSettle() {
         let text = Self.longDocument(lines: 400)
         let textView = makeEditor(text, profile: Self.profile(typewriter: true))

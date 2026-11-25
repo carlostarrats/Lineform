@@ -49,6 +49,7 @@ struct MarkdownEditor: UIViewRepresentable {
         let textView = LineformTextView.make(profile: profile)
         textView.checksSpellingWhileTyping = checksSpelling
         textView.setDocumentText(text)
+        context.coordinator.documentIdentity = readEditDocument?.imageInsertionDocumentIdentity
         textView.delegate = context.coordinator
         textView.imageInsertionHost = imageHost
         textView.keepsCaretVisibleOnResize = keepsCaretVisibleOnResize
@@ -86,16 +87,21 @@ struct MarkdownEditor: UIViewRepresentable {
         readEditDocument?.readEditor = textView
         history?.attach(textView)
         selectionController?.attach(textView)
-        if let known = coordinator?.knownText, known == text,
+        // Another document (OpenDocument's identity moved on: an open, New Document) starts at its
+        // top; a live reload of the same one keeps the caret where it was, clamped.
+        let identity = readEditDocument?.imageInsertionDocumentIdentity
+        let isNewDocument = coordinator.map { $0.documentIdentity != nil && $0.documentIdentity != identity } ?? false
+        coordinator?.documentIdentity = identity
+        if !isNewDocument, let known = coordinator?.knownText, known == text,
            textView.textStorage.length == text.utf16.count {
             return
         }
-        if textView.text != text {
+        if isNewDocument || textView.text != text {
             // An outside replacement (a live reload, another document): an AI request or review
             // for the old text is abandoned first, recording and applying nothing.
             selectionController?.editorTextWillBeReplaced()
             // An outside replacement: the editor's undo steps describe the old text.
-            textView.setDocumentText(text)
+            textView.setDocumentText(text, isNewDocument: isNewDocument)
             textView.undoManager?.removeAllActions()
         }
         coordinator?.knownText = text
@@ -108,6 +114,9 @@ struct MarkdownEditor: UIViewRepresentable {
         var parent: MarkdownEditor
         /// The text the editor was last known to hold (`configure`'s cheap check).
         var knownText: String?
+        /// The open document's identity when the editor last took its text
+        /// (`OpenDocument.imageInsertionDocumentIdentity`): a change means another document.
+        var documentIdentity: Int?
 
         init(parent: MarkdownEditor) { self.parent = parent }
 

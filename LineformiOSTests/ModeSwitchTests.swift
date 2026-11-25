@@ -338,6 +338,90 @@ final class ModeSwitchTests: XCTestCase {
         XCTAssertFalse(surfaces.editor.isFirstResponder)
     }
 
+    /// Read's focus request that never reached a window (the writer left Read first) is dropped,
+    /// so Preview's later mount of the Read view cannot take the focus from the editor.
+    func testLeavingReadDropsAFocusRequestThatNeverReachedAWindow() throws {
+        let editor = LineformTextView.make()
+        editor.setDocumentText("one\n")
+        hostAlone(editor)
+        window?.makeKey()
+        XCTAssertTrue(editor.becomeFirstResponder())
+        let reader = LineformReadView.make()
+        reader.apply(text: "one\n", profile: .original, documentDirectory: nil)
+        let keeper = ModePositionKeeper()
+        keeper.editor = editor
+        keeper.reader = reader
+        keeper.adopt(.read)
+        XCTAssertTrue(reader.hasPendingFocus, "set-up: Read asked for the focus with no window yet")
+
+        keeper.switchMode(from: .read, to: .split)
+        XCTAssertFalse(reader.hasPendingFocus, "leaving Read drops it")
+        XCTAssertTrue(editor.becomeFirstResponder())
+        reader.frame = CGRect(x: 0, y: 350, width: 393, height: 350)
+        window?.rootViewController?.view.addSubview(reader)
+        settle(ticks: 4)
+        XCTAssertTrue(editor.isFirstResponder, "Preview's Read pane mounting later leaves the editor its focus")
+        XCTAssertFalse(reader.isFirstResponder)
+    }
+
+    // MARK: - Another document starts at its top
+
+    /// Opening another document puts the caret at 0, selects nothing and scrolls to the top; a
+    /// live reload of the same document keeps the caret where it was (clamped). With Typewriter
+    /// Mode on, the new document does not jump.
+    func testOpeningAnotherDocumentStartsAtItsTop() async throws {
+        let long = (0..<300).map { "line \($0) of a document long enough to scroll" }.joined(separator: "\n") + "\n"
+        let urlA = folder.appendingPathComponent("A.md")
+        let urlB = folder.appendingPathComponent("B.md")
+        try long.write(to: urlA, atomically: true, encoding: .utf8)
+        try ("B starts here\n" + long).write(to: urlB, atomically: true, encoding: .utf8)
+        let document = await preparedDocument(text: "")
+        try await document.open(urlA)
+        for typewriter in [false, true] {
+            var profile = ReadingProfile.original
+            profile.typewriterModeEnabled = typewriter
+            let editor = LineformTextView.make(profile: profile)
+            var bound = document.text
+            let representable = MarkdownEditor(
+                text: Binding(get: { bound }, set: { bound = $0; document.edit($0) }),
+                profile: profile, imageHost: nil, readEditDocument: document
+            )
+            let coordinator = representable.makeCoordinator()
+            editor.setDocumentText(bound)
+            coordinator.documentIdentity = document.imageInsertionDocumentIdentity
+            editor.delegate = coordinator
+            window?.isHidden = true
+            window = nil
+            hostAlone(editor)
+            representable.configure(editor, coordinator: coordinator)
+
+            // In A, the caret far down and the page scrolled with it.
+            editor.selectedRange = NSRange(location: 5_000, length: 0)
+            editor.layoutManager.ensureLayout(for: editor.textContainer)
+            editor.setContentOffset(CGPoint(x: 0, y: 2_000), animated: false)
+            XCTAssertEqual(editor.contentOffset.y, 2_000, accuracy: 0.5)
+
+            // A live reload of A keeps the caret (clamped).
+            bound = long + "more\n"
+            representable.configure(editor, coordinator: coordinator)
+            XCTAssertEqual(editor.selectedRange, NSRange(location: 5_000, length: 0), "a reload keeps the caret")
+
+            // Open B: caret 0, no selection, the top of the page.
+            try await document.open(document.url == urlA ? urlB : urlA)
+            bound = document.text
+            representable.configure(editor, coordinator: coordinator)
+            for _ in 0..<3 {
+                try await Task.sleep(for: .milliseconds(20))
+                editor.layoutIfNeeded()
+            }
+            XCTAssertEqual(editor.selectedRange, NSRange(location: 0, length: 0), "typewriter \(typewriter)")
+            XCTAssertEqual(editor.contentOffset.y, -editor.adjustedContentInset.top, accuracy: 0.5,
+                           "another document opens at its top (typewriter \(typewriter): no jump)")
+            editor.refreshReadingAssists()
+            XCTAssertEqual(editor.contentOffset.y, -editor.adjustedContentInset.top, accuracy: 0.5)
+        }
+    }
+
     // MARK: - Pressed states
 
     func testPressedStatesAnimateWithMotionPolicy() {
