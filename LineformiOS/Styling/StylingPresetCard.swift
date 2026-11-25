@@ -58,6 +58,18 @@ struct StylingPresetCard: View {
                     lineWidth: isSelected ? Self.selectedStrokeWidth : Self.unselectedStrokeWidth
                 )
             )
+            // The chosen theme also carries a small blue check in its top-right corner (owner
+            // review 6: the outline alone was hard to see on the dark cards).
+            .overlay(alignment: .topTrailing) {
+                if isSelected {
+                    Image(systemName: "checkmark.circle.fill")
+                        .font(.system(size: 15, weight: .semibold))
+                        .symbolRenderingMode(.palette)
+                        .foregroundStyle(.white, Color(uiColor: Self.selectedStrokeColor(usesDarkChrome: usesDarkChrome)))
+                        .padding(6)
+                        .accessibilityHidden(true)
+                }
+            }
             .contentShape(shape)
         }
         .buttonStyle(.plain)

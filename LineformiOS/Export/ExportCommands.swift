@@ -80,6 +80,10 @@ final class ExportCommands {
     private(set) var failureNotice: String?
 
     @ObservationIgnored private weak var document: OpenDocument?
+    /// Another document Export & Print's wheel chose, with its text as read from disk: exports,
+    /// Share and Print act on it while the open document stays open (owner review 6). Nil acts on
+    /// the open document; Export & Print sets it back to nil whenever it closes.
+    private(set) var chosenFile: (url: URL, text: String)?
     @ObservationIgnored private let profile: () -> ReadingProfile
     @ObservationIgnored private let writer: PhoneExportWriter
     @ObservationIgnored private let speech: SpeechController
@@ -158,22 +162,39 @@ final class ExportCommands {
     /// The document's name for exports, the print job and notices: its file name without the
     /// extension, or "Untitled".
     var documentBaseName: String {
-        PhoneExportWriter.sanitizedBaseName(document?.url?.deletingPathExtension().lastPathComponent ?? "")
+        PhoneExportWriter.sanitizedBaseName(sourceURL?.deletingPathExtension().lastPathComponent ?? "")
+    }
+
+    /// The file exports act on: the wheel's choice, or the open document's.
+    private var sourceURL: URL? { chosenFile?.url ?? document?.url }
+    /// The text exports act on.
+    private var sourceText: String { chosenFile?.text ?? document?.text ?? "" }
+    private var sourceDirectory: URL? { chosenFile?.url.deletingLastPathComponent() ?? document?.documentDirectory }
+
+    /// Export & Print's wheel: act on `url` instead of the open document, or on the open document
+    /// again (nil, or the open document's own file). Reads the file off the main thread.
+    func choose(_ url: URL?) async {
+        guard let url, url.standardizedFileURL != document?.url?.standardizedFileURL else {
+            chosenFile = nil
+            return
+        }
+        let text = await Task.detached { FileSystemDiskReader().readText(at: url) }.value
+        chosenFile = text.map { (url, $0) }
     }
 
     /// Writes `format` to a fresh file for the share sheet, after saving the pending text.
     func export(_ format: PhoneExportFormat) async -> Result<URL, ExportFailure> {
         guard let document else { return .failure(.writeFailed) }
         // A failed save still exports what is on screen; the save notice says the rest.
-        _ = await document.flush()
+        if chosenFile == nil { _ = await document.flush() }
         do {
             let url = try writer.write(
                 format,
-                text: document.text,
+                text: sourceText,
                 baseName: documentBaseName,
                 profile: profile(),
                 paper: paper,
-                documentDirectory: document.documentDirectory
+                documentDirectory: sourceDirectory
             )
             return .success(url)
         } catch PhoneExportWriter.WriteError.empty {
@@ -217,12 +238,14 @@ final class ExportCommands {
     /// gives one. An Untitled document with nothing typed, or only spaces and Returns, has none:
     /// `AutosavePlanner` makes no file until a line names it (`DocumentNaming.baseName`).
     var canShareDocument: Bool {
+        if chosenFile != nil { return true }
         guard let document else { return false }
         return document.url != nil || DocumentNaming.baseName(fromText: document.text) != nil
     }
 
     /// The document's own file, saved first; nil when there is none or the save failed.
     func documentFileForSharing() async -> URL? {
+        if let chosenFile { return chosenFile.url }
         guard let document, canShareDocument else { return nil }
         guard await document.flush() else { return nil }
         return document.url
@@ -236,10 +259,10 @@ final class ExportCommands {
     /// A renderer for the text as it is now, in the Styled layout.
     func makePrintRenderer() -> PhonePrintRenderer {
         PhonePrintRenderer(
-            text: document?.text ?? "",
+            text: sourceText,
             profile: profile(),
             paper: printPaper,
-            documentDirectory: document?.documentDirectory
+            documentDirectory: sourceDirectory
         )
     }
 
@@ -304,6 +327,7 @@ final class ExportCommands {
     /// file): reading the previous document on must not go on.
     func documentWillChange() {
         stopReading()
+        chosenFile = nil
     }
 
     /// The Mac's `speechSource(for:)`: a Read-mode selection is in rendered coordinates and is

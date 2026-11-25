@@ -61,9 +61,10 @@ struct ExportPrintSection: View {
         WordMenuPageScaffold(title: WordMenuItem.exportPrint.title) {
             // What everything below acts on: "File name", then the open document's name as a
             // button. A tap opens a wheel of the documents in place (iCloud or On My iPhone first,
-            // when both exist), so a long list scrolls fast; turning it opens that document and the
-            // page stays (owner review 5).
-            ExportDocumentPicker(document: document, files: files)
+            // when both exist), so a long list scrolls fast. Select chooses what the rows below act
+            // on; the open document stays open, and leaving the page goes back to it (owner
+            // review 6).
+            ExportDocumentPicker(document: document, files: files, exportCommands: exportCommands)
             // More air under the file than between the row groups, so the name reads apart
             // from the commands (owner review 5).
             Color.clear.frame(height: Self.fileGap)
@@ -93,18 +94,20 @@ struct ExportPrintSection: View {
                     ChromeAnnouncer.announce(Self.conversionAnnouncement(for: document.textFormat))
                 }
             }
-            .disabled(!document.canConvertTextFormat)
+            .disabled(!document.canConvertTextFormat || exportCommands?.chosenFile != nil)
         }
+        .onDisappear { Task { await exportCommands?.choose(nil) } }
     }
 
 }
 
 /// Export & Print's document: a small "File name" label over the open document's name, which is a
 /// button. It brings up iOS's wheel from the bottom of the screen, with a location choice first
-/// when iCloud and On My iPhone both show; the wheel's choice opens at once.
+/// when iCloud and On My iPhone both show; Select makes that document what the rows act on.
 private struct ExportDocumentPicker: View {
     var document: OpenDocument
     var files: FilesStore
+    var exportCommands: ExportCommands?
     @State private var isOpen = false
     @State private var rootID: FilesRootID?
     /// The document the wheel is turned to, until Select.
@@ -114,7 +117,12 @@ private struct ExportDocumentPicker: View {
     private var roots: [FilesRoot] { FilesSection.phoneRoots(files.roots).filter(\.hasScanned) }
 
     private var currentRootID: FilesRootID? {
-        rootID ?? document.url.flatMap { files.rootID(containing: $0) } ?? roots.first?.id
+        rootID ?? chosenURL.flatMap { files.rootID(containing: $0) } ?? roots.first?.id
+    }
+
+    /// The document the rows act on: the wheel's last choice, or the open document.
+    private var chosenURL: URL? {
+        (exportCommands?.chosenFile?.url ?? document.url)?.standardizedFileURL
     }
 
     private func documents(in id: FilesRootID?) -> [OutlineFileTreeItem] {
@@ -125,7 +133,7 @@ private struct ExportDocumentPicker: View {
     }
 
     var body: some View {
-        let name = WordMenu.documentTitle(for: document.url)
+        let name = WordMenu.documentTitle(for: exportCommands?.chosenFile?.url ?? document.url)
         VStack(alignment: .leading, spacing: 6) {
             Text(String(localized: "File name"))
                 .font(.caption.weight(.medium))
@@ -159,7 +167,7 @@ private struct ExportDocumentPicker: View {
         }
         // The wheel rises from the bottom of the screen: the location switch at the top (only
         // when iCloud and On My iPhone both show), iOS's own wheel, full width with its own grey
-        // band, and Select at the bottom, which opens that document (owner review 5).
+        // band, and Select at the bottom, which picks what to export (owner review 6).
         .sheet(isPresented: $isOpen) {
             let items = documents(in: currentRootID)
             VStack(spacing: 12) {
@@ -176,7 +184,7 @@ private struct ExportDocumentPicker: View {
                     font: UIFont.preferredFont(forTextStyle: .title3),
                     selection: Binding(
                         get: {
-                            let target = pending ?? document.url?.standardizedFileURL
+                            let target = pending ?? chosenURL
                             return items.firstIndex { $0.url.standardizedFileURL == target } ?? 0
                         },
                         set: { index in if items.indices.contains(index) { pending = items[index].url.standardizedFileURL } }
@@ -190,8 +198,8 @@ private struct ExportDocumentPicker: View {
                     let chosen = pending ?? items.first?.url.standardizedFileURL
                     isOpen = false
                     pending = nil
-                    guard let chosen, chosen != document.url?.standardizedFileURL else { return }
-                    Task { await document.openReportingFailure(chosen) }
+                    guard let chosen, chosen != chosenURL else { return }
+                    Task { await exportCommands?.choose(chosen) }
                 }
                 .disabled(items.isEmpty)
             }

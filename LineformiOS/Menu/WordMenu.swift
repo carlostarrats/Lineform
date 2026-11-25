@@ -119,7 +119,10 @@ struct WordMenu: View {
                         .environment(\.wordMenuPageDepth, navigation.stack.count)
                         .id(page)
                 } else {
+                    // The word list has no field of its own: opened while the page's keyboard is
+                    // still going down, it must not be laid out short and then jump (owner review 6).
                     wordList
+                        .ignoresSafeArea(.keyboard)
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
@@ -159,6 +162,9 @@ struct WordMenu: View {
                 .padding(MarkdownEditor.chromeMargin)
                 .padding(.bottom, keyboardLift)
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
+                // The lift is measured here; SwiftUI's own keyboard avoidance would add it twice
+                // (owner review 6: the buttons sat far up under the search bar).
+                .ignoresSafeArea(.keyboard)
                 .transition(.identity)
             }
             WordMenuCornerButton(
@@ -172,6 +178,7 @@ struct WordMenu: View {
             .padding(MarkdownEditor.chromeMargin)
             .padding(.bottom, keyboardLift)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
+            .ignoresSafeArea(.keyboard)
             .transaction { $0.animation = nil }
         }
         .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillChangeFrameNotification)) { note in
@@ -180,6 +187,9 @@ struct WordMenu: View {
         .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillHideNotification)) { _ in
             keyboardLift = 0
         }
+        // iOS 26's soft scroll edge shaded the band behind the time and battery darker than the
+        // wash; the masked wash band above already covers rows passing under it (owner review 6).
+        .scrollEdgeEffectHidden(true, for: .top)
         .environment(\.wordMenuPalette, palette)
         .environment(\.wordMenuSession, currentSession)
         .environment(\.colorScheme, palette.colorScheme)
