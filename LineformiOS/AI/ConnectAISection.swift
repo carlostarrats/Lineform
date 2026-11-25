@@ -52,9 +52,10 @@ final class ConnectAIFormModel: ObservableObject, Identifiable {
         ConnectAIPresentation.consentNote(for: selection, otherHost: ConnectAIPresentation.host(fromAddress: address))
     }
 
-    /// Other is an address, an optional key and a model; the big three are a key and a tier.
+    /// Other is an address, an optional key and a model; the big three are a key and a model
+    /// picked from a list.
     var showsAddressAndModelFields: Bool { selection == .other }
-    var showsTierPicker: Bool { selection.model(for: .standard) != nil }
+    var showsModelPicker: Bool { !selection.models.isEmpty }
 
     /// The consent step. Stores the key (and Other's address and model), deleting every other
     /// provider's key; makes no request. True when connected.
@@ -90,7 +91,7 @@ final class ConnectAIFormModel: ObservableObject, Identifiable {
             ConnectAIPresentation.addressLabel, ConnectAIPresentation.optionalKeyLabel,
             ConnectAIPresentation.optionalModelLabel, ConnectAIPresentation.connectedText,
             ConnectAIPresentation.disconnectTitle, ConnectAIPresentation.reconnectNote,
-            ConnectAIPresentation.privacyNote, ConnectAIPresentation.modelTierLabel,
+            ConnectAIPresentation.privacyNote, ConnectAIPresentation.modelLabel,
             ConnectAIPresentation.connectTitle,
             ConnectAIPresentation.recipientNote(for: .other, otherHost: nil),
             AIActionController.reconnectMessage,
@@ -104,21 +105,20 @@ final class ConnectAIFormModel: ObservableObject, Identifiable {
                 strings.append(ConnectAIPresentation.recipientNote(for: provider, otherHost: nil))
             }
         }
-        strings += AIModelTier.allCases.map(\.title)
         strings += [AIConnectError.missingKey, .invalidAddress, .insecureAddress, .keychainFailed].map(\.message)
         return strings
     }
 }
 
 /// The word menu's Connect Your AI: what is sent, the providers as rows (Claude, ChatGPT, Google,
-/// Other; the picked one ticked), its billing note, then either "Connected" with the tier,
+/// Other; the picked one ticked), its billing note, then either "Connected" with the model,
 /// Disconnect and Ask AI… for the whole document, or the key field (Other: address, optional key,
 /// model) and the blue Connect pill, with what is sent, to whom and the privacy note in small text
 /// under it (the consent step). The Model row names the models ("Claude Sonnet 5.5"). Connecting
 /// makes no request.
 struct ConnectAISection: View {
     @StateObject private var form: ConnectAIFormModel
-    /// Observed too: the connection and the tier live in the store.
+    /// Observed too: the connection and the chosen model live in the store.
     @ObservedObject private var store: AIConnectionStore
     var mode: EditorDisplayMode
     var hasText: Bool
@@ -229,7 +229,7 @@ struct ConnectAISection: View {
         .padding(.top, 4)
         .accessibilityElement(children: .combine)
         .accessibilityIdentifier("connectAI.connected")
-        if form.showsTierPicker { tierPicker }
+        if form.showsModelPicker { modelPicker }
         if form.selection == .other, let endpoint = store.otherEndpoint {
             Text(verbatim: endpoint.absoluteString)
                 .font(.footnote)
@@ -284,7 +284,7 @@ struct ConnectAISection: View {
         if let guidance = ConnectAIPresentation.keyGuidance(for: form.selection) {
             WordMenuNote(text: guidance)
         }
-        if form.showsTierPicker { tierPicker }
+        if form.showsModelPicker { modelPicker }
         if let error = form.error {
             Text(error.message)
                 .font(.subheadline)
@@ -305,33 +305,33 @@ struct ConnectAISection: View {
             .accessibilityIdentifier("connectAI.consentNote")
     }
 
-    /// The model, by its product name ("Claude Sonnet 5.5"): each tier is listed by the model it
-    /// sends. The tier stays the stored choice. A change while connected takes effect at the next
-    /// action; no key is read.
+    /// The model, by its product name ("Claude Sonnet 5.5"), from the provider's list, cheapest
+    /// first; the model ID is the stored choice. A change while connected takes effect at the
+    /// next action; no key is read.
     @ViewBuilder
-    private var tierPicker: some View {
+    private var modelPicker: some View {
         let provider = form.selection
-        let current = provider.modelDisplayName(for: store.tier(for: provider)) ?? ""
+        let current = store.model(for: provider)?.displayName ?? ""
         Menu {
-            Picker(ConnectAIPresentation.modelTierLabel, selection: Binding(
-                get: { store.tier(for: provider) },
-                set: { store.setTier($0, for: provider) }
+            Picker(ConnectAIPresentation.modelLabel, selection: Binding(
+                get: { store.model(for: provider) },
+                set: { picked in if let picked { store.setModel(picked, for: provider) } }
             )) {
-                ForEach(AIModelTier.allCases) { tier in
-                    Text(verbatim: provider.modelDisplayName(for: tier) ?? "").tag(tier)
+                ForEach(provider.models) { option in
+                    Text(verbatim: option.displayName).tag(Optional(option))
                 }
             }
             .pickerStyle(.inline)
         } label: {
             WordMenuRowLabel(
-                title: ConnectAIPresentation.modelTierLabel,
+                title: ConnectAIPresentation.modelLabel,
                 accessory: .text(current)
             )
         }
         .buttonStyle(WordMenuPressStyle())
-        .accessibilityLabel(ConnectAIPresentation.modelTierLabel)
+        .accessibilityLabel(ConnectAIPresentation.modelLabel)
         .accessibilityValue(Text(verbatim: current))
-        .accessibilityIdentifier("connectAI.tier")
+        .accessibilityIdentifier("connectAI.modelPicker")
     }
 
     /// The consent step, with what happened said aloud: "Connected", or the refusal.

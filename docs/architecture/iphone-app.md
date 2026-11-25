@@ -1059,10 +1059,10 @@ blue pill, which says just **Connect** (owner review 2, 2026-11-24). Under it, i
 text, the consent: what is sent and to whom ("Lineform will send the text you choose to
 Anthropic.", or the typed host, or "that address"), then the privacy note
 (`ConnectAIPresentation.consentNote`; VoiceOver reads it as the button's hint). The **Model** row
-names the models ("Claude Haiku 5.5" / "Claude Sonnet 5.5", "GPT-6 Luna" / "GPT-6.1 Terra",
-"Gemini 3.5 Flash-Lite" / "Gemini 3.8 Flash": `AIProvider.modelDisplayName(for:)`, from the tier →
-model id mapping); the stored choice is still the tier (raw values unchanged). Connecting makes no request; the key is kept in the Keychain only, and connecting
-deletes the other providers' keys. Connected: "Connected", the tier, **Ask AI…** for the whole
+lists the provider's models by name, cheapest first (`AIProvider.models`, the Mac's table; default
+the cheapest, e.g. "Claude Haiku 5.5"); the stored choice is the model ID (`app-integration.md` §
+Models). Connecting makes no request; the key is kept in the Keychain only, and connecting
+deletes the other providers' keys. Connected: "Connected", the model, **Ask AI…** for the whole
 document (while Write or Preview is on screen and the document has text; it closes the menu, then
 runs the shared length policy, see "Ask AI for the whole document") and Disconnect.
 

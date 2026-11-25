@@ -103,49 +103,108 @@ final class AIConnectionStoreTests: XCTestCase {
         XCTAssertEqual(keychain.readCount, 0)
     }
 
-    func testTierDefaultsToStandardAndPersistsPerProvider() {
-        let defaults = freshDefaults("tier")
+    func testModelDefaultsToCheapestAndPersistsPerProvider() throws {
+        let defaults = freshDefaults("model")
         let store = AIConnectionStore(defaults: defaults, keychain: InMemoryAIKeychain())
-        for provider in AIProvider.allCases {
-            XCTAssertEqual(store.tier(for: provider), .standard, "\(provider)")
-        }
-        store.setTier(.higherQuality, for: .chatGPT)
-        XCTAssertEqual(store.tier(for: .chatGPT), .higherQuality)
-        XCTAssertEqual(store.tier(for: .claude), .standard)
-        XCTAssertEqual(defaults.string(forKey: "Lineform.ai.tier.chatgpt"), "higherQuality")
+        XCTAssertEqual(store.model(for: .claude)?.id, "claude-haiku-5-5")
+        XCTAssertEqual(store.model(for: .chatGPT)?.id, "gpt-6-luna")
+        XCTAssertEqual(store.model(for: .google)?.id, "gemini-3.5-flash-lite")
+        XCTAssertNil(store.model(for: .other), "Other's model is typed")
+        let sol = try XCTUnwrap(AIProvider.chatGPT.model(withID: "gpt-6.2-sol"))
+        store.setModel(sol, for: .chatGPT)
+        XCTAssertEqual(store.model(for: .chatGPT), sol)
+        XCTAssertEqual(store.model(for: .claude)?.id, "claude-haiku-5-5")
+        XCTAssertEqual(defaults.string(forKey: "Lineform.ai.model.chatgpt"), "gpt-6.2-sol")
         let relaunched = AIConnectionStore(defaults: defaults, keychain: InMemoryAIKeychain())
-        XCTAssertEqual(relaunched.tier(for: .chatGPT), .higherQuality)
-        XCTAssertEqual(relaunched.tier(for: .google), .standard)
+        XCTAssertEqual(relaunched.model(for: .chatGPT), sol)
+        XCTAssertEqual(relaunched.model(for: .google)?.id, "gemini-3.5-flash-lite")
+        // Another provider's model is refused.
+        let opus = try XCTUnwrap(AIProvider.claude.model(withID: "claude-opus-5-5"))
+        store.setModel(opus, for: .google)
+        XCTAssertNil(defaults.string(forKey: "Lineform.ai.model.google"))
     }
 
-    func testResolvedConnectionUsesTierModel() {
+    func testSavedTiersMigrateToTheirModels() {
+        let defaults = freshDefaults("migrate")
+        defaults.set("higherQuality", forKey: "Lineform.ai.tier.claude")
+        defaults.set("higherQuality", forKey: "Lineform.ai.tier.chatgpt")
+        defaults.set("higherQuality", forKey: "Lineform.ai.tier.google")
+        let store = AIConnectionStore(defaults: defaults, keychain: InMemoryAIKeychain())
+        XCTAssertEqual(store.model(for: .claude)?.id, "claude-sonnet-5-5")
+        XCTAssertEqual(store.model(for: .chatGPT)?.id, "gpt-6.1-terra")
+        XCTAssertEqual(store.model(for: .google)?.id, "gemini-3.8-flash")
+        for provider in AIProvider.allCases {
+            XCTAssertNil(defaults.string(forKey: "Lineform.ai.tier.\(provider.rawValue)"), "tier key removed")
+        }
+
+        let standard = freshDefaults("migrate-standard")
+        standard.set("standard", forKey: "Lineform.ai.tier.claude")
+        standard.set("standard", forKey: "Lineform.ai.tier.google")
+        let second = AIConnectionStore(defaults: standard, keychain: InMemoryAIKeychain())
+        XCTAssertEqual(second.model(for: .claude)?.id, "claude-haiku-5-5")
+        XCTAssertEqual(second.model(for: .google)?.id, "gemini-3.5-flash-lite")
+        XCTAssertNil(standard.string(forKey: "Lineform.ai.tier.claude"))
+
+        // A model already chosen wins over a leftover tier.
+        let both = freshDefaults("migrate-both")
+        both.set("claude-opus-5-5", forKey: "Lineform.ai.model.claude")
+        both.set("standard", forKey: "Lineform.ai.tier.claude")
+        XCTAssertEqual(AIConnectionStore(defaults: both, keychain: InMemoryAIKeychain()).model(for: .claude)?.id,
+                       "claude-opus-5-5")
+    }
+
+    func testUnlistedSavedModelFallsBackToDefault() {
+        let defaults = freshDefaults("unlisted")
+        defaults.set("claude-fable-5-2", forKey: "Lineform.ai.model.claude")
+        defaults.set("gpt-6.2-astra", forKey: "Lineform.ai.model.chatgpt")
+        let store = AIConnectionStore(defaults: defaults, keychain: InMemoryAIKeychain())
+        XCTAssertEqual(store.model(for: .claude)?.id, "claude-haiku-5-5")
+        XCTAssertEqual(store.model(for: .chatGPT)?.id, "gpt-6-luna")
+        XCTAssertNil(store.connect(.claude, key: "k"))
+        XCTAssertEqual(store.resolvedConnection()?.model, "claude-haiku-5-5")
+    }
+
+    func testResolvedConnectionUsesChosenModel() throws {
         let store = AIConnectionStore(defaults: freshDefaults("resolved"), keychain: InMemoryAIKeychain())
         XCTAssertNil(store.connect(.claude, key: "k"))
         var resolved = store.resolvedConnection()
         XCTAssertEqual(resolved?.endpoint.absoluteString, "https://api.anthropic.com/v1/messages")
         XCTAssertEqual(resolved?.model, "claude-haiku-5-5")
         XCTAssertEqual(resolved?.apiKey, "k")
-        // Changing the tier while connected needs no new key.
-        store.setTier(.higherQuality, for: .claude)
+        // Changing the model while connected needs no new key.
+        store.setModel(try XCTUnwrap(AIProvider.claude.model(withID: "claude-opus-5-5")), for: .claude)
         resolved = store.resolvedConnection()
-        XCTAssertEqual(resolved?.model, "claude-sonnet-5-5")
+        XCTAssertEqual(resolved?.model, "claude-opus-5-5")
         XCTAssertEqual(resolved?.apiKey, "k")
 
         XCTAssertNil(store.connect(.chatGPT, key: "k"))
         XCTAssertEqual(store.resolvedConnection()?.model, "gpt-6-luna")
-        store.setTier(.higherQuality, for: .chatGPT)
+        store.setModel(try XCTUnwrap(AIProvider.chatGPT.model(withID: "gpt-6.1-terra")), for: .chatGPT)
         XCTAssertEqual(store.resolvedConnection()?.model, "gpt-6.1-terra")
 
         XCTAssertNil(store.connect(.google, key: "k"))
         XCTAssertEqual(store.resolvedConnection()?.model, "gemini-3.5-flash-lite")
-        store.setTier(.higherQuality, for: .google)
-        XCTAssertEqual(store.resolvedConnection()?.model, "gemini-3.8-flash")
+        store.setModel(try XCTUnwrap(AIProvider.google.model(withID: "gemini-4-neon")), for: .google)
+        XCTAssertEqual(store.resolvedConnection()?.model, "gemini-4-neon")
     }
 
-    func testOtherHasNoTierModel() {
-        for tier in AIModelTier.allCases {
-            XCTAssertNil(AIProvider.other.model(for: tier))
+    func testModelListsAreCuratedCheapestFirst() {
+        XCTAssertEqual(AIProvider.claude.models.map(\.id), ["claude-haiku-5-5", "claude-sonnet-5-5", "claude-opus-5-5"])
+        XCTAssertEqual(AIProvider.chatGPT.models.map(\.id), ["gpt-6-luna", "gpt-6.1-terra", "gpt-6.2-sol"])
+        XCTAssertEqual(AIProvider.google.models.map(\.id),
+                       ["gemini-3.5-flash-lite", "gemini-3.8-flash", "gemini-4-hydrogen", "gemini-4-neon"])
+        XCTAssertEqual(AIProvider.claude.models.map(\.displayName),
+                       ["Claude Haiku 5.5", "Claude Sonnet 5.5", "Claude Opus 5.5"])
+        XCTAssertEqual(AIProvider.chatGPT.models.map(\.displayName), ["GPT-6 Luna", "GPT-6.1 Terra", "GPT-6.2 Sol"])
+        XCTAssertEqual(AIProvider.google.models.map(\.displayName),
+                       ["Gemini 3.5 Flash-Lite", "Gemini 3.8 Flash", "Gemini 4 Hydrogen", "Gemini 4 Neon"])
+        // The top tier is never offered.
+        let ids = AIProvider.allCases.flatMap(\.models).map(\.id)
+        for excluded in ["fable", "mythos", "astra", "-pro", "carbon", "argon", "ultra"] {
+            XCTAssertFalse(ids.contains { $0.contains(excluded) }, excluded)
         }
+        XCTAssertTrue(AIProvider.other.models.isEmpty)
+        XCTAssertNil(AIProvider.other.defaultModel)
     }
 
     func testFailedKeychainWriteLeavesTheExistingConnectionIntact() {

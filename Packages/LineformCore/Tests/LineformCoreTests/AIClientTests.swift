@@ -9,7 +9,7 @@ final class AIClientTests: XCTestCase {
                             endpoint: URL? = nil, model: String? = nil) -> AIConnection {
         AIConnection(provider: provider,
                      endpoint: endpoint ?? provider.endpoint ?? URL(string: "http://127.0.0.1:8765/v1/chat/completions")!,
-                     model: model ?? provider.model(for: .standard) ?? "default", apiKey: key)
+                     model: model ?? provider.defaultModel?.id ?? "default", apiKey: key)
     }
 
     private func json(_ request: URLRequest) throws -> [String: Any] {
@@ -77,7 +77,7 @@ final class AIClientTests: XCTestCase {
             XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer k")
             XCTAssertNil(request.value(forHTTPHeaderField: "x-api-key"))
             let body = try json(request)
-            XCTAssertEqual(body["model"] as? String, provider.model(for: .standard))
+            XCTAssertEqual(body["model"] as? String, provider.defaultModel?.id)
             let messages = try XCTUnwrap(body["messages"] as? [[String: Any]])
             XCTAssertEqual(messages.map { $0["role"] as? String }, ["system", "user"])
             XCTAssertEqual(messages.map { $0["content"] as? String }, ["be brief", "hello"])

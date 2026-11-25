@@ -98,6 +98,17 @@ final class LocalizationSourceSweepTests: XCTestCase {
         "AIProvider.swift|Claude": "Brand name.",
         "AIProvider.swift|Google": "Brand name.",
         "AIProvider.swift|Anthropic": "Brand name.",
+        // The Model picker's product names (`AIProvider.models`). Never translated.
+        "AIProvider.swift|Claude Haiku 5.5": "Model product name.",
+        "AIProvider.swift|Claude Sonnet 5.5": "Model product name.",
+        "AIProvider.swift|Claude Opus 5.5": "Model product name.",
+        "AIProvider.swift|GPT-6 Luna": "Model product name.",
+        "AIProvider.swift|GPT-6.1 Terra": "Model product name.",
+        "AIProvider.swift|GPT-6.2 Sol": "Model product name.",
+        "AIProvider.swift|Gemini 3.5 Flash-Lite": "Model product name.",
+        "AIProvider.swift|Gemini 3.8 Flash": "Model product name.",
+        "AIProvider.swift|Gemini 4 Hydrogen": "Model product name.",
+        "AIProvider.swift|Gemini 4 Neon": "Model product name.",
         "AIProvider.swift|AIConnection(provider: %@, endpoint: %@, ":
             "Debug description, never displayed; deliberately redacts the key.",
         "AIProvider.swift|model: %@, apiKey: %@)":

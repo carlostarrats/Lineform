@@ -47,17 +47,23 @@ final class ConnectAITests: XCTestCase {
         XCTAssertNotNil(Self.element("Lineform will send the text you choose to Anthropic.", in: window, containing: true))
     }
 
-    /// The Model row names the models, never "Standard" or "Higher quality".
-    func testModelRowShowsTheModelNames() {
-        XCTAssertEqual(AIProvider.claude.modelDisplayName(for: .standard), "Claude Haiku 5.5")
-        XCTAssertEqual(AIProvider.claude.modelDisplayName(for: .higherQuality), "Claude Sonnet 5.5")
-        XCTAssertEqual(AIProvider.chatGPT.modelDisplayName(for: .standard), "GPT-6 Luna")
-        XCTAssertEqual(AIProvider.chatGPT.modelDisplayName(for: .higherQuality), "GPT-6.1 Terra")
-        XCTAssertEqual(AIProvider.google.modelDisplayName(for: .standard), "Gemini 3.5 Flash-Lite")
-        XCTAssertEqual(AIProvider.google.modelDisplayName(for: .higherQuality), "Gemini 3.8 Flash")
-        XCTAssertNil(AIProvider.other.modelDisplayName(for: .standard))
-        // The stored identity is unchanged.
-        XCTAssertEqual(AIModelTier.allCases.map(\.rawValue), ["standard", "higherQuality"])
+    /// The Model row lists each provider's models by name, cheapest first, and starts on the
+    /// cheapest; picking one is what the next request sends.
+    func testModelRowListsTheModelsCheapestFirst() throws {
+        XCTAssertEqual(AIProvider.claude.models.map(\.displayName),
+                       ["Claude Haiku 5.5", "Claude Sonnet 5.5", "Claude Opus 5.5"])
+        XCTAssertEqual(AIProvider.chatGPT.models.map(\.displayName), ["GPT-6 Luna", "GPT-6.1 Terra", "GPT-6.2 Sol"])
+        XCTAssertEqual(AIProvider.google.models.map(\.displayName),
+                       ["Gemini 3.5 Flash-Lite", "Gemini 3.8 Flash", "Gemini 4 Hydrogen", "Gemini 4 Neon"])
+        XCTAssertTrue(AIProvider.other.models.isEmpty)
+
+        let (form, store, _) = makeForm()
+        XCTAssertEqual(store.model(for: .claude)?.displayName, "Claude Haiku 5.5")
+        form.select(.claude)
+        form.key = "k"
+        XCTAssertTrue(form.connect())
+        store.setModel(try XCTUnwrap(AIProvider.claude.model(withID: "claude-opus-5-5")), for: .claude)
+        XCTAssertEqual(store.resolvedConnection()?.model, "claude-opus-5-5")
     }
 
     func testConnectingDeletesOtherKeys() throws {
@@ -116,11 +122,11 @@ final class ConnectAITests: XCTestCase {
         let (form, store, keychain) = makeForm()
         form.select(.claude)
         XCTAssertFalse(form.showsAddressAndModelFields)
-        XCTAssertTrue(form.showsTierPicker)
+        XCTAssertTrue(form.showsModelPicker)
 
         form.select(.other)
         XCTAssertTrue(form.showsAddressAndModelFields, "Other has an address and a model")
-        XCTAssertFalse(form.showsTierPicker, "Other's model is what the writer types")
+        XCTAssertFalse(form.showsModelPicker, "Other's model is what the writer types")
 
         // No address: refused, nothing stored.
         XCTAssertFalse(form.connect())
