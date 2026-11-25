@@ -156,10 +156,24 @@ final class FilesStore {
         )
     }
 
+    /// Debug only, for reviewing iCloud screens in the simulator (which has no iCloud): launched
+    /// with `-LineformPreviewICloud`, a plain folder stands in for the iCloud root. Never in Release.
+    nonisolated static func previewICloudFolder() -> URL? {
+        #if DEBUG
+        guard ProcessInfo.processInfo.arguments.contains("-LineformPreviewICloud") else { return nil }
+        let folder = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent("iCloudPreview", isDirectory: true)
+        try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        return folder
+        #else
+        return nil
+        #endif
+    }
+
     /// The app's one store, for the app's lifetime.
     static let shared = FilesStore(
         defaults: .standard,
-        iCloudFolder: { DocumentFolderResolver.live().iCloudFolder() },
+        iCloudFolder: { previewICloudFolder() ?? DocumentFolderResolver.live().iCloudFolder() },
         deviceFolder: DocumentFolderResolver.live().deviceFolder,
         bookmarks: LiveWorkspaceBookmarks(),
         fileOperations: LiveFilesFileOperations()
