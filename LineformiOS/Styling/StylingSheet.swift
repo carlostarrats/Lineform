@@ -65,7 +65,17 @@ struct StylingSheet: View {
     static var typewriterModeDescription: String {
         String(localized: "Keeps the current line centered as you write.")
     }
-    static var resetTitle: String { String(localized: "Reset to Default") }
+    /// The mockup's and §17's wording (the Mac's panel says "Reset to Default"): it resets the
+    /// current theme's edits only.
+    static var resetTitle: String { String(localized: "Reset to Theme") }
+    /// The grabber's spoken name: a tap on it closes the sheet.
+    static var closeTitle: String { String(localized: "Close Themes") }
+
+    /// The mockup's grabber (`.grab`): 36 × 5 pt, 8 pt below the sheet's top edge.
+    static let grabberSize = CGSize(width: 36, height: 5)
+    static let grabberTop: CGFloat = 8
+    /// The fixed band the grabber sits in: 8 pt, the 5 pt grabber, its 4 pt margin.
+    static let grabberBandHeight: CGFloat = 17
 
     static var controlLabels: [String] {
         [
@@ -122,12 +132,17 @@ struct StylingSheet: View {
     /// The qualifier, value and description ink, readable (AA) on the sheet's surface.
     private var secondaryInk: Color { Color(uiColor: inks.secondary) }
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @Environment(\.dismiss) private var dismiss
     /// Coalesces slider drags (`StylingDrag`).
     @State private var coalescer = ProfileUpdateCoalescer()
     private var bindings: Bindings { Bindings(store: store, coalescer: coalescer) }
 
     var body: some View {
         VStack(spacing: 0) {
+            // The mockup's grabber, a fixed band above the scrolling controls (they never pass
+            // under it): a tap closes the sheet (§17); a drag still moves the sheet.
+            grabber
+                .zIndex(1)
             ScrollView {
                 VStack(alignment: .leading, spacing: Self.sectionSpacing) {
                     presetGrid
@@ -185,7 +200,7 @@ struct StylingSheet: View {
                     .padding(.top, Self.resetTopSpacing)
                 }
                 .padding(.horizontal, Self.horizontalPadding)
-                .padding(.top, Self.topPadding)
+                .padding(.top, Self.topPadding - Self.grabberBandHeight)
                 .padding(.bottom, Self.verticalPadding)
                 .frame(maxWidth: .infinity, alignment: .topLeading)
             }
@@ -200,6 +215,25 @@ struct StylingSheet: View {
         .onReceive(NotificationCenter.default.publisher(for: UIApplication.willResignActiveNotification)) { _ in
             coalescer.endAllDrags()
         }
+    }
+
+    /// The grabber: drawn 36 × 5, 8 pt down, in a band 17 pt tall (the mockup's padding, grabber
+    /// and its 4 pt margin); its target is 50 pt either side (`.grab::before`) and 44 pt tall,
+    /// reaching past the band over the "Themes" label.
+    private var grabber: some View {
+        Button { dismiss() } label: {
+            Capsule()
+                .fill(Color(uiColor: inks.grabber))
+                .frame(width: Self.grabberSize.width, height: Self.grabberSize.height)
+                .padding(.horizontal, 50)
+                .padding(.top, Self.grabberTop)
+                .frame(height: WordMenuMetrics.minimumTarget, alignment: .top)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .padding(.bottom, Self.grabberBandHeight - WordMenuMetrics.minimumTarget)
+        .accessibilityLabel(Self.closeTitle)
+        .accessibilityIdentifier("styling.grabber")
     }
 
     private var presetGrid: some View {
@@ -330,6 +364,8 @@ extension StylingSheet {
         let resetFill: UIColor
         /// The switches' on fill: Lineform blue, as Settings' switches (`WordMenuPalette.blueFill`).
         let switchFill: UIColor
+        /// The grabber, a control: 3:1 on the surface.
+        let grabber: UIColor
 
         /// A conservative stand-in for the bordered style's tinted fill.
         static let resetFillAlpha: CGFloat = 0.2
@@ -352,6 +388,7 @@ extension StylingSheet {
             self.resetFill = resetFill
             resetInk = sheet.readableInk(blue, minimumRatio: PhoneInk.Role.textMinimum, on: resetFill)
             switchFill = WordMenuPalette.forTheme(theme).blueFill
+            grabber = sheet.readableInk(sheet.textColor.withAlphaComponent(0.3), minimumRatio: PhoneInk.Role.nonTextMinimum)
         }
 
         /// Every pair the contrast test measures.
@@ -362,23 +399,45 @@ extension StylingSheet {
                 PhoneInk.Entry(name: "picker", color: pickerInk, surface: surface, minimumRatio: PhoneInk.Role.textMinimum),
                 PhoneInk.Entry(name: "reset", color: resetInk, surface: resetFill, minimumRatio: PhoneInk.Role.textMinimum),
                 PhoneInk.Entry(name: "switchFill", color: switchFill, surface: surface, minimumRatio: PhoneInk.Role.nonTextMinimum),
+                PhoneInk.Entry(name: "grabber", color: grabber, surface: surface, minimumRatio: PhoneInk.Role.nonTextMinimum),
             ]
         }
     }
 }
 
+/// While the Themes sheet is up, a clear layer over the page (the mockup's `.tscrim`): the page
+/// stays visible and undimmed at the medium detent, and a tap on it closes the sheet. VoiceOver
+/// closes the sheet with its own escape gesture, so the layer is hidden from it.
+struct StylingSheetTapCatcher: ViewModifier {
+    @Binding var isShowing: Bool
+
+    func body(content: Content) -> some View {
+        content.overlay {
+            if isShowing {
+                Color.clear
+                    .contentShape(Rectangle())
+                    .ignoresSafeArea()
+                    .onTapGesture { isShowing = false }
+                    .accessibilityHidden(true)
+            }
+        }
+    }
+}
+
 extension View {
-    /// The Styling sheet's presentation: medium and large detents, the theme's page colour, the
-    /// modal corner radius, a visible drag indicator, and the theme's own colour scheme.
+    /// The Styling sheet's presentation: medium and large detents, the sheet's own surface, the
+    /// modal corner radius, the sheet's own grabber (a tap on the system one would only change
+    /// the detent; the mockup's closes the sheet), and the theme's own colour scheme. A tap on the
+    /// page above it closes it (`DocumentScreen`'s catcher, the mockup's `.tscrim`).
     func stylingSheetChrome(theme: Theme) -> some View {
         presentationDetents(StylingSheet.detents)
             .presentationBackground(Color(uiColor: StylingSheet.surface(for: theme)))
             .presentationCornerRadius(StylingSheet.cornerRadius)
-            .presentationDragIndicator(.visible)
+            .presentationDragIndicator(.hidden)
             .presentationBackgroundInteraction(StylingSheet.backgroundInteraction)
             .environment(\.colorScheme, StylingSheet.colorScheme(for: theme))
-            // The presentation's own chrome (the grabber, the Font menu) follows the theme too,
-            // not the phone's appearance.
+            // The presentation's own chrome (the Font menu) follows the theme too, not the
+            // phone's appearance.
             .preferredColorScheme(StylingSheet.colorScheme(for: theme))
     }
 }

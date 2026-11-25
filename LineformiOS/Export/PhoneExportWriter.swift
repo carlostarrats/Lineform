@@ -36,17 +36,12 @@ struct PhoneExportWriter {
             data = PhonePDFRenderer.pdfData(
                 text: text, profile: profile, paper: paper, preset: .standard, documentDirectory: documentDirectory
             )
-        case .styledPDF:
-            data = PhonePDFRenderer.pdfData(
-                text: text, profile: profile, paper: paper, preset: .styled, documentDirectory: documentDirectory
-            )
-        case .rtf:
-            // `.standard` only for its neutral 10 pt profile, like the Mac's RTF export.
-            data = try ExportContent.rtfData(
-                text: text, profile: profile, paper: paper, preset: .standard, appVersion: ExportContent.appVersion
-            )
+        case .markdown:
+            // The document's text exactly as it is, UTF-8: nothing rendered, nothing rewritten.
+            data = Data(text.utf8)
         }
-        guard !data.isEmpty else { throw WriteError.empty }
+        // An empty render is a failure; an empty document's Markdown is just an empty file.
+        guard !data.isEmpty || format == .markdown else { throw WriteError.empty }
 
         let directory = folder.appendingPathComponent(UUID().uuidString, isDirectory: true)
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)

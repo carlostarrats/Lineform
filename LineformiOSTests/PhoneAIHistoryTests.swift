@@ -186,7 +186,9 @@ final class PhoneAIHistoryTests: XCTestCase {
         XCTAssertEqual(rig.history.pendingReplacementFieldID, id)
         let model = HistoryCardModel(controller: rig.history)
         XCTAssertTrue(model.opensReplacementField, "the card opens Type a replacement")
-        XCTAssertEqual(model.rows.map(\.text), ["Second paragraph here."], "the selection is the original")
+        XCTAssertTrue(model.showsReplacementField, "Replace With… shows the field")
+        XCTAssertEqual(model.versionCount, 1)
+        XCTAssertEqual(rig.history.passage(id)?.versions.map(\.text), ["Second paragraph here."], "the selection is the original")
         XCTAssertEqual(rig.editor.text, twoParagraphs, "nothing changes until a replacement is typed")
 
         // Offered only where History can keep the selection (the Mac rule): never across lines.

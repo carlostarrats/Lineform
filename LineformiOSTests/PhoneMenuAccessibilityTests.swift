@@ -95,11 +95,9 @@ final class PhoneMenuAccessibilityTests: XCTestCase {
         defer { UIPasteboard.remove(withName: board.name) }
         var announced: [String] = []
         let state = BasicsCopyState(announce: { text in announced.append(text) })
-        let rows = MarkdownReference.sections.flatMap(\.rows)
+        let rows = BasicsSection.groups.flatMap(\.rows)
         let codeRow = try XCTUnwrap(rows.first { $0.copyAffordance() != nil })
-        let labelRow = try XCTUnwrap(rows.first { $0.copyAffordance() == nil })
 
-        XCTAssertFalse(state.copy(labelRow, to: board))
         XCTAssertEqual(announced, [], "nothing copied, nothing said")
         XCTAssertTrue(state.copy(codeRow, to: board))
         XCTAssertEqual(announced, [BasicsSection.copiedText])
@@ -211,7 +209,10 @@ final class PhoneMenuAccessibilityTests: XCTestCase {
                 page(ExportPrintSection(document: document, exportCommands: ExportCommands(document: document, profile: { .original }), onDismiss: {})),
                 contentSize: size, tall: true
             )
-            XCTAssertNotNil(host.elements().first { $0.label?.contains(ExportPrintSection.saveAsTitle) == true })
+            let labels = host.elements().compactMap(\.label)
+            for title in ExportPrintSection.rowTitles(for: document.textFormat) {
+                XCTAssertTrue(labels.contains { $0.contains(title) }, "\(title) missing from \(labels)")
+            }
             host.assertInteractiveElementsAreLabelledAndLargeEnough()
             assertNothingRunsOffTheSide(host)
             host.tearDown()

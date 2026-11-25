@@ -44,6 +44,10 @@ final class PhoneHistoryController {
     /// Replace With… asked for the replacement field on this passage; spent when the field opens
     /// (`replacementFieldDidOpen`), when History mode ends, and on a document swap.
     private(set) var pendingReplacementFieldID: UUID?
+    /// This History session came from Replace With…: only then does the bar show "Type a
+    /// replacement" (that is the field's purpose; ⋯ ▸ History steps versions only). Set by `add`,
+    /// cleared when History mode ends.
+    private(set) var offersReplacementField = false
     /// The passage an AI accept recorded while History was off: the next plain entry
     /// (`enterHistoryModeFromMenu`) selects it.
     private(set) var rememberedPassageID: UUID?
@@ -365,6 +369,7 @@ final class PhoneHistoryController {
     func add(_ range: NSRange, text: String) -> UUID? {
         guard let id = engine.add(range, author: .you, in: text) else { return nil }
         pendingReplacementFieldID = id
+        offersReplacementField = true
         save()
         if isHistoryModeActive {
             located = engine.locateAll(in: text)
@@ -377,7 +382,7 @@ final class PhoneHistoryController {
             bump()
         } else {
             refreshHasHistory()
-            showPassage(id, text: text)
+            if !showPassage(id, text: text) { offersReplacementField = false }
         }
         return id
     }
@@ -417,6 +422,7 @@ final class PhoneHistoryController {
         let remembered = rememberedPassageID
         rememberedPassageID = nil
         pendingReplacementFieldID = nil
+        if !isHistoryModeActive { offersReplacementField = false }
         guard enterHistoryMode(text: text) else { return false }
         if let remembered, located.contains(where: { $0.id == remembered }) {
             selectedPassageID = remembered
@@ -670,6 +676,7 @@ final class PhoneHistoryController {
     private func resetModeState() {
         isHistoryModeActive = false
         pendingReplacementFieldID = nil
+        offersReplacementField = false
         entryText = nil
         modeText = nil
         entryVersions = [:]

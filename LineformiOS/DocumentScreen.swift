@@ -238,10 +238,10 @@ struct DocumentScreen: View {
                 .padding(.top, ModeSwitch.topMargin - ModeSwitch.verticalTouchOutset)
         }
         .overlay(alignment: .bottom) {
-            // History mode's card replaces the bottom chrome while it is up (Done leaves).
+            // History mode's bar replaces the bottom chrome while it is up (Done leaves).
             if let history = document.history, history.isHistoryModeActive {
                 historyCard(history)
-                    .padding(.horizontal, MarkdownEditor.chromeMargin)
+                    .padding(.horizontal, HistoryCard.sideInset)
                     .padding(.bottom, 12)
                     .transition(.opacity)
             }
@@ -365,6 +365,8 @@ struct DocumentScreen: View {
                 selection.aiCardTopInWindow = top
             }
         }
+        // A tap on the page above the Themes sheet closes it (the mockup's `.tscrim`).
+        .modifier(StylingSheetTapCatcher(isShowing: $isShowingStyling))
         .sheet(isPresented: $isShowingStyling, onDismiss: {
             // A Reconnect tapped on the page beside the open sheet waits for it to close: a view
             // already presenting cannot present the image picker too.
@@ -642,8 +644,7 @@ struct DocumentScreen: View {
             model: HistoryCardModel(controller: history),
             profile: profile,
             onSelectLevel: { level in history.selectLevel(level) },
-            onSelectVersion: { index in history.selectVersion(index, text: text()) },
-            onDeleteVersion: { index in history.deleteVersion(index, text: text()) },
+            onStep: { delta in history.step(by: delta, text: text()) },
             onAddReplacement: { replacement, id in history.addReplacement(replacement, text: text(), for: id) },
             onReplacementFieldOpened: { history.replacementFieldDidOpen() },
             onDone: { history.exitHistoryMode(text: text()) }

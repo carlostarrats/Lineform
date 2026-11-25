@@ -40,9 +40,12 @@ struct PhoneInk {
         case onReadPill
         /// Placeholder text on the comment field's wash.
         case tertiaryOnCommentField
-        /// The Read Aloud pill's pause/play and ✕ glyphs on their round button
+        /// The Read Aloud pill's pause/play and ✕ glyphs, and History's ‹ ›, on their round button
         /// (`readAloudButton`): non-text marks.
         case onReadAloudButton
+        /// Secondary text on the soft bar (`searchFieldWash`): History's hint and its unselected
+        /// level tabs.
+        case secondaryOnSoftBar
 
         /// 4.5:1 for text, 3:1 for non-text marks (WCAG 1.4.3 / 1.4.11).
         var minimumRatio: CGFloat {
@@ -134,6 +137,7 @@ struct PhoneInk {
         case .onReadPill: readPill
         case .tertiaryOnCommentField: commentFieldWash
         case .onReadAloudButton: readAloudButton
+        case .secondaryOnSoftBar: searchFieldWash
         }
     }
 
@@ -165,6 +169,8 @@ struct PhoneInk {
             return theme.readableInk(ink.withAlphaComponent(0.45), minimumRatio: minimum, on: surface(for: role))
         case .onReadAloudButton:
             return theme.readableInk(ink, minimumRatio: minimum, on: surface(for: role))
+        case .secondaryOnSoftBar:
+            return theme.readableInk(ink.withAlphaComponent(0.6), minimumRatio: minimum, on: surface(for: role))
         }
     }
 

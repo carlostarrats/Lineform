@@ -165,9 +165,10 @@ final class DocumentCommandsTests: XCTestCase {
 
     func testDocumentRowsAndLinks() throws {
         try skipUnlessEnglishInterface()
-        // pinned-en: the Mac's command titles, in the pages' order.
+        // pinned-en: the approved mockup's rows, in its order (no Paper Size, Styled PDF, Rich Text
+        // or Save As on iPhone).
         XCTAssertEqual(ExportPrintSection.rowTitles(for: .markdown), [
-            "HTML", "PDF", "Styled PDF", "Rich Text (.rtf)", "Share…", "Print…", "Save As…", "Convert to Plain Text",
+            "Export PDF…", "Export HTML…", "Export Markdown…", "Share…", "Print…", "Convert to Plain Text",
         ])
         XCTAssertEqual(ExportPrintSection.rowTitles(for: .plainText).last, "Convert to Markdown")
         XCTAssertEqual(AboutSection.rowTitles, ["Check for Updates…", "Lineform Guide", "Privacy Policy", "Terms of Use"])

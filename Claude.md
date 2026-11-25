@@ -409,7 +409,10 @@ iPhone only. Details: `docs/architecture/iphone-app.md`.
   passage opens it) and Replace With… (the selection row, its one entry point) enter History mode: read-only editor, passages on a
   wash drawn by `CAShapeLayer`s behind the text (never text attributes; the Mac's receded ink is not
   drawn — phone exception), tap selects the innermost passage, ← / → / Esc on a hardware keyboard,
-  and `HistoryCard` at the bottom (levels, versions, Delete, "Type a replacement", Done). The store is
+  and `HistoryCard` at the bottom: the mockup's one-line bar ("Version 2/2", round ‹ ›, Done as an
+  ink pill), the available levels as tabs above it only when there is more than one, and "Type a
+  replacement" only in a Replace With… session (`offersReplacementField`); no version list, no
+  Delete; the version line is adjustable and carries the passage actions for VoiceOver. The store is
   the Mac's router, made lazily (`LazyHistoryStore`: nothing at launch). Details:
   `docs/architecture/iphone-app.md`, "History".
 - **Word menu.** One ⋯ button (`MoreButton`) opens `WordMenu`, a full-screen overlay (never a
@@ -426,10 +429,18 @@ iPhone only. Details: `docs/architecture/iphone-app.md`.
   ← (`ResumeMenuButton`, ⋯'s twin at the bottom left, "Back to Files") reopens the menu exactly
   where the writer was (`WordMenuSession`: page, search text and scope, scroll); it fades (0.22 s, as one
   layer: `compositingGroup`) after 4 s or at the first keystroke, and never on a timer while VoiceOver runs. Markdown Basics is the
-  mockup's grouped cards (name · Markdown · copy); the Themes sheet has no title; Settings' "Clear
-  Version History" (same wording on the Mac) and "Show iCloud in Files" only when the iCloud
-  container resolves. The caret and selection handles are the highlighter's blue
-  (`HighlighterSelection.caretColor`, both apps).
+  mockup's grouped cards (name · Markdown · copy), exactly its rows (no label rows, Spelling or
+  Search on iPhone); the Themes sheet has no title, says "Reset to Theme", and closes on a tap on
+  its grabber or the page above it; Settings is single-line rows with no visible notes (each note
+  is the VoiceOver hint): three switches, a Files group ("Show iCloud in Files" only when the
+  iCloud container resolves, Show Hidden Folders, Sort folders by) and "Clear Version History"
+  (same wording on the Mac). Export & Print is exactly the mockup: Export PDF… / HTML… /
+  Markdown…, Share…, Print…, Convert — no icons, no Paper Size, Styled PDF, Rich Text or Save As.
+  Menu rows carry an icon only where the mockup draws one. The small words are 40 pt rows with
+  44 pt targets; an empty, file-less page's status line is just "Untitled". The caret and selection
+  handles are the highlighter's blue (`HighlighterSelection.caretColor`, both apps); the AccentColor
+  asset makes untinted system controls Lineform blue (Preview's link button and the sliders keep
+  system blue).
   Pages reach the editor only through `EditorCommands`, each command ONE undo step. Files rename,
   Trash and moves between iCloud and On My iPhone are coordinated (`.forMoving`), never replacing,
   unlike the Mac (ruling in `docs/architecture/files-sidebar.md`); Trash is `trashItem` only, and
@@ -466,7 +477,7 @@ iPhone only. Details: `docs/architecture/iphone-app.md`.
   opens the AI sheet for the whole document (`askAIForWholeDocument`, `WholeDocumentAIPolicy`), and
   Replace With… and Another Word are hidden; each is still ONE undo step. The ⋯ button and the Read
   Aloud pill float just above the row. Its buttons: Ask (connected only, Lineform blue),
-  Heading (its levels open in place: ‹ back, Title, Section, Heading 3, Heading 4, Body), Bold, Italic, Strikethrough, Code, List, Link,
+  Heading (its levels open in place: ‹ back, Title, Section, Heading 3, Heading 4, Body — `SelectionRow.rowHeadingLevels`; Heading 5 and 6 stay on ⌘5 / ⌘6), Bold, Italic, Strikethrough, Code, List, Link,
   Blockquote ("Quote"), Image (Photos or Files, through the paste path), Insert Table ("Table"),
   Reformat Table (on a table row), Replace With… (History's, where it can keep the selection),
   Another Word, and Check Spelling last. It
@@ -489,8 +500,8 @@ iPhone only. Details: `docs/architecture/iphone-app.md`.
   store answers with the Mac entry until an iPhone build is listed, and that is "couldn't check").
   Announcements are the Mac's store rules (`PhoneAnnouncementStore`: the switch gates the request,
   once a day, checked when the scene becomes active, NEVER under XCTest at that call site), shown
-  as a small one-time sheet only when the page is idle (never over first run, the word menu,
-  History, an AI review or the keyboard). The review prompt is the Mac's policy
+  as a small one-time sheet on the plain sheet surface, with no icon, only when the page is idle
+  (never over first run, the word menu, History, an AI review or the keyboard). The review prompt is the Mac's policy
   (`PhoneReviewPromptStore`, use = `OpenDocument.onConfirmedWrite`; the app's store is inert under
   XCTest). New Lineform Note and Open in Lineform route through `OpenDocument` (`PhoneIntentRouter`,
   attached after `prepare`); `AppIntents.framework` stays LINKED in the iPhone target too, and

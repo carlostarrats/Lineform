@@ -511,41 +511,6 @@
         }
       }
     },
-    "Header row, then |---|---|, then rows. Colons align. Insert and tidy in Document." : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Kopfzeile, |---|---|, dann Zeilen. Doppelpunkte richten aus. Einfügen, ordnen: Dokument."
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Encabezado, |---|---| y filas. Los dos puntos alinean. Inserta y alinea en Documento."
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "En-tête, |---|---| et lignes. Les deux-points alignent. Insérez, alignez dans Document."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "見出し行、|---|---|、データ行の順。コロンで配置。挿入と整形は「書類」から。"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "表头行，然后是 |---|---|，再是数据行。冒号控制对齐。在“文稿”中插入和整理。"
-          }
-        }
-      }
-    },
     "Header row, then |---|---|, then rows. Colons align. ⌃⌘T inserts, ⌃⌘R tidies." : {
       "localizations" : {
         "de" : {
@@ -610,41 +575,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "图像。本地文件在阅读和预览中显示；网络地址仅显示占位图。"
-          }
-        }
-      }
-    },
-    "In Search, tap a match to go to it." : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Tippe in der Suche auf einen Treffer, um zu ihm zu springen."
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "En la búsqueda, toca una coincidencia para ir a ella."
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Dans la recherche, touchez une correspondance pour y aller."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "検索で該当箇所をタップすると、その場所に移動します。"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "在搜索中轻点匹配项即可跳到该处。"
           }
         }
       }
@@ -1258,41 +1188,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Tab"
-          }
-        }
-      }
-    },
-    "Tap" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Tippen"
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Tocar"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Toucher"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "タップ"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "轻点"
           }
         }
       }
@@ -9601,6 +9496,74 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Lineform 会将你选中的段落发送到该地址；若你对整个文稿选择“询问 AI”，则发送整个文稿。"
+          }
+        }
+      }
+    },
+    "Header row, then |---|---|, then rows. Colons align. Insert from the format row." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kopfzeile, |---|---|, dann Zeilen. Doppelpunkte richten aus. Einfügen: Formatleiste."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Encabezado, |---|---| y filas. Los dos puntos alinean. Inserta desde la barra de formato."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "En-tête, |---|---| et lignes. Les deux-points alignent. Insérez via la barre de format."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "見出し行、|---|---|、データ行の順。コロンで配置。挿入はフォーマットバーから。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "表头行，然后是 |---|---|，再是数据行。冒号控制对齐。在格式栏中插入。"
+          }
+        }
+      }
+    },
+    "This conversation ends when you open another document." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Diese Unterhaltung endet, wenn du ein anderes Dokument öffnest."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Esta conversación termina cuando abres otro documento."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cette conversation prend fin quand vous ouvrez un autre document."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "この会話は別の書類を開くと終了します。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "打开其他文稿时，此对话即结束。"
           }
         }
       }

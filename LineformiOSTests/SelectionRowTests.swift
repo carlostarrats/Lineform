@@ -115,6 +115,10 @@ final class SelectionRowTests: XCTestCase {
         XCTAssertEqual(SelectionRowItem.askAI.systemImage, "sparkles")
         XCTAssertEqual(SelectionController.headingLevels.map(\.title),
                        ["Title", "Section", "Heading 3", "Heading 4", "Heading 5", "Heading 6", "Body"])
+        // pinned-en: the row offers the approved five; Heading 5 and 6 stay on ⌘5 / ⌘6.
+        XCTAssertEqual(SelectionRow.rowHeadingLevels.map(\.title),
+                       ["Title", "Section", "Heading 3", "Heading 4", "Body"])
+        XCTAssertEqual(SelectionRow.rowHeadingLevels.map(\.level), [1, 2, 3, 4, nil])
 
         // An editor without History offers no Replace With… (it opens History: `PhoneAIHistoryTests`).
         let (editor, controller, _) = try makeEditor("Find this phrase here\n", connected: false)
