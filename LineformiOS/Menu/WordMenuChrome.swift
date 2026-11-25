@@ -70,9 +70,9 @@ struct WordMenuPalette {
         } else {
             washTop = rgb(0xFFFFFF)
             washBottom = rgb(0xF1F1F1)
-            soft = rgb(0xE9EAED)
+            soft = rgb(0xF2F3F5)
             card = rgb(0xFFFFFF)
-            field = rgb(0xE6E7EA)
+            field = rgb(0xF1F2F4)
             hair = rgb(0xD9DADE)
             ink = rgb(0x1F1F1F)
         }
