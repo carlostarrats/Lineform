@@ -40,11 +40,17 @@ struct PhoneInk {
         case onReadPill
         /// Placeholder text on the comment field's wash.
         case tertiaryOnCommentField
+        /// The Read Aloud pill's pause/play and ✕ glyphs, and History's ‹ ›, on their round button
+        /// (`readAloudButton`): non-text marks.
+        case onReadAloudButton
+        /// Secondary text on the soft bar (`searchFieldWash`): History's hint and its unselected
+        /// level tabs.
+        case secondaryOnSoftBar
 
         /// 4.5:1 for text, 3:1 for non-text marks (WCAG 1.4.3 / 1.4.11).
         var minimumRatio: CGFloat {
             switch self {
-            case .controlEdge, .chevron, .linkGlyph, .historyAddGlyph: Self.nonTextMinimum
+            case .controlEdge, .chevron, .linkGlyph, .historyAddGlyph, .onReadAloudButton: Self.nonTextMinimum
             default: Self.textMinimum
             }
         }
@@ -67,6 +73,9 @@ struct PhoneInk {
     static let searchFieldWashAlpha: CGFloat = 0.07
     /// The History card's Add circle: ink at this alpha over the card.
     static let historyAddWashAlpha: CGFloat = 0.10
+    /// The Read Aloud pill's round buttons on a dark page: ink at this alpha over the pill's wash,
+    /// so the circle shows (the page colour there is invisible against the wash).
+    static let readAloudButtonWashAlphaDark: CGFloat = 0.18
 
     /// The theme with its colours resolved for one appearance.
     let theme: Theme
@@ -109,6 +118,12 @@ struct PhoneInk {
     /// The History card's Add circle flattened over the card.
     var historyAddWash: UIColor { Self.flatten(theme.textColor, alpha: Self.historyAddWashAlpha, over: page) }
 
+    /// The Read Aloud pill's round button: the page colour on a light page; on a dark one, a
+    /// lighter circle (ink at `readAloudButtonWashAlphaDark` over the pill's wash).
+    var readAloudButton: UIColor {
+        isDark ? Self.flatten(theme.textColor, alpha: Self.readAloudButtonWashAlphaDark, over: searchFieldWash) : page
+    }
+
     /// A Read pill's resting fill flattened over the page.
     var readPill: UIColor {
         Self.flatten(isDark ? .white : .black, alpha: ReadOverlayButton.fillAlpha(usesDarkChrome: isDark, pressed: false), over: page)
@@ -121,6 +136,8 @@ struct PhoneInk {
         case .historyAddGlyph: historyAddWash
         case .onReadPill: readPill
         case .tertiaryOnCommentField: commentFieldWash
+        case .onReadAloudButton: readAloudButton
+        case .secondaryOnSoftBar: searchFieldWash
         }
     }
 
@@ -150,6 +167,10 @@ struct PhoneInk {
             return theme.readableInk(ink.withAlphaComponent(0.85), minimumRatio: minimum, on: surface(for: role))
         case .tertiaryOnCommentField:
             return theme.readableInk(ink.withAlphaComponent(0.45), minimumRatio: minimum, on: surface(for: role))
+        case .onReadAloudButton:
+            return theme.readableInk(ink, minimumRatio: minimum, on: surface(for: role))
+        case .secondaryOnSoftBar:
+            return theme.readableInk(ink.withAlphaComponent(0.6), minimumRatio: minimum, on: surface(for: role))
         }
     }
 

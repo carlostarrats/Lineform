@@ -159,7 +159,7 @@ final class LinkedScrollTests: XCTestCase {
                        theme.readableInk(theme.textColor.withAlphaComponent(0.15), minimumRatio: 1.5))
 
         // The link button: the Mac's strings, both ways.
-        XCTAssertEqual(PreviewLinkButton.diameter, 38)
+        XCTAssertEqual(PreviewLinkButton.diameter, MoreButton.diameter)
         XCTAssertEqual(PreviewLinkButton.accessibilityTitle(isLinked: true), "Unlink split scrolling")
         XCTAssertEqual(PreviewLinkButton.accessibilityTitle(isLinked: false), "Link split scrolling")
 

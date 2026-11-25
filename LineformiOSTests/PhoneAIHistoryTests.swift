@@ -186,7 +186,9 @@ final class PhoneAIHistoryTests: XCTestCase {
         XCTAssertEqual(rig.history.pendingReplacementFieldID, id)
         let model = HistoryCardModel(controller: rig.history)
         XCTAssertTrue(model.opensReplacementField, "the card opens Type a replacement")
-        XCTAssertEqual(model.rows.map(\.text), ["Second paragraph here."], "the selection is the original")
+        XCTAssertTrue(model.showsReplacementField, "Replace With… shows the field")
+        XCTAssertEqual(model.versionCount, 1)
+        XCTAssertEqual(rig.history.passage(id)?.versions.map(\.text), ["Second paragraph here."], "the selection is the original")
         XCTAssertEqual(rig.editor.text, twoParagraphs, "nothing changes until a replacement is typed")
 
         // Offered only where History can keep the selection (the Mac rule): never across lines.
@@ -208,6 +210,9 @@ final class PhoneAIHistoryTests: XCTestCase {
         rig.editor.selectedRange = sentence
         rig.ai.run(.markWeakest, range: sentence, text: rig.editor.text)
         try await spin { if case .marking = rig.ai.state { return true }; return false }
+        // The request brought the AI sheet up; the writer closes it (marks leave it free to go),
+        // and the row may rise again (none rises under the sheet).
+        rig.selection.isShowingAISheet = false
         rig.editor.selectedRange = sentence
         rig.selection.showRowNow()
         rig.selection.perform(.replaceWith)

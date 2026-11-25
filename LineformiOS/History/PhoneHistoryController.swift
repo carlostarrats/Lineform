@@ -44,6 +44,10 @@ final class PhoneHistoryController {
     /// Replace With… asked for the replacement field on this passage; spent when the field opens
     /// (`replacementFieldDidOpen`), when History mode ends, and on a document swap.
     private(set) var pendingReplacementFieldID: UUID?
+    /// This History session came from Replace With…: only then does the bar show "Type a
+    /// replacement" (that is the field's purpose; ⋯ ▸ History steps versions only). Set by `add`,
+    /// cleared when History mode ends.
+    private(set) var offersReplacementField = false
     /// The passage an AI accept recorded while History was off: the next plain entry
     /// (`enterHistoryModeFromMenu`) selects it.
     private(set) var rememberedPassageID: UUID?
@@ -79,6 +83,10 @@ final class PhoneHistoryController {
     @ObservationIgnored private var aiResume: AIResume?
     private struct AIResume { let selectedID: UUID? }
     @ObservationIgnored private var clearAllObservation: AnyCancellable?
+    @ObservationIgnored private var movedOutObservation: AnyCancellable?
+    /// A move out of iCloud downloaded History this engine never saw (another device's record):
+    /// folded into the engine at the next save outside History mode, so that save keeps it.
+    @ObservationIgnored private var pendingMovedHistory: DocumentHistory?
 
     #if DEBUG
     /// How many edits and whole-text replacements the text view reported (tests).
@@ -146,6 +154,26 @@ final class PhoneHistoryController {
                     self.reloadFromStore(text: self.editor?.textStorage.string ?? self.modeText ?? "")
                 }
             }
+        movedOutObservation = notificationCenter
+            .publisher(for: RoutingPassageHistoryStore.didMoveHistoryOutNotification)
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] note in
+                guard let url = note.userInfo?[RoutingPassageHistoryStore.movedHistoryURLKey] as? URL,
+                      let history = note.userInfo?[RoutingPassageHistoryStore.movedHistoryKey] as? DocumentHistory else { return }
+                MainActor.assumeIsolated { self?.adoptMovedHistory(history, for: url) }
+            }
+    }
+
+    /// The document moved out of iCloud and the router read every shared record (downloading the
+    /// ones this iPhone did not have): they join this engine, so the next save keeps them instead
+    /// of writing the local copy back without them. In History mode it waits for the next save.
+    func adoptMovedHistory(_ history: DocumentHistory, for movedURL: URL) {
+        guard url != nil, Self.sameFile(url, movedURL), !history.isEmpty else { return }
+        pendingMovedHistory = (pendingMovedHistory ?? DocumentHistory(passages: [])).merging(history, now: now())
+        // Without the editor's text the passages cannot be located: the next save folds it in.
+        guard !isHistoryModeActive, let text = editor?.textStorage.string else { return }
+        persistNow(text: text)
+        bump()
     }
 
     /// Settings ▸ Clear History: removes every document's history from `store` and refreshes
@@ -180,6 +208,7 @@ final class PhoneHistoryController {
     func open(url: URL?, text: String) {
         endHistoryModeWithoutEdit()
         self.url = url
+        pendingMovedHistory = nil
         documentToken = UUID()
         selectedPassageID = nil
         rememberedPassageID = nil
@@ -365,6 +394,7 @@ final class PhoneHistoryController {
     func add(_ range: NSRange, text: String) -> UUID? {
         guard let id = engine.add(range, author: .you, in: text) else { return nil }
         pendingReplacementFieldID = id
+        offersReplacementField = true
         save()
         if isHistoryModeActive {
             located = engine.locateAll(in: text)
@@ -377,7 +407,7 @@ final class PhoneHistoryController {
             bump()
         } else {
             refreshHasHistory()
-            showPassage(id, text: text)
+            if !showPassage(id, text: text) { offersReplacementField = false }
         }
         return id
     }
@@ -417,6 +447,7 @@ final class PhoneHistoryController {
         let remembered = rememberedPassageID
         rememberedPassageID = nil
         pendingReplacementFieldID = nil
+        if !isHistoryModeActive { offersReplacementField = false }
         guard enterHistoryMode(text: text) else { return false }
         if let remembered, located.contains(where: { $0.id == remembered }) {
             selectedPassageID = remembered
@@ -670,6 +701,7 @@ final class PhoneHistoryController {
     private func resetModeState() {
         isHistoryModeActive = false
         pendingReplacementFieldID = nil
+        offersReplacementField = false
         entryText = nil
         modeText = nil
         entryVersions = [:]
@@ -736,6 +768,7 @@ final class PhoneHistoryController {
     }
 
     private func persistNow(text: String) {
+        foldInMovedHistory()
         guard url != nil, !engine.history.isEmpty || hasStoreEntry else { return }
         if !engine.history.isEmpty {
             located = engine.locateAll(in: text)
@@ -745,9 +778,18 @@ final class PhoneHistoryController {
     }
 
     private func save() {
+        foldInMovedHistory()
         guard let url, !engine.history.isEmpty || hasStoreEntry else { return }
         store.save(engine.history, for: url)
         hasStoreEntry = !engine.history.isEmpty
+    }
+
+    private func foldInMovedHistory() {
+        guard let moved = pendingMovedHistory, !isHistoryModeActive else { return }
+        pendingMovedHistory = nil
+        engine = DocumentHistoryEngine(history: engine.history.merging(moved, now: now()), now: now)
+        hasStoreEntry = true
+        located = []
     }
 
     private func pruneOnce() {

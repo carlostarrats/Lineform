@@ -316,6 +316,21 @@ final class SearchTests: XCTestCase {
         XCTAssertEqual(names, ["Gone needle.md"], "an evicted file still matches by name")
         XCTAssertFalse(reader.readOnMainThread)
         XCTAssertGreaterThan(reader.reads, 0)
+        XCTAssertEqual(controller.notDownloadedNote, SearchController.notDownloadedNoteText,
+                       "the results say some text was not searched")
+    }
+
+    /// With every file read, no such line.
+    func testNoNotDownloadedNoteWhenEveryFileWasRead() async throws {
+        try Data("a small needle".utf8).write(to: folder.appendingPathComponent("Small.md"))
+        let controller = makeController(
+            RecordingEditorCommands(text: ""), files: makeStore(),
+            fileSearch: CrossFileSearchModel(reader: ThreadRecordingReader(), debounceInterval: 0)
+        )
+        controller.setQuery("needle")
+        await controller.pendingScan?.value
+        await controller.pendingFileSearch?.value
+        XCTAssertNil(controller.notDownloadedNote)
     }
 
     func testTapFileResultOpensAndSelects() async throws {
@@ -573,5 +588,13 @@ final class ThreadRecordingReader: CrossFileSearchFileReading, @unchecked Sendab
             if Thread.isMainThread { sawMainThread = true }
         }
         return inner.readSearchableText(at: url)
+    }
+
+    func searchableRead(at url: URL) -> CrossFileSearchRead {
+        lock.withLock {
+            count += 1
+            if Thread.isMainThread { sawMainThread = true }
+        }
+        return inner.searchableRead(at: url)
     }
 }

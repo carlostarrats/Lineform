@@ -149,7 +149,7 @@ file named after it carries the full story and the reasoning.
 - `DocumentHistoryController.reloadFromStore()` (Clear History) replaces the engine BEFORE leaving History mode — leaving saves, and the other order writes the cleared history straight back.
 - History in iCloud is one record per device per document, merged on read (`HistoryMerge`); a device writes only its own record, a missing passage never deletes another device's versions, and only an explicit Delete Version writes a tombstone (`noteVersionDeleted`, called by Delete Version with the history from before the delete — the engine removes a two-version passage whole, which alone writes none).
 - Every History file access goes through `CoordinatedFileAccess`.
-- Never fold another device's History record into your own: a move or former-path retire MOVES each record file under its own name, and document absence never deletes another device's record (only its 30-day `writtenAt` does). This device's engine drops passages it cannot locate, so a record it writes may lack them — add-wins holds only while every record stays separate. Shared writes run on the shared store's queue; `load` never reads a record that is not downloaded.
+- Never fold another device's History record into your own: a move or former-path retire MOVES each record file under its own name, and document absence never deletes another device's record (only its 30-day `writtenAt` does). This device's engine drops passages it cannot locate, so a record it writes may lack them — add-wins holds only while every record stays separate. Shared writes run on the shared store's queue; `load` never reads a record that is not downloaded. A move OUT of the container is the exception: it reads every record, waiting for iCloud off the main thread (`loadForMove`, stubs mapped to their logical names), and never deletes the shared folder while any record could not be read.
 
 **AI actions** (`editor-behavior.md` § AI, `app-integration.md` § Bring your own AI)
 - AI NEVER changes Markdown structure. Only `MarkdownStructureMap` prose segments are sent; every revision passes `MarkdownStructureGuard.admissibleRevisions` (no line terminator, no `Cc`, no new `Cf`, same structure punctuation, same block signature); the composed whole-document signature is verified, and so is EVERY accept against the current text (a subset of a verified reply can still change structure: `$5`→`5$` accepted half-way is `$5$`). A new `MarkdownTokenKind` or `MarkdownBlock` case needs a protection rule (`protection(of:)` switches exhaustively, so a new case stops the build; `MarkdownStructureInventoryTests` pins each existing case's classification — classify the new one deliberately, never as plain prose by default).
@@ -330,7 +330,7 @@ A few pure-looking files still stay in the app (`AIActionController`, `AISentenc
 The iPhone app is the `LineformiOS` target in `Lineform.xcodeproj`, with its sources in
 `LineformiOS/` and tests in `LineformiOSTests/`. It shares the Mac's App Store listing, bundle
 identifier (`com.lineform.app`), version and build, and links `LineformCore`. Minimum iOS 26.0,
-iPhone only. Details: `docs/architecture/iphone-app.md`.
+iPhone only, portrait only (owner, 2026-11-24). Details: `docs/architecture/iphone-app.md`.
 
 - **Scheme and tests.** The shared `LineformiOS` scheme runs `LineformiOS.xctestplan`:
   `xcodebuild test -project Lineform.xcodeproj -scheme LineformiOS -destination 'platform=iOS Simulator,name=iPhone 16 Pro,OS=26.5'`.
@@ -351,7 +351,10 @@ iPhone only. Details: `docs/architecture/iphone-app.md`.
   shows. An open file deleted elsewhere, or moved into a Trash folder, keeps its text on screen and
   is never written back; the next change saves it as a new document. A new file is created with a
   non-replacing write. Every open reads off the main thread; a file with no local copy is downloaded
-  first, and an outdated local copy opens at once while the newer version downloads. A reload read that a save overtook is read again, never applied stale. After iOS ends the app, `@SceneStorage` reopens the open file from its
+  first (the current document stays until the new text is in hand; an iCloud download error or 30 s
+  ends the wait with a notice, and every exit of the open clears `downloadingName`), and an outdated
+  local copy opens at once while the newer version downloads. Becoming active re-reads the open file
+  (`reconcileWithDisk`). A reload read that a save overtook is read again, never applied stale. After iOS ends the app, `@SceneStorage` reopens the open file from its
   bookmark.
 - **TextKit 1.** The editor is `UITextView(usingTextLayoutManager: false)`, matching the Mac
   editor's TextKit 1 stack. Do not switch it to TextKit 2.
@@ -409,7 +412,10 @@ iPhone only. Details: `docs/architecture/iphone-app.md`.
   passage opens it) and Replace With… (the selection row, its one entry point) enter History mode: read-only editor, passages on a
   wash drawn by `CAShapeLayer`s behind the text (never text attributes; the Mac's receded ink is not
   drawn — phone exception), tap selects the innermost passage, ← / → / Esc on a hardware keyboard,
-  and `HistoryCard` at the bottom (levels, versions, Delete, "Type a replacement", Done). The store is
+  and `HistoryCard` at the bottom: the mockup's one-line bar ("Version 2/2", round ‹ ›, Done as an
+  ink pill), the available levels as tabs above it only when there is more than one, and "Type a
+  replacement" only in a Replace With… session (`offersReplacementField`); no version list, no
+  Delete; the version line is adjustable and carries the passage actions for VoiceOver. The store is
   the Mac's router, made lazily (`LazyHistoryStore`: nothing at launch). Details:
   `docs/architecture/iphone-app.md`, "History".
 - **Word menu.** One ⋯ button (`MoreButton`) opens `WordMenu`, a full-screen overlay (never a
@@ -419,17 +425,25 @@ iPhone only. Details: `docs/architecture/iphone-app.md`.
   Settings, Export & Print, Read Aloud, History (only with history), Connect Your AI, About
   Lineform. Opening it and navigation are INSTANT (no motion; `WordMenuTiming` measures the open,
   and nothing on that path may walk the document text — `WordMenuStatusCounts`,
-  `MarkdownEditor.Coordinator.knownText`); the corner button is ✕ on the words and ← in a page, and
+  `MarkdownEditor.Coordinator.knownText`); the corner button is ✕ on the words and ← in a page (where a round page button at the bottom left goes straight back to the document, owner's option A in `mockups/back-to-document.html`); the name in the status line is tappable and offers Rename… (Files' rename, so the document follows and stops naming itself from its first line); and
   every page keeps `WordMenuMetrics.bottomClearance` below its last item. A card (Recent, folder,
   search) opens its document INSTANTLY: the menu closes straight to the page, no expansion or
   fade (owner review 3, 2026-11-24). After a card or search result opens a document, a round
   ← (`ResumeMenuButton`, ⋯'s twin at the bottom left, "Back to Files") reopens the menu exactly
   where the writer was (`WordMenuSession`: page, search text and scope, scroll); it fades (0.22 s, as one
   layer: `compositingGroup`) after 4 s or at the first keystroke, and never on a timer while VoiceOver runs. Markdown Basics is the
-  mockup's grouped cards (name · Markdown · copy); the Themes sheet has no title; Settings' "Clear
-  Version History" (same wording on the Mac) and "Show iCloud in Files" only when the iCloud
-  container resolves. The caret and selection handles are the highlighter's blue
-  (`HighlighterSelection.caretColor`, both apps).
+  mockup's grouped cards (name · Markdown · copy), exactly its rows (no label rows, Spelling or
+  Search on iPhone); the Themes sheet has no title, says "Reset to Theme", and closes on a tap on
+  its grabber or the page above it; Settings is single-line rows with no visible notes (each note
+  is the VoiceOver hint): three switches, a Files group ("Show iCloud in Files" only when the
+  iCloud container resolves, Show Hidden Folders, Sort folders by) and "Clear Version History"
+  (same wording on the Mac). Export & Print is exactly the mockup: Export PDF… / HTML… /
+  Markdown…, Share…, Print…, Convert — no icons, no Paper Size, Styled PDF, Rich Text or Save As.
+  Menu rows carry an icon only where the mockup draws one. The small words are 40 pt rows with
+  44 pt targets; an empty, file-less page's status line is just "Untitled". The caret and selection
+  handles are the highlighter's blue (`HighlighterSelection.caretColor`, both apps); the AccentColor
+  asset makes untinted system controls Lineform blue (Preview's link button and the sliders keep
+  system blue).
   Pages reach the editor only through `EditorCommands`, each command ONE undo step. Files rename,
   Trash and moves between iCloud and On My iPhone are coordinated (`.forMoving`), never replacing,
   unlike the Mac (ruling in `docs/architecture/files-sidebar.md`); Trash is `trashItem` only, and
@@ -438,7 +452,7 @@ iPhone only. Details: `docs/architecture/iphone-app.md`.
   fixed 40 pt field, no clear button): its scope button picks All documents (cards) or the open
   document by its file name (count, ↑/↓, matches as rows, Replace / All through `EditorCommands`,
   Replace All one undo step); replace never reaches another file. Files shows only the search, "iCloud" and "On My iPhone"
-  (each with its folders and a Lineform-blue round "+" making a document there), then Recent — no Workspace (the
+  (each with its folders, its own documents as cards and a Lineform-blue round "+" making a document there; an empty root shows no empty-state text), then Recent — no Workspace (the
   store's root stays dormant, `FilesSection.phoneRoots`), no Open from Files…, no New Folder. On My
   iPhone always shows beside iCloud, and New Document in a folder saves there
   (`OpenDocument.newDocument(in:)`). Convert to
@@ -456,8 +470,9 @@ iPhone only. Details: `docs/architecture/iphone-app.md`.
 - **Selection row, the AI sheet and AI.** The format row is the owner's format-row option 1
   exactly (`format-row-options.html`, `.b1`): a full-width 50 pt bar in the keyboard's colour docked
   on the keyboard as the editor's `inputAccessoryView` (`FormatBarAccessoryView`; never a floating
-  capsule), every command its own light chip (36 pt, 8 pt corners, 4 pt apart, 44 pt targets), always
-  shown scrolled to its start. A settled selection raises `SelectionRow`
+  capsule), every command its own light chip (36 pt, 8 pt corners, 4 pt apart, 44 pt targets), shown
+  scrolled to its start on a fresh show or a caret ↔ selection switch (a command that only changes
+  its buttons leaves it in place). A settled selection raises `SelectionRow`
   (`SelectionController`, 0.35 s), and while the editor has the
   SOFTWARE keyboard up the row shows for a caret too (it goes with the keyboard; a hardware keyboard
   alone raises none; nothing about it changes while an input method composes). With a caret, Bold,
@@ -466,13 +481,15 @@ iPhone only. Details: `docs/architecture/iphone-app.md`.
   opens the AI sheet for the whole document (`askAIForWholeDocument`, `WholeDocumentAIPolicy`), and
   Replace With… and Another Word are hidden; each is still ONE undo step. The ⋯ button and the Read
   Aloud pill float just above the row. Its buttons: Ask (connected only, Lineform blue),
-  Heading (its levels open in place: ‹ back, Title, Section, Heading 3, Heading 4, Body), Bold, Italic, Strikethrough, Code, List, Link,
+  Heading (its levels open in place: ‹ back, Title, Section, Heading 3, Heading 4, Body — `SelectionRow.rowHeadingLevels`; Heading 5 and 6 stay on ⌘5 / ⌘6), Bold, Italic, Strikethrough, Code, List, Link,
   Blockquote ("Quote"), Image (Photos or Files, through the paste path), Insert Table ("Table"),
   Reformat Table (on a table row), Replace With… (History's, where it can keep the selection),
   Another Word, and Check Spelling last. It
   never changes the system edit menu, and the app's own selections never raise it. Ask AI opens
   the AI sheet (`AISheetView`: three-quarters, drags to half or a quarter, no ✕), the Mac drawer's
-  conversation; the comment field is no longer opened.
+  conversation; the comment field is no longer opened. The sheet is never gone while its decisions
+  are needed: not swipeable while a request runs or a suggestion waits, brought back if a request
+  starts without it, and a review ends if it goes by any other path.
   The review is `AIReviewOverlayTextView`, a read-only overlay with an EMPTY undo manager, and the
   editor refuses every edit path while `isAIReviewActive`; the decisions are the sheet's. Each
   accept is ONE undo group through `applyRuleEdit`. The word menu's Connect Your AI ▸ Ask AI… sends
@@ -489,8 +506,8 @@ iPhone only. Details: `docs/architecture/iphone-app.md`.
   store answers with the Mac entry until an iPhone build is listed, and that is "couldn't check").
   Announcements are the Mac's store rules (`PhoneAnnouncementStore`: the switch gates the request,
   once a day, checked when the scene becomes active, NEVER under XCTest at that call site), shown
-  as a small one-time sheet only when the page is idle (never over first run, the word menu,
-  History, an AI review or the keyboard). The review prompt is the Mac's policy
+  as a small one-time sheet on the plain sheet surface, with no icon, only when the page is idle
+  (never over first run, the word menu, History, an AI review or the keyboard). The review prompt is the Mac's policy
   (`PhoneReviewPromptStore`, use = `OpenDocument.onConfirmedWrite`; the app's store is inert under
   XCTest). New Lineform Note and Open in Lineform route through `OpenDocument` (`PhoneIntentRouter`,
   attached after `prepare`); `AppIntents.framework` stays LINKED in the iPhone target too, and

@@ -3,8 +3,10 @@ import SwiftUI
 
 /// Read aloud's pill on the page: on the ⋯ button's line, from the left margin up to it. "Reading
 /// aloud" (or "Paused"), then pause/play and ✕ (which ends reading and closes the pill), each on a
-/// round page-colour background. All glyphs are SF Symbols at one weight. Shown while
-/// `ExportCommands.speechState` is not idle; nothing about it times out.
+/// round background (the page colour; a lighter circle on a dark page, `PhoneInk.readAloudButton`).
+/// All glyphs are SF Symbols at one weight. Shown while `ExportCommands.readAloudPill` is not
+/// hidden: after the end it stays, "Finished reading" with a read-again button, until its ✕ or a
+/// document swap. Nothing about it times out.
 struct ReadAloudPill: View {
     @Bindable var commands: ExportCommands
     var profile: ReadingProfile
@@ -19,32 +21,44 @@ struct ReadAloudPill: View {
     static var pauseTitle: String { String(localized: "Pause") }
     static var resumeTitle: String { String(localized: "Resume") }
     static var endTitle: String { String(localized: "End read aloud") }
+    static var finishedText: String { String(localized: "Finished reading") }
+    static var readAgainTitle: String { String(localized: "Read again") }
 
-    static func statusText(for state: SpeechState) -> String {
-        state == .paused ? pausedText : readingText
+    static func statusText(for state: ReadAloudPillState) -> String {
+        switch state {
+        case .paused: pausedText
+        case .finished: finishedText
+        case .reading, .hidden: readingText
+        }
+    }
+
+    /// The middle button's glyph and spoken name.
+    static func playButton(for state: ReadAloudPillState) -> (systemImage: String, label: String) {
+        switch state {
+        case .paused: ("play", resumeTitle)
+        case .finished: ("arrow.counterclockwise", readAgainTitle)
+        case .reading, .hidden: ("pause", pauseTitle)
+        }
     }
 
     var body: some View {
         let theme = Theme.theme(for: profile)
         let ink = PhoneInk(theme: theme, colorScheme: theme.usesDarkChrome ? .dark : .light)
-        let isPaused = commands.speechState == .paused
+        let state = commands.readAloudPill
+        let play = Self.playButton(for: state)
         HStack(spacing: 4) {
-            Text(Self.statusText(for: commands.speechState))
+            Text(Self.statusText(for: state))
                 .font(.subheadline)
                 .foregroundStyle(Color(uiColor: ink.theme.textColor))
                 .lineLimit(1)
                 .minimumScaleFactor(0.8)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .accessibilityAddTraits(.updatesFrequently)
-            roundButton(
-                systemImage: isPaused ? "play" : "pause",
-                label: isPaused ? Self.resumeTitle : Self.pauseTitle,
-                theme: ink.theme
-            ) {
+            roundButton(systemImage: play.systemImage, label: play.label, ink: ink) {
                 commands.pauseOrResumeReading()
             }
             .accessibilityIdentifier("readAloud.pause")
-            roundButton(systemImage: "xmark", label: Self.endTitle, theme: ink.theme) {
+            roundButton(systemImage: "xmark", label: Self.endTitle, ink: ink) {
                 commands.stopReading()
             }
             .accessibilityIdentifier("readAloud.end")
@@ -62,25 +76,31 @@ struct ReadAloudPill: View {
                 lineWidth: LineformDesign.FloatingCard.hairlineWidth
             )
         )
+        // A softer shadow than the round buttons' (owner review 4: the wide pill's full floating
+        // shadow read far too heavy, in dark especially): a third of the opacity, half the blur.
         .shadow(
             color: .black.opacity(
-                theme.usesDarkChrome ? LineformDesign.FloatingCard.shadowOpacityDark : LineformDesign.FloatingCard.shadowOpacityLight
+                (theme.usesDarkChrome ? LineformDesign.FloatingCard.shadowOpacityDark : LineformDesign.FloatingCard.shadowOpacityLight)
+                    * Self.shadowStrength
             ),
-            radius: LineformDesign.FloatingCard.shadowRadius,
-            x: LineformDesign.FloatingCard.shadowOffset.width,
-            y: LineformDesign.FloatingCard.shadowOffset.height
+            radius: LineformDesign.FloatingCard.shadowRadius / 2,
+            x: 0,
+            y: LineformDesign.FloatingCard.shadowOffset.height / 2
         )
         .accessibilityElement(children: .contain)
     }
 
-    /// A 36 pt page-colour circle inside a 44 pt target.
-    private func roundButton(systemImage: String, label: String, theme: Theme, action: @escaping () -> Void) -> some View {
+    /// How much of the floating chrome's shadow the pill keeps.
+    static let shadowStrength = 0.35
+
+    /// A 36 pt circle (`PhoneInk.readAloudButton`) inside a 44 pt target.
+    private func roundButton(systemImage: String, label: String, ink: PhoneInk, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Image(systemName: systemImage)
                 .font(.system(size: 15, weight: .medium))
-                .foregroundStyle(Color(uiColor: theme.textColor))
+                .foregroundStyle(ink.color(.onReadAloudButton))
                 .frame(width: Self.buttonDiameter, height: Self.buttonDiameter)
-                .background(Circle().fill(Color(uiColor: theme.backgroundColor)))
+                .background(Circle().fill(Color(uiColor: ink.readAloudButton)))
                 .frame(width: WordMenuMetrics.minimumTarget, height: WordMenuMetrics.minimumTarget)
                 .contentShape(Rectangle())
         }

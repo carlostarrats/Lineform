@@ -51,6 +51,10 @@ final class SelectionRowTests: XCTestCase {
         // the accessory) lifts it above the row.
         XCTAssertTrue(editor.inputAccessoryView === controller.formatBar)
         try await spin { controller.formatBar.isShowing }
+        // On the software keyboard (the simulator may report a hardware one, where the bar adds the
+        // home indicator's band: `testFormatBarAddsTheHomeIndicatorOnlyWithAHardwareKeyboard`).
+        postKeyboard(height: 336, in: try XCTUnwrap(window))
+        try await spin { controller.keyboardOverlap == 336 }
         XCTAssertEqual(controller.formatBar.intrinsicContentSize.height, SelectionRow.height)
         try await spin { Self.element(MoreButton.accessibilityTitle, in: window!) != nil }
         XCTAssertEqual(controller.phase, .row)
@@ -115,6 +119,10 @@ final class SelectionRowTests: XCTestCase {
         XCTAssertEqual(SelectionRowItem.askAI.systemImage, "sparkles")
         XCTAssertEqual(SelectionController.headingLevels.map(\.title),
                        ["Title", "Section", "Heading 3", "Heading 4", "Heading 5", "Heading 6", "Body"])
+        // pinned-en: the row offers the approved five; Heading 5 and 6 stay on ⌘5 / ⌘6.
+        XCTAssertEqual(SelectionRow.rowHeadingLevels.map(\.title),
+                       ["Title", "Section", "Heading 3", "Heading 4", "Body"])
+        XCTAssertEqual(SelectionRow.rowHeadingLevels.map(\.level), [1, 2, 3, 4, nil])
 
         // An editor without History offers no Replace With… (it opens History: `PhoneAIHistoryTests`).
         let (editor, controller, _) = try makeEditor("Find this phrase here\n", connected: false)
@@ -316,6 +324,10 @@ final class SelectionRowTests: XCTestCase {
         select(selection, in: editor)
         try await spin { controller.phase == .row }
         try await spin { controller.formatBar.isShowing }
+        // On the software keyboard (the simulator may report a hardware one, where the bar adds the
+        // home indicator's band: `testFormatBarAddsTheHomeIndicatorOnlyWithAHardwareKeyboard`).
+        postKeyboard(height: 336, in: try XCTUnwrap(window))
+        try await spin { controller.keyboardOverlap == 336 }
         XCTAssertEqual(controller.formatBar.intrinsicContentSize.height, SelectionRow.height)
         XCTAssertEqual(SelectionRow.height, 50, "the mockup's bar (option 1, `.b1`)")
 
@@ -323,7 +335,8 @@ final class SelectionRowTests: XCTestCase {
         let coordinator = try XCTUnwrap(editor.delegate as? MarkdownEditor.Coordinator)
         XCTAssertNil(coordinator.textView(editor, editMenuForTextIn: selection, suggestedActions: []))
 
-        // The row goes: the accessory folds away.
+        // The row goes (the keyboard went down, then a caret): the accessory folds away.
+        postKeyboardHidden()
         select(NSRange(location: 5, length: 0), in: editor)
         try await spin { !controller.formatBar.isShowing }
         XCTAssertEqual(controller.formatBar.intrinsicContentSize.height, 0)
@@ -701,6 +714,141 @@ final class SelectionRowTests: XCTestCase {
         XCTAssertEqual(editor.text, composing, "no command runs mid-composition")
         XCTAssertNotNil(editor.markedTextRange, "the composition is not disturbed")
         editor.unmarkText()
+    }
+
+    // MARK: - Review 4 (editing flows)
+
+    /// Another Word's Accept and Reject live in the AI sheet: it opens the sheet before it runs.
+    func testAnotherWordOpensTheAISheet() throws {
+        let (editor, controller, _) = try makeEditor("Hello there world\n", connected: true)
+        editor.selectedRange = NSRange(location: 6, length: 5)
+        controller.showRowNow()
+        XCTAssertTrue(controller.items.contains(.anotherWord))
+        controller.perform(.anotherWord)
+        XCTAssertTrue(controller.isShowingAISheet, "the sheet holds the decisions")
+        XCTAssertEqual(controller.phase, .hidden)
+        guard case .running(.anotherWord, _) = controller.aiController.state else {
+            return XCTFail("Another Word runs")
+        }
+        XCTAssertTrue(controller.conversation.isWorking, "the request is in the sheet's conversation")
+        controller.aiController.cancel()
+    }
+
+    /// A selection made behind the AI sheet raises no row (and so no keyboard over the sheet).
+    func testNoRowBehindTheAISheet() async throws {
+        let (editor, controller, _) = try makeEditor("Hello there world\n", connected: true)
+        postKeyboard(height: 336, in: try XCTUnwrap(window))
+        try await spin { controller.keyboardOverlap == 336 }
+        controller.isShowingAISheet = true
+        editor.selectedRange = NSRange(location: 0, length: 5)
+        controller.showRowNow()
+        XCTAssertEqual(controller.phase, .hidden, "no selection row under the sheet")
+        editor.selectedRange = NSRange(location: 3, length: 0)
+        controller.showRowNow()
+        XCTAssertEqual(controller.phase, .hidden, "no caret row either")
+        controller.isShowingAISheet = false
+        controller.showRowNow()
+        XCTAssertEqual(controller.phase, .row)
+    }
+
+    /// A selection's row goes with the keyboard, and when the editor stops being first responder.
+    /// The buttons' lift and the page's keyboard room follow only the editor's own keyboard.
+    func testSelectionRowGoesWithTheKeyboard() async throws {
+        let (editor, controller, _) = try makeEditor("Hello there world\n", connected: false)
+        let window = try XCTUnwrap(self.window)
+        postKeyboard(height: 336, in: window)
+        try await spin { controller.keyboardOverlap == 336 }
+        XCTAssertEqual(controller.keyboard.pageOverlap, 336, "the editor's keyboard: the page makes room")
+        editor.selectedRange = NSRange(location: 0, length: 5)
+        controller.showRowNow()
+        XCTAssertEqual(controller.phase, .row)
+        postKeyboardHidden()
+        try await spin { controller.phase == .hidden }
+        XCTAssertEqual(controller.keyboard.pageOverlap, 0)
+
+        postKeyboard(height: 336, in: window)
+        try await spin { controller.keyboardOverlap == 336 }
+        controller.showRowNow()
+        XCTAssertEqual(controller.phase, .row)
+        // Another field takes the keyboard (the AI sheet's, Files' search, History's).
+        let field = UITextField(frame: CGRect(x: 0, y: 420, width: 200, height: 30))
+        window.rootViewController?.view.addSubview(field)
+        XCTAssertTrue(field.becomeFirstResponder())
+        controller.editorFocusDidChange()
+        try await spin { controller.phase == .hidden }
+        XCTAssertEqual(controller.keyboard.pageOverlap, 0, "another field's keyboard never resizes the page")
+        postKeyboard(height: 300, in: window)
+        try await spin { controller.keyboardOverlap == 300 }
+        XCTAssertEqual(controller.keyboard.pageOverlap, 0)
+        XCTAssertTrue(editor.becomeFirstResponder())
+        controller.editorFocusDidChange()
+        try await spin { controller.keyboard.pageOverlap == 300 }
+        field.removeFromSuperview()
+    }
+
+    /// The bar adds the home indicator's band only with a hardware keyboard, never while the
+    /// software keyboard is up (an interactive swipe-down would make it jump by 34 pt).
+    func testFormatBarAddsTheHomeIndicatorOnlyWithAHardwareKeyboard() async throws {
+        let (_, controller, _) = try makeEditor("Hello world\n", connected: false)
+        postKeyboard(height: 336, in: try XCTUnwrap(window))
+        try await spin { controller.keyboardOverlap == 336 }
+        XCTAssertEqual(controller.formatBar.hardwareKeyboardInset, 0)
+        postKeyboard(height: 84, in: try XCTUnwrap(window))
+        try await spin { controller.keyboardOverlap == 84 }
+        XCTAssertEqual(controller.formatBar.hardwareKeyboardInset, controller.formatBar.safeAreaInsets.bottom)
+    }
+
+    /// Check Spelling with nothing to find says so; a hit keeps the row where it is (no fresh
+    /// start), so the next tap lands on the same button. A caret ↔ selection switch by the writer
+    /// starts the row afresh.
+    func testCheckSpellingFeedbackAndRowStaysInPlace() async throws {
+        guard SpellCheckPass.language(primary: "en-US") != nil else { throw XCTSkip("no English dictionary") }
+        let (editor, controller, _) = try makeEditor("The weathr was kind. The weathr again.\n", connected: false)
+        postKeyboard(height: 336, in: try XCTUnwrap(window))
+        try await spin { controller.keyboardOverlap == 336 }
+        guard editor.spellCheckLanguage?.hasPrefix("en") == true else { throw XCTSkip("the keyboard's language is not English") }
+        editor.selectedRange = NSRange(location: 0, length: 0)
+        controller.showRowNow()
+        let fresh = controller.rowGeneration
+        controller.perform(.checkSpelling)
+        XCTAssertEqual(editor.selectedRange, NSRange(location: 4, length: 6))
+        XCTAssertEqual(controller.rowGeneration, fresh, "a command's own selection keeps the row in place")
+        controller.perform(.checkSpelling)
+        XCTAssertEqual(editor.selectedRange, NSRange(location: 25, length: 6))
+        XCTAssertEqual(controller.rowGeneration, fresh)
+        XCTAssertNil(controller.spellingNotice)
+
+        // The writer's own switch to a caret: a fresh row.
+        select(NSRange(location: 2, length: 0), in: editor)
+        try await spin { controller.anchorRange == NSRange(location: 2, length: 0) }
+        XCTAssertGreaterThan(controller.rowGeneration, fresh)
+
+        editor.setDocumentText("The weather was kind.\n")
+        editor.selectedRange = NSRange(location: 0, length: 0)
+        controller.showRowNow()
+        controller.perform(.checkSpelling)
+        XCTAssertEqual(controller.spellingNotice, SelectionController.noSpellingMistakesMessage)
+        XCTAssertEqual(editor.selectedRange, NSRange(location: 0, length: 0), "nothing moved")
+    }
+
+    func testNoSpellingMistakesMessageIsLocalized() throws {
+        let key = "No spelling mistakes found."
+        for language in ["de", "fr", "es", "ja", "zh-Hans"] {
+            let path = try XCTUnwrap(Bundle.main.path(forResource: language, ofType: "lproj"), language)
+            let bundle = try XCTUnwrap(Bundle(path: path))
+            let value = bundle.localizedString(forKey: key, value: nil, table: nil)
+            XCTAssertNotEqual(value, key, "\(language) has a translation")
+        }
+    }
+
+    /// The editor's keyboard is the theme's light or dark, never the phone's (`.default`).
+    func testKeyboardAppearanceFollowsTheTheme() {
+        let light = LineformTextView.make(profile: .original)
+        XCTAssertEqual(light.keyboardAppearance, .light)
+        var quiet = ReadingProfile.original
+        quiet.themeID = .quiet
+        let dark = LineformTextView.make(profile: quiet)
+        XCTAssertEqual(dark.keyboardAppearance, .dark)
     }
 
     // MARK: - Helpers

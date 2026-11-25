@@ -15,6 +15,37 @@ enum CoordinatedFileAccess {
         return result
     }
 
+    /// The file's bytes through a coordinated read, which for an iCloud item that is not
+    /// downloaded (a `.Name.icloud` stub or a dataless file — pass the LOGICAL url) makes iCloud
+    /// download it and waits. Gives up after `timeout` (the coordinator is cancelled) and returns
+    /// nil. Blocks the calling thread: never call it on the main thread.
+    static func readWaitingForDownload(_ url: URL, timeout: TimeInterval) -> Data? {
+        let box = DataBox()
+        let done = DispatchSemaphore(value: 0)
+        DispatchQueue.global(qos: .utility).async {
+            var error: NSError?
+            box.coordinator.coordinate(readingItemAt: url, options: [], error: &error) { url in
+                box.set(try? Data(contentsOf: url))
+            }
+            done.signal()
+        }
+        guard done.wait(timeout: .now() + timeout) == .success else {
+            box.coordinator.cancel()
+            return nil
+        }
+        return box.value
+    }
+
+    /// `@unchecked Sendable`: the coordinator is used by the reading thread and, to cancel, by the
+    /// waiting one (`cancel()` is documented thread-safe); `stored` is guarded by `lock`.
+    private final class DataBox: @unchecked Sendable {
+        let coordinator = NSFileCoordinator(filePresenter: nil)
+        private let lock = NSLock()
+        private var stored: Data?
+        var value: Data? { lock.lock(); defer { lock.unlock() }; return stored }
+        func set(_ value: Data?) { lock.lock(); stored = value; lock.unlock() }
+    }
+
     /// Replaces the file atomically, creating its parent folder first. True when written.
     @discardableResult
     static func write(_ data: Data, to url: URL) -> Bool {

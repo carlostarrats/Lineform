@@ -3,8 +3,14 @@ import Foundation
 /// The AI drawer's words (Mac drawer and iPhone sheet), from the package catalog so both apps
 /// draw the same text. The drawer has no title (2026-11-24): its input says "Ask Lineform…".
 public enum AIConversationPresentation {
+    /// The Mac's wording is unchanged; on iPhone there is no closing a document, only opening
+    /// another one (the conversation goes with the swap).
     public static var startNote: String {
+        #if os(iOS)
+        String(localized: "This conversation ends when you open another document.", bundle: .module)
+        #else
         String(localized: "This conversation lasts until you close the document.", bundle: .module)
+        #endif
     }
     public static var placeholder: String { String(localized: "Ask Lineform…", bundle: .module) }
     public static var inputLabel: String { String(localized: "Instruction for the AI", bundle: .module) }

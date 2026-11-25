@@ -598,7 +598,7 @@ final class ReadViewTests: XCTestCase {
         let made = LineformReadView.make()
         XCTAssertFalse(made.isEditable)
         XCTAssertTrue(made.isSelectable)
-        XCTAssertEqual(made.textContainerInset.top, 32)
+        XCTAssertEqual(made.textContainerInset.top, LineformTextView.pageTopInset, "the editor's top, so the text never moves between modes")
         XCTAssertEqual(made.backgroundColor, Theme.theme(for: .original).backgroundColor)
     }
 

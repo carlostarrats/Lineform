@@ -318,3 +318,89 @@ extension UIScrollView {
         }
     }
 }
+
+// MARK: - The document's name on the page
+
+/// The open document's file name, in small secondary text at the top of the page, above the first
+/// line (owner review 4: a renamable name on the page itself, not up in the menu). It scrolls with
+/// the text. A tap opens Rename; Untitled (no file yet) shows the name and offers nothing.
+/// Write and Read both keep `DocumentNameTag.topSpace` above the first line, so the text does not
+/// move between the modes.
+final class DocumentNameTag: UIButton {
+    /// The name's line and the gap below it to the first line of text.
+    static let height: CGFloat = 20
+    static let gap: CGFloat = 10
+    static var topSpace: CGFloat { height + gap }
+
+    var onRename: (() -> Void)?
+
+    /// How far below the text's baseline the dashes run.
+    static let dashOffset: CGFloat = 3
+
+    private lazy var dashLayer: CAShapeLayer = {
+        let dashes = CAShapeLayer()
+        dashes.lineWidth = 1
+        dashes.lineDashPattern = [3, 2]
+        dashes.fillColor = nil
+        layer.addSublayer(dashes)
+        return dashes
+    }()
+
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        guard let label = titleLabel, let font = label.font else { return }
+        let text = label.frame
+        let baseline = text.minY + font.ascender
+        let y = (baseline + Self.dashOffset).rounded() + 0.5
+        let path = UIBezierPath()
+        path.move(to: CGPoint(x: text.minX, y: y))
+        path.addLine(to: CGPoint(x: text.maxX, y: y))
+        dashLayer.frame = bounds
+        dashLayer.path = path.cgPath
+    }
+
+    static func make() -> DocumentNameTag {
+        let tag = DocumentNameTag(type: .system)
+        tag.contentHorizontalAlignment = .leading
+        tag.titleLabel?.font = UIFont.preferredFont(forTextStyle: .footnote)
+        tag.titleLabel?.adjustsFontForContentSizeCategory = false
+        tag.titleLabel?.lineBreakMode = .byTruncatingMiddle
+        tag.accessibilityIdentifier = "document.name"
+        // A tap opens Rename at once (owner review 4: a menu first was one tap too many).
+        tag.addAction(UIAction { [weak tag] _ in tag?.onRename?() }, for: .primaryActionTriggered)
+        return tag
+    }
+
+    /// Shows `name` in `ink`; `canRename` gives it the Rename… menu.
+    func update(name: String, ink: UIColor, canRename: Bool) {
+        // A renamable name carries a quiet dashed underline in its own grey, so it reads as
+        // something to tap (not the AI's blue dotted words).
+        var attributes: [NSAttributedString.Key: Any] = [
+            .font: UIFont.preferredFont(forTextStyle: .footnote),
+            .foregroundColor: ink,
+        ]
+        let title = NSAttributedString(string: name, attributes: attributes)
+        if attributedTitle(for: .normal) != title { setAttributedTitle(title, for: .normal) }
+        // The dashes are drawn, not a text underline, so they sit a little below the letters
+        // (owner review 5: the text underline sat too tight).
+        dashLayer.strokeColor = ink.withAlphaComponent(0.6).cgColor
+        dashLayer.isHidden = !canRename
+        setNeedsLayout()
+        isUserInteractionEnabled = canRename
+        accessibilityLabel = name
+        accessibilityHint = canRename ? String(localized: "Rename…") : nil
+        accessibilityTraits = canRename ? .button : .staticText
+    }
+}
+
+extension UITextView {
+    /// Lays `tag` out across the text column, `top` below the content's top.
+    func layoutDocumentNameTag(_ tag: DocumentNameTag?, top: CGFloat) {
+        guard let tag, tag.superview === self else { return }
+        let padding = textContainer.lineFragmentPadding
+        let x = textContainerInset.left + padding
+        let width = max(0, bounds.width - textContainerInset.left - textContainerInset.right - 2 * padding)
+        let frame = CGRect(x: x, y: top, width: width, height: DocumentNameTag.height)
+        if tag.frame != frame { tag.frame = frame }
+    }
+}

@@ -33,11 +33,11 @@
 	</dict>
 	<key>UILaunchScreen</key>
 	<dict/>
+	<!-- Portrait only (owner, 2026-11-24): in landscape the keyboard and the format row left
+	     almost no room to write. -->
 	<key>UISupportedInterfaceOrientations</key>
 	<array>
 		<string>UIInterfaceOrientationPortrait</string>
-		<string>UIInterfaceOrientationLandscapeLeft</string>
-		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
 	<!-- The on-device folder (the app's Documents) shows in the Files app under
 	     On My iPhone › Lineform, and documents there open in place. -->

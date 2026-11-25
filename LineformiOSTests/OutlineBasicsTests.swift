@@ -93,20 +93,26 @@ final class OutlineBasicsTests: XCTestCase {
 
     // MARK: - Markdown Basics
 
-    /// Markdown Basics is the mockup's groups, each its own card: every reference row exactly
-    /// once, the first section split into Headings, Emphasis, Lists, Links & images and Blocks,
-    /// and every code row named.
-    func testBasicsGroupsShowEveryRowOnce() throws {
+    /// Markdown Basics is exactly the approved mockup's groups and rows, each group its own card,
+    /// every row literal Markdown with a copy button (no Tab, Block Spacing, Spelling or Search).
+    func testBasicsGroupsAreTheMockups() throws {
         try skipUnlessEnglishInterface()
         let groups = BasicsSection.groups
-        XCTAssertEqual(Array(groups.prefix(5).map(\.title)), ["Headings", "Emphasis", "Lists", "Links & images", "Blocks"])
-        XCTAssertEqual(Set(groups.flatMap(\.rows).map(\.id)), Set(MarkdownReference.sections.flatMap(\.rows).map(\.id)))
-        XCTAssertEqual(groups.flatMap(\.rows).count, MarkdownReference.sections.flatMap(\.rows).count)
-        let bold = try XCTUnwrap(MarkdownReference.sections.flatMap(\.rows).first { $0.id == "**bold**" })
-        XCTAssertEqual(BasicsSection.name(for: bold), "Bold")
-        for row in MarkdownReference.sections.flatMap(\.rows) {
-            XCTAssertFalse(BasicsSection.name(for: row).isEmpty, row.id)
-        }
+        // pinned-en: the mockup's groups and names, in order.
+        XCTAssertEqual(groups.map(\.title), ["Headings", "Emphasis", "Lists", "Links & images", "Blocks"])
+        XCTAssertEqual(groups.map { $0.rows.map(BasicsSection.name(for:)) }, [
+            ["Title", "Section"],
+            ["Bold", "Italic", "Strikethrough", "Code"],
+            ["Bullets", "Numbers", "Checkbox"],
+            ["Link", "Image"],
+            ["Quote", "Table", "Math", "Diagram"],
+        ])
+        let rows = groups.flatMap(\.rows)
+        XCTAssertEqual(Set(rows.map(\.id)).count, rows.count, "every row once")
+        XCTAssertTrue(rows.allSatisfy { $0.copyAffordance() != nil }, "every row is Markdown with a copy button")
+        // The package's iPhone reference has no label rows at all.
+        XCTAssertTrue(MarkdownReference.sections.flatMap(\.rows).allSatisfy(\.rendersSyntaxAsCode))
+        XCTAssertFalse(MarkdownReference.sections.contains { ["spelling", "search"].contains($0.id) })
     }
 
     func testBasicsRowCopies() async throws {
@@ -118,19 +124,13 @@ final class OutlineBasicsTests: XCTestCase {
         // pinned-en
         XCTAssertEqual(BasicsSection.copiedText, "Copied")
 
-        let rows = MarkdownReference.sections.flatMap(\.rows)
+        let rows = BasicsSection.groups.flatMap(\.rows)
         let codeRow = try XCTUnwrap(rows.first { $0.copyAffordance() != nil })
-        let labelRow = try XCTUnwrap(rows.first { $0.copyAffordance() == nil })
         let state = BasicsCopyState()
 
         XCTAssertTrue(state.copy(codeRow, to: board))
         XCTAssertEqual(board.string, codeRow.copyAffordance()?.text, "the row's copy affordance lands on the pasteboard")
         XCTAssertEqual(state.copiedRowID, codeRow.id, "the row shows Copied")
-
-        board.string = "kept"
-        XCTAssertFalse(state.copy(labelRow, to: board), "a label row has nothing to copy")
-        XCTAssertEqual(board.string, "kept")
-        XCTAssertEqual(state.copiedRowID, codeRow.id)
 
         try await Task.sleep(for: .milliseconds(1250))
         XCTAssertNil(state.copiedRowID, "Copied shows for 1 s")

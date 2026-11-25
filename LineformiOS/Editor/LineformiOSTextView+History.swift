@@ -198,6 +198,10 @@ extension LineformTextView {
             // Hardware keys reach the view only while it is first responder; read-only keeps no
             // keyboard on screen.
             if wasFirstResponder, !isFirstResponder { becomeFirstResponder() }
+            // Leaving: a view that stayed first responder while read-only has no keyboard, and a
+            // tap on it would not bring one (it is already first responder). Its input views
+            // reload so the keyboard and the format row come back for typing.
+            if !active, isFirstResponder { reloadInputViews() }
             historyTapRecognizer().isEnabled = active
             contentInset.bottom = active ? Self.historyCardClearance : 0
             verticalScrollIndicatorInsets.bottom = contentInset.bottom

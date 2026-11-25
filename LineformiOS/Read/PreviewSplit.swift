@@ -60,18 +60,19 @@ struct PreviewSplit<Editor: View, Reader: View>: View {
 }
 
 /// Preview's link button, the Mac's `splitScrollLinkButton` in the iPhone's floating chrome: a
-/// 38 pt circle (in a 44 pt touch square) with the `link` symbol, system blue on a blue wash while linked, struck through in
+/// circle the ⋯ button's size (48 pt, its own touch target) with the `link` symbol, system blue on a blue wash while linked, struck through in
 /// the page ink while unlinked. It sits at the bottom right of the Read pane, left of the Menu
 /// button, and shares the Menu button's `LineformDesign` floating chrome (fill, hairline, shadow).
 /// A phone has no hover: the Mac's hover values are the pressed state.
 struct PreviewLinkButton: View {
-    static let diameter: CGFloat = 38
-    /// The touch target: the circle is centred in a square this size.
-    static let touchSide: CGFloat = 44
+    /// The ⋯ button's size, so the two round buttons side by side match (owner, 2026-11-24).
+    static let diameter: CGFloat = MoreButton.diameter
+    /// The touch target: the circle is centred in a square this size (never under 44 pt).
+    static let touchSide: CGFloat = max(44, diameter)
     /// How far the touch square reaches past the circle on each side.
     static var horizontalTouchOutset: CGFloat { (touchSide - diameter) / 2 }
-    static let symbolSize: CGFloat = 15
-    static let strikeSize = CGSize(width: 1.7, height: 20)
+    static let symbolSize: CGFloat = 18
+    static let strikeSize = CGSize(width: 1.9, height: 24)
 
     var isLinked: Bool
     var profile: ReadingProfile
@@ -177,7 +178,7 @@ private struct LinkButtonBody: View {
             x: LineformDesign.FloatingCard.shadowOffset.width,
             y: LineformDesign.FloatingCard.shadowOffset.height
         )
-        // The 44 pt target around the 38 pt circle; the row's spacing gives the difference back.
+        // The touch target around the circle (the same size at 48 pt); the row's spacing gives any difference back.
         .frame(width: PreviewLinkButton.touchSide, height: PreviewLinkButton.touchSide)
         .contentShape(Rectangle())
         .animation(ModeSwitch.pressAnimation(reduceMotion: reduceMotion), value: isPressed)

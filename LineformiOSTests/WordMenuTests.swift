@@ -134,7 +134,17 @@ final class WordMenuTests: XCTestCase {
         let cards = SearchResultCard.cards(from: rows, currentTitle: "Draft")
         XCTAssertEqual(cards.map(\.title), ["Draft", "Letter"])
         XCTAssertEqual(cards[0].row.id, "d1", "a tap goes to the first match")
-        XCTAssertEqual(cards[1].detail, "Notes")
+        XCTAssertEqual(cards[1].detail, "Notes", "no date for a file that isn't on disk")
+
+        // Like every card: folder · date, and the open document says it is open.
+        let dated = SearchResultCard.cards(
+            from: rows, currentTitle: "Draft", currentURL: folder.appendingPathComponent("Draft.md"),
+            rootNames: [folder.standardizedFileURL.path: "On My iPhone"],
+            modifiedDate: { _ in Date(timeIntervalSinceNow: -3600) }
+        )
+        XCTAssertTrue(dated[0].detail.hasPrefix("On My iPhone · "), dated[0].detail)
+        XCTAssertNotEqual(dated[1].detail, "Notes", "another document's card shows its date too")
+        XCTAssertTrue(dated[1].detail.hasPrefix("Notes · "), dated[1].detail)
     }
 
     func testStatusLineShowsSavedAndCounts() async throws {
@@ -148,6 +158,11 @@ final class WordMenuTests: XCTestCase {
         XCTAssertEqual(Set([notSavedYet, saved, unsaved]).count, 3)
 
         XCTAssertEqual(WordMenu.saveStateText(for: document), notSavedYet, "a blank new document has no file")
+        // An empty page with no file shows only its name ("Untitled"): no save state, no count.
+        XCTAssertTrue(WordMenu.showsTitleOnly(hasFile: false, text: ""))
+        XCTAssertTrue(WordMenu.showsTitleOnly(hasFile: false, text: " \n\n"))
+        XCTAssertFalse(WordMenu.showsTitleOnly(hasFile: false, text: "a"))
+        XCTAssertFalse(WordMenu.showsTitleOnly(hasFile: true, text: ""), "an empty file still says Saved")
         document.edit("one two three")
         XCTAssertEqual(WordMenu.saveStateText(for: document), notSavedYet, "a new document's text is not on disk")
         XCTAssertFalse(WordMenu.isSaved(document))
@@ -220,10 +235,16 @@ final class WordMenuTests: XCTestCase {
         XCTAssertNil(Self.accessibilityFrame(label: "Reading Experience", in: window), "the Aa button is gone")
     }
 
+    /// §19: the small words are 40 pt rows; each keeps a 44 pt target past its drawn row.
+    func testSmallWordsAreFortyPointRowsWithFullTargets() {
+        XCTAssertEqual(WordMenuMetrics.smallWordRowHeight, 40)
+        XCTAssertEqual(WordMenuMetrics.smallWordRowHeight + 2 * WordMenuWordButton.smallTargetReach, WordMenuMetrics.minimumTarget)
+    }
+
     func testBottomClearanceUsesMoreButtonSize() {
         XCTAssertEqual(MoreButton.diameter, 48)
         XCTAssertGreaterThanOrEqual(MoreButton.diameter, WordMenuMetrics.minimumTarget)
-        XCTAssertGreaterThan(MoreButton.diameter, PreviewLinkButton.diameter, "the ⋯ button is the taller one")
+        XCTAssertEqual(MoreButton.diameter, PreviewLinkButton.diameter, "the link and ⋯ buttons are the same size")
         XCTAssertEqual(DocumentScreen.bottomChromeClearance, MarkdownEditor.chromeMargin + MoreButton.diameter + 8)
     }
 

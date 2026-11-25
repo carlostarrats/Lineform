@@ -240,8 +240,10 @@ final class PhoneIntentRouter {
         case .open(let url):
             do {
                 try await document.open(url)
-            } catch OpenDocument.OpenError.currentDocumentNotSaved, OpenDocument.OpenError.superseded {
-                // The save failure has its own notice; an overtaken open is the later one's business.
+            } catch OpenDocument.OpenError.currentDocumentNotSaved, OpenDocument.OpenError.superseded,
+                    OpenDocument.OpenError.downloadFailed {
+                // The save failure and a failed download have their own notices; an overtaken open
+                // is the later one's business.
                 throw LineformShortcutError.couldNotOpen
             } catch {
                 document.failedOpenURL = url

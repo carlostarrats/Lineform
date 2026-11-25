@@ -35,6 +35,10 @@ struct ReadViewRepresentable: UIViewRepresentable {
     var linkedScroll: LinkedScroll?
     /// How long after an edit the text is rendered (Preview's 0.12 s; Read renders at once).
     var textDelay: TimeInterval = 0
+    /// The document's name at the top of the page (Read; nil in Preview's lower pane).
+    var documentName: String?
+    var canRename = false
+    var onRename: () -> Void = {}
 
     func makeUIView(context: Context) -> LineformReadView {
         let view = LineformReadView.make(profile: profile)
@@ -56,6 +60,8 @@ struct ReadViewRepresentable: UIViewRepresentable {
         view.undoManagerProvider = undoManager
         view.setTopChromeInset(topChromeInset)
         view.setBottomChromeInset(bottomChromeInset)
+        let rename = onRename
+        view.setDocumentName(documentName, canRename: canRename, onRename: { rename() })
         positionKeeper?.reader = view
         if let linkedScroll {
             linkedScroll.connect(preview: view)

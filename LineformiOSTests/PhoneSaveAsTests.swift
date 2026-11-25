@@ -3,9 +3,10 @@ import LineformCore
 import XCTest
 @testable import LineformiOS
 
-/// Save As in the Menu sheet's Document section: `OpenDocument.prepareSaveAs` stages a copy of the
-/// text's exact bytes, the export picker places it, and `adoptSaveAs` moves the document to the
-/// new file. The picker's copy is simulated with a file copy; every folder is temporary.
+/// `OpenDocument`'s Save As (`prepareSaveAs` stages a copy of the text's exact bytes, `adoptSaveAs`
+/// moves the document to the placed file). The approved menu no longer offers Save As on iPhone;
+/// the document's code stays and is still tested here. The placing is simulated with a file copy;
+/// every folder is temporary.
 @MainActor
 final class PhoneSaveAsTests: XCTestCase {
     private var root: URL!
@@ -139,21 +140,14 @@ final class PhoneSaveAsTests: XCTestCase {
 
     // MARK: - Cancel and supersession
 
-    func testACancelledPickerChangesNothing() async throws {
+    func testDroppingAStagedCopyChangesNothing() async throws {
         let original = saveFolder.appendingPathComponent("Kept.md")
         try Data("Kept\n".utf8).write(to: original)
         let document = await preparedDocument()
         try await document.open(original)
-        let copy = try await stagedCopy(of: document)
+        _ = try await stagedCopy(of: document)
 
-        var results: [URL?] = []
-        let picker = SaveAsPicker(copyURL: copy.url) { results.append($0) }
-        let controller = picker.makeController()
-        picker.documentPickerWasCancelled(controller)
-        picker.documentPickerWasCancelled(controller)
-        XCTAssertEqual(results, [nil], "a cancel is delivered once")
-
-        // The section's cancel path: the staging goes, the document stays.
+        // The staging goes, the document stays.
         SaveAsStaging.removeAll(in: stagingFolder)
         XCTAssertFalse(FileManager.default.fileExists(atPath: stagingFolder.path))
         XCTAssertEqual(document.url, original)
@@ -162,19 +156,6 @@ final class PhoneSaveAsTests: XCTestCase {
         let ok = await document.flush()
         XCTAssertTrue(ok)
         XCTAssertEqual(try String(contentsOf: original, encoding: .utf8), "Kept, edited\n")
-    }
-
-    func testThePickerDeliversThePickedFile() throws {
-        let staged = root.appendingPathComponent("x.md")
-        try Data("x\n".utf8).write(to: staged)
-        var results: [URL?] = []
-        let picker = SaveAsPicker(copyURL: staged) { results.append($0) }
-        let controller = picker.makeController()
-        XCTAssertTrue(controller.delegate === picker)
-        let picked = destinationFolder.appendingPathComponent("x.md")
-        picker.documentPicker(controller, didPickDocumentsAt: [picked])
-        picker.documentPickerWasCancelled(controller)
-        XCTAssertEqual(results, [picked])
     }
 
     func testSaveAsAfterAnotherDocumentTookOverDoesNothing() async throws {
@@ -190,12 +171,6 @@ final class PhoneSaveAsTests: XCTestCase {
         XCTAssertFalse(document.adoptSaveAs(copy, at: destination))
         XCTAssertNil(document.url, "the new document is not retargeted")
         XCTAssertEqual(document.text, "")
-    }
-
-    func testRowTitleIsTheMacString() throws {
-        try skipUnlessEnglishInterface()
-        // pinned-en: the Mac's "Save As..." with the iPhone's ellipsis.
-        XCTAssertEqual(ExportPrintSection.saveAsTitle, "Save As\u{2026}")
     }
 
     // MARK: - Helpers

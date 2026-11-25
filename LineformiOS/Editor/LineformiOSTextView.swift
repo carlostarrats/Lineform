@@ -116,6 +116,8 @@ final class LineformTextView: UITextView {
         var highlighterSelectionDrawnOrigin: CGPoint = .zero
         /// The Image button's picker delegate, while a picker is up (LineformiOSTextView+ImagePicker.swift).
         var imagePickerCoordinator: ImagePickerCoordinator?
+        /// The document's name at the top of the page (`DocumentNameTag`). Made on first use.
+        var nameTag: DocumentNameTag?
         #if DEBUG
         var pasteboardForTesting: UIPasteboard?
         #endif
@@ -261,7 +263,9 @@ final class LineformTextView: UITextView {
         backgroundColor = theme.backgroundColor
         // On iOS the tint colours the caret and the selection handles: the highlighter's blue.
         tintColor = HighlighterSelection.caretColor(for: theme)
-        keyboardAppearance = theme.usesDarkChrome ? .dark : .default
+        // Never `.default`: it follows the phone, so a light theme on a dark phone got a dark
+        // keyboard under the light format bar (and the mirror).
+        keyboardAppearance = theme.usesDarkChrome ? .dark : .light
         typingAttributes = MarkdownTextStyle.baseAttributes(for: profile)
         updateTextContainerInset()
         refreshHighlighting()
@@ -272,9 +276,34 @@ final class LineformTextView: UITextView {
         setNeedsHighlighterSelectionRedraw()
     }
 
+    /// The page's top inset: the margin, then the document's name line (`DocumentNameTag`). The
+    /// Read view uses the same, so the first line never moves between Write and Read.
+    static var pageTopInset: CGFloat { verticalInset + DocumentNameTag.topSpace }
+
+    /// The document's name at the top of the page; nil hides it (its room stays). `canRename`
+    /// offers Rename…, which calls `onRename`.
+    func setDocumentName(_ name: String?, canRename: Bool, onRename: (() -> Void)?) {
+        guard let name else {
+            state.nameTag?.removeFromSuperview()
+            state.nameTag = nil
+            return
+        }
+        let tag = state.nameTag ?? {
+            let made = DocumentNameTag.make()
+            addSubview(made)
+            state.nameTag = made
+            return made
+        }()
+        let theme = Theme.theme(for: profile)
+        tag.update(name: name, ink: theme.readableInk(theme.textColor.withAlphaComponent(0.6), minimumRatio: 4.5),
+                   canRename: canRename)
+        tag.onRename = onRename
+        setNeedsLayout()
+    }
+
     private func updateTextContainerInset() {
         let side = EditorReadingLayout.horizontalInset(forContainerWidth: bounds.width, profile: profile)
-        let inset = UIEdgeInsets(top: Self.verticalInset, left: side, bottom: Self.verticalInset, right: side)
+        let inset = UIEdgeInsets(top: Self.pageTopInset, left: side, bottom: Self.verticalInset, right: side)
         if textContainerInset != inset {
             textContainerInset = inset
         }
@@ -283,6 +312,7 @@ final class LineformTextView: UITextView {
     override func layoutSubviews() {
         updateTextContainerInset()
         super.layoutSubviews()
+        layoutDocumentNameTag(state.nameTag, top: Self.verticalInset)
         if bounds.size != lastLayoutSize {
             lastLayoutSize = bounds.size
             // A new size can uncover lines the last pass never reached. Deferred: no storage
@@ -358,9 +388,11 @@ final class LineformTextView: UITextView {
 
     /// Replaces the whole text, styled with the base attributes, then runs a full pass. The
     /// selection is kept where it was, clamped to the new text, so a live reload does not throw
-    /// the caret to the end.
-    func setDocumentText(_ text: String) {
-        let selection = selectedRange
+    /// the caret to the end. Another document (`isNewDocument`) starts at its top instead: the
+    /// caret at 0, nothing selected, the page scrolled to the top, and the reading assists placed
+    /// for that caret (Typewriter Mode then has nothing to move).
+    func setDocumentText(_ text: String, isNewDocument: Bool = false) {
+        let selection = isNewDocument ? NSRange(location: 0, length: 0) : selectedRange
         let attributes = MarkdownTextStyle.baseAttributes(for: profile)
         state.isReplacingWholeText = true
         attributedText = NSAttributedString(string: text, attributes: attributes)
@@ -370,9 +402,32 @@ final class LineformTextView: UITextView {
         let location = min(selection.location, length)
         // The app's own selection (a position restore): it never raises the selection row.
         selectProgrammatically(NSRange(location: location, length: min(selection.length, length - location)))
+        if isNewDocument {
+            // No persistent restore of the old document may pull the page back down.
+            state.persistentScrollTarget = nil
+            scrollToDocumentTop()
+        }
         refreshHighlighting()
         refreshReadingAssists()
         scheduleSpellCheck()
+    }
+
+    /// The page at its very top, now and once more on the next turn: UITextView settles the new
+    /// text's content size after this, and can nudge the offset as it does. A touch on the page
+    /// meanwhile wins.
+    private func scrollToDocumentTop() {
+        // Twice: past what was laid out, the first set makes UITextView grow `contentSize` and put
+        // the old offset back (as `scrollForTypewriter` measured); the second sticks.
+        for _ in 0..<2 where abs(contentOffset.y + adjustedContentInset.top) > 0.5 {
+            setContentOffset(CGPoint(x: contentOffset.x, y: -adjustedContentInset.top), animated: false)
+        }
+        DispatchQueue.main.async { [weak self] in
+            guard let self, !self.isTracking, !self.isDecelerating, self.selectedRange == NSRange(location: 0, length: 0) else { return }
+            let top = -self.adjustedContentInset.top
+            if abs(self.contentOffset.y - top) > 0.5 {
+                self.setContentOffset(CGPoint(x: self.contentOffset.x, y: top), animated: false)
+            }
+        }
     }
 
     // MARK: - Highlighting
@@ -536,6 +591,25 @@ final class LineformTextView: UITextView {
         state.persistentScrollTarget = range
         state.persistentScrollReassertsRemaining = Self.persistentScrollReasserts
         reassertPersistentScrollIfNeeded()
+    }
+
+    /// Scrolls to the page's very top (the name and the first line in view), and holds it across
+    /// the next layout turns as `scrollCharacterRangeToTopPersistently` does.
+    func scrollToPageTopPersistently() {
+        state.persistentScrollTarget = nil
+        func toTop() {
+            let top = -adjustedContentInset.top
+            if abs(contentOffset.y - top) > 0.5 { setContentOffset(CGPoint(x: contentOffset.x, y: top), animated: false) }
+        }
+        toTop()
+        DispatchQueue.main.async { [weak self] in
+            guard let self, !self.isTracking, !self.isDecelerating else { return }
+            toTop()
+            DispatchQueue.main.async { [weak self] in
+                guard let self, !self.isTracking, !self.isDecelerating else { return }
+                toTop()
+            }
+        }
     }
 
     private func reassertPersistentScrollIfNeeded() {

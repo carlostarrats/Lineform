@@ -743,9 +743,25 @@ shows passages with history and steps their versions. Spec:
   - **Moves.** Inside → inside moves the records (above) with `formerPaths += [old]`; a reader also
     merges records still filed under a former path (a device that wrote there offline), and the next
     save moves them in. `formerPaths` keeps the 20 most recent; prune drops those whose folder is
-    gone. Local → inside carries the local History in; inside → local reads every record
-    (downloading if need be), saves locally, and deletes the shared folder only once the local copy
-    is written. Moves made while the app was closed are followed by the local store's bookmarks and
+    gone. Local → inside carries the local History in. **Inside → local** (`moveOutOfContainer`, on
+    the router's own `moveQueue`, never the caller's thread) reads EVERY record through
+    `SharedPassageHistoryStore.loadForMove`: a record not downloaded — an iPhone
+    `.<device>.json.icloud` stub mapped to its logical `<device>.json`, or a dataless file — is read
+    with a coordinated read that waits for iCloud (`CoordinatedFileAccess.readWaitingForDownload`,
+    30 s per record). The local History ∪ the shared records is written locally (add-wins, so what
+    the controller saved since the move is kept), and the shared folder is deleted only when that
+    local copy is written AND every record was read. Before 2026-11-24 the stubs were skipped
+    (`isRecordName` rejects dot names) and then deleted with the folder: another device's History
+    was lost whenever an iPhone moved a document to On My iPhone. A record that could not be read
+    (offline, a newer format) keeps the folder, and a sidecar entry under the OLD path whose bookmark
+    resolves to the new place, so the session's next prune (`followBookmarks`) retries the move.
+    After the local write the router posts `didMoveHistoryOutNotification` with the downloaded
+    History; the open document's controller (both apps) folds it into its engine at its next save
+    outside History mode (`adoptMovedHistory`), or that save would write the local copy back without
+    the downloaded passages (`testMoveOutDownloadsAStubRecordBeforeDeletingTheSharedFolder`,
+    `testMoveOutKeepsTheSharedFolderWhileARecordCannotBeDownloaded`,
+    `testHistoryDownloadedByAMoveOutOfICloudIsKept`). Across containers works the same way.
+    Moves made while the app was closed are followed by the local store's bookmarks and
     by a sidecar (`Lineform/HistoryShared/bookmarks.json`) for shared ones; an entry is added once
     (not per save) and dropped at prune when its History folder is gone.
   - **Migration** of 1.8/1.9 local History is lazy: on the document's first load, and at the

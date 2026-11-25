@@ -37,8 +37,13 @@ struct DocumentScreen: View {
     /// Check for Updates: its result shows here as the quiet notice when no alert could come up.
     @ObservedObject var updateCommand: PhoneUpdateCommand
     @Environment(\.colorScheme) private var colorScheme
+    /// The phone's real Light/Dark setting, from the window (`SystemAppearanceReader`). The
+    /// screen's own colour scheme follows the theme (for the status bar), so `colorScheme` stops
+    /// reporting the phone once that applies; it stands in only until the window is known.
+    @StateObject private var systemAppearance: SystemAppearance
+    private var systemStyle: UIUserInterfaceStyle { systemAppearance.style ?? UIUserInterfaceStyle(colorScheme) }
     private var profile: ReadingProfile {
-        settings.displayProfile(profileStore.activeProfile, userInterfaceStyle: UIUserInterfaceStyle(colorScheme))
+        settings.displayProfile(profileStore.activeProfile, userInterfaceStyle: systemStyle)
     }
     @State private var isShowingMenu = false
     /// Where the writer is in the word menu: fresh for every ⋯ open, kept after a card opens a
@@ -88,6 +93,8 @@ struct DocumentScreen: View {
     @State private var presentedAnnouncement: Announcement?
     /// The keyboard is up: no announcement sheet comes up over typing.
     @State private var isKeyboardUp = false
+    /// The page name's Rename… (`DocumentNameTag`), shown with Files' own alerts.
+    @State private var pageFileActions = FilesItemActions()
 
     /// The quiet notice over the bottom of the page, if any: a failed save, else an image that
     /// could not be written beside the document, else a Check for Updates result whose alert
@@ -96,7 +103,9 @@ struct DocumentScreen: View {
         if document.saveFailed { return String(localized: "Couldn’t save this document. Your text is still here.") }
         if let exportFailure = exportCommands?.failureNotice { return exportFailure }
         if document.imageSaveFailed { return String(localized: "Can't save images beside this document.") }
+        if let openNotice = document.openNotice { return openNotice }
         if let updateNotice = updateCommand.notice { return updateNotice }
+        if let spellingNotice = selection.spellingNotice { return spellingNotice }
         return nil
     }
 
@@ -112,7 +121,8 @@ struct DocumentScreen: View {
         updateCommand: PhoneUpdateCommand = .shared,
         initialMode: EditorDisplayMode = .write,
         showsFirstRun: Bool = false,
-        selection: SelectionController? = nil
+        selection: SelectionController? = nil,
+        systemAppearance: SystemAppearance? = nil
     ) {
         self.document = document
         self.profileStore = profileStore
@@ -124,6 +134,7 @@ struct DocumentScreen: View {
         _storedDisplayMode = SceneStorage(wrappedValue: initialMode, "displayMode")
         _firstRun = State(initialValue: FirstRunPresentation(launchWantsFirstRun: showsFirstRun))
         _selection = StateObject(wrappedValue: selection ?? SelectionController())
+        _systemAppearance = StateObject(wrappedValue: systemAppearance ?? SystemAppearance())
     }
 
     private var presentsFirstRun: Bool {
@@ -203,6 +214,12 @@ struct DocumentScreen: View {
     var body: some View {
         page
         .modifier(KeyboardClearance(keyboard: selection.keyboard))
+        .filesItemAlerts(pageFileActions, store: files)
+        // The status bar (and the word menu over the page) follow the display theme, not the
+        // phone: a light theme on a dark phone gets dark status text. The phone's own setting is
+        // read from the window instead (`SystemAppearanceReader`), so Automatic Dark Mode still sees it.
+        .modifier(ThemeChromeScheme(systemAppearance: systemAppearance,
+                                    scheme: Self.chromeColorScheme(for: profile, systemStyle: systemStyle)))
         // The page makes room for the keyboard itself (`KeyboardClearance`): SwiftUI's own
         // keyboard avoidance, under `.ignoresSafeArea(.container)`, stopped the page 34 pt (the
         // home indicator's band) above the keyboard and its format row, cutting off the lines and
@@ -238,10 +255,10 @@ struct DocumentScreen: View {
                 .padding(.top, ModeSwitch.topMargin - ModeSwitch.verticalTouchOutset)
         }
         .overlay(alignment: .bottom) {
-            // History mode's card replaces the bottom chrome while it is up (Done leaves).
+            // History mode's bar replaces the bottom chrome while it is up (Done leaves).
             if let history = document.history, history.isHistoryModeActive {
                 historyCard(history)
-                    .padding(.horizontal, MarkdownEditor.chromeMargin)
+                    .padding(.horizontal, HistoryCard.sideInset)
                     .padding(.bottom, 12)
                     .transition(.opacity)
             }
@@ -266,7 +283,8 @@ struct DocumentScreen: View {
                         .transition(.opacity)
                     }
                     // Read aloud's pill: on the ⋯ button's line, from the left margin up to it.
-                    if let exportCommands, exportCommands.speechState != .idle {
+                    // It stays after the end (to read again) until its ✕ or a document swap.
+                    if let exportCommands, exportCommands.readAloudPill != .hidden {
                         ReadAloudPill(commands: exportCommands, profile: profile)
                             .padding(.trailing, PreviewLinkButton.horizontalTouchOutset)
                     } else if resumeSession != nil {
@@ -281,7 +299,7 @@ struct DocumentScreen: View {
                     MoreButton(profile: profile) { openWordMenu() }
                 }
                 .padding(MarkdownEditor.chromeMargin)
-                .padding(.bottom, selection.phase == .row ? Self.selectionRowClearance : 0)
+                .modifier(SelectionRowClearance(keyboard: selection.keyboard, rowShows: selection.phase == .row))
                 .transition(.opacity)
             }
         }
@@ -364,13 +382,16 @@ struct DocumentScreen: View {
                 selection.aiCardTopInWindow = top
             }
         }
+        // A tap on the page above the Themes sheet closes it (the mockup's `.tscrim`).
+        .modifier(StylingSheetTapCatcher(isShowing: $isShowingStyling))
         .sheet(isPresented: $isShowingStyling, onDismiss: {
             // A Reconnect tapped on the page beside the open sheet waits for it to close: a view
             // already presenting cannot present the image picker too.
             if reconnectRange != nil, !isPickingReconnectImage { isPickingReconnectImage = true }
         }) {
             // The live profile's theme: the sheet recolours as a preset is picked.
-            StylingSheet(store: profileStore)
+            // The display theme for the inks too, so they always match the surface.
+            StylingSheet(store: profileStore, displayTheme: Theme.theme(for: profile))
                 .stylingSheetChrome(theme: Theme.theme(for: profile))
         }
         .fileImporter(
@@ -440,6 +461,9 @@ struct DocumentScreen: View {
             if OpenDocument.savesImmediately(on: phase) { document.flushForBackground() }
             // Back in the foreground: an eligible prompt schedules again (never counts as use).
             if phase == .active { reviewPrompt.reconsiderPresentation() }
+            // The file may have changed on another device meanwhile: re-read it (off the main
+            // thread, never over unsaved edits), and bring iCloud's newer version in.
+            if phase == .active { Task { await document.reconcileWithDisk() } }
         }
         .task(id: reviewPrompt.activityRevision) {
             // A new write restarts the quiet period; the sheet comes up only with nothing in the way.
@@ -640,8 +664,7 @@ struct DocumentScreen: View {
             model: HistoryCardModel(controller: history),
             profile: profile,
             onSelectLevel: { level in history.selectLevel(level) },
-            onSelectVersion: { index in history.selectVersion(index, text: text()) },
-            onDeleteVersion: { index in history.deleteVersion(index, text: text()) },
+            onStep: { delta in history.step(by: delta, text: text()) },
             onAddReplacement: { replacement, id in history.addReplacement(replacement, text: text(), for: id) },
             onReplacementFieldOpened: { history.replacementFieldDidOpen() },
             onDone: { history.exitHistoryMode(text: text()) }
@@ -714,7 +737,10 @@ extension DocumentScreen {
             readEditDocument: document,
             checksSpelling: settings.checksSpellingWhileTyping,
             history: document.history,
-            selectionController: selection
+            selectionController: selection,
+            documentName: WordMenu.documentTitle(for: document.url),
+            canRename: document.url != nil,
+            onRename: { renameOpenDocument() }
         )
         // Above the editor (Write, and Preview's top pane) and below the chrome, which overlays
         // the whole page.
@@ -766,8 +792,22 @@ extension DocumentScreen {
             topChromeInset: displayMode == .split ? 0 : ModeSwitch.pageTopClearance,
             bottomChromeInset: Self.bottomChromeClearance,
             linkedScroll: displayMode == .split ? linkedScroll : nil,
-            textDelay: displayMode == .split ? LineformReadView.previewTextDelay : 0
+            textDelay: displayMode == .split ? LineformReadView.previewTextDelay : 0,
+            // Read shows the name as Write does; Preview's lower pane does not repeat it.
+            documentName: displayMode == .split ? nil : WordMenu.documentTitle(for: document.url),
+            canRename: document.url != nil,
+            onRename: { renameOpenDocument() }
         )
+    }
+
+    /// The page's name was tapped: Files' Rename, for the open document (the document follows the
+    /// move and stops naming itself from its first line).
+    private func renameOpenDocument() {
+        guard let url = document.url else { return }
+        files.openDocument = document
+        pageFileActions.perform(.rename, on: OutlineFileTreeItem(
+            url: url, name: url.lastPathComponent, isDirectory: false, children: []
+        ))
     }
 }
 
@@ -864,7 +904,9 @@ enum ChromeAnnouncer {
     }
 }
 /// The page, its bottom kept clear of the keyboard (and the format row on it) by exactly the
-/// keyboard's overlap with the window, animated with the keyboard (`SelectionKeyboardTracker`).
+/// keyboard's overlap with the window, animated with the keyboard (`SelectionKeyboardTracker`),
+/// and only while that keyboard is the editor's (`pageOverlap`): the AI sheet's field, Files'
+/// search and History's field never resize the page.
 /// A modifier, never a wrapper that rebuilds its content: rebuilding the page on every keyboard
 /// change re-ran the editor's update mid-edit and broke Preview's one undo history
 /// (`ModeSwitchTests.testPreviewTypeThenTickUndoesInOrder`).
@@ -872,6 +914,31 @@ private struct KeyboardClearance: ViewModifier {
     @ObservedObject var keyboard: SelectionKeyboardTracker
 
     func body(content: Content) -> some View {
-        content.padding(.bottom, keyboard.overlap)
+        content.padding(.bottom, keyboard.pageOverlap)
+    }
+}
+
+/// The screen's colour scheme from the display theme (`DocumentScreen.chromeColorScheme`), set on
+/// the root view controller by the reader that also keeps the phone's own style known
+/// (`SystemAppearance`).
+private struct ThemeChromeScheme: ViewModifier {
+    let systemAppearance: SystemAppearance
+    var scheme: ColorScheme
+
+    func body(content: Content) -> some View {
+        content
+            .background(SystemAppearanceReader(appearance: systemAppearance, scheme: scheme))
+    }
+}
+
+/// The bottom-trailing buttons' lift while the format row is on screen: only while it shows AND
+/// the keyboard (which carries it) is up, so a row left behind by a keyboard going down never
+/// holds the buttons off their margin.
+private struct SelectionRowClearance: ViewModifier {
+    @ObservedObject var keyboard: SelectionKeyboardTracker
+    var rowShows: Bool
+
+    func body(content: Content) -> some View {
+        content.padding(.bottom, rowShows && keyboard.overlap > 0 ? DocumentScreen.selectionRowClearance : 0)
     }
 }

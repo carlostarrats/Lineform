@@ -119,10 +119,13 @@ extension LineformTextView {
 
     // MARK: - Typewriter Mode
 
-    /// Centres the caret's line fragment, unless Typewriter Mode is off or the keyboard is
-    /// animating.
+    /// Centres the caret's line fragment, unless Typewriter Mode is off, the keyboard is
+    /// animating, or there is a selection: while a handle is dragged (or a selection is just
+    /// made) the page holds still under the finger, and centring resumes once the selection
+    /// collapses to a caret again (a tap, or typing over it).
     func centerSelectionForTypewriterModeIfNeeded() {
-        guard profile.typewriterModeEnabled, !isKeyboardAnimating, let line = currentFocusLine() else { return }
+        guard profile.typewriterModeEnabled, !isKeyboardAnimating, selectedRange.length == 0,
+              let line = currentFocusLine() else { return }
         // The caret's own visual line inside the current line, so a wrapped paragraph keeps the
         // caret (not its first line) at the centre.
         let location = min(max(selectedRange.location, line.location), NSMaxRange(line) - 1)

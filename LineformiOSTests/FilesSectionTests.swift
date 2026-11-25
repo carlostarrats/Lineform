@@ -151,6 +151,49 @@ final class FilesSectionTests: XCTestCase {
         XCTAssertFalse(store.isVisible, "the menu going away stops the scans")
     }
 
+    /// Owner review 4: the iCloud heading lists its own documents (they showed only in Recent),
+    /// and an empty root is its heading and "+" alone, with no "No Markdown files".
+    func testHostedICloudRootShowsItsDocumentsAndEmptyRootHasNoMessage() async throws {
+        let iCloud = folder.appendingPathComponent("Container/Documents", isDirectory: true)
+        let device = folder.appendingPathComponent("Device", isDirectory: true)
+        try FileManager.default.createDirectory(at: iCloud, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: device, withIntermediateDirectories: true)
+        try Data("cloud draft".utf8).write(to: iCloud.appendingPathComponent("Cloud draft.md"))
+        let store = FilesStore(
+            defaults: defaults, iCloudFolder: { iCloud }, deviceFolder: device,
+            bookmarks: FakeBookmarks(resolvesTo: nil), fileOperations: RecordingFileOperations()
+        )
+        let document = OpenDocument(folderProvider: { device }, ubiquitousItems: FakeUbiquitousItems(arrivingText: nil))
+        let scene = try XCTUnwrap(UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first)
+        let window = UIWindow(windowScene: scene)
+        window.rootViewController = UIHostingController(
+            rootView: WordMenu(
+                document: document, editor: RecordingEditorCommands(text: ""), files: store,
+                settings: AppSettings(defaults: defaults), profile: .original, exportCommands: nil, mode: .write,
+                aiStore: nil, initialPage: .files,
+                onClose: {}, onThemes: {}, onReadAloud: {}, onShowHistoryPassage: { _ in }, onAskAI: {}
+            )
+        )
+        window.makeKeyAndVisible()
+        self.window = window
+
+        let deadline = Date().addingTimeInterval(5)
+        while Self.count("Cloud draft", in: window) < 2, Date() < deadline {
+            try await Task.sleep(for: .milliseconds(50))
+            window.layoutIfNeeded()
+        }
+        XCTAssertNotNil(store.root(.icloud))
+        XCTAssertEqual(Self.count("Cloud draft", in: window), 2, "a row under iCloud and a card in Recent")
+        if interfaceLanguage == "en" {
+            XCTAssertNotNil(Self.find("New Document in On My iPhone", in: window), "the empty root keeps its +")
+            XCTAssertNil(Self.find("No Markdown files", in: window), "no empty-state text in a root")
+        }
+
+        window.isHidden = true
+        window.rootViewController = nil
+        try await Task.sleep(for: .milliseconds(200))
+    }
+
     // MARK: - Helpers
 
     private func makeStore(operations: any FilesFileOperating = RecordingFileOperations()) -> FilesStore {
@@ -161,6 +204,27 @@ final class FilesSectionTests: XCTestCase {
             bookmarks: FakeBookmarks(resolvesTo: nil),
             fileOperations: operations
         )
+    }
+
+    /// How many distinct accessibility elements carry exactly `label` (a card's ⋯, "More actions
+    /// for …", does not count).
+    private static func count(_ label: String, in root: NSObject) -> Int {
+        var seen: Set<ObjectIdentifier> = []
+        func walk(_ node: NSObject, depth: Int) -> Int {
+            guard depth < 60, seen.insert(ObjectIdentifier(node)).inserted else { return 0 }
+            if node.accessibilityLabel == label, !(node is UIWindow) { return 1 }
+            var children: [NSObject] = []
+            if let view = node as? UIView { children += view.subviews }
+            if let elements = node.accessibilityElements as? [NSObject] { children += elements }
+            let count = node.accessibilityElementCount()
+            if count != NSNotFound, count > 0 {
+                for index in 0..<count {
+                    if let element = node.accessibilityElement(at: index) as? NSObject { children.append(element) }
+                }
+            }
+            return children.filter { $0 !== node }.reduce(0) { $0 + walk($1, depth: depth + 1) }
+        }
+        return walk(root, depth: 0)
     }
 
     /// The first accessibility element whose label contains `label`.

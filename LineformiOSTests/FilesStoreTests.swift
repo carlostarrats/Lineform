@@ -330,6 +330,38 @@ final class FilesStoreTests: XCTestCase {
         XCTAssertEqual(switchedOff.roots.map(\.id), [.device, .workspace], "the setting hides iCloud")
     }
 
+    /// Owner review 4 (build 43, real iCloud): the iCloud heading showed nothing while Recent
+    /// listed its documents, because a root listed only its FOLDERS. The root now lists what is
+    /// there: its folders and its own documents, a not-downloaded placeholder under its real
+    /// name. The root is the very folder new documents save into (`<container>/Documents`).
+    func testICloudRootListsItsDocumentsFoldersAndPlaceholders() async throws {
+        let device = try makeFolder("Device")
+        let iCloud = try makeFolder("Container/Documents")
+        try write("Draft", to: iCloud.appendingPathComponent("Draft.md"))
+        try write("stub", to: iCloud.appendingPathComponent(".Evicted.md.icloud"))
+        try write("Chapter", to: iCloud.appendingPathComponent("Book/Chapter.md"))
+        let resolver = DocumentFolderResolver(ubiquityDocumentsURL: { iCloud }, localDocumentsURL: device)
+        let store = makeStore(device: device, iCloud: { iCloud }, log: FilesScanLog())
+        store.setVisible(true)
+        await store.scanIfVisible()
+
+        let root = try XCTUnwrap(store.root(.icloud))
+        XCTAssertEqual(root.folderURL.map { FilesStore.key($0) }, FilesStore.key(resolver.saveFolder()),
+                       "iCloud lists the folder new documents save into (OpenDocument saves to `saveFolder()`)")
+        XCTAssertEqual(root.items.filter(\.isDirectory).map(\.name), ["Book"])
+        let documents = FilesSection.documents(in: root)
+        XCTAssertEqual(Set(documents.map(\.name)), ["Draft.md", "Evicted.md"], "the root lists its own documents, not only its folders")
+        let placeholder = try XCTUnwrap(documents.first { $0.name == "Evicted.md" })
+        XCTAssertTrue(placeholder.isICloudPlaceholder, "a document not downloaded yet still lists")
+        XCTAssertEqual(placeholder.url.lastPathComponent, "Evicted.md", "opening it downloads the real file")
+        XCTAssertEqual(Set(FilesSection.recentDocuments(acrossRoots: store.roots).map(\.name)), ["Draft.md", "Evicted.md", "Chapter.md"],
+                       "Recent: the newest documents anywhere, the root's own and its folders'")
+
+        let empty = try XCTUnwrap(store.root(.device))
+        XCTAssertTrue(empty.hasScanned)
+        XCTAssertEqual(FilesSection.documents(in: empty), [], "an empty root lists nothing (no empty-state text either)")
+    }
+
     // MARK: - Watching
 
     func testSubfolderChangeRefreshes() async throws {
@@ -644,6 +676,178 @@ final class FilesStoreTests: XCTestCase {
         XCTAssertEqual(document.url?.deletingLastPathComponent().standardizedFileURL, device.standardizedFileURL)
     }
 
+
+    // MARK: - Nothing iCloud has not brought here moves
+
+    /// A folder holding a file iCloud has not downloaded (its `.Name.icloud` stub) never moves:
+    /// the stub would be stranded. A calm notice says what to do.
+    func testFolderWithAStubIsRefusedWithANotice() async throws {
+        let device = try makeFolder("Device")
+        let iCloud = try makeFolder("iCloud/Documents")
+        try write("chapter", to: iCloud.appendingPathComponent("Book/Chapter.md"))
+        try write("", to: iCloud.appendingPathComponent("Book/Part/.Evicted.md.icloud"))
+        let operations = RecordingFileOperations()
+        let store = makeStore(device: device, iCloud: { iCloud }, log: FilesScanLog(), operations: operations)
+        store.setVisible(true)
+        await store.scanIfVisible()
+        let book = try XCTUnwrap(store.root(.icloud)?.items.first { $0.name == "Book" })
+
+        do {
+            try await store.move(book, to: .device)
+            XCTFail("a folder with a file not downloaded moved")
+        } catch {
+            XCTAssertEqual(error as? FilesStoreError, .notDownloaded)
+        }
+        XCTAssertEqual(store.notice, FilesStore.folderNotDownloadedNotice(for: "Book"))
+        XCTAssertTrue(operations.moves.isEmpty)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: iCloud.appendingPathComponent("Book/Chapter.md").path))
+    }
+
+    /// The same for a dataless file (no stub: iCloud's status alone says it is not downloaded).
+    func testFolderWithADatalessFileIsRefused() async throws {
+        let device = try makeFolder("Device")
+        let iCloud = try makeFolder("iCloud/Documents")
+        let dataless = iCloud.appendingPathComponent("Book/Dataless.md")
+        try write("", to: dataless)
+        let cloud = FakeUbiquitousItems(pending: [dataless], arrivingText: nil)
+        let store = makeStore(device: device, iCloud: { iCloud }, log: FilesScanLog(), ubiquitousItems: cloud)
+        store.setVisible(true)
+        await store.scanIfVisible()
+        let book = try XCTUnwrap(store.root(.icloud)?.items.first { $0.name == "Book" })
+
+        do {
+            try await store.move(book, to: .device)
+            XCTFail("moved")
+        } catch {
+            XCTAssertEqual(error as? FilesStoreError, .notDownloaded)
+        }
+        XCTAssertNotNil(store.notice)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: dataless.path))
+    }
+
+    /// A single iCloud file whose local copy is not current never moves (it would carry the older
+    /// copy away from the newer iCloud version): its download starts and a notice says to wait.
+    func testFileNotCurrentIsRefusedAndStartsDownloading() async throws {
+        let device = try makeFolder("Device")
+        let iCloud = try makeFolder("iCloud/Documents")
+        let notes = iCloud.appendingPathComponent("Notes.md")
+        try write("older copy", to: notes)
+        let cloud = FakeUbiquitousItems(outdated: [notes], arrivingText: nil)
+        let store = makeStore(device: device, iCloud: { iCloud }, log: FilesScanLog(), ubiquitousItems: cloud)
+        store.setVisible(true)
+        await store.scanIfVisible()
+        let item = try XCTUnwrap(store.root(.icloud)?.items.first { $0.name == "Notes.md" })
+        XCTAssertEqual(store.moveTargets(for: item), [.device])
+
+        do {
+            try await store.move(item, to: .device)
+            XCTFail("moved")
+        } catch {
+            XCTAssertEqual(error as? FilesStoreError, .notDownloaded)
+        }
+        XCTAssertEqual(store.notice, FilesStore.stillDownloadingNotice(for: "Notes.md"))
+        try await waitUntil { cloud.startedURLs.map(\.lastPathComponent) == ["Notes.md"] }
+        XCTAssertEqual(cloud.startedURLs.map(\.lastPathComponent), ["Notes.md"])
+        XCTAssertTrue(FileManager.default.fileExists(atPath: notes.path))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: device.appendingPathComponent("Notes.md").path))
+    }
+
+    /// Rename and Trash of a placeholder never fail silently: each sets the notice.
+    func testPlaceholderRenameAndTrashSetTheNotice() async throws {
+        let device = try makeFolder("Device")
+        try write("", to: device.appendingPathComponent(".Cloud.md.icloud"))
+        let store = makeStore(device: device, log: FilesScanLog())
+        store.setVisible(true)
+        await store.scanIfVisible()
+        let item = try XCTUnwrap(store.root(.device)?.items.first { $0.name == "Cloud.md" })
+        XCTAssertTrue(item.isICloudPlaceholder)
+
+        do { try await store.trash(item); XCTFail("trashed") } catch {
+            XCTAssertEqual(error as? FilesStoreError, .notDownloaded)
+        }
+        XCTAssertEqual(store.notice, FilesStore.stillDownloadingNotice(for: "Cloud.md"))
+        store.dismissNotice()
+        do { try await store.rename(item, to: "Other"); XCTFail("renamed") } catch {
+            XCTAssertEqual(error as? FilesStoreError, .notDownloaded)
+        }
+        XCTAssertNotNil(store.notice)
+    }
+
+    /// A search card's file carries the scan's real placeholder flag, so a card for a file not
+    /// downloaded offers no Move to Trash (it used to, and the Trash silently did nothing).
+    func testSearchCardsKnowAPlaceholder() async throws {
+        let device = try makeFolder("Device")
+        try write("", to: device.appendingPathComponent(".Cloud.md.icloud"))
+        try write("here", to: device.appendingPathComponent("Here.md"))
+        let store = makeStore(device: device, log: FilesScanLog())
+        // Not scanned yet: the stub alone tells.
+        XCTAssertTrue(store.listedItem(at: device.appendingPathComponent("Cloud.md")).isICloudPlaceholder)
+        store.setVisible(true)
+        await store.scanIfVisible()
+
+        let cloud = store.listedItem(at: device.appendingPathComponent("Cloud.md"))
+        XCTAssertTrue(cloud.isICloudPlaceholder)
+        XCTAssertFalse(FilesSwipeAction.actions(for: cloud, store: store).contains { $0.kind == .trash })
+        let here = store.listedItem(at: device.appendingPathComponent("Here.md"))
+        XCTAssertFalse(here.isICloudPlaceholder)
+        XCTAssertTrue(FilesSwipeAction.actions(for: here, store: store).contains { $0.kind == .trash })
+    }
+
+    /// Into or out of iCloud, the move is `setUbiquitous` (the API for that direction), run off
+    /// the main thread, and the open document follows it.
+    func testMovesAcrossICloudUseSetUbiquitousOffTheMainThread() async throws {
+        let device = try makeFolder("Device")
+        let iCloud = try makeFolder("iCloud/Documents")
+        try write("# Notes\nhere", to: device.appendingPathComponent("Notes.md"))
+        let document = OpenDocument(folderProvider: { device }, ubiquitousItems: FakeUbiquitousItems(arrivingText: nil))
+        await document.prepare()
+        try await document.open(device.appendingPathComponent("Notes.md"))
+        let operations = UbiquityRecordingOperations(iCloudFolder: iCloud)
+        let store = makeStore(device: device, iCloud: { iCloud }, log: FilesScanLog(), operations: operations)
+        store.openDocument = document
+        store.setVisible(true)
+        await store.scanIfVisible()
+        let notes = try XCTUnwrap(store.root(.device)?.items.first { $0.name == "Notes.md" })
+
+        let moved = try await store.move(notes, to: .icloud)
+        XCTAssertEqual(operations.calls.map(\.flag), [true])
+        XCTAssertEqual(operations.calls.first?.onMainThread, false)
+        XCTAssertEqual(document.url.map(FilesStore.key), FilesStore.key(moved))
+
+        let back = try XCTUnwrap(store.root(.icloud)?.items.first { $0.name == "Notes.md" })
+        try await store.move(back, to: .device)
+        XCTAssertEqual(operations.calls.map(\.flag), [true, false])
+        XCTAssertEqual(document.url.map(FilesStore.key), FilesStore.key(device.appendingPathComponent("Notes.md")))
+    }
+
+    // MARK: - iCloud account changes
+
+    /// iCloud signed in after launch: Files, on screen, looks again and shows iCloud; Settings
+    /// asks again while the answer was no.
+    func testICloudIdentityChangeLooksAgain() async throws {
+        let device = try makeFolder("Device")
+        let iCloud = try makeFolder("iCloud/Documents")
+        let signedIn = FilesTestFlag()
+        let store = makeStore(device: device, iCloud: { signedIn.isSet ? iCloud : nil }, log: FilesScanLog())
+        await store.lookUpICloudAvailability()
+        XCTAssertEqual(store.isICloudAvailable, false)
+        store.setVisible(true)
+        await store.scanIfVisible()
+        XCTAssertNil(store.root(.icloud))
+
+        signedIn.set()
+        await store.lookUpICloudAvailability()
+        XCTAssertEqual(store.isICloudAvailable, true, "Settings looks again while the answer was no")
+
+        signedIn.clear()
+        NotificationCenter.default.post(name: .NSUbiquityIdentityDidChange, object: nil)
+        try await waitUntil { store.isICloudAvailable == false }
+        XCTAssertEqual(store.isICloudAvailable, false, "the account change was followed")
+        signedIn.set()
+        await store.iCloudIdentityDidChange()
+        XCTAssertNotNil(store.root(.icloud), "Files on screen rescans with iCloud")
+    }
+
     // MARK: - Helpers
 
     private func makeStore(
@@ -651,7 +855,8 @@ final class FilesStoreTests: XCTestCase {
         iCloud: @escaping @Sendable () -> URL? = { nil },
         log: FilesScanLog,
         operations: any FilesFileOperating = RecordingFileOperations(),
-        bookmarks: any WorkspaceBookmarking = FakeBookmarks(resolvesTo: nil)
+        bookmarks: any WorkspaceBookmarking = FakeBookmarks(resolvesTo: nil),
+        ubiquitousItems: any UbiquitousItemAccessing = LiveUbiquitousItems()
     ) -> FilesStore {
         FilesStore(
             defaults: defaults,
@@ -659,6 +864,7 @@ final class FilesStoreTests: XCTestCase {
             deviceFolder: device,
             bookmarks: bookmarks,
             fileOperations: operations,
+            ubiquitousItems: ubiquitousItems,
             scanner: { url, showsHidden, sortOrder in
                 log.record(url: url, showsHidden: showsHidden, sortOrder: sortOrder)
                 return FilesStore.liveScanner(url, showsHidden, sortOrder)
@@ -753,6 +959,45 @@ final class RecordingFileOperations: FilesFileOperating, @unchecked Sendable {
         guard let trashFolder else { throw CocoaError(.featureUnsupported) }
         try FileManager.default.moveItem(at: url, to: trashFolder.appendingPathComponent(url.lastPathComponent))
     }
+}
+
+/// File operations that see `iCloudFolder` as iCloud: a move across it is `setUbiquitous`, which
+/// is recorded (with the thread it ran on) and performed as a plain move.
+final class UbiquityRecordingOperations: FilesFileOperating, @unchecked Sendable {
+    struct Call { var flag: Bool; var source: URL; var destination: URL; var onMainThread: Bool }
+    private let lock = NSLock()
+    private var recorded: [Call] = []
+    private let iCloudFolder: URL
+
+    init(iCloudFolder: URL) { self.iCloudFolder = iCloudFolder }
+
+    var calls: [Call] { lock.withLock { recorded } }
+
+    func moveItem(at source: URL, to destination: URL) throws {
+        try FileManager.default.moveItem(at: source, to: destination)
+    }
+
+    func trashItem(at url: URL) throws { throw CocoaError(.featureUnsupported) }
+
+    func isUbiquitous(_ url: URL) -> Bool {
+        FilesStore.key(url).hasPrefix(FilesStore.key(iCloudFolder))
+    }
+
+    func setUbiquitous(_ flag: Bool, itemAt url: URL, destinationURL destination: URL) throws {
+        lock.withLock {
+            recorded.append(Call(flag: flag, source: url, destination: destination, onMainThread: Thread.isMainThread))
+        }
+        try FileManager.default.moveItem(at: url, to: destination)
+    }
+}
+
+/// A flag set and cleared from any thread.
+final class FilesTestFlag: @unchecked Sendable {
+    private let lock = NSLock()
+    private var value = false
+    var isSet: Bool { lock.withLock { value } }
+    func set() { lock.withLock { value = true } }
+    func clear() { lock.withLock { value = false } }
 }
 
 /// Bookmarks without the system: resolves every bookmark to one folder (or fails), optionally

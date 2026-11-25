@@ -30,6 +30,16 @@ final class LiveSpeechAudioSession: SpeechAudioSessionControlling {
     }
 }
 
+/// What the Read Aloud pill shows (`ExportCommands.readAloudPill`).
+enum ReadAloudPillState: Equatable {
+    /// No pill: nothing has been read, the writer closed it, or the document swapped.
+    case hidden
+    case reading
+    case paused
+    /// The reading reached its end; the pill stays and offers to read it again from the start.
+    case finished
+}
+
 /// What the Menu sheet calls: export a copy (HTML, PDF, Styled PDF, Rich Text), hand on the
 /// document's own file for Share, print, and read aloud.
 ///
@@ -61,6 +71,10 @@ final class ExportCommands {
     let printPaper: ExportPaperSize
     /// Read aloud's transport: idle, speaking or paused.
     private(set) var speechState: SpeechState
+    /// What the Read Aloud pill shows: hidden until reading starts, then reading, paused or
+    /// finished. Reaching the end leaves it `finished` (the pill stays, offering to read again);
+    /// only ✕ (`stopReading`) or a document swap (`documentWillChange`) hides it.
+    private(set) var readAloudPill: ReadAloudPillState
     /// The calm notice after an export failed, shown as long as the image notice
     /// (`OpenDocument.noticeDuration()`: longer while VoiceOver runs); nil otherwise.
     private(set) var failureNotice: String?
@@ -72,7 +86,14 @@ final class ExportCommands {
     @ObservationIgnored private let audioSession: any SpeechAudioSessionControlling
     @ObservationIgnored private var isAudioSessionActive: Bool
     @ObservationIgnored private var speechObservation: AnyCancellable?
+    /// The text the last reading spoke, so the finished pill can read it again from the start.
+    @ObservationIgnored private var lastSpokenText: String?
     @ObservationIgnored private var failureNoticeTask: Task<Void, Never>?
+    /// The audio session's interruptions (a call, an alarm, Siri). Began pauses reading and the
+    /// pill shows it paused; ended leaves it paused, even with `.shouldResume`: the writer resumes.
+    @ObservationIgnored private var interruptionObservation: (any NSObjectProtocol)?
+    /// An interruption took the audio session away since it was activated: resuming activates it again.
+    @ObservationIgnored private var wasInterrupted: Bool
 
     init(
         document: OpenDocument,
@@ -81,7 +102,8 @@ final class ExportCommands {
         // The best-sounding installed voice for the document's language (premium, then enhanced).
         speech: SpeechController = SpeechController(synthesizer: SystemSpeechSynthesizer(prefersBestQualityVoice: true)),
         regionCode: String? = Locale.current.region?.identifier,
-        audioSession: any SpeechAudioSessionControlling = LiveSpeechAudioSession()
+        audioSession: any SpeechAudioSessionControlling = LiveSpeechAudioSession(),
+        interruptions: NotificationCenter = .default
     ) {
         self.document = document
         self.profile = profile
@@ -92,14 +114,42 @@ final class ExportCommands {
         paper = regional
         printPaper = regional
         speechState = speech.state
+        readAloudPill = .hidden
+        lastSpokenText = nil
         isAudioSessionActive = false
         speechObservation = nil
         failureNotice = nil
         failureNoticeTask = nil
+        interruptionObservation = nil
+        wasInterrupted = false
         // `@Published` emits before it stores, with the new value, so the mirror is current by the
         // time any call into `speech` returns, including a finish from the synthesizer.
         speechObservation = speech.$state.sink { [weak self] state in
             MainActor.assumeIsolated { self?.speechStateChanged(to: state) }
+        }
+        interruptionObservation = interruptions.addObserver(
+            forName: AVAudioSession.interruptionNotification, object: nil, queue: .main
+        ) { [weak self] notification in
+            let raw = notification.userInfo?[AVAudioSessionInterruptionTypeKey] as? UInt
+            MainActor.assumeIsolated {
+                guard let raw, let type = AVAudioSession.InterruptionType(rawValue: raw) else { return }
+                self?.audioInterrupted(type)
+            }
+        }
+    }
+
+    /// An audio interruption: when it begins, reading pauses (the pill shows Paused). When it
+    /// ends, reading stays paused, `.shouldResume` or not; the pill's play resumes it.
+    func audioInterrupted(_ type: AVAudioSession.InterruptionType) {
+        switch type {
+        case .began:
+            guard isAudioSessionActive else { return }
+            wasInterrupted = true
+            if speechState == .speaking { speech.pauseOrResume() }
+        case .ended:
+            break
+        @unknown default:
+            break
         }
     }
 
@@ -195,24 +245,59 @@ final class ExportCommands {
 
     // MARK: - Read aloud
 
-    /// Reads `selection` (source coordinates) or the document aloud, by the Mac's rule.
+    /// Reads `selection` (source coordinates) or the document aloud, by the Mac's rule. A caret
+    /// with nothing to read after it (at the end, or only spaces and blank lines after it) reads
+    /// the whole document from the start, rather than doing nothing.
     func startReadingAloud(selection: NSRange?, mode: EditorDisplayMode) {
         guard let document else { return }
-        let spoken = SpeechTextExtractor.spokenText(from: Self.speechSource(text: document.text, selection: selection, mode: mode))
-        guard !spoken.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
-        if !isAudioSessionActive {
+        var spoken = SpeechTextExtractor.spokenText(from: Self.speechSource(text: document.text, selection: selection, mode: mode))
+        if selection?.length == 0, Self.isBlank(spoken) {
+            spoken = SpeechTextExtractor.spokenText(from: document.text)
+        }
+        speak(spoken)
+    }
+
+    private static func isBlank(_ text: String) -> Bool {
+        text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    /// The pill's pause/play: pauses or resumes; once reading has finished, reads the same text
+    /// again from its beginning.
+    func pauseOrResumeReading() {
+        if readAloudPill == .finished {
+            replayReading()
+        } else {
+            // After an interruption the system took the session: it is set up again to resume.
+            if speechState == .paused, wasInterrupted {
+                wasInterrupted = false
+                audioSession.activateForSpeech()
+            }
+            speech.pauseOrResume()
+        }
+    }
+
+    /// Reads what was last read again, from its beginning. Only after a reading has finished.
+    func replayReading() {
+        guard readAloudPill == .finished, let lastSpokenText else { return }
+        speak(lastSpokenText)
+    }
+
+    /// Ends reading and closes the pill (its ✕).
+    func stopReading() {
+        readAloudPill = .hidden
+        lastSpokenText = nil
+        speech.stop()
+    }
+
+    private func speak(_ spoken: String) {
+        guard !Self.isBlank(spoken) else { return }
+        if !isAudioSessionActive || wasInterrupted {
             audioSession.activateForSpeech()
             isAudioSessionActive = true
+            wasInterrupted = false
         }
+        lastSpokenText = spoken
         speech.startSpeaking(spoken)
-    }
-
-    func pauseOrResumeReading() {
-        speech.pauseOrResume()
-    }
-
-    func stopReading() {
-        speech.stop()
     }
 
     /// The screen calls this whenever the document swaps file (New, open, a reload into another
@@ -236,8 +321,15 @@ final class ExportCommands {
 
     private func speechStateChanged(to state: SpeechState) {
         speechState = state
+        switch state {
+        case .speaking: readAloudPill = .reading
+        case .paused: readAloudPill = .paused
+        // The end of the text: the pill stays, offering to read again. A stop hid it first.
+        case .idle: if readAloudPill != .hidden { readAloudPill = .finished }
+        }
         if state == .idle, isAudioSessionActive {
             isAudioSessionActive = false
+            wasInterrupted = false
             audioSession.deactivateAfterSpeech()
         }
     }

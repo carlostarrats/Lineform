@@ -11,18 +11,12 @@ struct FolderView: View {
     var onOpenFolder: (FilesFolderRoute) -> Void
     var onDismiss: () -> Void
 
-    @Environment(\.wordMenuPalette) private var palette
     @Environment(\.wordMenuSession) private var session
 
     var body: some View {
         WordMenuPageScaffold(title: route.title) {
+            // An empty folder shows no empty-state text (as the roots): just New Document.
             let items = store.children(of: route.url) ?? []
-            if items.isEmpty {
-                Text(String(localized: "No Markdown files"))
-                    .font(.subheadline)
-                    .foregroundStyle(palette.color(palette.secondary))
-                    .padding(.horizontal, 4)
-            }
             FilesFolderRows(items: items, store: store, actions: actions, onOpenFolder: onOpenFolder)
             let documents = FilesSection.recentDocuments(in: items)
             if !documents.isEmpty {

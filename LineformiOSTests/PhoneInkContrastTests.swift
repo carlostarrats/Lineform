@@ -69,7 +69,8 @@ final class PhoneInkContrastTests: XCTestCase {
     func testFloorsAreTheWCAGNumbers() {
         for role in PhoneInk.Role.allCases {
             switch role {
-            case .controlEdge, .chevron, .linkGlyph, .historyAddGlyph: XCTAssertEqual(role.minimumRatio, 3, role.rawValue)
+            case .controlEdge, .chevron, .linkGlyph, .historyAddGlyph, .onReadAloudButton:
+                XCTAssertEqual(role.minimumRatio, 3, role.rawValue)
             default: XCTAssertEqual(role.minimumRatio, 4.5, role.rawValue)
             }
         }
@@ -104,6 +105,23 @@ final class PhoneInkContrastTests: XCTestCase {
                 ["ink", "Ink", "inks", ")"].contains { text.contains($0 + shortcut) }
             } == true
             XCTAssertTrue(used, "\(role.rawValue) is never drawn")
+        }
+    }
+
+    /// Owner review 4: on a dark page the Read Aloud pill's round buttons are a lighter circle
+    /// that shows against the pill's wash (the page colour there was invisible); on a light page
+    /// they stay the page colour.
+    func testReadAloudButtonsShowOnADarkPage() {
+        for theme in Theme.builtIn {
+            let inks = PhoneInk(theme: theme, userInterfaceStyle: theme.usesDarkChrome ? .dark : .light)
+            if theme.usesDarkChrome {
+                XCTAssertGreaterThan(
+                    Theme.relativeLuminance(inks.readAloudButton), Theme.relativeLuminance(inks.searchFieldWash), theme.name
+                )
+                XCTAssertGreaterThan(Theme.contrastRatio(inks.readAloudButton, inks.searchFieldWash), 1.3, theme.name)
+            } else {
+                XCTAssertEqual(inks.readAloudButton, inks.page, theme.name)
+            }
         }
     }
 

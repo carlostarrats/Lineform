@@ -91,10 +91,12 @@ struct WordMenuPalette {
             hair = rgb(0x4A4A4A)
             ink = rgb(0xDBDBDB)
         } else {
-            soft = rgb(0xF2F3F5)
+            // A step darker than the mockup's #F2F3F5 / #F1F2F4 (on the tinted wash those rows
+            // disappeared in light mode, owner review 4), and a warm grey (owner review 5).
+            soft = rgb(0xEBEAE7)
             card = rgb(0xFFFFFF)
-            field = rgb(0xF1F2F4)
-            hair = rgb(0xD9DADE)
+            field = rgb(0xEDECE9)
+            hair = rgb(0xD8D6D2)
             ink = rgb(0x1F1F1F)
         }
         let surfaces = [washTop, washBottom, soft, card, field]
@@ -211,7 +213,8 @@ enum WordMenuMetrics {
     static let headerTop: CGFloat = 14
     static let largeWordSize: CGFloat = 34
     static let smallWordSize: CGFloat = 19
-    static let smallWordMinHeight: CGFloat = 44
+    /// A small word's drawn row (§19: "slightly tighter, 40 pt rows"; the mockup's `min-height`).
+    static let smallWordRowHeight: CGFloat = 40
     static let sectionTitleSize: CGFloat = 30
     static let rowRadius: CGFloat = 14
     static let rowSpacing: CGFloat = 8
@@ -403,12 +406,15 @@ struct WordMenuRowLabel: View {
     }
 }
 
-/// A switch row: the title and its note, the switch tinted Lineform blue. VoiceOver reads the
-/// title as the label and the note as the hint. At accessibility sizes the switch goes under the
+/// A switch row: the title (and an optional note), the switch tinted Lineform blue. VoiceOver reads
+/// the title as the label and `hint` (else the note) as the hint, so a row can drop its visible
+/// note and keep the explanation for VoiceOver. At accessibility sizes the switch goes under the
 /// text.
 struct WordMenuToggleRow: View {
     var title: String
     var note: String?
+    /// Spoken only: VoiceOver's hint when no note is drawn.
+    var hint: String? = nil
     @Binding var isOn: Bool
 
     @Environment(\.wordMenuPalette) private var palette
@@ -452,7 +458,7 @@ struct WordMenuToggleRow: View {
         .accessibilityRepresentation {
             Toggle(isOn: $isOn) { Text(title) }
         }
-        .accessibilityHint(note.map { Text($0) } ?? Text(verbatim: ""))
+        .accessibilityHint((hint ?? note).map { Text($0) } ?? Text(verbatim: ""))
     }
 }
 
@@ -641,13 +647,14 @@ struct WordMenuCardGrid<Item: Identifiable, Card: View>: View {
 /// document) or the menu's surfaces (in the menu).
 struct WordMenuCornerButton: View {
     enum Glyph {
-        case more, close, back
+        case more, close, back, document
 
         var systemImage: String {
             switch self {
             case .more: "ellipsis"
             case .close: "xmark"
             case .back: "arrow.left"
+            case .document: "doc.text"
             }
         }
 
@@ -656,6 +663,7 @@ struct WordMenuCornerButton: View {
             case .more: String(localized: "Menu")
             case .close: String(localized: "Close menu")
             case .back: String(localized: "Back")
+            case .document: String(localized: "Back to the document")
             }
         }
     }

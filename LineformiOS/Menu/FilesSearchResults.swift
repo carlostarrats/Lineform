@@ -7,7 +7,8 @@ import SwiftUI
 struct SearchResultCard: Identifiable, Equatable {
     var id: String
     var title: String
-    /// "In document" for this document; the folder for another.
+    /// Like every document card (`DocumentCard.detail`): "folder · date"; for the open document,
+    /// "folder · open now".
     var detail: String
     var snippet: CrossFileSearchSnippet?
     /// The row a tap activates.
@@ -17,7 +18,14 @@ struct SearchResultCard: Identifiable, Equatable {
     /// document's matches first, then file names, then file contents).
     /// `rootNames` names a root's top-level folder the way Files' headings do ("On My iPhone",
     /// "iCloud"), so a card never shows the container's folder name ("Documents").
-    static func cards(from rows: [SearchRow], currentTitle: String, rootNames: [String: String] = [:]) -> [SearchResultCard] {
+    static func cards(
+        from rows: [SearchRow], currentTitle: String, currentURL: URL? = nil, rootNames: [String: String] = [:],
+        modifiedDate: (URL) -> Date? = SearchResultCard.fileModifiedDate, now: Date = Date()
+    ) -> [SearchResultCard] {
+        func folderName(of url: URL) -> String {
+            let parent = url.deletingLastPathComponent().standardizedFileURL
+            return rootNames[parent.path] ?? parent.lastPathComponent
+        }
         var cards: [SearchResultCard] = []
         var indexByKey: [String: Int] = [:]
         for row in rows {
@@ -28,13 +36,19 @@ struct SearchResultCard: Identifiable, Equatable {
             case .inDocument:
                 key = "current"
                 title = currentTitle
-                detail = SearchRow.inDocumentIndicator
+                let openNow = String(localized: "open now")
+                detail = currentURL.map { String(localized: "\(folderName(of: $0)) · \(openNow)") } ?? openNow
             case .fileName, .fileContent:
                 guard let url = row.url else { continue }
                 key = url.standardizedFileURL.path
                 title = url.deletingPathExtension().lastPathComponent
-                let parent = url.deletingLastPathComponent().standardizedFileURL
-                detail = rootNames[parent.path] ?? parent.lastPathComponent
+                let folder = folderName(of: url)
+                if let date = modifiedDate(url) {
+                    let when = date.formatted(.relative(presentation: .named, unitsStyle: .abbreviated))
+                    detail = String(localized: "\(folder) · \(when)")
+                } else {
+                    detail = folder
+                }
             }
             if let index = indexByKey[key] {
                 // A file-name card picks up the first matching line when one arrives.
@@ -48,6 +62,11 @@ struct SearchResultCard: Identifiable, Equatable {
             cards.append(SearchResultCard(id: key, title: title, detail: detail, snippet: row.snippet, row: row))
         }
         return cards
+    }
+
+    /// A file's modification date, read fresh from disk (never a cached `URL` resource value).
+    static func fileModifiedDate(_ url: URL) -> Date? {
+        (try? FileManager.default.attributesOfItem(atPath: url.path))?[.modificationDate] as? Date
     }
 }
 
@@ -117,10 +136,12 @@ struct FilesSearchResults: View {
     @Environment(\.wordMenuPalette) private var palette
     @Environment(\.wordMenuSession) private var session
 
-    /// The file a card stands for, for its swipe actions: another document's, or this one's.
+    /// The file a card stands for, for its swipe actions: another document's, or this one's. Its
+    /// iCloud placeholder flag is the real one (`FilesStore.listedItem`), so a card for a file not
+    /// downloaded yet offers no Move to Trash.
     private func item(for card: SearchResultCard) -> OutlineFileTreeItem? {
         guard let url = card.row.url ?? document.url else { return nil }
-        return OutlineFileTreeItem(url: url, name: url.lastPathComponent, isDirectory: false, children: [])
+        return store.listedItem(at: url)
     }
 
     var body: some View {
@@ -148,7 +169,7 @@ struct FilesSearchResults: View {
         let rows = controller.rows
         let count = controller.matches.count
         VStack(alignment: .leading, spacing: WordMenuMetrics.rowSpacing) {
-            if rows.isEmpty, let status = controller.statusText {
+            if rows.isEmpty, let status = controller.visibleStatusText {
                 Text(status)
                     .font(.footnote)
                     .foregroundStyle(palette.color(palette.secondary))
@@ -186,11 +207,11 @@ struct FilesSearchResults: View {
     @ViewBuilder
     private var cardList: some View {
         let cards = SearchResultCard.cards(
-            from: controller.rows, currentTitle: WordMenu.documentTitle(for: document.url),
+            from: controller.rows, currentTitle: WordMenu.documentTitle(for: document.url), currentURL: document.url,
             rootNames: Self.rootNames(store)
         )
         VStack(alignment: .leading, spacing: WordMenuMetrics.rowSpacing) {
-            if let status = controller.statusText {
+            if let status = controller.visibleStatusText {
                 Text(status)
                     .font(.footnote)
                     .foregroundStyle(palette.color(palette.secondary))
@@ -205,12 +226,19 @@ struct FilesSearchResults: View {
                 .filesSwipeAccessibilityActions(actions)
                 .filesSwipeActions(actions)
             }
+            if let note = controller.notDownloadedNote {
+                Text(note)
+                    .font(.footnote)
+                    .foregroundStyle(palette.color(palette.secondary))
+                    .padding(.horizontal, 4)
+            }
         }
     }
 }
 
-/// One match in the open document: its line with the match marked (bold, on a blue wash), on a
-/// card. The current match is outlined in Lineform blue.
+/// One match in the open document, on a card: the line with the match on a blue wash. No outline on any card (owner review 4:
+/// a phone has no hover, so a ring around one result read as a stray state); the current match
+/// is known to VoiceOver (selected) and is the one ↑/↓ moved to.
 private struct SearchMatchRowView: View {
     var row: SearchRow
     var isCurrent: Bool
@@ -222,25 +250,20 @@ private struct SearchMatchRowView: View {
     var body: some View {
         let shape = RoundedRectangle(cornerRadius: 12, style: .continuous)
         Button(action: action) {
-            Group {
+            // The open document's own matches: the line alone (owner review 5: name and date
+            // belong to the All documents cards, not to matches in the document you are in).
+            VStack(alignment: .leading, spacing: 4) {
                 if let snippet = row.snippet {
                     Text(Self.marked(snippet, wash: palette.color(palette.blueFill).opacity(0.42)))
-                } else {
-                    Text(verbatim: "")
+                        .font(.subheadline)
+                        .lineLimit(2)
                 }
             }
-            .font(.subheadline)
             .foregroundStyle(palette.color(palette.ink))
             .multilineTextAlignment(.leading)
-            .lineLimit(3)
             .padding(.horizontal, 12)
             .padding(.vertical, 10)
             .frame(maxWidth: .infinity, minHeight: WordMenuMetrics.minimumTarget, alignment: .leading)
-            .overlay {
-                if isCurrent {
-                    shape.strokeBorder(palette.color(palette.blueMark), lineWidth: 1.5)
-                }
-            }
             .background(
                 shape.fill(palette.color(palette.card))
                     .shadow(color: .black.opacity(palette.cardHasShadow ? 0.06 : 0), radius: 1, x: 0, y: 1)

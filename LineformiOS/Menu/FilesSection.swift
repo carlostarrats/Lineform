@@ -110,8 +110,9 @@ private struct FilesItemAlerts: ViewModifier {
 
 /// The word menu's Files, as in the owner's mockup (2026-11-24): the search field at the top
 /// (with its scope button; results are document cards with the matching line), then the "iCloud"
-/// heading (cloud icon) with its folders as plain rows (icon, name, count, chevron), the "On My
-/// iPhone" heading (phone icon) with its folders, then "Recent": both roots' own documents as
+/// heading (cloud icon) with its folders as plain rows (icon, name, count, chevron) and its own
+/// documents as cards, the "On My iPhone" heading (phone icon) with its folders and documents,
+/// then "Recent": both roots' own documents as
 /// cards, newest first. Each root's heading has a "+" on a grey round background that makes a new
 /// document in that root. A folder opens its page of cards; a card opens its document and the
 /// menu closes.
@@ -133,6 +134,18 @@ struct FilesSection: View {
     /// menu reopens on them (the ← after a card opened a document).
     var externalSession: WordMenuSession?
     @State private var ownSession = WordMenuSession()
+    /// The roots the writer collapsed (their raw ids, comma-separated), kept on this device.
+    @AppStorage("Lineform.files.collapsedRoots") private var collapsedRoots = ""
+
+    private func isCollapsed(_ id: FilesRootID) -> Bool {
+        collapsedRoots.split(separator: ",").contains { $0 == id.rawValue }
+    }
+
+    private func toggleCollapsed(_ id: FilesRootID) {
+        var ids = Set(collapsedRoots.split(separator: ",").map(String.init))
+        if ids.contains(id.rawValue) { ids.remove(id.rawValue) } else { ids.insert(id.rawValue) }
+        collapsedRoots = ids.sorted().joined(separator: ",")
+    }
     private var session: WordMenuSession { externalSession ?? ownSession }
     private var search: SearchController? {
         get { session.search }
@@ -228,9 +241,32 @@ struct FilesSection: View {
         roots.filter { $0.id != .workspace }
     }
 
-    /// Recent: every shown root's own documents (not those in its folders), newest first.
+    /// What a root lists under its folders: its own documents (not those in its folders), newest
+    /// first, iCloud placeholders included. Before owner review 4 a root listed only its folders,
+    /// so an iCloud folder holding documents and no folders showed nothing under its heading
+    /// while Recent listed those documents.
+    static func documents(in root: FilesRoot) -> [OutlineFileTreeItem] {
+        root.hasScanned ? recentDocuments(in: root.items) : []
+    }
+
+    /// How many cards Recent shows (the mockup's four).
+    static let recentLimit = 4
+
+    /// Recent: the newest documents anywhere in the roots (their own and their folders'), as
+    /// cards, at most `recentLimit`. Under its heading a root lists its documents as plain rows,
+    /// like its folders (owner review 4: cards under the folders read as a second Recent).
     static func recentDocuments(acrossRoots roots: [FilesRoot]) -> [OutlineFileTreeItem] {
-        recentDocuments(in: phoneRoots(roots).filter(\.hasScanned).flatMap(\.items))
+        let all = phoneRoots(roots).filter(\.hasScanned).flatMap { root in
+            root.items.flatMap { item in item.isDirectory ? documentsBelow(item) : [item] }
+        }
+        return Array(recentDocuments(in: all).prefix(recentLimit))
+    }
+
+    /// Every document inside `folder`, at any depth, from the scanned tree.
+    static func documentsBelow(_ folder: OutlineFileTreeItem) -> [OutlineFileTreeItem] {
+        folder.children.flatMap { child in
+            child.isDirectory ? documentsBelow(child) : [child]
+        }
     }
 
     /// A root's or folder's documents for its cards: files only, newest first (a file with no date
@@ -469,7 +505,9 @@ struct FilesSection: View {
             .padding(.horizontal, 12)
             .padding(.vertical, 7)
             .frame(minHeight: 36)
-            .background(Capsule().fill(palette.color(palette.field)))
+            // Dark: the field grey sinks into the wash, so the pill takes the row grey to stay a
+            // visible button (owner review 4).
+            .background(Capsule().fill(palette.color(palette.isDark ? palette.soft : palette.field)))
             .contentShape(Capsule())
             .frame(minHeight: WordMenuMetrics.minimumTarget)
         }
@@ -554,7 +592,7 @@ struct FilesSection: View {
         }
     }
 
-    /// Recent: both roots' own documents as cards, newest first.
+    /// Recent: the newest documents, as cards (`recentDocuments(acrossRoots:)`).
     @ViewBuilder
     private var recent: some View {
         let documents = Self.recentDocuments(acrossRoots: store.roots)
@@ -568,30 +606,78 @@ struct FilesSection: View {
 
     @ViewBuilder
     private func rootSection(_ root: FilesRoot) -> some View {
+        // Each root is a card holding its rows; a tap on its heading collapses it, so a long root
+        // does not have to be scrolled past (owner review 4). No motion: it opens and closes at once.
         let heading = Self.heading(for: root)
-        HStack(alignment: .center) {
-            WordMenuGroupLabel(title: heading.title, systemImage: heading.systemImage)
-            Spacer(minLength: 8)
-            if let folder = root.folderURL, root.state == .available {
-                // A document made here saves here.
-                WordMenuRoundButton(systemImage: "plus", label: Self.newDocumentLabel(in: heading.title)) {
-                    newDocument(in: folder)
+        let collapsed = isCollapsed(root.id)
+        let shape = RoundedRectangle(cornerRadius: WordMenuMetrics.rowRadius + 4, style: .continuous)
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(alignment: .center, spacing: 8) {
+                Button {
+                    toggleCollapsed(root.id)
+                } label: {
+                    HStack(spacing: 6) {
+                        WordMenuGroupLabel(title: heading.title, systemImage: heading.systemImage, isTight: true)
+                        // One chevron that turns (right when collapsed, down when open), never a
+                        // crossfade between two symbols.
+                        Image(systemName: "chevron.right")
+                            .font(.caption2.weight(.semibold))
+                            .foregroundStyle(palette.color(palette.tertiary))
+                            .rotationEffect(.degrees(collapsed ? 0 : 90))
+                            .animation(.easeInOut(duration: 0.2), value: collapsed)
+                            .accessibilityHidden(true)
+                        Spacer(minLength: 0)
+                    }
+                    .frame(minHeight: WordMenuMetrics.minimumTarget)
+                    .contentShape(Rectangle())
                 }
-                .accessibilityIdentifier("files.add.\(root.id.rawValue)")
-                .padding(.top, 6)
+                // No press dimming: the heading and its icon stay steady; only the chevron turns.
+                .buttonStyle(SteadyButtonStyle())
+                .accessibilityLabel(Text(heading.title))
+                .accessibilityValue(Text(collapsed ? Self.collapsedValue : Self.expandedValue))
+                .accessibilityHint(Text(collapsed ? Self.expandHint : Self.collapseHint))
+                .accessibilityAddTraits(.isHeader)
+                .accessibilityIdentifier("files.root.\(root.id.rawValue)")
+                if let folder = root.folderURL, root.state == .available {
+                    // A document made here saves here.
+                    WordMenuRoundButton(systemImage: "plus", label: Self.newDocumentLabel(in: heading.title)) {
+                        newDocument(in: folder)
+                    }
+                    .accessibilityIdentifier("files.add.\(root.id.rawValue)")
+                }
+            }
+            if !collapsed {
+                if !root.hasScanned {
+                    ProgressView()
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.horizontal, 4)
+                } else {
+                    // An empty root is its heading and "+" alone: no empty-state text (owner review 4).
+                    FilesFolderRows(items: root.items, store: store, actions: actions, onOpenFolder: onOpenFolder)
+                    rootDocumentCards(root)
+                }
             }
         }
-        if !root.hasScanned {
-            ProgressView()
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.horizontal, 4)
-        } else if root.items.isEmpty {
-            Text(String(localized: "No Markdown files"))
-                .font(.subheadline)
-                .foregroundStyle(palette.color(palette.secondary))
-                .padding(.horizontal, 4)
-        } else {
-            FilesFolderRows(items: root.items, store: store, actions: actions, onOpenFolder: onOpenFolder)
+        .padding(.horizontal, 10)
+        .padding(.top, 4)
+        .padding(.bottom, collapsed ? 4 : 10)
+        // The same surface and shadow as the document cards (`DocumentCard`).
+        .background(shape.fill(palette.color(palette.card)))
+        .shadow(color: .black.opacity(palette.cardHasShadow ? 0.07 : 0), radius: 7, x: 0, y: 3)
+    }
+
+    static var collapsedValue: String { String(localized: "Collapsed") }
+    static var expandedValue: String { String(localized: "Expanded") }
+    static var expandHint: String { String(localized: "Shows its folders and documents.") }
+    static var collapseHint: String { String(localized: "Hides its folders and documents.") }
+
+    /// The root's own documents as plain rows under its folders, newest first, iCloud
+    /// placeholders included (opening one downloads it). Rows, not cards: cards are Recent's.
+    @ViewBuilder
+    private func rootDocumentCards(_ root: FilesRoot) -> some View {
+        let documents = Self.documents(in: root)
+        if !documents.isEmpty {
+            FilesDocumentRows(items: documents, store: store, actions: actions) { item in open(item.url) }
         }
     }
 
@@ -680,6 +766,52 @@ struct FilesFolderRows: View {
     }
 }
 
+/// A root's own documents as rows in the folder rows' style: the name, and when it changed on
+/// the right. Swipe and long-press offer what a card's ⋯ does.
+struct FilesDocumentRows: View {
+    var items: [OutlineFileTreeItem]
+    var store: FilesStore
+    var actions: FilesItemActions
+    var onOpen: (OutlineFileTreeItem) -> Void
+
+    static func when(_ item: OutlineFileTreeItem, now: Date = Date()) -> String? {
+        item.modifiedAt.map { $0.formatted(.relative(presentation: .named, unitsStyle: .abbreviated)) }
+    }
+
+    var body: some View {
+        VStack(spacing: 6) {
+            ForEach(items) { item in
+                Button {
+                    onOpen(item)
+                } label: {
+                    WordMenuRowLabel(
+                        title: item.url.deletingPathExtension().lastPathComponent,
+                        systemImage: "doc.text",
+                        accessory: Self.when(item).map { .text($0) } ?? .none
+                    )
+                    .opacity(item.isHidden ? 0.7 : 1)
+                }
+                .buttonStyle(WordMenuPressStyle())
+                // VoiceOver: the name, then when it changed and any state.
+                .accessibilityLabel(Text(verbatim: item.url.deletingPathExtension().lastPathComponent))
+                .accessibilityValue(Text(verbatim: [Self.when(item), FilesRow.accessibilityValue(for: item)]
+                    .compactMap { $0 }.joined(separator: ", ")))
+                .filesSwipeAccessibilityActions(FilesSwipeAction.actions(for: item, store: store))
+                .filesSwipeActions(FilesSwipeAction.actions(for: item, store: store))
+                .contextMenu {
+                    ForEach(FilesRowAction.menuActions(for: item), id: \.self) { action in
+                        Button {
+                            actions.perform(action, on: item)
+                        } label: {
+                            Label(action.title, systemImage: action.systemImage)
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
 /// One swipe action on a card or folder row: Move to Trash (red), or a move between iCloud and On
 /// My iPhone.
 struct FilesSwipeAction: Identifiable {
@@ -705,6 +837,16 @@ struct FilesSwipeAction: Identifiable {
         case .trash: "trash"
         case .move(.icloud): "icloud.and.arrow.up"
         case .move: "iphone"
+        }
+    }
+
+    /// The words drawn on the swipe button: short enough for one line on a folder row (a 46 pt
+    /// row cut "Move to On My iPhone" off). VoiceOver keeps the full `title`.
+    var shortTitle: String {
+        switch kind {
+        case .trash: String(localized: "Trash")
+        case .move(.icloud): String(localized: "To iCloud")
+        case .move: String(localized: "To iPhone")
         }
     }
 
@@ -771,9 +913,9 @@ private struct FilesSwipeActions: ViewModifier {
                             VStack(spacing: 4) {
                                 Image(systemName: action.systemImage)
                                     .font(.body.weight(.medium))
-                                Text(action.title)
+                                Text(action.shortTitle)
                                     .font(.caption2.weight(.semibold))
-                                    .multilineTextAlignment(.center)
+                                    .lineLimit(1)
                                     .minimumScaleFactor(0.8)
                             }
                             .foregroundStyle(.white)
@@ -909,4 +1051,9 @@ private struct NoEditorCommands: EditorCommands {
     func reformatTable() {}
     func replace(range: NSRange, with replacement: String) -> Bool { false }
     func replaceAll(ranges: [NSRange], with replacement: String) -> Bool { false }
+}
+
+/// A button that draws its label exactly as it is, pressed or not.
+struct SteadyButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View { configuration.label }
 }

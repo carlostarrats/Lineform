@@ -45,11 +45,22 @@ final class ConnectAIFormModel: ObservableObject, Identifiable {
     }
 
     /// The consent step: the button says "Connect"; the small text under it names what is sent and
-    /// to whom ("Lineform will send the text you choose to Anthropic."), then the privacy note.
+    /// to whom ("Lineform will send the passage you select, or the whole document when you choose Ask
+    /// AI for it, to Anthropic."), then the privacy note.
     var connectTitle: String { ConnectAIPresentation.connectTitle }
 
     var consentNote: String {
         ConnectAIPresentation.consentNote(for: selection, otherHost: ConnectAIPresentation.host(fromAddress: address))
+    }
+
+    /// The small text under Connect, kept short (owner review 4: "too much text"): what is sent
+    /// and to whom (the shared two-case wording App Review 5.1.2(i) needs), then one short line.
+    /// The full consent note stays the button's VoiceOver hint; the Mac shows its own wording.
+    var shortConsentNote: String {
+        let recipient = ConnectAIPresentation.recipientNote(
+            for: selection, otherHost: ConnectAIPresentation.host(fromAddress: address)
+        )
+        return recipient + " " + String(localized: "Lineform’s developer never sees it.")
     }
 
     /// Other is an address, an optional key and a model; the big three are a key and a model
@@ -139,14 +150,17 @@ struct ConnectAISection: View {
     // MARK: - Copy
 
     static var title: String { WordMenuItem.connectAI.title }
+    /// One short sentence (owner review 4). What is sent (the passage you select, or the whole
+    /// document when you choose Ask AI for it) is the consent note under Connect.
     static var note: String {
-        String(localized: "Rewrite and proofread with an AI account of your own. Only the passage you select is sent, or the whole document when you choose Ask AI for it, with any comment you type. For Find, that is each whole sentence your selection touches, or every sentence of the document. Nothing is sent until you choose an action.")
+        String(localized: "Use your own AI account to rewrite and proofread. Nothing is sent until you choose an action.")
     }
     static var askAITitle: String { String(localized: "Ask AI…") }
-    static var askAINote: String { String(localized: "Sends the whole document to your AI, with any comment you type.") }
+    /// What Ask AI… sends (the comment field is gone: the AI sheet takes any instruction).
+    static var askAINote: String { String(localized: "Sends the whole document to your AI.") }
 
-    /// Ask AI… shows while an AI is connected, an editor is on screen (Read has no editor to hold
-    /// the comment field, and allows no AI), and the document has text to send.
+    /// Ask AI… shows while an AI is connected, an editor is on screen (Read has no editor to
+    /// review in, and allows no AI), and the document has text to send.
     static func showsAskAI(isConnected: Bool, mode: EditorDisplayMode, hasText: Bool) -> Bool {
         isConnected && mode != .read && hasText
     }
@@ -238,7 +252,7 @@ struct ConnectAISection: View {
                 .padding(.horizontal, 4)
         }
         if Self.showsAskAI(isConnected: store.isConnected, mode: mode, hasText: hasText) {
-            WordMenuRow(title: Self.askAITitle, note: Self.askAINote, systemImage: "text.bubble", accessory: .none) {
+            WordMenuRow(title: Self.askAITitle, note: Self.askAINote, accessory: .none) {
                 onAskAI()
             }
             .accessibilityIdentifier("connectAI.askAI")
@@ -296,7 +310,7 @@ struct ConnectAISection: View {
             .accessibilityHint(Text(form.consentNote))
             .accessibilityIdentifier("connectAI.connect")
         // What is sent, to whom, and the privacy note: small secondary text under the button.
-        Text(form.consentNote)
+        Text(form.shortConsentNote)
             .font(.footnote)
             .foregroundStyle(palette.color(palette.secondary))
             .fixedSize(horizontal: false, vertical: true)

@@ -48,8 +48,8 @@ final class ExportRowsTests: XCTestCase {
 
     /// Every English key the rows show (the paper names come from the package's catalog).
     private static let catalogKeys = [
-        "Export As", "Paper Size", "Print\u{2026}", "Share\u{2026}",
-        "HTML", "PDF", "Styled PDF", "Rich Text (.rtf)",
+        "Print\u{2026}", "Share\u{2026}",
+        "Export PDF\u{2026}", "Export HTML\u{2026}", "Export Markdown\u{2026}",
         "Start Speaking", "Pause Speaking", "Resume Speaking", "Stop Speaking",
     ]
 

@@ -189,6 +189,35 @@ final class HistoryControllerTests: XCTestCase {
         XCTAssertTrue(store.load(for: a).isEmpty, "nothing stays under the old name")
     }
 
+    /// A move out of iCloud downloaded another device's passages: they join the engine, so the
+    /// next save keeps them instead of writing the local copy back without them.
+    func testHistoryDownloadedByAMoveOutOfICloudIsKept() throws {
+        let store = fileStore()
+        let a = try makeFile("a.md", contents: text)
+        let (controller, edited) = controllerWithEditedPassage(store: store, url: a)
+        // Another device's passage, as the router's move-out read it.
+        let b = try makeFile("b.md", contents: text)
+        let other = makeController(store: store)
+        other.open(url: b, text: text)
+        let second = "Epsilon zeta eta theta.", secondAccepted = "Epsilon ZETA eta theta."
+        let editedB = text.replacingOccurrences(of: second, with: secondAccepted)
+        other.recordAccepted(range: range(of: secondAccepted, in: editedB), original: second, accepted: secondAccepted,
+                             text: editedB)
+        let theirs = store.load(for: b)
+        XCTAssertEqual(theirs.passages.count, 1)
+        let mine = store.load(for: a)
+
+        controller.adoptMovedHistory(theirs, for: a)
+        // The same document on both devices: both passages are in its text.
+        controller.persist(text: edited.replacingOccurrences(of: second, with: secondAccepted))
+
+        let stored = Set(store.load(for: a).passages.map(\.id))
+        XCTAssertEqual(stored, Set(mine.passages.map(\.id)).union(theirs.passages.map(\.id)))
+        let elsewhere = makeController(store: store)
+        elsewhere.adoptMovedHistory(theirs, for: b)   // not its document: ignored
+        XCTAssertFalse(elsewhere.hasHistory)
+    }
+
     func testUntitledDocumentGetsFileStoresHistory() throws {
         let store = fileStore()
         let (controller, edited) = controllerWithEditedPassage(store: store, url: nil)

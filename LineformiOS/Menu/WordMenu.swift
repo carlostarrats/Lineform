@@ -103,7 +103,10 @@ struct WordMenu: View {
     // MARK: - Body
 
     /// The software keyboard is up (a search field is being typed in).
-    @State private var isKeyboardUp = false
+    /// How far the on-screen keyboard reaches above the home indicator's band: the corner buttons
+    /// ride above it, always visible (owner review 5: they vanished while a search field was in
+    /// use, leaving no way back).
+    @State private var keyboardLift: CGFloat = 0
 
     var body: some View {
         let palette = palette
@@ -140,26 +143,42 @@ struct WordMenu: View {
             }
             .allowsHitTesting(false)
             .accessibilityHidden(true)
+            // The right circle never moves: ✕ on the words, the page button (straight back to the
+            // document) in a page; both close the menu. The ← sits alone at the bottom left in a
+            // page and simply appears and goes. No motion either way (owner review 4: the circle
+            // slid from left to right on ←).
+            if !navigation.isOnWordList {
+                WordMenuCornerButton(
+                    glyph: .back,
+                    fill: palette.card,
+                    ink: palette.ink,
+                    isDark: palette.isDark,
+                    action: { back() }
+                )
+                .accessibilityIdentifier("wordMenu.corner")
+                .padding(MarkdownEditor.chromeMargin)
+                .padding(.bottom, keyboardLift)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
+                .transition(.identity)
+            }
             WordMenuCornerButton(
-                glyph: navigation.isOnWordList ? .close : .back,
+                glyph: navigation.isOnWordList ? .close : .document,
                 fill: palette.card,
                 ink: palette.ink,
                 isDark: palette.isDark,
-                action: { back() }
+                action: { onClose() }
             )
-            .accessibilityIdentifier("wordMenu.corner")
+            .accessibilityIdentifier(navigation.isOnWordList ? "wordMenu.corner" : "wordMenu.document")
             .padding(MarkdownEditor.chromeMargin)
-            // While typing in a search field the keyboard (and iOS's suggestion bar above it) would
-            // half-cover the corner button: it steps aside until the keyboard goes; Esc still goes back.
-            .opacity(isKeyboardUp ? 0 : 1)
-            .allowsHitTesting(!isKeyboardUp)
-            .accessibilityHidden(isKeyboardUp)
+            .padding(.bottom, keyboardLift)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
+            .transaction { $0.animation = nil }
         }
-        .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillShowNotification)) { _ in
-            isKeyboardUp = true
+        .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillChangeFrameNotification)) { note in
+            keyboardLift = Self.keyboardLift(from: note)
         }
         .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillHideNotification)) { _ in
-            isKeyboardUp = false
+            keyboardLift = 0
         }
         .environment(\.wordMenuPalette, palette)
         .environment(\.wordMenuSession, currentSession)
@@ -189,6 +208,17 @@ struct WordMenu: View {
             if let initialPage, navigation.isOnWordList { navigation.push(initialPage) }
         }
         .task { await WordMenuWarmUp.run() }
+    }
+
+    /// The keyboard's height above the bottom safe area, from a frame notification (0 when it is
+    /// off screen or only a hardware keyboard's short bar).
+    static func keyboardLift(from note: Notification) -> CGFloat {
+        guard let frame = (note.userInfo?[UIResponder.keyboardFrameEndUserInfoKey] as? NSValue)?.cgRectValue,
+              let window = UIApplication.shared.connectedScenes.compactMap({ $0 as? UIWindowScene })
+                .flatMap(\.windows).first(where: \.isKeyWindow)
+        else { return 0 }
+        let overlap = max(0, window.bounds.maxY - window.convert(frame, from: window.screen.coordinateSpace).minY)
+        return max(0, overlap - window.safeAreaInsets.bottom)
     }
 
     private var showsFiles: Bool { navigation.top?.showsFiles == true }
@@ -231,14 +261,38 @@ struct WordMenu: View {
     /// several times that on a phone), so they are never counted while the menu opens: the last
     /// count for the same text is reused (`WordMenuStatusCounts`), and otherwise the line shows
     /// the name and save state at once and the counts follow from a background count.
+    @ViewBuilder
     private var statusLine: some View {
+        if Self.showsTitleOnly(hasFile: document.url != nil, text: document.text) {
+            // An empty page with no file: just "Untitled" (no "Not saved yet · 0 words").
+            Text(Self.documentTitle(for: nil))
+                .font(.subheadline)
+                .foregroundStyle(palette.color(palette.secondary))
+                .accessibilityIdentifier("wordMenu.status")
+        } else {
+            fullStatusLine
+        }
+    }
+
+    /// The status line is the name alone: the page is empty (nothing but white space) and has no
+    /// file. Stops at the first non-space character, so it never walks a long document.
+    static func showsTitleOnly(hasFile: Bool, text: String) -> Bool {
+        !hasFile && !text.contains { !$0.isWhitespace }
+    }
+
+    private var fullStatusLine: some View {
         _ = countsGeneration
         let title = Self.documentTitle(for: document.url)
         let saveState = Self.saveStateText(for: document)
         let text = document.text
         let statistics = WordMenuStatusCounts.cached(for: text)
-        var line = AttributedString(title + " · ")
+        // The name is plain text here: Rename… lives on the page itself (`DocumentNameTag`,
+        // owner review 4: the menu's tappable name was not discoverable).
+        var line = AttributedString(title)
         line.foregroundColor = palette.color(palette.secondary)
+        var separator = AttributedString(" · ")
+        separator.foregroundColor = palette.color(palette.secondary)
+        line += separator
         var state = AttributedString(saveState)
         state.foregroundColor = Self.isSaved(document) ? palette.color(palette.saved) : palette.color(palette.secondary)
         line += state
@@ -249,12 +303,14 @@ struct WordMenu: View {
         }
         let label = statistics.map { Self.statusAccessibilityLabel(title: title, saveState: saveState, statistics: $0) }
             ?? "\(title), \(saveState)"
-        return Text(line)
+        let lineText = Text(line)
             .font(.subheadline)
             .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 2)
-            .accessibilityElement(children: .ignore)
-            .accessibilityLabel(Text(verbatim: label))
-            .accessibilityIdentifier("wordMenu.status")
+            .multilineTextAlignment(.leading)
+        return lineText
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(Text(verbatim: label))
+        .accessibilityIdentifier("wordMenu.status")
             .task(id: statistics == nil) {
                 guard statistics == nil else { return }
                 await WordMenuStatusCounts.count(text)
@@ -306,7 +362,7 @@ struct WordMenu: View {
         case .settings:
             SettingsSection(settings: settings, files: files)
         case .exportPrint:
-            ExportPrintSection(document: document, exportCommands: exportCommands, onDismiss: onClose)
+            ExportPrintSection(document: document, files: files, exportCommands: exportCommands, onDismiss: onClose)
         case .history:
             HistorySection(history: document.history, text: editor.currentText) { id in
                 onShowHistoryPassage(id)
@@ -334,6 +390,9 @@ struct WordMenuWordButton: View {
     @ScaledMetric(relativeTo: .largeTitle) private var largeSize = WordMenuMetrics.largeWordSize
     @ScaledMetric(relativeTo: .title3) private var smallSize = WordMenuMetrics.smallWordSize
 
+    /// How far a small word's target reaches past its drawn 40 pt row, above and below.
+    static let smallTargetReach = (WordMenuMetrics.minimumTarget - WordMenuMetrics.smallWordRowHeight) / 2
+
     var body: some View {
         let isSmall = item.style == .small
         Button(action: action) {
@@ -342,11 +401,15 @@ struct WordMenuWordButton: View {
                 .tracking(isSmall ? 0 : -0.68)
                 .foregroundStyle(palette.color(ink))
                 .multilineTextAlignment(.leading)
-                .padding(.vertical, isSmall ? 6 : 3)
-                .frame(minHeight: WordMenuMetrics.minimumTarget, alignment: .leading)
+                .padding(.vertical, isSmall ? 8 : 3)
+                // A small word's row is drawn 40 pt (§19); its target still reaches 44 pt, the
+                // extra 2 pt above and below taken back so the rows keep the mockup's pitch.
+                .frame(minHeight: isSmall ? WordMenuMetrics.smallWordRowHeight : WordMenuMetrics.minimumTarget, alignment: .leading)
+                .padding(.vertical, isSmall ? Self.smallTargetReach : 0)
                 .contentShape(Rectangle())
         }
         .buttonStyle(WordMenuPressStyle())
+        .padding(.vertical, isSmall ? -Self.smallTargetReach : 0)
         .accessibilityHint(item.accessibilityHint.map { Text($0) } ?? Text(verbatim: ""))
         .accessibilityIdentifier("wordMenu.\(item.rawValue)")
     }

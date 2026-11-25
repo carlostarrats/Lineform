@@ -180,8 +180,22 @@ final class SelectionController: NSObject, ObservableObject {
     /// The AI conversation for the document on screen (2026-11-24): the AI sheet's. Memory only;
     /// it goes when another document replaces this one (`documentWillSwap`).
     let conversation = AIConversation()
-    /// The AI sheet is up. Ask AI on the row and the Menu's Ask AI… open it.
-    @Published var isShowingAISheet = false
+    /// The AI sheet is up. Ask AI on the row and the Menu's Ask AI… open it. The decisions on a
+    /// review live only in the sheet, so the sheet never goes while one is up: it cannot be swiped
+    /// away while a request runs or a suggestion waits (`AISheetView`), it comes back if a request
+    /// or review starts without it (`aiStateChanged`), and if it goes by any other path while a
+    /// review is up, the review ends as the sheet's End does (`sheetDidClose`).
+    @Published var isShowingAISheet = false {
+        didSet { if oldValue, !isShowingAISheet { sheetDidClose() } }
+    }
+    /// Bumped whenever the format row shows afresh: it opens, or it changes between a caret's row
+    /// and a selection's (the writer's own selection). The row starts at its leading edge only
+    /// then, never when a command (Check Spelling, Link, Table) merely changes its buttons, so a
+    /// repeated tap stays under the finger.
+    @Published private(set) var rowGeneration = 0
+    /// A Check Spelling that found nothing: the screen's calm notice says so for a few seconds.
+    @Published private(set) var spellingNotice: String?
+    private var spellingNoticeTask: Task<Void, Never>?
     /// The selection the row was shown for; the comment sends against exactly this range (the
     /// whole document's range for the Menu's Ask AI…).
     private(set) var anchorRange: NSRange?
@@ -275,10 +289,42 @@ final class SelectionController: NSObject, ObservableObject {
         isShowingAISheet = true
     }
 
-    /// Another document replaces this one: its conversation goes.
+    /// Another document replaces this one: its conversation goes. A review is left to the
+    /// replacement itself (`editorTextWillBeReplaced` abandons it, applying nothing to the outgoing
+    /// text once it has been saved), never ended here.
     func documentWillSwap() {
+        isSwappingDocument = true
         isShowingAISheet = false
+        isSwappingDocument = false
         conversation.reset()
+    }
+
+    /// Set while `documentWillSwap` closes the sheet.
+    private var isSwappingDocument = false
+
+    /// The sheet went (a swipe it allowed, Read). A review still up would leave the
+    /// read-only overlay with no Accept or Reject anywhere: it ends, as the sheet's End does
+    /// (undecided changes rejected, accepted ones kept and recorded).
+    private func sheetDidClose() {
+        guard !isSwappingDocument, let controller = aiControllerStorage, case .reviewing = controller.state else { return }
+        controller.handle(.end)
+    }
+
+    /// A request or review started while the sheet was not up (it can come no other way now, but
+    /// the decisions must never be out of reach): the sheet comes back, on the next turn (this
+    /// arrives as the controller's state is about to change).
+    private func presentSheetIfWorking() {
+        Task { @MainActor [weak self] in
+            guard let self, !self.isShowingAISheet, !self.isReadMode, self.editor != nil,
+                  let controller = self.aiControllerStorage else { return }
+            switch controller.state {
+            case .running, .reviewing:
+                self.wireAI(controller)
+                self.isShowingAISheet = true
+            default:
+                break
+            }
+        }
     }
 
     /// A whole-document request from the sheet above `WholeDocumentAIPolicy.confirmWordCount`.
@@ -460,12 +506,19 @@ final class SelectionController: NSObject, ObservableObject {
         }
     }
 
-    /// Shows, updates or hides the caret's row. A selection's row is left to its own rules, the
-    /// comment field is never touched, and nothing changes while an input method is composing.
+    /// Shows, updates or hides the caret's row. The comment field is never touched, and nothing
+    /// changes while an input method is composing. A selection's row is left to its own rules
+    /// while the editor keeps its keyboard; once the editor stops being first responder or the
+    /// keyboard goes down, the row goes whatever the selection (it rides on the keyboard, so it
+    /// would otherwise stay `.row` with nothing on screen).
     private func refreshCaretRow() {
         caretRefreshTask = nil
-        guard let editor, phase != .comment, editor.markedTextRange == nil,
-              editor.selectedRange.length == 0 else { return }
+        updatePageKeyboardOverlap()
+        guard let editor, phase != .comment, editor.markedTextRange == nil else { return }
+        guard editor.selectedRange.length == 0 else {
+            if phase == .row, !editor.isFirstResponder { hide() }
+            return
+        }
         if allowsCaretRow {
             showRowNow()
         } else if phase == .row {
@@ -507,6 +560,9 @@ final class SelectionController: NSObject, ObservableObject {
         if model.usesDarkChrome != dark { model.usesDarkChrome = dark }
         if formatBar.style.profile != editor.profile { formatBar.style.profile = editor.profile }
         let newItems = currentItems(for: range, aiConnected: provider != nil && !isReadMode)
+        // A fresh row, or the writer's switch between a caret and a selection: the row starts at
+        // its leading edge. A command's own change of buttons keeps it where it is (`runCommand`).
+        if phase != .row || (anchorRange?.length == 0) != (range.length == 0) { rowGeneration += 1 }
         if items != newItems { items = newItems }
         anchorRange = range
         if phase != .row {
@@ -527,10 +583,12 @@ final class SelectionController: NSObject, ObservableObject {
         return content.hasPrefix("|")
     }
 
-    /// No row while composing, outside an editable editor on screen, or while an AI request or
-    /// review is in progress.
+    /// No row while composing, outside an editable editor on screen, under the AI sheet (a
+    /// selection made behind it must not raise the row and keyboard over it), or while an AI
+    /// request or review is in progress.
     private var allowsRow: Bool {
-        guard let editor, editor.window != nil, editor.isEditable, editor.markedTextRange == nil else { return false }
+        guard let editor, editor.window != nil, editor.isEditable, editor.markedTextRange == nil,
+              !isShowingAISheet else { return false }
         switch aiControllerStorage?.state {
         case .running, .reviewing: return false
         default: return true
@@ -585,7 +643,13 @@ final class SelectionController: NSObject, ObservableObject {
         case .blockquote: runCommand { Self.applyToLine(.blockquote, in: $0) }
         // Check Document Now: the first misspelling after the selection is selected (the row
         // stays, for that selection); no edit, so no undo step.
-        case .checkSpelling: runCommand { _ = $0.checkDocumentNow() }
+        case .checkSpelling:
+            // Nothing found (with a dictionary, and no composition in the way): the writer hears
+            // so, rather than a tap that seems to do nothing.
+            guard let editor, editor.markedTextRange == nil else { return }
+            var found = false
+            runCommand { found = $0.checkDocumentNow() }
+            if !found, editor.spellCheckLanguage != nil { showSpellingNotice() }
         case .replaceWith:
             // History's Replace With… (the Mac's meaning): the selection becomes a passage and
             // History mode opens on it with "Type a replacement". History and AI never overlap:
@@ -596,10 +660,31 @@ final class SelectionController: NSObject, ObservableObject {
             aiControllerStorage?.yieldToHistory()
             editor.performReplaceWith(range)
         case .anotherWord:
-            guard let range = anchorRange, let editor else { return }
+            // Its Accept and Reject live in the AI sheet: the sheet opens first (as Ask does),
+            // then the request runs and lands in the conversation.
+            guard let range = anchorRange, let editor, !isReadMode, connectionStore().isConnected else { return }
             let text = editor.textStorage.string
+            wireAI(aiController)
             hide()
+            isShowingAISheet = true
             aiController.run(.anotherWord, range: range, text: text)
+        }
+    }
+
+    /// What the notice and VoiceOver say when Check Spelling finds nothing.
+    static var noSpellingMistakesMessage: String { String(localized: "No spelling mistakes found.") }
+
+    /// "No spelling mistakes found." in the screen's calm notice, for as long as the other notices
+    /// stay (`OpenDocument.noticeDuration()`); the screen announces it as it appears.
+    private func showSpellingNotice() {
+        spellingNoticeTask?.cancel()
+        // Already showing (a second tap): the notice stays, and VoiceOver hears it again.
+        if spellingNotice != nil { ChromeAnnouncer.announce(Self.noSpellingMistakesMessage) }
+        spellingNotice = Self.noSpellingMistakesMessage
+        spellingNoticeTask = Task { @MainActor [weak self] in
+            try? await Task.sleep(for: OpenDocument.noticeDuration())
+            guard !Task.isCancelled else { return }
+            self?.spellingNotice = nil
         }
     }
 
@@ -973,7 +1058,9 @@ final class SelectionController: NSObject, ObservableObject {
         }
         if aiStatus != status { aiStatus = status }
         switch state {
-        case .running, .reviewing: if phase == .row { hide() }
+        case .running, .reviewing:
+            if phase == .row { hide() }
+            if !isShowingAISheet { presentSheetIfWorking() }
         default: break
         }
     }
@@ -1024,6 +1111,22 @@ final class SelectionController: NSObject, ObservableObject {
 
     // MARK: - Keyboard
 
+    /// The keyboard on screen is the editor's: the editor is first responder, or the review
+    /// overlay it hands the focus to is. The AI sheet's field, Files' search and History's field
+    /// bring up their own keyboards, which must not resize the page (`pageOverlap`).
+    var editorOwnsKeyboard: Bool {
+        guard let editor else { return false }
+        if editor.isFirstResponder { return true }
+        return UIResponder.lineformCurrentFirstResponder is AIReviewOverlayTextView
+    }
+
+    /// The page's share of the keyboard, after a focus change (no frame notification comes when
+    /// one field hands the same keyboard to another).
+    private func updatePageKeyboardOverlap() {
+        let pageOverlap = editorOwnsKeyboard ? keyboard.overlap : 0
+        if keyboard.pageOverlap != pageOverlap { keyboard.pageOverlap = pageOverlap }
+    }
+
     @objc private func keyboardWillChangeFrame(_ notification: Notification) {
         guard let value = notification.userInfo?[UIResponder.keyboardFrameEndUserInfoKey] as? NSValue else { return }
         let window = editor?.window
@@ -1039,16 +1142,28 @@ final class SelectionController: NSObject, ObservableObject {
 
     @objc private func keyboardWillHide(_ notification: Notification) {
         setKeyboardOverlap(0, notification: notification)
+        // The keyboard (and the row on it) went down: a selection's row goes too, on the next
+        // turn (this arrives while the editor may be resigning).
+        Task { @MainActor [weak self] in
+            guard let self, self.phase == .row, self.keyboard.overlap == 0,
+                  self.editor?.markedTextRange == nil else { return }
+            self.hide()
+        }
     }
 
     private func setKeyboardOverlap(_ overlap: CGFloat, notification: Notification) {
-        guard overlap != keyboard.overlap else { return }
+        let pageOverlap = editorOwnsKeyboard ? overlap : 0
+        guard overlap != keyboard.overlap || pageOverlap != keyboard.pageOverlap else { return }
         let duration = (notification.userInfo?[UIResponder.keyboardAnimationDurationUserInfoKey] as? Double) ?? 0.25
         let animation = EditorMotionPolicy.animation(.easeOut(duration: duration),
                                                      reduceMotion: UIAccessibility.isReduceMotionEnabled)
+        let wasSoftware = keyboard.overlap >= Self.minimumSoftwareKeyboardOverlap
         withAnimation(duration > 0 ? animation : nil) {
-            keyboard.overlap = overlap
+            if keyboard.overlap != overlap { keyboard.overlap = overlap }
+            if keyboard.pageOverlap != pageOverlap { keyboard.pageOverlap = pageOverlap }
         }
+        // The bar adds the home indicator's band only with a hardware keyboard.
+        if wasSoftware != (overlap >= Self.minimumSoftwareKeyboardOverlap) { formatBar.invalidateIntrinsicContentSize() }
         // The caret's row comes and goes with the software keyboard (on the next turn: this
         // arrives while the editor resigns).
         scheduleCaretRefresh()
@@ -1082,4 +1197,26 @@ final class WholeDocumentConfirmationAlert: UIAlertController {
 @MainActor
 final class SelectionKeyboardTracker: ObservableObject {
     @Published fileprivate(set) var overlap: CGFloat = 0
+    /// The part the page makes room for (`KeyboardClearance`): the overlap while the keyboard is
+    /// the editor's (`SelectionController.editorOwnsKeyboard`), 0 for any other field's keyboard.
+    @Published fileprivate(set) var pageOverlap: CGFloat = 0
+}
+
+extension UIResponder {
+    /// The first responder in this app, found the system's way (an action sent to nil reaches it).
+    @MainActor static var lineformCurrentFirstResponder: UIResponder? {
+        FirstResponderProbe.found = nil
+        UIApplication.shared.sendAction(#selector(lineformCaptureFirstResponder(_:)), to: nil, from: nil, for: nil)
+        defer { FirstResponderProbe.found = nil }
+        return FirstResponderProbe.found
+    }
+
+    @objc fileprivate func lineformCaptureFirstResponder(_ sender: Any?) {
+        MainActor.assumeIsolated { FirstResponderProbe.found = self }
+    }
+}
+
+@MainActor
+private enum FirstResponderProbe {
+    static weak var found: UIResponder?
 }

@@ -45,10 +45,12 @@ final class BasicsCopyState {
 /// groups. Rows sit inside with hairline dividers; a code row has a copy button on the right that
 /// turns into a blue check for a moment after copying its Markdown.
 ///
-/// The rows are the package's `MarkdownReference` (the Mac's reference, word for word). Its long
-/// first section is split here, on iPhone only, into the mockup's groups (Headings, Emphasis,
-/// Lists, Links & images, Blocks); the other sections (Diagrams, Math, Spelling, Search) follow
-/// as their own groups.
+/// Exactly the mockup's groups and rows: Headings (Title, Section), Emphasis (Bold, Italic,
+/// Strikethrough, Code), Lists (Bullets, Numbers, Checkbox), Links & images (Link, Image) and
+/// Blocks (Quote, Table, Math, Diagram). Each row is the package's `MarkdownReference` row (the
+/// Mac's reference syntax, word for word), picked by its identity; the reference's other rows are
+/// not shown on iPhone, and its iPhone branch has no label rows (Tab, Block Spacing) or Spelling
+/// and Search groups at all.
 struct BasicsSection: View {
     @State private var state = BasicsCopyState()
     @Environment(\.wordMenuPalette) private var palette
@@ -64,13 +66,13 @@ struct BasicsSection: View {
         var rows: [MarkdownReference.Row]
     }
 
-    /// The first section's rows by the mockup's groups (row identities, never translated text).
+    /// The mockup's groups and their rows, by row identity (never translated text).
     static let basicsGroupRowIDs: [(id: String, rowIDs: [String])] = [
         ("headings", ["# Title", "## Section"]),
         ("emphasis", ["**bold**", "_italic_", "~~text~~", "`code`"]),
-        ("lists", ["- bullet", "1. item", "  - nested", "- [ ] to do", "- [x] done"]),
+        ("lists", ["- bullet", "1. item", "- [ ] to do"]),
         ("links", ["[text](url)", "![alt](url)"]),
-        ("blocks", ["> quote", "> [!NOTE]", "```swift", "---", "| a | b |", "tab", "block-spacing"]),
+        ("blocks", ["> quote", "| a | b |", "$x^2 + y^2$", "```mermaid"]),
     ]
 
     static func groupTitle(_ id: String) -> String {
@@ -83,23 +85,13 @@ struct BasicsSection: View {
         }
     }
 
-    /// Every group in order. Every row of the reference appears exactly once: a first-section row
-    /// no group names joins Blocks.
+    /// Every group in order, each row taken from whichever reference section holds it.
     static var groups: [BasicsGroup] {
-        var result: [BasicsGroup] = []
-        for section in sections {
-            guard section.id == "basics" else {
-                result.append(BasicsGroup(id: section.id, title: section.title, rows: section.rows))
-                continue
-            }
-            let named = Set(basicsGroupRowIDs.flatMap(\.rowIDs))
-            for (id, rowIDs) in basicsGroupRowIDs {
-                var rows = rowIDs.compactMap { rowID in section.rows.first { $0.id == rowID } }
-                if id == "blocks" { rows += section.rows.filter { !named.contains($0.id) } }
-                if !rows.isEmpty { result.append(BasicsGroup(id: id, title: groupTitle(id), rows: rows)) }
-            }
+        let rows = sections.flatMap(\.rows)
+        return basicsGroupRowIDs.compactMap { id, rowIDs in
+            let picked = rowIDs.compactMap { rowID in rows.first { $0.id == rowID } }
+            return picked.isEmpty ? nil : BasicsGroup(id: id, title: groupTitle(id), rows: picked)
         }
-        return result
     }
 
     /// The gap from one group's card to the next group's label (the owner's review of 2026-11-24:
@@ -191,10 +183,9 @@ struct BasicsSection: View {
         .frame(minHeight: 48)
     }
 
-    /// A row's short name, as in the mockup ("Title", "Bold", "Bullets"). A label row's own label
-    /// (Tab, Block Spacing, Spelling…) is its name. The full explanation stays in VoiceOver's label.
+    /// A row's short name, as in the mockup ("Title", "Bold", "Bullets"). The full explanation
+    /// stays in VoiceOver's label.
     static func name(for row: MarkdownReference.Row) -> String {
-        guard row.rendersSyntaxAsCode else { return row.syntax }
         switch row.id {
         case "# Title": return String(localized: "Title")
         case "## Section": return String(localized: "Section")
@@ -204,24 +195,14 @@ struct BasicsSection: View {
         case "`code`": return String(localized: "Code")
         case "- bullet": return String(localized: "Bullets")
         case "1. item": return String(localized: "Numbers")
-        case "  - nested": return String(localized: "Nested")
         case "- [ ] to do": return String(localized: "Checkbox")
-        case "- [x] done": return String(localized: "Checked")
         case "> quote": return String(localized: "Quote")
-        case "> [!NOTE]": return String(localized: "Callout")
-        case "```swift": return String(localized: "Code block")
-        case "---": return String(localized: "Divider")
         case "| a | b |": return String(localized: "Table")
         case "[text](url)": return String(localized: "Link")
         case "![alt](url)": return String(localized: "Image")
+        case "$x^2 + y^2$": return String(localized: "Math")
         case "```mermaid": return String(localized: "Diagram")
-        case let id where id.hasPrefix("flowchart"): return String(localized: "Flowchart")
-        case "$x^2 + y^2$": return String(localized: "Inline math")
-        case "$$…$$": return String(localized: "Equation")
-        case #"\(x^2\)  \[…\]"#: return String(localized: "AI-style math")
-        case #"\frac{a}{b}"#: return "LaTeX"
-        case "it costs $5": return String(localized: "Dollar amounts")
-        // A row added to the reference later: its explanation's first phrase.
+        // A row added to the mockup's list later: its explanation's first phrase.
         default: return row.explanation.components(separatedBy: ".").first ?? row.explanation
         }
     }
