@@ -11,9 +11,10 @@ enum StylingRowStyle {
     static let qualifierFontSize: CGFloat = 11
     static let valueFontSize: CGFloat = 13
     static let valueMinWidth: CGFloat = 54
-    /// The picker's widest on one line with its title, as on the Mac panel. Stacked (accessibility
-    /// sizes, or a translation too long to share the line) it takes the width it needs.
-    static let pickerMaxWidth: CGFloat = 170
+    /// How far a font name may shrink before the row stacks instead: the name is always one
+    /// line and takes the row's whole width beside its title (owner review 4: "Atkinson
+    /// Hyperlegible" wrapped under the old 170 pt cap).
+    static let pickerMinimumScaleFactor: CGFloat = 0.85
     /// A control row is at least this tall, its 6 pt inset included: a 44 pt target.
     static let minimumRowHeight: CGFloat = 44
     static let rowVerticalInset: CGFloat = 6
@@ -145,14 +146,19 @@ struct StylingPickerRow<Content: View>: View {
             StylingRowLayout { isStacked in
                 Text(title)
                     .stylingLabelFont()
+                    .lineLimit(1)
+                    .fixedSize()
                     // The picker carries the same name.
                     .accessibilityHidden(true)
                 if !isStacked { Spacer(minLength: 12) }
                 // The system's menu button, at its own size (about 34 pt tall at the default
-                // text size; it does not grow with a frame).
+                // text size; it does not grow with a frame). The name stays on one line and
+                // takes the room left beside the title.
                 content
                     .stylingLabelFont()
-                    .frame(maxWidth: isStacked ? nil : StylingRowStyle.pickerMaxWidth, alignment: .trailing)
+                    .lineLimit(1)
+                    .minimumScaleFactor(StylingRowStyle.pickerMinimumScaleFactor)
+                    .layoutPriority(1)
             }
         }
     }
@@ -224,8 +230,10 @@ struct StylingToggleRow: View {
     var title: String
     var subtitle: String?
     @Binding var isOn: Bool
-    /// The secondary ink (`PhoneInk`) for the description.
+    /// The secondary ink (`StylingSheet.Inks`) for the description.
     var secondaryInk: Color
+    /// The switch's on fill: Lineform blue, as Settings' switches.
+    var switchFill: Color
 
     var body: some View {
         StylingControlRow {
@@ -244,6 +252,7 @@ struct StylingToggleRow: View {
                 if !isStacked { Spacer(minLength: 12) }
                 Toggle(title, isOn: $isOn)
                     .labelsHidden()
+                    .tint(switchFill)
             }
             .frame(minHeight: StylingRowStyle.minimumRowHeight - 2 * StylingRowStyle.rowVerticalInset)
         }

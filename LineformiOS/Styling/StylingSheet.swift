@@ -13,11 +13,22 @@ struct StylingSheet: View {
 
     static let detents: Set<PresentationDetent> = [.medium, .large]
 
-    /// The sheet's surface: the page colour on a light theme; on a dark one, a step darker than
-    /// the page (#1F1F1F), so the Quiet card (the page's own colour) never blends into the sheet.
-    /// Every ink on it is the page's readable ink, which only gains contrast on the darker ground.
+    /// How much darker than a light page the sheet is: its brightness times this (hue and
+    /// saturation kept, so Paper stays warm and Calm stays mint). White becomes #F2F2F2.
+    static let lightSurfaceBrightness: CGFloat = 0.95
+
+    /// The sheet's surface, always a step apart from the page so the sheet reads as its own
+    /// surface (owner review 4): on a light theme the page colour a little darker
+    /// (`lightSurfaceBrightness`); on a dark one #1F1F1F, so the Quiet card (the page's own
+    /// colour) never blends into the sheet. Every ink on it is measured on this surface
+    /// (`Inks`).
     static func surface(for theme: Theme) -> UIColor {
-        guard theme.usesDarkChrome else { return theme.backgroundColor }
+        guard theme.usesDarkChrome else {
+            let page = theme.backgroundColor.resolvedColor(with: UITraitCollection(userInterfaceStyle: .light))
+            var hue: CGFloat = 0, saturation: CGFloat = 0, brightness: CGFloat = 0, alpha: CGFloat = 0
+            guard page.getHue(&hue, saturation: &saturation, brightness: &brightness, alpha: &alpha) else { return page }
+            return UIColor(hue: hue, saturation: saturation, brightness: brightness * lightSurfaceBrightness, alpha: 1)
+        }
         let darker = UIColor(white: 0x1F / 255, alpha: 1)
         // A page darker still (Low Light) keeps its own colour: the sheet never gets lighter.
         return Theme.relativeLuminance(theme.backgroundColor) < Theme.relativeLuminance(darker) ? theme.backgroundColor : darker
@@ -100,11 +111,16 @@ struct StylingSheet: View {
         }
     }
 
-    private var theme: Theme { Theme.theme(for: store.activeProfile) }
-    /// The qualifier, value and description ink: the theme's ink made readable (AA) on its page.
-    private var secondaryInk: Color {
-        PhoneInk(theme: theme, userInterfaceStyle: theme.usesDarkChrome ? .dark : .light).secondary
-    }
+    /// The theme the page draws with — the DISPLAY theme (Automatic Dark Mode applied), the same
+    /// one the presentation's surface and colour scheme come from. Nil (tests) is the store's
+    /// own theme. Reading the store's theme here while the chrome used the display theme drew
+    /// Original's near-black labels on the dark sheet (owner review 4).
+    var displayTheme: Theme? = nil
+
+    private var theme: Theme { displayTheme ?? Theme.theme(for: store.activeProfile) }
+    private var inks: Inks { Inks(theme: theme) }
+    /// The qualifier, value and description ink, readable (AA) on the sheet's surface.
+    private var secondaryInk: Color { Color(uiColor: inks.secondary) }
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     /// Coalesces slider drags (`StylingDrag`).
     @State private var coalescer = ProfileUpdateCoalescer()
@@ -129,6 +145,8 @@ struct StylingSheet: View {
                         }
                         .labelsHidden()
                         .pickerStyle(.menu)
+                        // The chosen name is text: Lineform blue made readable on the sheet.
+                        .tint(Color(uiColor: inks.pickerInk))
                     }
 
                     sliderRow(Self.fontSizeTitle, \.fontSize, ReadingExperienceControls.fontSizeRange)
@@ -146,13 +164,15 @@ struct StylingSheet: View {
                         title: Self.readingRulerTitle,
                         subtitle: Self.readingRulerDescription,
                         isOn: bindings.toggle(\.readingRulerEnabled),
-                        secondaryInk: secondaryInk
+                        secondaryInk: secondaryInk,
+                        switchFill: Color(uiColor: inks.switchFill)
                     )
                     StylingToggleRow(
                         title: Self.typewriterModeTitle,
                         subtitle: Self.typewriterModeDescription,
                         isOn: bindings.toggle(\.typewriterModeEnabled),
-                        secondaryInk: secondaryInk
+                        secondaryInk: secondaryInk,
+                        switchFill: Color(uiColor: inks.switchFill)
                     )
 
                     StylingControlRow {
@@ -160,6 +180,7 @@ struct StylingSheet: View {
                             Text(Self.resetTitle).stylingLabelFont()
                         }
                         .buttonStyle(.bordered)
+                        .tint(Color(uiColor: inks.resetInk))
                     }
                     .padding(.top, Self.resetTopSpacing)
                 }
@@ -169,7 +190,8 @@ struct StylingSheet: View {
                 .frame(maxWidth: .infinity, alignment: .topLeading)
             }
         }
-        .foregroundStyle(Color(uiColor: theme.textColor))
+        // Every label ("Font", "Font Size", …) draws in the primary ink, measured on the surface.
+        .foregroundStyle(Color(uiColor: inks.primary))
         .onAppear { WordMenuTiming.end(.themes) }
         // A sheet dismissed mid-drag never reports the drag's end: end it here, or the Read view
         // would wait for it.
@@ -284,6 +306,63 @@ extension StylingSheet {
         /// Drops only the current preset's edits; the other presets keep theirs.
         func reset() {
             store.resetCurrentPreset()
+        }
+    }
+}
+
+extension StylingSheet {
+    /// Every ink on the sheet, each made readable on the sheet's own surface
+    /// (`StylingSheet.surface(for:)`), never on the page: text 4.5:1, the switch fill 3:1.
+    /// `StylingSheetTests.testEveryInkMeetsAAOnTheSheetInEveryDisplayTheme` measures `entries`.
+    @MainActor
+    struct Inks {
+        /// The sheet's surface, resolved for the theme's own appearance.
+        let surface: UIColor
+        /// The labels: Font, Font Size, Line Height, … Reset's title is `resetInk`.
+        let primary: UIColor
+        /// The qualifier, the values, the descriptions and the Themes label.
+        let secondary: UIColor
+        /// The Font menu's chosen name (the picker's tint): Lineform blue as text.
+        let pickerInk: UIColor
+        /// Reset to Default's title: Lineform blue as text, on its bordered fill.
+        let resetInk: UIColor
+        /// The bordered button's fill as it lands: the tint at `resetFillAlpha` over the surface.
+        let resetFill: UIColor
+        /// The switches' on fill: Lineform blue, as Settings' switches (`WordMenuPalette.blueFill`).
+        let switchFill: UIColor
+
+        /// A conservative stand-in for the bordered style's tinted fill.
+        static let resetFillAlpha: CGFloat = 0.2
+
+        init(theme: Theme) {
+            let style: UIUserInterfaceStyle = theme.usesDarkChrome ? .dark : .light
+            // Dynamic colours (the high-contrast theme) resolved for the forced appearance.
+            var sheet = PhoneInk(theme: theme, userInterfaceStyle: style).theme
+            let surface = StylingSheet.surface(for: sheet)
+            sheet.backgroundColor = surface
+            self.surface = surface
+            primary = sheet.readableInk(sheet.textColor, minimumRatio: PhoneInk.Role.textMinimum)
+            secondary = sheet.readableInk(sheet.textColor.withAlphaComponent(0.6), minimumRatio: PhoneInk.Role.textMinimum)
+            // Lineform blue as text, as the word menu's (`WordMenuPalette.blueText`).
+            let blue = sheet.usesDarkChrome
+                ? UIColor(red: 0x7F / 255, green: 0xA6 / 255, blue: 0xF5 / 255, alpha: 1)
+                : UIColor(red: 0x2F / 255, green: 0x6B / 255, blue: 0xDE / 255, alpha: 1)
+            pickerInk = sheet.readableInk(blue, minimumRatio: PhoneInk.Role.textMinimum)
+            let resetFill = PhoneInk.flatten(blue, alpha: Self.resetFillAlpha, over: surface)
+            self.resetFill = resetFill
+            resetInk = sheet.readableInk(blue, minimumRatio: PhoneInk.Role.textMinimum, on: resetFill)
+            switchFill = WordMenuPalette.forTheme(theme).blueFill
+        }
+
+        /// Every pair the contrast test measures.
+        var entries: [PhoneInk.Entry] {
+            [
+                PhoneInk.Entry(name: "primary", color: primary, surface: surface, minimumRatio: PhoneInk.Role.textMinimum),
+                PhoneInk.Entry(name: "secondary", color: secondary, surface: surface, minimumRatio: PhoneInk.Role.textMinimum),
+                PhoneInk.Entry(name: "picker", color: pickerInk, surface: surface, minimumRatio: PhoneInk.Role.textMinimum),
+                PhoneInk.Entry(name: "reset", color: resetInk, surface: resetFill, minimumRatio: PhoneInk.Role.textMinimum),
+                PhoneInk.Entry(name: "switchFill", color: switchFill, surface: surface, minimumRatio: PhoneInk.Role.nonTextMinimum),
+            ]
         }
     }
 }

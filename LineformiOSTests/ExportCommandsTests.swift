@@ -224,6 +224,7 @@ final class ExportCommandsTests: XCTestCase {
         commands.documentWillChange()
 
         XCTAssertEqual(commands.speechState, .idle)
+        XCTAssertEqual(commands.readAloudPill, .hidden, "a swap removes the pill, never leaves it finished")
         XCTAssertEqual(synthesizer.stopCount, 1)
         XCTAssertFalse(synthesizer.isSpeaking)
         XCTAssertEqual(audio.deactivations, 1)
@@ -258,12 +259,70 @@ final class ExportCommandsTests: XCTestCase {
         XCTAssertEqual(commands.speechState, .idle)
         XCTAssertEqual(audio.deactivations, 1)
 
+        XCTAssertEqual(commands.readAloudPill, .hidden, "✕ closes the pill")
+
         // Reading again, to the end: the finish returns to idle and lets the session go.
         commands.startReadingAloud(selection: nil, mode: .write)
         XCTAssertEqual(audio.activations, 2)
         synthesizer.finish()
         XCTAssertEqual(commands.speechState, .idle)
         XCTAssertEqual(audio.deactivations, 2)
+    }
+
+    /// Owner review 4: reaching the end leaves the pill up, finished, offering to read again; the
+    /// replay reads the same text from its beginning; only ✕ closes it.
+    func testFinishedReadingKeepsThePillAndReplaysFromTheStart() async {
+        let document = await preparedDocument()
+        let synthesizer = PhoneFakeSpeechSynthesizer()
+        let audio = PhoneFakeSpeechAudioSession()
+        let commands = commands(document, synthesizer: synthesizer, audio: audio)
+        document.edit("First line.\nSecond line.")
+        XCTAssertEqual(commands.readAloudPill, .hidden, "no pill before reading")
+
+        // From the caret on the second line to the end.
+        commands.startReadingAloud(selection: NSRange(location: 12, length: 0), mode: .write)
+        XCTAssertEqual(commands.readAloudPill, .reading)
+        commands.pauseOrResumeReading()
+        XCTAssertEqual(commands.readAloudPill, .paused)
+        commands.pauseOrResumeReading()
+        XCTAssertEqual(commands.readAloudPill, .reading)
+
+        synthesizer.finish()
+        XCTAssertEqual(commands.speechState, .idle)
+        XCTAssertEqual(commands.readAloudPill, .finished, "the pill stays after the end")
+        XCTAssertEqual(audio.deactivations, 1, "the audio is handed back while the pill waits")
+
+        // Edits after the end do not change what is read again.
+        document.edit("Changed.")
+        commands.pauseOrResumeReading()
+        XCTAssertEqual(commands.readAloudPill, .reading)
+        XCTAssertEqual(synthesizer.spokenTexts.count, 2)
+        XCTAssertEqual(synthesizer.spokenTexts[1], synthesizer.spokenTexts[0], "replay reads the same text from its start")
+        XCTAssertEqual(audio.activations, 2)
+
+        synthesizer.finish()
+        XCTAssertEqual(commands.readAloudPill, .finished)
+        commands.stopReading()
+        XCTAssertEqual(commands.readAloudPill, .hidden, "✕ closes the finished pill")
+        XCTAssertEqual(synthesizer.stopCount, 0, "nothing was reading to stop")
+        commands.replayReading()
+        XCTAssertEqual(synthesizer.spokenTexts.count, 2, "no replay once closed")
+    }
+
+    /// A swap closes the finished pill too.
+    func testDocumentSwapClosesTheFinishedPill() async {
+        let document = await preparedDocument()
+        let synthesizer = PhoneFakeSpeechSynthesizer()
+        let commands = commands(document, synthesizer: synthesizer)
+        document.edit("Read this aloud.")
+        commands.startReadingAloud(selection: nil, mode: .read)
+        synthesizer.finish()
+        XCTAssertEqual(commands.readAloudPill, .finished)
+
+        commands.documentWillChange()
+        XCTAssertEqual(commands.readAloudPill, .hidden)
+        commands.replayReading()
+        XCTAssertEqual(synthesizer.spokenTexts.count, 1)
     }
 
     /// A pause that lands at a word boundary after the user already resumed is undone, so audio

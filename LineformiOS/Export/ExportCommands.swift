@@ -30,6 +30,16 @@ final class LiveSpeechAudioSession: SpeechAudioSessionControlling {
     }
 }
 
+/// What the Read Aloud pill shows (`ExportCommands.readAloudPill`).
+enum ReadAloudPillState: Equatable {
+    /// No pill: nothing has been read, the writer closed it, or the document swapped.
+    case hidden
+    case reading
+    case paused
+    /// The reading reached its end; the pill stays and offers to read it again from the start.
+    case finished
+}
+
 /// What the Menu sheet calls: export a copy (HTML, PDF, Styled PDF, Rich Text), hand on the
 /// document's own file for Share, print, and read aloud.
 ///
@@ -61,6 +71,10 @@ final class ExportCommands {
     let printPaper: ExportPaperSize
     /// Read aloud's transport: idle, speaking or paused.
     private(set) var speechState: SpeechState
+    /// What the Read Aloud pill shows: hidden until reading starts, then reading, paused or
+    /// finished. Reaching the end leaves it `finished` (the pill stays, offering to read again);
+    /// only ✕ (`stopReading`) or a document swap (`documentWillChange`) hides it.
+    private(set) var readAloudPill: ReadAloudPillState
     /// The calm notice after an export failed, shown as long as the image notice
     /// (`OpenDocument.noticeDuration()`: longer while VoiceOver runs); nil otherwise.
     private(set) var failureNotice: String?
@@ -72,6 +86,8 @@ final class ExportCommands {
     @ObservationIgnored private let audioSession: any SpeechAudioSessionControlling
     @ObservationIgnored private var isAudioSessionActive: Bool
     @ObservationIgnored private var speechObservation: AnyCancellable?
+    /// The text the last reading spoke, so the finished pill can read it again from the start.
+    @ObservationIgnored private var lastSpokenText: String?
     @ObservationIgnored private var failureNoticeTask: Task<Void, Never>?
 
     init(
@@ -92,6 +108,8 @@ final class ExportCommands {
         paper = regional
         printPaper = regional
         speechState = speech.state
+        readAloudPill = .hidden
+        lastSpokenText = nil
         isAudioSessionActive = false
         speechObservation = nil
         failureNotice = nil
@@ -199,20 +217,40 @@ final class ExportCommands {
     func startReadingAloud(selection: NSRange?, mode: EditorDisplayMode) {
         guard let document else { return }
         let spoken = SpeechTextExtractor.spokenText(from: Self.speechSource(text: document.text, selection: selection, mode: mode))
+        speak(spoken)
+    }
+
+    /// The pill's pause/play: pauses or resumes; once reading has finished, reads the same text
+    /// again from its beginning.
+    func pauseOrResumeReading() {
+        if readAloudPill == .finished {
+            replayReading()
+        } else {
+            speech.pauseOrResume()
+        }
+    }
+
+    /// Reads what was last read again, from its beginning. Only after a reading has finished.
+    func replayReading() {
+        guard readAloudPill == .finished, let lastSpokenText else { return }
+        speak(lastSpokenText)
+    }
+
+    /// Ends reading and closes the pill (its ✕).
+    func stopReading() {
+        readAloudPill = .hidden
+        lastSpokenText = nil
+        speech.stop()
+    }
+
+    private func speak(_ spoken: String) {
         guard !spoken.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
         if !isAudioSessionActive {
             audioSession.activateForSpeech()
             isAudioSessionActive = true
         }
+        lastSpokenText = spoken
         speech.startSpeaking(spoken)
-    }
-
-    func pauseOrResumeReading() {
-        speech.pauseOrResume()
-    }
-
-    func stopReading() {
-        speech.stop()
     }
 
     /// The screen calls this whenever the document swaps file (New, open, a reload into another
@@ -236,6 +274,12 @@ final class ExportCommands {
 
     private func speechStateChanged(to state: SpeechState) {
         speechState = state
+        switch state {
+        case .speaking: readAloudPill = .reading
+        case .paused: readAloudPill = .paused
+        // The end of the text: the pill stays, offering to read again. A stop hid it first.
+        case .idle: if readAloudPill != .hidden { readAloudPill = .finished }
+        }
         if state == .idle, isAudioSessionActive {
             isAudioSessionActive = false
             audioSession.deactivateAfterSpeech()

@@ -368,8 +368,18 @@ Roadmap step 7 (plan `2026-11-22-iphone-styling-sheet.md` in the Lineform-mobile
 - **Entry.** The word menu's Themes (the "Aa" button is gone): the menu closes and the sheet
   opens over the page. Only the Mac's six presets show (Original, Quiet, Paper, Code, Calm, Focus),
   and the card the profile matches is selected.
-- **Sheet.** Page-coloured from the live profile's theme (on a dark theme a step darker, #1F1F1F,
-  `StylingSheet.surface(for:)`, with a white 0.26 edge on every preset card, so Quiet never blends), corner radius `LineformDesign.Radius.modal`
+- **Sheet.** Coloured from the DISPLAY theme (Automatic Dark Mode applied) and always a step
+  apart from the page (`StylingSheet.surface(for:)`, owner review 4): on a light theme the page
+  colour at 0.95 of its brightness, hue and saturation kept (white → #F2F2F2, Paper stays warm,
+  Calm stays mint); on a dark theme #1F1F1F, with a white 0.26 edge on every preset card, so Quiet
+  never blends. Every ink on it comes from `StylingSheet.Inks`, measured on that surface (labels,
+  values and descriptions 4.5:1; the Font menu's name and Reset in Lineform blue as text,
+  #2F6BDE / #7FA6F5 made readable; the switches `WordMenuPalette.blueFill`, as Settings'), in
+  every display theme (`StylingSheetTests.testEveryInkMeetsAAOnTheSheetInEveryDisplayTheme`). The
+  inks once came from the STORED profile while the surface came from the display one, so with
+  Automatic Dark Mode in a dark appearance Original's near-black labels sat on the dark sheet;
+  `DocumentScreen` passes the display theme to both. A font name is one line and takes the row's
+  width beside "Font" (shrinking to 0.85 at most, never capped). Corner radius `LineformDesign.Radius.modal`
   (20), detents medium and large, drag indicator, colour scheme forced from
   `Theme.usesDarkChrome` (never the system appearance). The page behind the medium detent is not
   dimmed and stays usable, so every change shows live. A Reconnect tapped there closes the sheet
@@ -1030,10 +1040,16 @@ Insert Table and Reformat Table left the menu (they belong with the selection ro
 
 ### Read Aloud
 
-`ReadAloudPill`, while `ExportCommands.speechState` is not idle: on the ⋯ button's line, from the
-left margin up to it. "Reading aloud" (or "Paused"), pause/play and ✕ (ends reading and closes the
-pill), each on a round page-colour background inside a 44 pt target; every glyph is an SF Symbol at
-one weight. The pill ALWAYS shows the words, pause/play and ✕: the two buttons keep their size
+`ReadAloudPill`, while `ExportCommands.readAloudPill` is not `.hidden`: on the ⋯ button's line,
+from the left margin up to it. "Reading aloud" (or "Paused", or "Finished reading"), pause/play
+(read again, ↺, once finished) and ✕ (ends reading and closes the pill), each on a round
+background inside a 44 pt target: the page colour on a light page, and on a dark page ink at 0.18
+over the pill's wash (`PhoneInk.readAloudButton`; the page colour was invisible there), the glyph
+measured at 3:1 on it (`PhoneInk.Role.onReadAloudButton`). Every glyph is an SF Symbol at one
+weight. Reaching the end does not hide the pill (owner review 4): it turns `.finished`, and its
+button reads the same text again from its beginning (`replayReading`, the text kept from the
+start). Only ✕ (`stopReading`) or a document swap (`documentWillChange`) hides it; the audio
+session is still handed back at the end. The pill ALWAYS shows the words, pause/play and ✕: the two buttons keep their size
 (`fixedSize`, layout priority) and only the words shrink in a narrow pill (owner review 2: a pill
 with only the ✕ was seen; verified in the simulator: reading, paused, both buttons). Nothing about
 it times out. `OpenDocument.onDocumentSwap` still stops reading on a swap.
