@@ -28,10 +28,35 @@ struct LineformiOSApp: App {
 
     @Environment(\.scenePhase) private var scenePhase
 
+    /// A file from Files or another app opens as is; a widget's `lineform://` link opens that
+    /// document or starts a new note.
+    @MainActor
+    static func handleOpen(_ url: URL, document: OpenDocument) async {
+        switch WidgetRecents.link(from: url) {
+        case .newNote:
+            try? await PhoneIntentRouter.shared.handle(.newNote(""))
+        case .open(let file):
+            await document.openReportingFailure(file)
+        case nil:
+            await document.openReportingFailure(url)
+        }
+    }
+
+    /// Writes the newest documents for the home-screen widget (titles and locations only).
+    static func refreshWidgetRecents() {
+        Task.detached(priority: .utility) {
+            let resolver = DocumentFolderResolver.live()
+            var roots: [(url: URL, location: String)] = []
+            if let cloud = resolver.iCloudFolder() { roots.append((cloud, String(localized: "iCloud"))) }
+            roots.append((resolver.deviceFolder, String(localized: "On My iPhone")))
+            WidgetRecents.save(WidgetRecents.newestDocuments(in: roots))
+        }
+    }
+
     var body: some Scene {
         WindowGroup {
             DocumentScreen(document: document, profileStore: profileStore, showsFirstRun: showsFirstRun)
-                .onOpenURL { url in Task { await document.openReportingFailure(url) } }
+                .onOpenURL { url in Task { await Self.handleOpen(url, document: document) } }
         }
         .onChange(of: scenePhase, initial: true) { _, phase in
             // The announcement check (once a day at most, gated by the setting) when the app
@@ -39,6 +64,8 @@ struct LineformiOSApp: App {
             if PhoneAnnouncementStore.checksOnSceneChange(to: phase, isRunningUnderTests: Self.isRunningUnderTests) {
                 Task { await PhoneAnnouncementStore.shared.checkIfNeeded(isEnabled: AppSettings.shared.checksForAnnouncements) }
             }
+            // The widget's list: on launch and whenever the app leaves (after the save).
+            if !Self.isRunningUnderTests, phase != .inactive { Self.refreshWidgetRecents() }
         }
     }
 }
