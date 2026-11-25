@@ -413,8 +413,9 @@ iPhone only. Details: `docs/architecture/iphone-app.md`.
   the Mac's router, made lazily (`LazyHistoryStore`: nothing at launch). Details:
   `docs/architecture/iphone-app.md`, "History".
 - **Word menu.** One ⋯ button (`MoreButton`) opens `WordMenu`, a full-screen overlay (never a
-  sheet) on the Mac Settings wash (`WordMenuPalette`: white → #F1F1F1, or #2A2A2A → #1C1C1C for
-  every dark theme; never on the document screen): Files, Outline, Markdown Basics, Themes,
+  sheet) on the Mac's modal field wash (`WordMenuPalette` from `ChromeWash`, the one definition the
+  Mac's ⌘K field uses: the theme's hue and two diagonals in light, one near-black wash for every
+  dark theme; never on the document screen): Files, Outline, Markdown Basics, Themes,
   Settings, Export & Print, Read Aloud, History (only with history), Connect Your AI, About
   Lineform. Opening it and navigation are INSTANT (no motion; `WordMenuTiming` measures the open,
   and nothing on that path may walk the document text — `WordMenuStatusCounts`,
@@ -424,7 +425,7 @@ iPhone only. Details: `docs/architecture/iphone-app.md`.
   fade (owner review 3, 2026-11-24). After a card or search result opens a document, a round
   ← (`ResumeMenuButton`, ⋯'s twin at the bottom left, "Back to Files") reopens the menu exactly
   where the writer was (`WordMenuSession`: page, search text and scope, scroll); it fades (0.22 s, as one
-  layer: `compositingGroup`) after 5 s or at the first keystroke, and never on a timer while VoiceOver runs. Markdown Basics is the
+  layer: `compositingGroup`) after 4 s or at the first keystroke, and never on a timer while VoiceOver runs. Markdown Basics is the
   mockup's grouped cards (name · Markdown · copy); the Themes sheet has no title; Settings' "Clear
   Version History" (same wording on the Mac) and "Show iCloud in Files" only when the iCloud
   container resolves. The caret and selection handles are the highlighter's blue

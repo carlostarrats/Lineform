@@ -783,9 +783,12 @@ puts the keyboard away first.
   thread while it is open (`WordMenuWarmUp`). Design source: the owner's TestFlight review, §14–§20 of
 `Lineform-mobile/docs/2026-11-23-iphone-testflight-feedback.md`, and `mockups/word-menu.html`.
 
-- **Surface.** The Mac Settings window's wash (`EditorChromeAndControls.cardGradient…`): white →
-  #F1F1F1 for every light theme, #2A2A2A → #1C1C1C (Quiet's tones) for every dark one
-  (`WordMenuPalette`, chosen by `Theme.usesDarkChrome`). Night = Quiet: there is one dark look. The
+- **Surface.** The Mac's modal field wash (⌘K's, `MuseModalScrim`), from the one shared definition
+  `ChromeWash` (LineformCore): a vertical base whose light hue follows the theme's
+  `chromeTintID` (#FFFFFF → #F1F7FF cool blue for System, Quiet and Night; Paper warm; Calm mint;
+  high contrast stays cool), crossed by the Mac's two diagonal washes at 20 %; every dark theme
+  has the one #313030 → #121212 wash (`WordMenuPalette`). Owner, 2026-11-24: the iPhone follows
+  the Mac's tint and theme rules. (It was the Settings window's neutral grey before.) The
   wash is on the word list and on every page of the menu, never on the document screen, and the
   Themes sheet stays a plain sheet. Every ink goes through `Theme.readableInk` on every surface it
   is drawn on (`WordMenuPalette.entries`, measured by `WordMenuTests.testPaletteContrast`): text

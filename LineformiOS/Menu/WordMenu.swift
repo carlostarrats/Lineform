@@ -122,19 +122,21 @@ struct WordMenu: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
             // Rows scrolling up pass under the status bar and Dynamic Island: the wash's top colour
             // covers that band and fades out just below it, as iOS's own scroll edges do.
+            // The band is the wash itself (the same full-screen frame as the one behind), shown
+            // through a mask: a solid band colour would not match the wash's diagonals.
             GeometryReader { geometry in
-                VStack(spacing: 0) {
-                    Rectangle()
-                        .fill(palette.color(palette.washTop))
-                        .frame(height: geometry.safeAreaInsets.top)
-                    LinearGradient(
-                        colors: [palette.color(palette.washTop), palette.color(palette.washTop).opacity(0)],
-                        startPoint: .top, endPoint: .bottom
-                    )
-                    .frame(height: 18)
-                }
-                .ignoresSafeArea(edges: .top)
-                .frame(maxHeight: .infinity, alignment: .top)
+                palette.wash
+                    .ignoresSafeArea()
+                    .mask(alignment: .top) {
+                        VStack(spacing: 0) {
+                            Rectangle()
+                                .frame(height: geometry.safeAreaInsets.top)
+                            LinearGradient(colors: [.black, .clear], startPoint: .top, endPoint: .bottom)
+                                .frame(height: 18)
+                            Spacer(minLength: 0)
+                        }
+                        .ignoresSafeArea(edges: .top)
+                    }
             }
             .allowsHitTesting(false)
             .accessibilityHidden(true)

@@ -2,18 +2,23 @@ import LineformCore
 import SwiftUI
 import UIKit
 
-/// The word menu's colours: the Mac Settings window's wash and the surfaces drawn on it. One light
-/// look for every light theme and one dark look (Quiet's tones) for every dark theme; the menu
-/// never takes the page's own colour, so the document screen never wears the wash.
+/// The word menu's colours: the Mac's modal field wash (`ChromeWash`, the same definition the Mac's
+/// ⌘K field draws from) and the surfaces drawn on it. The light wash takes the theme's hue (cool
+/// blue for System, Quiet and Night; warm for Paper; mint for Calm), crossed by the Mac's two
+/// diagonal washes; every dark theme has the one near-black wash. The menu never takes the page's
+/// own colour, so the document screen never wears the wash.
 ///
 /// Every ink is made readable on every surface it is drawn on with `Theme.readableInk` (text 4.5:1,
 /// the large grey words 3:1 as large text, marks 3:1). `WordMenuPaletteTests` measures them.
 struct WordMenuPalette {
     let isDark: Bool
+    /// The theme whose hue the light wash takes (`Theme.chromeTintID`).
+    let tintID: ThemeID
 
     // MARK: Surfaces
 
-    /// The wash, top to bottom: white → #F1F1F1, or #2A2A2A → #1C1C1C.
+    /// The wash's base, top to bottom (`ChromeWash.base`): #FFFFFF → #F1F7FF (Paper and Calm their
+    /// own hues), or #313030 → #121212.
     let washTop: UIColor
     let washBottom: UIColor
     /// Rows, grey cards (Markdown Basics, History) and the Read Aloud pill.
@@ -49,8 +54,15 @@ struct WordMenuPalette {
 
     var cardHasShadow: Bool { !isDark }
 
-    init(isDark: Bool) {
+    init(isDark: Bool, tintID: ThemeID = .system) {
         self.isDark = isDark
+        self.tintID = tintID
+        func washColor(_ c: ChromeWash.RGB) -> UIColor {
+            UIColor(red: CGFloat(c.red), green: CGFloat(c.green), blue: CGFloat(c.blue), alpha: 1)
+        }
+        let base = ChromeWash.base(for: tintID, usesDarkChrome: isDark)
+        washTop = washColor(base.top)
+        washBottom = washColor(base.bottom)
         func rgb(_ hex: UInt32) -> UIColor {
             UIColor(
                 red: CGFloat((hex >> 16) & 0xFF) / 255,
@@ -60,16 +72,12 @@ struct WordMenuPalette {
             )
         }
         if isDark {
-            washTop = rgb(0x2A2A2A)
-            washBottom = rgb(0x1C1C1C)
             soft = rgb(0x3B3B3B)
             card = rgb(0x3E3E3E)
             field = rgb(0x262626)
             hair = rgb(0x4A4A4A)
             ink = rgb(0xDBDBDB)
         } else {
-            washTop = rgb(0xFFFFFF)
-            washBottom = rgb(0xF1F1F1)
             soft = rgb(0xF2F3F5)
             card = rgb(0xFFFFFF)
             field = rgb(0xF1F2F4)
@@ -102,7 +110,7 @@ struct WordMenuPalette {
     }
 
     static func forTheme(_ theme: Theme) -> WordMenuPalette {
-        WordMenuPalette(isDark: theme.usesDarkChrome)
+        WordMenuPalette(isDark: theme.usesDarkChrome, tintID: theme.chromeTintID)
     }
 
     var colorScheme: ColorScheme { isDark ? .dark : .light }
@@ -111,9 +119,19 @@ struct WordMenuPalette {
 
     func color(_ ui: UIColor) -> Color { Color(uiColor: ui) }
 
-    /// The Mac Settings wash, top to bottom.
-    var wash: LinearGradient {
-        LinearGradient(colors: [color(washTop), color(washBottom)], startPoint: .top, endPoint: .bottom)
+    /// The wash: the base, top to bottom, crossed by the Mac field's two diagonal washes
+    /// (`ChromeWash.diagonal`, at `ChromeWash.diagonalOpacity`), as `MuseModalScrim` lays them.
+    var wash: some View {
+        let diagonal = ChromeWash.diagonal(usesDarkChrome: isDark)
+        func swatch(_ c: ChromeWash.RGB) -> Color { Color(.sRGB, red: c.red, green: c.green, blue: c.blue) }
+        func crossing(_ start: UnitPoint, _ end: UnitPoint) -> some View {
+            LinearGradient(colors: [swatch(diagonal.top), swatch(diagonal.bottom)], startPoint: start, endPoint: end)
+                .opacity(ChromeWash.diagonalOpacity)
+        }
+        return LinearGradient(colors: [color(washTop), color(washBottom)], startPoint: .top, endPoint: .bottom)
+            .overlay { crossing(.topLeading, .bottomTrailing) }
+            .overlay { crossing(.bottomLeading, .topTrailing) }
+            .allowsHitTesting(false)
     }
 
     // MARK: Contrast listing
