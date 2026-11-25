@@ -120,6 +120,10 @@ final class DocumentHistoryController: ObservableObject {
     /// on that store re-reads it, so no open editor keeps — or later writes back — cleared history.
     static let didClearAllNotification = Notification.Name("Lineform.historyDidClearAll")
     private var clearAllObservation: AnyCancellable?
+    private var movedOutObservation: AnyCancellable?
+    /// A move out of iCloud downloaded History this engine never saw (another device's record):
+    /// folded into the engine at the next save outside History mode, so that save keeps it.
+    private var pendingMovedHistory: DocumentHistory?
     /// Quit and window close persist what was typed into passages since the last save. Observed
     /// here — never wired in `applicationDidFinishLaunching` (the test host is the app).
     private var lifecycleObservations: [AnyCancellable] = []
@@ -133,6 +137,14 @@ final class DocumentHistoryController: ObservableObject {
             .publisher(for: Self.didClearAllNotification, object: store)
             .sink { [weak self] _ in
                 MainActor.assumeIsolated { self?.reloadFromStore() }
+            }
+        movedOutObservation = notificationCenter
+            .publisher(for: RoutingPassageHistoryStore.didMoveHistoryOutNotification)
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] note in
+                guard let url = note.userInfo?[RoutingPassageHistoryStore.movedHistoryURLKey] as? URL,
+                      let history = note.userInfo?[RoutingPassageHistoryStore.movedHistoryKey] as? DocumentHistory else { return }
+                MainActor.assumeIsolated { self?.adoptMovedHistory(history, for: url) }
             }
         lifecycleObservations = [
             notificationCenter.publisher(for: NSApplication.willTerminateNotification)
@@ -208,6 +220,7 @@ final class DocumentHistoryController: ObservableObject {
         }
         endHistoryModeWithoutEdit()
         self.url = url
+        pendingMovedHistory = nil
         self.documentID = documentID
         selectedID = nil
         rememberedPassageID = nil
@@ -739,7 +752,26 @@ final class DocumentHistoryController: ObservableObject {
         }
     }
 
+    /// The document moved out of iCloud and the router read every shared record: they join this
+    /// engine, so the next save keeps them. In History mode it waits for the next save.
+    func adoptMovedHistory(_ history: DocumentHistory, for movedURL: URL) {
+        guard url != nil, Self.sameFile(url, movedURL), !history.isEmpty else { return }
+        pendingMovedHistory = (pendingMovedHistory ?? DocumentHistory(passages: [])).merging(history, now: now())
+        // Without the editor's text the passages cannot be located: the next save folds it in.
+        guard !isHistoryModeActive, let text = editor?.string else { return }
+        persist(text: text)
+    }
+
+    private func foldInMovedHistory() {
+        guard let moved = pendingMovedHistory, !isHistoryModeActive else { return }
+        pendingMovedHistory = nil
+        engine = DocumentHistoryEngine(history: engine.history.merging(moved, now: now()), now: now)
+        hasStoreEntry = true
+        located = []
+    }
+
     private func persist(text: String) {
+        foldInMovedHistory()
         guard url != nil, !engine.history.isEmpty || hasStoreEntry else { return }
         if !engine.history.isEmpty {
             located = engine.locateAll(in: text)
@@ -749,6 +781,7 @@ final class DocumentHistoryController: ObservableObject {
     }
 
     private func save() {
+        foldInMovedHistory()
         guard let url, !engine.history.isEmpty || hasStoreEntry else { return }
         store.save(engine.history, for: url)
         hasStoreEntry = !engine.history.isEmpty

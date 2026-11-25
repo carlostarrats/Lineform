@@ -58,6 +58,18 @@ public final class RoutingPassageHistoryStore: PassageHistoryPersisting, @unchec
     private var pendingClearRead = false
     private var pendingClearDate: Date?
     private let queue = DispatchQueue(label: "com.lineform.history.shared", qos: .utility)
+    /// Moves out of the container wait for iCloud to download records (`loadForMove`): their own
+    /// queue, so a flush inside a background-task assertion never waits behind a download.
+    private let moveQueue = DispatchQueue(label: "com.lineform.history.move-out", qos: .utility)
+
+    /// Posted (object: this router, from a background queue) after a move out of the container
+    /// wrote the document's merged History locally. `userInfo`: `movedHistoryURLKey` (the new
+    /// URL) and `movedHistoryKey` (every shared record's History, those that had to be downloaded
+    /// included). The open document's controller folds it into its engine, so its next save does
+    /// not write the downloaded passages away.
+    public static let didMoveHistoryOutNotification = Notification.Name("LineformCore.historyDidMoveOutOfICloud")
+    public static let movedHistoryURLKey = "url"
+    public static let movedHistoryKey = "history"
 
     private struct BookmarkEntry: Codable, Equatable {
         var path: String
@@ -131,7 +143,7 @@ public final class RoutingPassageHistoryStore: PassageHistoryPersisting, @unchec
 
     /// D6: inside → inside moves every record to the new key; local → inside carries the local
     /// History in; inside → local saves the merged History locally and deletes the shared folder
-    /// only once that local copy is written.
+    /// only once that local copy is written AND every record was read (`moveOutOfContainer`).
     public func retarget(from old: URL, to new: URL) {
         switch (classify(old), classify(new)) {
         case (.local, .local):
@@ -139,20 +151,20 @@ public final class RoutingPassageHistoryStore: PassageHistoryPersisting, @unchec
         case let (.local, .shared(container, path)):
             _ = migrate(localURL: old, into: shared(container), path: path, bookmarking: new)
         case let (.shared(container, path), .local):
-            // Rare and chosen by the writer: every record is read, downloaded if need be, because
-            // the folder is deleted next.
+            // Rare and chosen by the writer. Every record is read, downloaded if need be (waiting,
+            // so on `moveQueue`, never the caller's thread), because the folder is deleted next.
             let store = shared(container)
-            let history = store.load(relativePath: path, downloading: true)
-            guard local.saveReportingSuccess(history, for: new) else { return }
-            store.remove(relativePath: path)
-            queue.async { [self] in forgetBookmark(for: old) }
+            moveQueue.async { [self] in moveOutOfContainer(store, path: path, from: old, to: new) }
         case let (.shared(oldContainer, oldPath), .shared(newContainer, newPath)):
             if sameContainer(oldContainer, newContainer) {
                 shared(oldContainer).move(from: oldPath, to: newPath)
             } else {
-                let from = shared(oldContainer)
-                shared(newContainer).merge(from.load(relativePath: oldPath, downloading: true), into: newPath) { written in
-                    if written { from.remove(relativePath: oldPath) }
+                let from = shared(oldContainer), to = shared(newContainer)
+                moveQueue.async {
+                    let (history, complete) = from.loadForMove(relativePath: oldPath)
+                    to.merge(history, into: newPath) { written in
+                        if written, complete { from.remove(relativePath: oldPath) }
+                    }
                 }
             }
             queue.async { [self] in
@@ -243,6 +255,29 @@ public final class RoutingPassageHistoryStore: PassageHistoryPersisting, @unchec
         }
     }
 
+    /// Inside → local, on `moveQueue`. The local History ∪ every shared record is written locally
+    /// (what the controller saved since the move is kept: add-wins). The shared folder is deleted
+    /// only when EVERY record was read — a record iCloud did not download in time (a
+    /// `.<device>.json.icloud` stub on iPhone, or a dataless file) would otherwise be lost with it.
+    /// Then the folder stays, and so does a sidecar bookmark under the OLD path that resolves to
+    /// the new one, so the session's next prune (`followBookmarks`) retries the move.
+    private func moveOutOfContainer(_ store: SharedPassageHistoryStore, path: String, from old: URL, to new: URL) {
+        let (fetched, complete) = store.loadForMove(relativePath: path)
+        let combined = local.load(for: new).merging(fetched, now: now())
+        guard local.saveReportingSuccess(combined, for: new) else { return }
+        if !fetched.isEmpty {
+            NotificationCenter.default.post(name: Self.didMoveHistoryOutNotification, object: self, userInfo: [
+                Self.movedHistoryURLKey: new, Self.movedHistoryKey: fetched,
+            ])
+        }
+        guard complete else {
+            queue.async { [self] in rememberBookmark(for: new, underPath: old) }
+            return
+        }
+        store.remove(relativePath: path)
+        queue.async { [self] in forgetBookmark(for: old) }
+    }
+
     /// The router's queued work (bookmarks, Clear History), then every shared store's writes,
     /// each retrying a held-back save once, then whatever their completions queued here.
     public func flushPendingWrites() {
@@ -254,6 +289,7 @@ public final class RoutingPassageHistoryStore: PassageHistoryPersisting, @unchec
     /// Waits for the router's background work and every shared store's queued writes (tests).
     func waitForBackgroundWork() {
         for _ in 0..<2 {
+            moveQueue.sync {}
             queue.sync {}
             for store in lock.withLock({ Array(sharedStores.values) }) { store.waitForBackgroundWork() }
         }
@@ -359,6 +395,20 @@ public final class RoutingPassageHistoryStore: PassageHistoryPersisting, @unchec
         lock.lock(); defer { lock.unlock() }
         if bookmarkedPaths == nil { bookmarkedPaths = Set(readBookmarks().map(\.path)) }
         if bookmarkedPaths?.contains(path) == true { return }
+        guard let bookmark = try? url.bookmarkData(options: [], includingResourceValuesForKeys: nil, relativeTo: nil) else { return }
+        var entries = readBookmarks()
+        entries.removeAll { $0.path == path }
+        entries.append(BookmarkEntry(path: path, bookmark: bookmark))
+        writeBookmarks(entries)
+    }
+
+    /// A move out of the container that could not read every record: the sidecar keeps an entry
+    /// named by the OLD (shared) path whose bookmark resolves to the document's new place, so
+    /// `followBookmarks` sees a move and retries it, and `pruneBookmarks` keeps it while the shared
+    /// folder exists.
+    private func rememberBookmark(for url: URL, underPath old: URL) {
+        let path = old.standardizedFileURL.path
+        lock.lock(); defer { lock.unlock() }
         guard let bookmark = try? url.bookmarkData(options: [], includingResourceValuesForKeys: nil, relativeTo: nil) else { return }
         var entries = readBookmarks()
         entries.removeAll { $0.path == path }

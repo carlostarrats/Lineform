@@ -186,6 +186,7 @@ final class LocalizationSourceSweepTests: XCTestCase {
             "Background-task debug name passed to beginBackgroundTask(withName:); only system diagnostics show it.",
         "OpenDocument.swift|Autosave could not write %@: %@": "os_log diagnostic (Logger.error), never drawn.",
         "OpenDocument.swift|Autosave could not rename %@: %@": "os_log diagnostic (Logger.error), never drawn.",
+        "OpenDocument.swift|iCloud did not download a file to open": "os_log diagnostic (Logger.error), never drawn.",
         "OpenDocument.swift|Save As could not stage a copy: %@": "os_log diagnostic (Logger.error), never drawn.",
         "FilesStore.swift|The Workspace bookmark no longer resolves": "os_log diagnostic (Logger.error), never drawn.",
         "FilesStore.swift|The stale Workspace bookmark could not be refreshed": "os_log diagnostic (Logger.error), never drawn.",

@@ -604,6 +604,137 @@ final class RoutingPassageHistoryStoreTests: XCTestCase {
         store.waitForBackgroundWork()
         XCTAssertFalse(FileManager.default.fileExists(atPath: bookmarksURL().path))
     }
+
+    // MARK: - Moving out with records iCloud has not downloaded
+
+    /// What a fake iCloud "downloads" for a waiting read: the bytes of a record by its logical
+    /// file name, while `available`; nil (a timeout) otherwise.
+    final class FakeICloud: @unchecked Sendable {
+        private let lock = NSLock()
+        private var records: [String: Data] = [:]
+        private var isAvailable: Bool
+        private var fetchedNames: [String] = []
+        init(available: Bool) { isAvailable = available }
+        var fetched: [String] { lock.lock(); defer { lock.unlock() }; return fetchedNames }
+        func hold(_ data: Data, as name: String) { lock.lock(); records[name] = data; lock.unlock() }
+        func setAvailable(_ value: Bool) { lock.lock(); isAvailable = value; lock.unlock() }
+        func fetch(_ url: URL) -> Data? {
+            lock.lock(); defer { lock.unlock() }
+            fetchedNames.append(url.lastPathComponent)
+            return isAvailable ? records[url.lastPathComponent] : nil
+        }
+    }
+
+    private func iCloudRouter(_ device: String, fetch: @escaping @Sendable (URL) -> Data?) -> RoutingPassageHistoryStore {
+        let clock = clock, container = container!
+        return RoutingPassageHistoryStore(
+            local: FilePassageHistoryStore(directory: localDirectory(device), isConfirmedMissing: { _ in false }),
+            containerProvider: { container },
+            bookmarkDirectory: localDirectory(device).deletingLastPathComponent().appendingPathComponent("HistoryShared"),
+            makeShared: { c in SharedPassageHistoryStore(
+                containerURL: c, device: device, now: { clock.now }, isConfirmedMissing: { _ in false },
+                isDownloaded: { _ in true }, conflicts: .none, fetchWaiting: fetch) },
+            now: { clock.now })
+    }
+
+    private func sharedFolder(_ relativePath: String) -> URL {
+        container.appendingPathComponent("History/v1/Documents")
+            .appendingPathComponent(SharedPassageHistoryStore.key(for: relativePath))
+    }
+
+    /// The Mac's record of `url`, evicted on this iPhone: only `.mac-A.json.icloud` is listed; its
+    /// bytes are what `iCloud` "downloads".
+    private func evictedMacRecord(for url: URL, _ saved: DocumentHistory, iCloud: FakeICloud) throws {
+        router("mac-A").saveAndWait(saved, for: url)
+        let folder = sharedFolder(url.lastPathComponent)
+        let record = folder.appendingPathComponent("mac-A.json")
+        iCloud.hold(try Data(contentsOf: record), as: "mac-A.json")
+        try FileManager.default.removeItem(at: record)
+        try Data("stub".utf8).write(to: folder.appendingPathComponent(".mac-A.json.icloud"))
+    }
+
+    private func passageIDs(_ history: DocumentHistory) -> Set<UUID> { Set(history.passages.map(\.id)) }
+
+    func testMoveOutDownloadsAStubRecordBeforeDeletingTheSharedFolder() throws {
+        let old = try file(documents.appendingPathComponent("a.md"))
+        let new = outside.appendingPathComponent("a.md")
+        let iCloud = FakeICloud(available: true)
+        let mac = history(["Mac 1", "Mac 2"]), phone = history(["Phone 1", "Phone 2"])
+        try evictedMacRecord(for: old, mac, iCloud: iCloud)
+        let store = iCloudRouter("iphone-B") { url in iCloud.fetch(url) }
+        store.saveAndWait(phone, for: old)
+        // What this iPhone can see before the move: its own passage only (the Mac's is a stub).
+        XCTAssertEqual(passageIDs(store.load(for: old)), passageIDs(phone))
+
+        try FileManager.default.moveItem(at: old, to: new)
+        store.retarget(from: old, to: new)
+        store.waitForBackgroundWork()
+
+        XCTAssertEqual(iCloud.fetched, ["mac-A.json"], "the stub is read by its logical name")
+        XCTAssertEqual(passageIDs(store.load(for: new)), passageIDs(mac).union(passageIDs(phone)))
+        XCTAssertEqual(sharedFolders(), [], "every record was read: the shared folder goes")
+    }
+
+    func testMoveOutKeepsTheSharedFolderWhileARecordCannotBeDownloaded() throws {
+        let old = try file(documents.appendingPathComponent("a.md"))
+        let new = outside.appendingPathComponent("a.md")
+        let iCloud = FakeICloud(available: false)
+        let mac = history(["Mac 1", "Mac 2"]), phone = history(["Phone 1", "Phone 2"])
+        try evictedMacRecord(for: old, mac, iCloud: iCloud)
+        let store = iCloudRouter("iphone-B") { url in iCloud.fetch(url) }
+        store.saveAndWait(phone, for: old)
+
+        try FileManager.default.moveItem(at: old, to: new)
+        store.retarget(from: old, to: new)
+        store.waitForBackgroundWork()
+
+        // Offline: what could be read is local now, and nothing was deleted.
+        XCTAssertEqual(passageIDs(store.load(for: new)), passageIDs(phone))
+        XCTAssertEqual(sharedFolders().count, 1)
+        XCTAssertTrue(FileManager.default.fileExists(
+            atPath: sharedFolder("a.md").appendingPathComponent(".mac-A.json.icloud").path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: bookmarksURL("iphone-B").path), "kept for the retry")
+
+        // Back online: the session's next prune follows the bookmark and finishes the move.
+        iCloud.setAvailable(true)
+        store.prune(now: clock.now)
+        store.waitForBackgroundWork()
+        XCTAssertEqual(passageIDs(store.load(for: new)), passageIDs(mac).union(passageIDs(phone)))
+        XCTAssertEqual(sharedFolders(), [])
+    }
+
+    func testMoveOutNeverWaitsOnTheCallersThread() throws {
+        let old = try file(documents.appendingPathComponent("a.md"))
+        let new = outside.appendingPathComponent("a.md")
+        let gate = DispatchSemaphore(value: 0)
+        let iCloud = FakeICloud(available: true)
+        try evictedMacRecord(for: old, history(["Mac 1", "Mac 2"]), iCloud: iCloud)
+        let store = iCloudRouter("iphone-B") { _ in gate.wait(); return nil }
+        try FileManager.default.moveItem(at: old, to: new)
+        let start = Date()
+        store.retarget(from: old, to: new)
+        XCTAssertLessThan(Date().timeIntervalSince(start), 1, "the download wait is on the move queue")
+        gate.signal()
+        store.waitForBackgroundWork()
+        XCTAssertEqual(sharedFolders().count, 1, "a record that timed out is never deleted")
+    }
+
+    func testMoveOutPostsTheDownloadedHistoryForTheOpenDocument() throws {
+        let old = try file(documents.appendingPathComponent("a.md"))
+        let new = outside.appendingPathComponent("a.md")
+        let iCloud = FakeICloud(available: true)
+        let mac = history(["Mac 1", "Mac 2"])
+        try evictedMacRecord(for: old, mac, iCloud: iCloud)
+        let store = iCloudRouter("iphone-B") { url in iCloud.fetch(url) }
+        let posted = expectation(forNotification: RoutingPassageHistoryStore.didMoveHistoryOutNotification, object: store) { note in
+            let history = note.userInfo?[RoutingPassageHistoryStore.movedHistoryKey] as? DocumentHistory
+            return note.userInfo?[RoutingPassageHistoryStore.movedHistoryURLKey] as? URL == new
+                && history.map { Set($0.passages.map(\.id)) } == Set(mac.passages.map(\.id))
+        }
+        try FileManager.default.moveItem(at: old, to: new)
+        store.retarget(from: old, to: new)
+        wait(for: [posted], timeout: 5)
+    }
 }
 
 private extension RoutingPassageHistoryStore {

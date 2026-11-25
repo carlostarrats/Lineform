@@ -117,10 +117,12 @@ struct FilesSearchResults: View {
     @Environment(\.wordMenuPalette) private var palette
     @Environment(\.wordMenuSession) private var session
 
-    /// The file a card stands for, for its swipe actions: another document's, or this one's.
+    /// The file a card stands for, for its swipe actions: another document's, or this one's. Its
+    /// iCloud placeholder flag is the real one (`FilesStore.listedItem`), so a card for a file not
+    /// downloaded yet offers no Move to Trash.
     private func item(for card: SearchResultCard) -> OutlineFileTreeItem? {
         guard let url = card.row.url ?? document.url else { return nil }
-        return OutlineFileTreeItem(url: url, name: url.lastPathComponent, isDirectory: false, children: [])
+        return store.listedItem(at: url)
     }
 
     var body: some View {
@@ -204,6 +206,12 @@ struct FilesSearchResults: View {
                 }
                 .filesSwipeAccessibilityActions(actions)
                 .filesSwipeActions(actions)
+            }
+            if let note = controller.notDownloadedNote {
+                Text(note)
+                    .font(.footnote)
+                    .foregroundStyle(palette.color(palette.secondary))
+                    .padding(.horizontal, 4)
             }
         }
     }

@@ -49,6 +49,9 @@ final class OpenDocument: ImageInsertionHost {
         case currentDocumentNotSaved
         /// A later open or New Document took over before this open finished.
         case superseded
+        /// iCloud could not download the file (offline, an iCloud error, or `downloadTimeout`
+        /// passed). The current document stays; `openNotice` says so.
+        case downloadFailed(URL)
     }
 
     /// The open file, or nil for a new document that has not been saved yet.
@@ -86,6 +89,10 @@ final class OpenDocument: ImageInsertionHost {
     /// listener needs the time to hear it out and swipe to it.
     static let voiceOverNoticeDuration: Duration = .seconds(15)
 
+    /// A short notice about an open that could not go ahead (a download that failed), shown like
+    /// the image notice and gone after `noticeDuration()`. The current document stayed.
+    private(set) var openNotice: String?
+
     /// How long a notice that goes away by itself (the image notice, a failed export) stays.
     static func noticeDuration(voiceOverRunning: Bool = UIAccessibility.isVoiceOverRunning) -> Duration {
         voiceOverRunning ? voiceOverNoticeDuration : imageNoticeDuration
@@ -95,6 +102,8 @@ final class OpenDocument: ImageInsertionHost {
     static let autosaveDelay: Duration = .seconds(1)
     /// How often a file iCloud is downloading is checked again.
     static let downloadPollInterval: Duration = .milliseconds(250)
+    /// How long an open waits for iCloud to download a file before it gives up.
+    static let defaultDownloadTimeout: Duration = .seconds(30)
 
     /// Where new documents save. Resolved off the main thread by `prepare`, because the live
     /// folder asks for the iCloud container.
@@ -108,6 +117,16 @@ final class OpenDocument: ImageInsertionHost {
     @ObservationIgnored private let reader: any DocumentDiskReading
     @ObservationIgnored private let writer: any DocumentFileWriting
     @ObservationIgnored private let ubiquitousItems: any UbiquitousItemAccessing
+    /// How long an open waits for a download (`defaultDownloadTimeout`; tests pass less).
+    @ObservationIgnored private let downloadTimeout: Duration
+    /// The open (`openGeneration`) whose download `downloadingName` shows. Every exit of THAT open
+    /// clears it, so the downloading state can never outlive the open that set it.
+    @ObservationIgnored private var downloadOwner: Int?
+    @ObservationIgnored private var openNoticeTask: Task<Void, Never>?
+    @ObservationIgnored private var identityObserver: (any NSObjectProtocol)?
+    @ObservationIgnored private let notificationCenter: NotificationCenter
+    /// Bumped by every activation reconcile, so only the latest one waits for a download.
+    @ObservationIgnored private var activationGeneration = 0
     /// The one resolution of the save folder that `prepare`, `flush` and the file list share.
     @ObservationIgnored private var folderTask: Task<URL, Never>?
     /// Bumped by every open and New Document, so an open still reading or downloading can tell
@@ -165,13 +184,36 @@ final class OpenDocument: ImageInsertionHost {
         reader: any DocumentDiskReading = FileSystemDiskReader(),
         writer: any DocumentFileWriting = FileSystemDocumentWriter(),
         ubiquitousItems: any UbiquitousItemAccessing = LiveUbiquitousItems(),
-        history: PhoneHistoryController? = nil
+        downloadTimeout: Duration = OpenDocument.defaultDownloadTimeout,
+        history: PhoneHistoryController? = nil,
+        notificationCenter: NotificationCenter = .default
     ) {
         self.folderProvider = folderProvider
         self.reader = reader
         self.writer = writer
         self.ubiquitousItems = ubiquitousItems
+        self.downloadTimeout = downloadTimeout
         self.history = history
+        self.notificationCenter = notificationCenter
+        // Signing in or out of iCloud (or the container arriving late) changes where new documents
+        // save: forget the resolved folder, so the next save resolves it again. Observing looks
+        // nothing up.
+        identityObserver = notificationCenter.addObserver(
+            forName: .NSUbiquityIdentityDidChange, object: nil, queue: nil
+        ) { [weak self] _ in
+            Task { @MainActor in self?.iCloudIdentityDidChange() }
+        }
+    }
+
+    isolated deinit {
+        if let identityObserver { notificationCenter.removeObserver(identityObserver) }
+    }
+
+    /// iCloud was signed into or out of, or the container became available: the save folder is
+    /// resolved again by the next save (or `resolveSaveFolder`). The open file is untouched.
+    func iCloudIdentityDidChange() {
+        folderTask = nil
+        saveFolder = nil
     }
 
     /// The document the app uses: new documents save into iCloud Drive's Lineform folder when it
@@ -306,6 +348,14 @@ final class OpenDocument: ImageInsertionHost {
         let generation = openGeneration
         opensInFlight += 1
         defer { opensInFlight -= 1 }
+        // Whatever way this open ends (opened, failed, superseded, cancelled), the downloading
+        // state it showed goes with it — unless a newer open's download shows now.
+        defer {
+            if downloadOwner == generation {
+                downloadOwner = nil
+                downloadingName = nil
+            }
+        }
         /// True when the restore must leave the document alone: the writer typed or opened something.
         func restoreMustYield() -> Bool {
             onlyIntoUntouchedDocument && (self.url != nil || !text.isEmpty)
@@ -341,24 +391,30 @@ final class OpenDocument: ImageInsertionHost {
                 guard generation == openGeneration else { throw OpenError.superseded }
                 // A restore never puts away a document the writer has typed into.
                 if restoreMustYield() { throw OpenError.superseded }
-                // The download can take a while: save and put away the current document first, so
-                // nothing typed meanwhile can be lost, and show the downloading state in its place.
-                guard await flush() else { throw OpenError.currentDocumentNotSaved }
-                guard generation == openGeneration else { throw OpenError.superseded }
-                if restoreMustYield() { throw OpenError.superseded }
-                closeCurrentDocument()
+                // The current document stays open (and keeps saving) until the new one's text is
+                // in hand: a download that fails, offline, then leaves it exactly as it was. The
+                // downloading state covers it meanwhile.
                 downloadingName = url.lastPathComponent
+                downloadOwner = generation
                 do {
                     try await Task.detached(operation: { try items.startDownloading(url) }).value
                 } catch {
                     // A failure after a newer action took over is that action's business.
                     guard generation == openGeneration else { throw OpenError.superseded }
-                    downloadingName = nil
-                    throw OpenError.unreadable(url)
+                    throw failDownload(url)
                 }
                 // Wait only until a local copy exists; a newer version then arrives as a reload.
-                while await Task.detached(operation: { items.downloadState(url) }).value == .notDownloaded {
+                // iCloud's own download error, or the timeout, ends the wait.
+                let deadline = ContinuousClock.now.advanced(by: downloadTimeout)
+                while true {
+                    let (state, failed) = await Task.detached(operation: {
+                        (items.downloadState(url), items.downloadFailed(url))
+                    }).value
                     guard generation == openGeneration else { throw OpenError.superseded }
+                    if state != .notDownloaded { break }
+                    // A cancelled open is not a failure to report: it simply ends.
+                    if Task.isCancelled { throw OpenError.superseded }
+                    if failed || ContinuousClock.now >= deadline { throw failDownload(url) }
                     try? await Task.sleep(for: Self.downloadPollInterval)
                     guard generation == openGeneration else { throw OpenError.superseded }
                 }
@@ -405,6 +461,28 @@ final class OpenDocument: ImageInsertionHost {
             // A version that landed between the read and the watch is not announced to the new
             // watcher: check disk once now that it is watched.
             scheduleReload()
+        }
+    }
+
+    /// An open's download failed: the calm notice, and the error to throw. The current document
+    /// was never put away.
+    private func failDownload(_ url: URL) -> OpenError {
+        log.error("iCloud did not download a file to open")
+        showOpenNotice(Self.downloadFailedNotice(for: url.lastPathComponent))
+        return .downloadFailed(url)
+    }
+
+    static func downloadFailedNotice(for name: String) -> String {
+        String(localized: "Couldn’t download “\(name)”. Check your connection and try again.")
+    }
+
+    private func showOpenNotice(_ message: String) {
+        openNotice = message
+        openNoticeTask?.cancel()
+        openNoticeTask = Task { [weak self] in
+            try? await Task.sleep(for: Self.noticeDuration())
+            guard !Task.isCancelled else { return }
+            self?.openNotice = nil
         }
     }
 
@@ -479,6 +557,9 @@ final class OpenDocument: ImageInsertionHost {
         do {
             try await open(url)
         } catch OpenError.currentDocumentNotSaved, OpenError.superseded {
+            return
+        } catch OpenError.downloadFailed {
+            // `openNotice` already says so, calmly; the current document stayed.
             return
         } catch {
             failedOpenURL = url
@@ -884,6 +965,38 @@ final class OpenDocument: ImageInsertionHost {
         return nil
     }
 
+    /// The scene became active again (the writer may have edited this file on another device
+    /// meanwhile): the Mac's "a clean tab reconciles with disk on activation". The file is read
+    /// again off the main thread through `applyExternalChange`, so unsaved edits are never
+    /// replaced (`DocumentReloadPolicy`). If iCloud says the local copy is not current, its
+    /// download starts and the document is reloaded once it is current (or `downloadTimeout`
+    /// passes; the watcher still applies a later arrival).
+    func reconcileWithDisk() async {
+        guard let url else { return }
+        activationGeneration += 1
+        let activation = activationGeneration
+        let opened = documentGeneration
+        await applyExternalChange()
+        let items = ubiquitousItems
+        guard documentGeneration == opened, self.url == url,
+              await Task.detached(operation: { items.downloadState(url) }).value == .localCopyNotCurrent
+        else { return }
+        try? await Task.detached(operation: { try items.startDownloading(url) }).value
+        let deadline = ContinuousClock.now.advanced(by: downloadTimeout)
+        while ContinuousClock.now < deadline {
+            try? await Task.sleep(for: Self.downloadPollInterval)
+            guard activation == activationGeneration, documentGeneration == opened, self.url == url, !Task.isCancelled
+            else { return }
+            let (state, failed) = await Task.detached(operation: {
+                (items.downloadState(url), items.downloadFailed(url))
+            }).value
+            if state == .current { break }
+            if failed { return }
+        }
+        guard activation == activationGeneration, documentGeneration == opened, self.url == url else { return }
+        await applyExternalChange()
+    }
+
     /// Coalesces a burst of presenter callbacks into one reload, `debounceInterval` after the last.
     private func scheduleReload() {
         reloadTask?.cancel()
@@ -1138,6 +1251,13 @@ enum UbiquitousDownloadState: Equatable, Sendable {
 protocol UbiquitousItemAccessing: Sendable {
     func downloadState(_ url: URL) -> UbiquitousDownloadState
     func startDownloading(_ url: URL) throws
+    /// True when iCloud reports an error downloading the item
+    /// (`ubiquitousItemDownloadingErrorKey`): an open waiting for it stops.
+    func downloadFailed(_ url: URL) -> Bool
+}
+
+extension UbiquitousItemAccessing {
+    func downloadFailed(_ url: URL) -> Bool { false }
 }
 
 struct LiveUbiquitousItems: UbiquitousItemAccessing {
@@ -1165,6 +1285,13 @@ struct LiveUbiquitousItems: UbiquitousItemAccessing {
     func startDownloading(_ url: URL) throws {
         let downloader: any UbiquitousItemDownloader = FileManager.default
         try downloader.startDownloadingUbiquitousItem(at: url)
+    }
+
+    func downloadFailed(_ url: URL) -> Bool {
+        // A fresh URL value each time: `URL` caches resource values per instance.
+        let fresh = URL(fileURLWithPath: url.path)
+        let values = try? fresh.resourceValues(forKeys: [.ubiquitousItemDownloadingErrorKey])
+        return values?.ubiquitousItemDownloadingError != nil
     }
 }
 

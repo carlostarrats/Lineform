@@ -79,6 +79,9 @@ final class SearchController {
     private(set) var replacementInsertions: [NSRange] = []
     private(set) var rows: [SearchRow] = []
     private(set) var isSearchingFiles = false
+    /// The last file search skipped iCloud documents that are not downloaded (their names were
+    /// still matched, their text was not read).
+    private(set) var skippedNotDownloadedFiles = false
 
     /// The scan this search started, if any (tests await it).
     @ObservationIgnored private(set) var pendingScan: Task<Void, Never>?
@@ -128,6 +131,12 @@ final class SearchController {
             .sink { [weak self] searching in
                 guard let self, isSearchingFiles != searching else { return }
                 isSearchingFiles = searching
+            }
+            .store(in: &subscriptions)
+        fileSearch.$skippedNotDownloaded
+            .sink { [weak self] skipped in
+                guard let self, skippedNotDownloadedFiles != skipped else { return }
+                skippedNotDownloadedFiles = skipped
             }
             .store(in: &subscriptions)
     }
@@ -428,6 +437,17 @@ final class SearchController {
         if searchesFiles, isSearchingFiles, files != nil { return String(localized: "Searching…") }
         if rows.isEmpty { return String(localized: "No matches") }
         return nil
+    }
+
+    /// The quiet line under the results when some iCloud documents could not be searched because
+    /// they are not downloaded. Nil otherwise, and while files are still being read.
+    var notDownloadedNote: String? {
+        guard !trimmedQuery.isEmpty, searchesFiles, files != nil, !isSearchingFiles, skippedNotDownloadedFiles else { return nil }
+        return Self.notDownloadedNoteText
+    }
+
+    static var notDownloadedNoteText: String {
+        String(localized: "Some iCloud documents aren’t downloaded, so their text wasn’t searched.")
     }
 
     private func announceStatus() {

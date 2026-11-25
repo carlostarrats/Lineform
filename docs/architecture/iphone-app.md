@@ -518,10 +518,21 @@ is dropped.
 ## Opening and iCloud downloads
 
 Every open reads through the injected `DocumentDiskReading` off the main thread. An iCloud file
-with no local copy yet (only its `.Name.md.icloud` placeholder) is handled first: the current
-document is saved and put away, `startDownloadingUbiquitousItem` runs on the real URL, the screen
-shows a quiet "Downloading…" state in place of the text, and the file is read once a local copy
-exists. A file with a full local copy that is not current (`.downloaded`, for example offline)
+with no local copy yet (only its `.Name.md.icloud` placeholder) is handled first:
+`startDownloadingUbiquitousItem` runs on the real URL, the screen shows a quiet "Downloading…" state
+over the page, and the file is read once a local copy exists. The current document is NOT put away
+first (since 2026-11-24): it stays open and keeps saving until the new one's text is in hand, and is
+saved and swapped only then. The wait ends on iCloud's own download error
+(`ubiquitousItemDownloadingErrorKey`, `UbiquitousItemAccessing.downloadFailed`) or after 30 s
+(`downloadTimeout`): `downloadingName` clears, the current document is exactly as it was, and a
+calm notice shows ("Couldn’t download “Name”. Check your connection and try again.",
+`OpenDocument.openNotice`, gone after `noticeDuration()`; `OpenError.downloadFailed`, never the
+open-failure alert). Before, offline, the screen said "Downloading…" forever and the previous
+document was already gone. `downloadingName` belongs to the open that set it (`downloadOwner`):
+EVERY exit of that open — opened, failed, superseded, cancelled — clears it unless a newer open's
+download shows, so it can never outlive its open (a newer open that superseded it and then failed
+its own save used to leave it over the page, swallowing every tap;
+`testSupersedingOpenThatCannotSaveStillClearsTheDownloadingState`). A file with a full local copy that is not current (`.downloaded`, for example offline)
 opens that copy at once; the download request keeps running, and the live-reload watcher plus
 `DocumentReloadPolicy` apply the current version when it arrives. A later open or New Document
 supersedes a pending one. A placeholder URL always maps to the real file.
@@ -533,6 +544,20 @@ the status lookup in front of every switch: measured in the simulator, a session
 took 296 ms, 287 of them in that lookup; with the read first it takes 8 ms
 (`OpenDocumentTests.testLocalCopyOpensWithoutWaitingForTheICloudStatus`). Only a file with no
 local copy still waits on iCloud.
+
+**Back in the foreground.** `scenePhase` `.active` with a file open calls
+`OpenDocument.reconcileWithDisk()`: the Mac's "a clean tab reconciles with disk on activation". It
+re-reads the file through `applyExternalChange` (off the main thread, `DocumentReloadPolicy`, so
+unsaved edits are never replaced), then asks iCloud; a `.localCopyNotCurrent` copy starts its
+download and is reloaded once current (or after the timeout; the watcher still applies a later
+arrival). Without it, an edit made on the Mac while the iPhone app was suspended showed only if the
+presenter happened to hear of it (`testReturningToTheAppShowsAnExternalChange`).
+
+**iCloud account changes.** `NSUbiquityIdentityDidChange` (sign-in, sign-out, a container that
+arrives late) clears `OpenDocument`'s resolved `saveFolder` and `folderTask`, so the next save
+resolves the folder again, and `FilesStore.iCloudIdentityDidChange` forgets `isICloudAvailable`
+and rescans when Files is on screen. Settings' `lookUpICloudAvailability` asks again every time it
+appears while the answer was no. Observing looks nothing up.
 
 ## Moves
 
@@ -923,10 +948,14 @@ puts the keyboard away first.
   iPhone** for one in iCloud. A folder row swipes to the move only. Both act at once (the Trash and
   moving back undo them) and are VoiceOver custom actions on the item. The swipe is a UIKit pan
   that begins only for a sideways movement, so a vertical drag still scrolls the page.
-- **Moving between roots** (`FilesStore.move(_:to:)`): the coordinated `.forMoving` move, never
-  replacing (a taken name gets a number, "Notes 2.md", `freeName`, case- and normalisation-blind).
-  The open document is saved first and follows the move (`userRenamed(to:)`), so typing continues
-  into the moved file. Workspace items and placeholders do not move.
+- **Moving between roots** (`FilesStore.move(_:to:)`): never replacing (a taken name gets a
+  number, "Notes 2.md", `freeName`, case- and normalisation-blind). Into or out of the iCloud
+  container it is `FileManager.setUbiquitous(true/false, itemAt:destinationURL:)`, off the main
+  thread (it coordinates itself); otherwise the coordinated `.forMoving` move. The open document is
+  saved first and follows the move (`userRenamed(to:)`), so typing continues into the moved file.
+  Workspace items and placeholders do not move, and nothing not downloaded does: a folder holding a
+  stub or a file that is not current, or an iCloud file that is not `.current` (its download
+  starts), is refused with a notice (files-sidebar.md ▸ iPhone ruling, 2026-11-24).
 - **New Folder** (dormant: no iPhone UI since 2026-11-24; `FilesStore.createFolder(named:in:)`):
   the shared `FileRenaming` name rule, then a coordinated create that never replaces (`createDirectory(withIntermediateDirectories: false)`), then
   a scan. The iPhone's scan lists a folder with nothing in it (`OutlineFileScanner.items(…,
@@ -949,7 +978,13 @@ puts the keyboard away first.
   folder ("Scanned folder: %@").
 - **Watching:** one `DocumentFolderMonitor` per visible root while Files is on screen.
 - **iCloud placeholders:** listed under their real names; opening one downloads it first. No
-  Rename, Trash or move until downloaded (`.notDownloaded`). The tree is not kept downloaded.
+  Rename, Trash or move until downloaded (`.notDownloaded`, always with the store's notice, and the
+  download started). Search cards carry the scan's real flag (`FilesStore.listedItem`), so a card
+  for a placeholder offers no Move to Trash. The tree is not kept downloaded.
+- **Search and files not downloaded:** content search reads a `.downloaded` file (a local copy,
+  not the latest) and skips a stub or dataless one; when any was skipped, the results end with
+  "Some iCloud documents aren’t downloaded, so their text wasn’t searched."
+  (`SearchController.notDownloadedNote`).
 
 ### Outline
 
@@ -1007,8 +1042,9 @@ Mac or a sidebar (`SettingsTests.testNoMacOrSidebarWordingInIPhoneStrings`).
   theme draws as Quiet. The stored profile keeps the writer's theme.
 - **Show iCloud in Files** (`showICloudInSidebar`, the Mac's key). New documents still save there.
   Shown only when this device's iCloud container resolves (`FilesStore.isICloudAvailable`, looked
-  up once off the main thread, `lookUpICloudAvailability`; `SettingsSection.shownRows`), so never
-  in Debug, which has no iCloud entitlement.
+  up off the main thread, `lookUpICloudAvailability`, again each time Settings appears while it did
+  not resolve, and after `NSUbiquityIdentityDidChange`; `SettingsSection.shownRows`), so never in
+  Debug, which has no iCloud entitlement.
 - **Check spelling while typing** (`checksSpellingWhileTyping`).
 - **In-app notifications** (`checksForAnnouncements`): it gates the announcement request itself.
 - **Check Document Now** left Settings (owner review 2026-11-24): it is the format row's **Check
@@ -1150,6 +1186,11 @@ History is local to this iPhone. History never writes into the document file.
   (it merges at a later load). When iOS has evicted this iPhone's own record
   (`.iphone-<UUID>.json.icloud`), the save is held (load still shows it) until the record is back,
   never written over it unread (`editor-behavior.md` § History, Sync).
+- **Moving a document to On My iPhone** reads every shared record first, downloading the Mac's
+  `.mac-….json.icloud` stubs (off the main thread, 30 s each), and deletes the shared History
+  folder only when all were read; otherwise the folder stays and the session's next prune retries.
+  The downloaded passages join the open document's engine (`adoptMovedHistory`)
+  (`editor-behavior.md` § History, Moves).
 - **Lifecycle.** `OpenDocument` drives the controller: open, close before a swap, persist after a
   save, `documentGotFile` when an Untitled document is first saved, `fileMoved` for the first-line
   rename, a user rename, a presenter move and Save As, `documentReloaded` for live reload (History

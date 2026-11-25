@@ -156,10 +156,11 @@ final class OpenDocumentTests: XCTestCase {
 
         let opening = Task { try await document.open(folder.appendingPathComponent(".Cloud.md.icloud")) }
         try await waitUntil { document.downloadingName == "Cloud.md" }
-        XCTAssertEqual(document.text, "", "the downloading state stands in place of the text")
+        XCTAssertEqual(document.text, "Typed before",
+                       "the current document stays (under the downloading state) until the new text is in hand")
+        try await opening.value
         XCTAssertEqual(try String(contentsOf: folder.appendingPathComponent("Typed before.md"), encoding: .utf8),
                        "Typed before", "the document put away was saved first")
-        try await opening.value
 
         XCTAssertEqual(cloud.startedURLs, [real], "the download is started on the real file")
         XCTAssertNil(document.downloadingName)
@@ -293,6 +294,159 @@ final class OpenDocumentTests: XCTestCase {
         XCTAssertEqual(try String(contentsOf: destination, encoding: .utf8), "Moving text, edited")
     }
 
+
+    // MARK: - Downloads that fail, and every exit clearing the downloading state
+
+    /// Offline, iCloud reports a download error: the open stops, the downloading state goes, the
+    /// document that was open stays exactly as it was, and a calm notice says why.
+    func testDownloadErrorKeepsTheCurrentDocumentAndShowsANotice() async throws {
+        let current = try write("Current text", named: "Current.md")
+        let real = folder.appendingPathComponent("Offline.md")
+        try write("", named: ".Offline.md.icloud")
+        let cloud = FakeUbiquitousItems(pending: [real], arrivingText: nil, reportsDownloadError: true)
+        let document = makeDocument(ubiquitousItems: cloud)
+        try await document.open(current)
+        document.edit("Current text, edited")
+
+        do {
+            try await document.open(real)
+            XCTFail("the download failed")
+        } catch {
+            XCTAssertEqual(error as? OpenDocument.OpenError, .downloadFailed(real))
+        }
+        XCTAssertNil(document.downloadingName)
+        XCTAssertEqual(document.url, current, "the current document was never put away")
+        XCTAssertEqual(document.text, "Current text, edited")
+        XCTAssertEqual(document.openNotice, OpenDocument.downloadFailedNotice(for: "Offline.md"))
+        XCTAssertNil(document.failedOpenURL)
+    }
+
+    /// iCloud never finishes and reports nothing: the open gives up after its timeout.
+    func testDownloadThatNeverCompletesTimesOut() async throws {
+        let current = try write("Current text", named: "Current.md")
+        let real = folder.appendingPathComponent("Forever.md")
+        let cloud = FakeUbiquitousItems(pending: [real], arrivingText: nil)
+        let document = OpenDocument(folderProvider: { [folder] in folder! }, ubiquitousItems: cloud,
+                                    downloadTimeout: .milliseconds(600))
+        try await document.open(current)
+
+        await document.openReportingFailure(real)
+
+        XCTAssertNil(document.downloadingName, "the downloading state never outlives the open")
+        XCTAssertEqual(document.url, current)
+        XCTAssertEqual(document.text, "Current text")
+        XCTAssertNotNil(document.openNotice)
+        XCTAssertNil(document.failedOpenURL, "a failed download is a notice, not the open-failure alert")
+    }
+
+    /// A newer open supersedes a download and then fails at its own save: the downloading state
+    /// the first open showed still goes (it used to stay over the page, swallowing every tap).
+    func testSupersedingOpenThatCannotSaveStillClearsTheDownloadingState() async throws {
+        let real = folder.appendingPathComponent("Never.md")
+        let other = try write("Other", named: "Other.md")
+        let cloud = FakeUbiquitousItems(pending: [real], arrivingText: nil)
+        let document = OpenDocument(folderProvider: { [folder] in folder! }, writer: FailingWriter(), ubiquitousItems: cloud)
+        await document.prepare()
+        document.edit("Unsaved, and the disk refuses it")
+
+        let downloading = Task { try await document.open(real) }
+        try await waitUntil { document.downloadingName == "Never.md" }
+        do {
+            try await document.open(other)
+            XCTFail("the current document could not be saved")
+        } catch {
+            XCTAssertEqual(error as? OpenDocument.OpenError, .currentDocumentNotSaved)
+        }
+        do {
+            try await downloading.value
+            XCTFail("the download was superseded")
+        } catch {
+            XCTAssertEqual(error as? OpenDocument.OpenError, .superseded)
+        }
+        XCTAssertNil(document.downloadingName)
+        XCTAssertEqual(document.text, "Unsaved, and the disk refuses it", "nothing typed was lost")
+    }
+
+    /// A cancelled open (its task cancelled while it waits) clears its downloading state too.
+    func testCancelledDownloadClearsTheDownloadingState() async throws {
+        let real = folder.appendingPathComponent("Cancelled.md")
+        let cloud = FakeUbiquitousItems(pending: [real], arrivingText: nil)
+        let document = makeDocument(ubiquitousItems: cloud)
+        let opening = Task { try await document.open(real) }
+        try await waitUntil { document.downloadingName != nil }
+        opening.cancel()
+        _ = try? await opening.value
+        XCTAssertNil(document.downloadingName)
+    }
+
+    // MARK: - Back in the foreground
+
+    /// The file changed on another device while the app was in the background (no presenter
+    /// callback came): becoming active reads it again and shows the change.
+    func testReturningToTheAppShowsAnExternalChange() async throws {
+        let url = try write("Before", named: "Away.md")
+        let document = makeDocument(ubiquitousItems: FakeUbiquitousItems(arrivingText: nil))
+        try await document.open(url)
+        // Not coordinated: the presenter hears nothing, as when iOS had the app suspended.
+        try Data("Edited on the Mac".utf8).write(to: url)
+
+        await document.reconcileWithDisk()
+
+        XCTAssertEqual(document.text, "Edited on the Mac")
+        XCTAssertEqual(document.lastSyncedText, "Edited on the Mac")
+    }
+
+    /// Unsaved edits are never replaced by the re-read (`DocumentReloadPolicy`).
+    func testReturningToTheAppKeepsUnsavedEdits() async throws {
+        let url = try write("Before", named: "Away.md")
+        let document = makeDocument(ubiquitousItems: FakeUbiquitousItems(arrivingText: nil))
+        try await document.open(url)
+        document.edit("Before, typed")
+        try Data("Edited on the Mac".utf8).write(to: url)
+
+        await document.reconcileWithDisk()
+
+        XCTAssertEqual(document.text, "Before, typed")
+    }
+
+    /// iCloud knows of a newer version than the local copy: becoming active starts its download
+    /// and reloads once it is current.
+    func testReturningToTheAppDownloadsANewerVersion() async throws {
+        let url = try write("Local copy", named: "Newer.md")
+        let cloud = FakeUbiquitousItems(arrivingText: "Current version", deliversImmediately: true)
+        let document = makeDocument(ubiquitousItems: cloud)
+        try await document.open(url)
+        // The open's own currency check (it found the copy current) has run.
+        try await Task.sleep(for: .milliseconds(200))
+        cloud.markOutdated(url)
+
+        await document.reconcileWithDisk()
+
+        XCTAssertEqual(cloud.startedURLs, [url])
+        XCTAssertEqual(document.text, "Current version")
+    }
+
+    // MARK: - iCloud account changes
+
+    /// Signing into or out of iCloud: the save folder is resolved again, so new documents go
+    /// where iCloud now says.
+    func testICloudIdentityChangeResolvesTheSaveFolderAgain() async throws {
+        let first = folder.appendingPathComponent("First", isDirectory: true)
+        let second = folder.appendingPathComponent("Second", isDirectory: true)
+        let answers = FolderAnswers([first, second])
+        let center = NotificationCenter()
+        let document = OpenDocument(folderProvider: { answers.next() }, ubiquitousItems: FakeUbiquitousItems(arrivingText: nil),
+                                    notificationCenter: center)
+        let resolved = await document.resolveSaveFolder()
+        XCTAssertEqual(resolved, first)
+
+        center.post(name: .NSUbiquityIdentityDidChange, object: nil)
+        try await waitUntil { document.saveFolder == nil }
+        let again = await document.resolveSaveFolder()
+        XCTAssertEqual(again, second)
+    }
+
+
     // MARK: - Helpers
 
     private func makeDocument(ubiquitousItems: any UbiquitousItemAccessing = LiveUbiquitousItems()) -> OpenDocument {
@@ -364,14 +518,17 @@ final class FakeUbiquitousItems: UbiquitousItemAccessing, @unchecked Sendable {
     private let arrivingText: String?
     private let deliversImmediately: Bool
     private let failsToStart: Bool
+    private var reportsDownloadError: Bool
     private var hold: Hold
     private var holding = false
     private let gate = DispatchSemaphore(value: 0)
 
     init(
         pending: Set<URL> = [], outdated: Set<URL> = [], arrivingText: String?,
-        deliversImmediately: Bool = false, failsToStart: Bool = false, hold: Hold = .none
+        deliversImmediately: Bool = false, failsToStart: Bool = false, reportsDownloadError: Bool = false,
+        hold: Hold = .none
     ) {
+        self.reportsDownloadError = reportsDownloadError
         self.pending = Set(pending.map(\.standardizedFileURL))
         self.outdated = Set(outdated.map(\.standardizedFileURL))
         self.arrivingText = arrivingText
@@ -381,6 +538,12 @@ final class FakeUbiquitousItems: UbiquitousItemAccessing, @unchecked Sendable {
     }
 
     var startedURLs: [URL] { lock.withLock { started } }
+
+    /// iCloud now says this local copy is not current (another device saved a newer version).
+    func markOutdated(_ url: URL) { _ = lock.withLock { outdated.insert(url.standardizedFileURL) } }
+
+    /// `ubiquitousItemDownloadingErrorKey`, as iCloud reports it offline.
+    func downloadFailed(_ url: URL) -> Bool { lock.withLock { reportsDownloadError } }
     var isHolding: Bool { lock.withLock { holding } }
     func release() { gate.signal() }
 
@@ -436,5 +599,15 @@ final class FakeUbiquitousItems: UbiquitousItemAccessing, @unchecked Sendable {
         } else {
             DispatchQueue.global().asyncAfter(deadline: .now() + 0.3) { deliver() }
         }
+    }
+}
+
+/// The save folder each lookup returns, in turn (the last one repeats).
+final class FolderAnswers: @unchecked Sendable {
+    private let lock = NSLock()
+    private var answers: [URL]
+    init(_ answers: [URL]) { self.answers = answers }
+    func next() -> URL {
+        lock.withLock { answers.count > 1 ? answers.removeFirst() : answers[0] }
     }
 }

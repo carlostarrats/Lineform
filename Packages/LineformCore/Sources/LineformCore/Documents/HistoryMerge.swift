@@ -74,6 +74,16 @@ enum HistoryMerge {
         var author: HistoryAuthor
     }
 
+    /// Two histories of ONE document as one, add-wins (a move out of the container: the local
+    /// History ∪ every shared record). `given` wins scalar ties, as in `SharedPassageHistoryStore.merge`.
+    static func union(_ given: DocumentHistory, _ other: DocumentHistory, now: Date) -> DocumentHistory {
+        func record(_ history: DocumentHistory, _ device: String) -> SharedHistoryRecord {
+            SharedHistoryRecord(format: SharedHistoryRecord.currentFormat, device: device, path: "", formerPaths: [],
+                                writtenAt: now, passages: history.passages, deletedVersions: [])
+        }
+        return merge([record(given, "0-given"), record(other, "1-other")], clearedAt: nil, now: now)
+    }
+
     static func merge(_ records: [SharedHistoryRecord], clearedAt: Date?, now: Date) -> DocumentHistory {
         // Rule 1: newest record first; ties by device. A future format is never read.
         let ordered = records
@@ -221,5 +231,15 @@ enum HistoryMerge {
             return index
         }
         return merged.count - 1
+    }
+}
+
+public extension DocumentHistory {
+    /// This history ∪ `other` (`HistoryMerge.union`; this one wins ties). Nothing is lost: every
+    /// passage and version of either is kept.
+    func merging(_ other: DocumentHistory, now: Date = Date()) -> DocumentHistory {
+        if other.isEmpty { return self }
+        if isEmpty { return other }
+        return HistoryMerge.union(self, other, now: now)
     }
 }

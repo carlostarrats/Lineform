@@ -7,32 +7,64 @@ public enum EditorSearchScope: Hashable {
     case allFiles
 }
 
+/// One candidate file's text for cross-file search, or why there is none.
+public enum CrossFileSearchRead: Equatable, Sendable {
+    case text(String)
+    /// An iCloud file with no local copy (a `.Name.icloud` stub, or dataless): not read, so its
+    /// text was not searched. The results say so (`skippedNotDownloaded`).
+    case notDownloaded
+    /// Too big, unreadable, or not UTF-8: skipped quietly.
+    case unreadable
+}
+
 /// Reads one candidate file's text for cross-file search, or nil to skip it.
 /// Abstracted (the UbiquitousItemDownloader pattern) so tests use an in-memory corpus.
 public protocol CrossFileSearchFileReading: Sendable {
     func readSearchableText(at url: URL) -> String?
+    /// The text, or why there is none. The default wraps `readSearchableText` (never
+    /// `.notDownloaded`).
+    func searchableRead(at url: URL) -> CrossFileSearchRead
 }
 
-/// Production reader. Skips: iCloud-evicted (dataless) files — searching them would
-/// force-download the container; files over `maximumByteCount` (1 MB — far beyond any
-/// real Markdown document) so one giant stray file can't stall a scan; anything
-/// unreadable or non-UTF-8.
+public extension CrossFileSearchFileReading {
+    func searchableRead(at url: URL) -> CrossFileSearchRead {
+        readSearchableText(at: url).map(CrossFileSearchRead.text) ?? .unreadable
+    }
+}
+
+/// Production reader. Skips: iCloud files with no local copy (a `.Name.icloud` stub, or
+/// dataless) — searching them would force-download the container; files over
+/// `maximumByteCount` (1 MB — far beyond any real Markdown document) so one giant stray file
+/// can't stall a scan; anything unreadable or non-UTF-8. A `.downloaded` file (a local copy that
+/// is not the latest version) IS read: its local copy is on disk and reading it downloads nothing.
 public struct CrossFileSearchFileReader: CrossFileSearchFileReading {
     static let maximumByteCount = 1_048_576
 
     public init() {}
 
     public func readSearchableText(at url: URL) -> String? {
-        if let values = try? url.resourceValues(forKeys: [.ubiquitousItemDownloadingStatusKey]),
-           let status = values.ubiquitousItemDownloadingStatus,
-           status != .current {
-            return nil
+        if case let .text(text) = searchableRead(at: url) { return text }
+        return nil
+    }
+
+    public func searchableRead(at url: URL) -> CrossFileSearchRead {
+        let fileManager = FileManager.default
+        if !fileManager.fileExists(atPath: url.path) {
+            let stub = url.deletingLastPathComponent().appendingPathComponent(".\(url.lastPathComponent).icloud")
+            return fileManager.fileExists(atPath: stub.path) ? .notDownloaded : .unreadable
+        }
+        // A fresh URL value: `URL` caches resource values per instance.
+        let fresh = URL(fileURLWithPath: url.path)
+        if let values = try? fresh.resourceValues(forKeys: [.ubiquitousItemDownloadingStatusKey]),
+           values.ubiquitousItemDownloadingStatus == .notDownloaded {
+            return .notDownloaded
         }
         guard let data = try? Data(contentsOf: url, options: .mappedIfSafe),
-              data.count <= Self.maximumByteCount else {
-            return nil
+              data.count <= Self.maximumByteCount,
+              let text = String(data: data, encoding: .utf8) else {
+            return .unreadable
         }
-        return String(data: data, encoding: .utf8)
+        return .text(text)
     }
 }
 
@@ -44,6 +76,9 @@ public struct CrossFileSearchFileReader: CrossFileSearchFileReading {
 public final class CrossFileSearchModel: ObservableObject {
     @Published public private(set) var results: [CrossFileSearchResult] = []
     @Published public private(set) var isSearching = false
+    /// True when the last search skipped at least one iCloud file that is not downloaded, so its
+    /// text was not searched (its name still was).
+    @Published public private(set) var skippedNotDownloaded = false
 
     private let reader: CrossFileSearchFileReading
     private let debounceInterval: TimeInterval
@@ -68,6 +103,7 @@ public final class CrossFileSearchModel: ObservableObject {
         guard !trimmed.isEmpty else {
             results = []
             isSearching = false
+            if skippedNotDownloaded { skippedNotDownloaded = false }
             return nil
         }
 
@@ -79,10 +115,11 @@ public final class CrossFileSearchModel: ObservableObject {
                 try? await Task.sleep(nanoseconds: UInt64(interval * 1_000_000_000))
             }
             guard !Task.isCancelled else { return }
-            let found = await Self.scan(entries: entries, query: trimmed, reader: reader)
+            let (found, skipped) = await Self.scan(entries: entries, query: trimmed, reader: reader)
             guard let self, !Task.isCancelled else { return }
             guard self.generation == expected else { return }
             self.results = found
+            if self.skippedNotDownloaded != skipped { self.skippedNotDownloaded = skipped }
             self.isSearching = false
         }
         pendingTask = task
@@ -95,6 +132,7 @@ public final class CrossFileSearchModel: ObservableObject {
         pendingTask = nil
         results = []
         isSearching = false
+        if skippedNotDownloaded { skippedNotDownloaded = false }
     }
 
     /// Reads and matches each candidate file. `nonisolated` (not `Task.detached`) so this
@@ -107,17 +145,23 @@ public final class CrossFileSearchModel: ObservableObject {
         entries: [QuickOpenEntry],
         query: String,
         reader: CrossFileSearchFileReading
-    ) async -> [CrossFileSearchResult] {
+    ) async -> (results: [CrossFileSearchResult], skippedNotDownloaded: Bool) {
         var collected: [CrossFileSearchResult] = []
+        var skipped = false
         for entry in entries {
-            guard !Task.isCancelled else { return collected }
+            guard !Task.isCancelled else { return (collected, skipped) }
             // A filename match must remain useful even when an iCloud file is evicted or
             // its contents cannot be read. Content search remains best-effort as before.
-            let text = reader.readSearchableText(at: entry.url)
+            var text: String?
+            switch reader.searchableRead(at: entry.url) {
+            case let .text(read): text = read
+            case .notDownloaded: skipped = true
+            case .unreadable: break
+            }
             if let result = CrossFileSearchResolver.result(for: entry, text: text, query: query) {
                 collected.append(result)
             }
         }
-        return CrossFileSearchResolver.ranked(collected)
+        return (CrossFileSearchResolver.ranked(collected), skipped)
     }
 }

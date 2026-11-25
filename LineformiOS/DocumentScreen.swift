@@ -96,6 +96,7 @@ struct DocumentScreen: View {
         if document.saveFailed { return String(localized: "Couldn’t save this document. Your text is still here.") }
         if let exportFailure = exportCommands?.failureNotice { return exportFailure }
         if document.imageSaveFailed { return String(localized: "Can't save images beside this document.") }
+        if let openNotice = document.openNotice { return openNotice }
         if let updateNotice = updateCommand.notice { return updateNotice }
         return nil
     }
@@ -442,6 +443,9 @@ struct DocumentScreen: View {
             if OpenDocument.savesImmediately(on: phase) { document.flushForBackground() }
             // Back in the foreground: an eligible prompt schedules again (never counts as use).
             if phase == .active { reviewPrompt.reconsiderPresentation() }
+            // The file may have changed on another device meanwhile: re-read it (off the main
+            // thread, never over unsaved edits), and bring iCloud's newer version in.
+            if phase == .active { Task { await document.reconcileWithDisk() } }
         }
         .task(id: reviewPrompt.activityRevision) {
             // A new write restarts the quiet period; the sheet comes up only with nothing in the way.
