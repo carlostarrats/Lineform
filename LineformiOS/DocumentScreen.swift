@@ -266,7 +266,8 @@ struct DocumentScreen: View {
                         .transition(.opacity)
                     }
                     // Read aloud's pill: on the ⋯ button's line, from the left margin up to it.
-                    if let exportCommands, exportCommands.speechState != .idle {
+                    // It stays after the end (to read again) until its ✕ or a document swap.
+                    if let exportCommands, exportCommands.readAloudPill != .hidden {
                         ReadAloudPill(commands: exportCommands, profile: profile)
                             .padding(.trailing, PreviewLinkButton.horizontalTouchOutset)
                     } else if resumeSession != nil {
@@ -370,7 +371,8 @@ struct DocumentScreen: View {
             if reconnectRange != nil, !isPickingReconnectImage { isPickingReconnectImage = true }
         }) {
             // The live profile's theme: the sheet recolours as a preset is picked.
-            StylingSheet(store: profileStore)
+            // The display theme for the inks too, so they always match the surface.
+            StylingSheet(store: profileStore, displayTheme: Theme.theme(for: profile))
                 .stylingSheetChrome(theme: Theme.theme(for: profile))
         }
         .fileImporter(

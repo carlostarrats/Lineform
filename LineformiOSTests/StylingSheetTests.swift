@@ -13,11 +13,65 @@ final class StylingSheetTests: XCTestCase {
     func testDarkSheetIsDarkerThanTheQuietCard() {
         let quiet = Theme.quiet
         XCTAssertLessThan(Theme.relativeLuminance(StylingSheet.surface(for: quiet)), Theme.relativeLuminance(quiet.backgroundColor))
-        XCTAssertEqual(StylingSheet.surface(for: .paper), Theme.paper.backgroundColor)
         XCTAssertEqual(StylingSheet.surface(for: .night), Theme.night.backgroundColor)
         // Every preset card has a visible edge on the dark sheet.
         let edge = StylingPresetCard.unselectedStrokeColor(usesDarkChrome: true)
         XCTAssertGreaterThan(edge.cgColor.alpha, 0.2)
+    }
+
+    /// Owner review 4: in a light theme the sheet is a step darker than the page, so it reads as
+    /// its own surface, and keeps the page's hue (Paper stays warm, Calm stays mint).
+    func testLightSheetIsAStepDarkerThanThePageInItsHue() {
+        for theme in Theme.builtIn where !theme.usesDarkChrome {
+            let page = theme.backgroundColor
+            let surface = StylingSheet.surface(for: theme)
+            var ph: CGFloat = 0, ps: CGFloat = 0, pb: CGFloat = 0, pa: CGFloat = 0
+            var sh: CGFloat = 0, ss: CGFloat = 0, sb: CGFloat = 0, sa: CGFloat = 0
+            XCTAssertTrue(page.getHue(&ph, saturation: &ps, brightness: &pb, alpha: &pa))
+            XCTAssertTrue(surface.getHue(&sh, saturation: &ss, brightness: &sb, alpha: &sa))
+            XCTAssertEqual(sb, pb * StylingSheet.lightSurfaceBrightness, accuracy: 0.002, theme.name)
+            XCTAssertEqual(ss, ps, accuracy: 0.002, "\(theme.name) keeps its saturation")
+            if ps > 0.01 { XCTAssertEqual(sh, ph, accuracy: 0.002, "\(theme.name) keeps its hue") }
+            XCTAssertLessThan(Theme.relativeLuminance(surface), Theme.relativeLuminance(page), theme.name)
+            // A step, not a different colour.
+            XCTAssertLessThan(Theme.contrastRatio(surface, page), 1.25, theme.name)
+        }
+        // Original's white page under a #F2F2F2 sheet.
+        var white: CGFloat = 0, alpha: CGFloat = 0
+        StylingSheet.surface(for: .system).getWhite(&white, alpha: &alpha)
+        XCTAssertEqual(white * 255, 0xF2, accuracy: 0.6)
+    }
+
+    /// Owner review 4: every text on the sheet reads at AA (4.5:1) and the switch fill at 3:1 on
+    /// the SHEET's surface, in every theme the page can show — the five built-in themes, the
+    /// high-contrast theme, and every theme as Automatic Dark Mode draws it — and the labels are
+    /// the display theme's, never the stored one's (Original's ink on the dark sheet was black
+    /// on black).
+    func testEveryInkMeetsAAOnTheSheetInEveryDisplayTheme() {
+        var themes: [(String, Theme)] = Theme.builtIn.map { ($0.name, $0) }
+        var highContrast = ReadingProfile.original
+        highContrast.highContrastEnabled = true
+        themes.append(("High Contrast", Theme.theme(for: highContrast)))
+        for theme in Theme.builtIn {
+            var profile = ReadingProfile.original
+            profile.themeID = theme.id
+            let display = AppSettings.displayProfile(profile, automaticDarkMode: true, userInterfaceStyle: .dark)
+            themes.append(("automatic dark from \(theme.name)", Theme.theme(for: display)))
+        }
+        for (name, theme) in themes {
+            let inks = StylingSheet.Inks(theme: theme)
+            for entry in inks.entries {
+                let ratio = Theme.contrastRatio(entry.color, entry.surface)
+                XCTAssertGreaterThanOrEqual(ratio, entry.minimumRatio, "\(entry.name) on \(name): \(String(format: "%.2f", ratio)):1")
+            }
+            XCTAssertEqual(inks.surface, StylingSheet.surface(for: PhoneInk(theme: theme, userInterfaceStyle: theme.usesDarkChrome ? .dark : .light).theme), name)
+        }
+        // The switches are Lineform blue, as in Settings.
+        XCTAssertEqual(StylingSheet.Inks(theme: .night).switchFill, WordMenuPalette.forTheme(.night).blueFill)
+        XCTAssertEqual(StylingSheet.Inks(theme: .paper).switchFill, WordMenuPalette.forTheme(.paper).blueFill)
+        // On the dark sheet the labels are light.
+        let dark = StylingSheet.Inks(theme: .quiet)
+        XCTAssertGreaterThan(Theme.relativeLuminance(dark.primary), 0.5)
     }
 
     func testSheetDetentsAreMediumAndLarge() {
