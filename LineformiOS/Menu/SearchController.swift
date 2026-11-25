@@ -439,6 +439,19 @@ final class SearchController {
         return nil
     }
 
+    /// The line shown above the results (the mockup's): "Searching…" while files are read, then
+    /// "No documents contain “x”." when nothing matched anywhere; for the open document alone,
+    /// "No matches in this document." Never the open document's count above the All documents
+    /// cards (its count lives in the field). `statusText` stays what VoiceOver announces.
+    var visibleStatusText: String? {
+        guard !trimmedQuery.isEmpty else { return nil }
+        if searchesFiles {
+            if isSearchingFiles, files != nil { return String(localized: "Searching…") }
+            return rows.isEmpty ? String(localized: "No documents contain “\(trimmedQuery)”.") : nil
+        }
+        return searchesDocument && matches.isEmpty ? String(localized: "No matches in this document.") : nil
+    }
+
     /// The quiet line under the results when some iCloud documents could not be searched because
     /// they are not downloaded. Nil otherwise, and while files are still being read.
     var notDownloadedNote: String? {

@@ -237,9 +237,24 @@ struct FilesSection: View {
         root.hasScanned ? recentDocuments(in: root.items) : []
     }
 
-    /// Recent: every shown root's own documents (not those in its folders), newest first.
+    /// How many cards Recent shows (the mockup's four).
+    static let recentLimit = 4
+
+    /// Recent: the newest documents inside the roots' folders, at most `recentLimit`. A root's own
+    /// documents already show as cards under its heading, so Recent never repeats them (owner
+    /// review 4: every root document appeared twice).
     static func recentDocuments(acrossRoots roots: [FilesRoot]) -> [OutlineFileTreeItem] {
-        recentDocuments(in: phoneRoots(roots).filter(\.hasScanned).flatMap(\.items))
+        let inFolders = phoneRoots(roots).filter(\.hasScanned).flatMap { root in
+            root.items.filter(\.isDirectory).flatMap { documentsBelow($0) }
+        }
+        return Array(recentDocuments(in: inFolders).prefix(recentLimit))
+    }
+
+    /// Every document inside `folder`, at any depth, from the scanned tree.
+    static func documentsBelow(_ folder: OutlineFileTreeItem) -> [OutlineFileTreeItem] {
+        folder.children.flatMap { child in
+            child.isDirectory ? documentsBelow(child) : [child]
+        }
     }
 
     /// A root's or folder's documents for its cards: files only, newest first (a file with no date
@@ -478,7 +493,9 @@ struct FilesSection: View {
             .padding(.horizontal, 12)
             .padding(.vertical, 7)
             .frame(minHeight: 36)
-            .background(Capsule().fill(palette.color(palette.field)))
+            // Dark: the field grey sinks into the wash, so the pill takes the row grey to stay a
+            // visible button (owner review 4).
+            .background(Capsule().fill(palette.color(palette.isDark ? palette.soft : palette.field)))
             .contentShape(Capsule())
             .frame(minHeight: WordMenuMetrics.minimumTarget)
         }
@@ -563,7 +580,7 @@ struct FilesSection: View {
         }
     }
 
-    /// Recent: both roots' own documents as cards, newest first.
+    /// Recent: the newest documents inside folders, as cards (`recentDocuments(acrossRoots:)`).
     @ViewBuilder
     private var recent: some View {
         let documents = Self.recentDocuments(acrossRoots: store.roots)
@@ -727,6 +744,16 @@ struct FilesSwipeAction: Identifiable {
         }
     }
 
+    /// The words drawn on the swipe button: short enough for one line on a folder row (a 46 pt
+    /// row cut "Move to On My iPhone" off). VoiceOver keeps the full `title`.
+    var shortTitle: String {
+        switch kind {
+        case .trash: String(localized: "Trash")
+        case .move(.icloud): String(localized: "To iCloud")
+        case .move: String(localized: "To iPhone")
+        }
+    }
+
     var isDestructive: Bool { kind == .trash }
 
     /// The swipe actions for `item`, like Mail's: Move to Trash for a downloaded file (never a
@@ -790,9 +817,9 @@ private struct FilesSwipeActions: ViewModifier {
                             VStack(spacing: 4) {
                                 Image(systemName: action.systemImage)
                                     .font(.body.weight(.medium))
-                                Text(action.title)
+                                Text(action.shortTitle)
                                     .font(.caption2.weight(.semibold))
-                                    .multilineTextAlignment(.center)
+                                    .lineLimit(1)
                                     .minimumScaleFactor(0.8)
                             }
                             .foregroundStyle(.white)

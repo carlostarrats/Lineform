@@ -134,7 +134,17 @@ final class WordMenuTests: XCTestCase {
         let cards = SearchResultCard.cards(from: rows, currentTitle: "Draft")
         XCTAssertEqual(cards.map(\.title), ["Draft", "Letter"])
         XCTAssertEqual(cards[0].row.id, "d1", "a tap goes to the first match")
-        XCTAssertEqual(cards[1].detail, "Notes")
+        XCTAssertEqual(cards[1].detail, "Notes", "no date for a file that isn't on disk")
+
+        // Like every card: folder · date, and the open document says it is open.
+        let dated = SearchResultCard.cards(
+            from: rows, currentTitle: "Draft", currentURL: folder.appendingPathComponent("Draft.md"),
+            rootNames: [folder.standardizedFileURL.path: "On My iPhone"],
+            modifiedDate: { _ in Date(timeIntervalSinceNow: -3600) }
+        )
+        XCTAssertTrue(dated[0].detail.hasPrefix("On My iPhone · "), dated[0].detail)
+        XCTAssertNotEqual(dated[1].detail, "Notes", "another document's card shows its date too")
+        XCTAssertTrue(dated[1].detail.hasPrefix("Notes · "), dated[1].detail)
     }
 
     func testStatusLineShowsSavedAndCounts() async throws {

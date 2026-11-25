@@ -7,7 +7,8 @@ import SwiftUI
 struct SearchResultCard: Identifiable, Equatable {
     var id: String
     var title: String
-    /// "In document" for this document; the folder for another.
+    /// Like every document card (`DocumentCard.detail`): "folder · date"; for the open document,
+    /// "folder · open now".
     var detail: String
     var snippet: CrossFileSearchSnippet?
     /// The row a tap activates.
@@ -17,7 +18,14 @@ struct SearchResultCard: Identifiable, Equatable {
     /// document's matches first, then file names, then file contents).
     /// `rootNames` names a root's top-level folder the way Files' headings do ("On My iPhone",
     /// "iCloud"), so a card never shows the container's folder name ("Documents").
-    static func cards(from rows: [SearchRow], currentTitle: String, rootNames: [String: String] = [:]) -> [SearchResultCard] {
+    static func cards(
+        from rows: [SearchRow], currentTitle: String, currentURL: URL? = nil, rootNames: [String: String] = [:],
+        modifiedDate: (URL) -> Date? = SearchResultCard.fileModifiedDate, now: Date = Date()
+    ) -> [SearchResultCard] {
+        func folderName(of url: URL) -> String {
+            let parent = url.deletingLastPathComponent().standardizedFileURL
+            return rootNames[parent.path] ?? parent.lastPathComponent
+        }
         var cards: [SearchResultCard] = []
         var indexByKey: [String: Int] = [:]
         for row in rows {
@@ -28,13 +36,19 @@ struct SearchResultCard: Identifiable, Equatable {
             case .inDocument:
                 key = "current"
                 title = currentTitle
-                detail = SearchRow.inDocumentIndicator
+                let openNow = String(localized: "open now")
+                detail = currentURL.map { String(localized: "\(folderName(of: $0)) · \(openNow)") } ?? openNow
             case .fileName, .fileContent:
                 guard let url = row.url else { continue }
                 key = url.standardizedFileURL.path
                 title = url.deletingPathExtension().lastPathComponent
-                let parent = url.deletingLastPathComponent().standardizedFileURL
-                detail = rootNames[parent.path] ?? parent.lastPathComponent
+                let folder = folderName(of: url)
+                if let date = modifiedDate(url) {
+                    let when = date.formatted(.relative(presentation: .named, unitsStyle: .abbreviated))
+                    detail = String(localized: "\(folder) · \(when)")
+                } else {
+                    detail = folder
+                }
             }
             if let index = indexByKey[key] {
                 // A file-name card picks up the first matching line when one arrives.
@@ -48,6 +62,11 @@ struct SearchResultCard: Identifiable, Equatable {
             cards.append(SearchResultCard(id: key, title: title, detail: detail, snippet: row.snippet, row: row))
         }
         return cards
+    }
+
+    /// A file's modification date, read fresh from disk (never a cached `URL` resource value).
+    static func fileModifiedDate(_ url: URL) -> Date? {
+        (try? FileManager.default.attributesOfItem(atPath: url.path))?[.modificationDate] as? Date
     }
 }
 
@@ -150,7 +169,7 @@ struct FilesSearchResults: View {
         let rows = controller.rows
         let count = controller.matches.count
         VStack(alignment: .leading, spacing: WordMenuMetrics.rowSpacing) {
-            if rows.isEmpty, let status = controller.statusText {
+            if rows.isEmpty, let status = controller.visibleStatusText {
                 Text(status)
                     .font(.footnote)
                     .foregroundStyle(palette.color(palette.secondary))
@@ -188,11 +207,11 @@ struct FilesSearchResults: View {
     @ViewBuilder
     private var cardList: some View {
         let cards = SearchResultCard.cards(
-            from: controller.rows, currentTitle: WordMenu.documentTitle(for: document.url),
+            from: controller.rows, currentTitle: WordMenu.documentTitle(for: document.url), currentURL: document.url,
             rootNames: Self.rootNames(store)
         )
         VStack(alignment: .leading, spacing: WordMenuMetrics.rowSpacing) {
-            if let status = controller.statusText {
+            if let status = controller.visibleStatusText {
                 Text(status)
                     .font(.footnote)
                     .foregroundStyle(palette.color(palette.secondary))
