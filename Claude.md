@@ -332,8 +332,12 @@ The iPhone app is the `LineformiOS` target in `Lineform.xcodeproj`, with its sou
 identifier (`com.lineform.app`), version and build, and links `LineformCore`. Minimum iOS 26.0,
 iPhone only, portrait only (owner, 2026-11-24). Details: `docs/architecture/iphone-app.md`.
 
-- **Scheme and tests.** The shared `LineformiOS` scheme runs `LineformiOS.xctestplan`:
+- **Scheme and tests.** The shared `LineformiOS` scheme runs `LineformiOS.xctestplan` by default:
   `xcodebuild test -project Lineform.xcodeproj -scheme LineformiOS -destination 'platform=iOS Simulator,name=iPhone 16 Pro,OS=26.5'`.
+  That everyday plan is the unit tests in English, with no UI tests and no performance suites.
+  `LineformiOSRelease.xctestplan` (`-testPlan LineformiOSRelease`) adds the German pass, the UI
+  accessibility audits and `PhonePerformanceBudgetTests`/`StylingPerformanceTests`. Run it only
+  before a TestFlight or App Store build, on a simulator with no leftover test documents.
   CI only builds these tests (`build-for-testing` for `generic/platform=iOS Simulator`). The Mac
   scheme and its archive never build the iOS target. Never link `LineformCoreTestSupport` into
   `LineformiOSTests`.
@@ -530,8 +534,8 @@ iPhone only, portrait only (owner, 2026-11-24). Details: `docs/architecture/ipho
   same `readableInk`, measured by `WordMenuTests`), never a bare `.opacity`/`.secondary` on text. Document text
   follows the reading profile and never tracks Dynamic Type; all chrome does. Anything drawn and
   hit-tested needs a non-visual path (custom actions or a rotor), and nothing a VoiceOver user
-  needs dismisses itself on a timer. `LineformiOSUITests` runs `performAccessibilityAudit()` locally
-  (CI only builds it). Details: `docs/architecture/iphone-app.md`, "Accessibility".
+  needs dismisses itself on a timer. `LineformiOSUITests` runs `performAccessibilityAudit()` in the
+  release plan only (CI only builds it). Details: `docs/architecture/iphone-app.md`, "Accessibility".
 - **Strings.** iPhone strings live in `LineformiOS/Localizable.xcstrings` (six languages), reusing
   the Mac's translation for the same English text. `LocalizationSourceSweepTests` scans
   `LineformiOS/` against that catalog. No iPhone string names a Mac or a sidebar
@@ -573,6 +577,17 @@ certificates, provisioning profiles, or sandbox/bookmark code. Current release s
   1.1.1 file-access bug).
 
 ## Verification Commands
+
+**What to test (owner, 2026-11-26).** This is a note-taking app. Its real failure points are
+losing or corrupting the writer's text: save, autosave, reload, files and folders, History, the AI
+applying an edit to the right text, Markdown editing on odd input (CRLF, a BOM, CJK, NFD), and
+export. Those get tests. Do not add tests that pin a design value (a spacing, size, radius, colour
+hex, icon name, animation end point) or that grep the app's own source for a line of code. The
+owner's simulator review catches design changes, and those tests break on every redesign.
+Thresholds that protect people (AA contrast, 44 pt targets, Reduce Motion) are fine. Every test
+plan has a 60-second per-test timeout, so a hung test fails instead of stalling the run for hours.
+Run only the suites that cover the change while building. Run the everyday plans once before a
+PR, and the release plans only before a TestFlight or App Store build.
 
 Two test plans (`Lineform.xctestplan`, `LineformHosted.xctestplan`). The split exists because a few
 tests host a real `NSWindow` + `NSHostingView`: load-sensitive and prone to test-host crashes.

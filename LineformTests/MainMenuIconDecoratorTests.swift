@@ -60,36 +60,6 @@ final class MainMenuIconDecoratorTests: XCTestCase {
         }
     }
 
-    /// View ▸ History is a SwiftUI `Button`, so it resolves by title — in every shipped locale,
-    /// which needs its English key in `allEnglishTitleKeys` too.
-    func testHistoryMenuItemHasIcon() {
-        let key = MainMenuIconDecorator.normalizedTitle(AppMenuConfiguration.historyCommandTitle)
-        XCTAssertEqual(MainMenuIconDecorator.symbolsByTitle["history"], "clock.arrow.circlepath",
-                       "the same glyph as the sidebar's History tab")
-        XCTAssertTrue(AppMenuConfiguration.allEnglishTitleKeys.contains("History"))
-        let item = NSMenuItem(title: AppMenuConfiguration.historyCommandTitle, action: nil, keyEquivalent: "")
-        XCTAssertEqual(MainMenuIconDecorator.symbolName(for: item), "clock.arrow.circlepath", "key \"\(key)\"")
-        for language in ["es", "fr", "de", "ja", "zh-Hans"] {
-            XCTAssertNotNil(MainMenuIconDecorator.localizedAliases(languageCode: language)["history"],
-                            "\(language): View ▸ History has no localized title to match")
-        }
-    }
-
-    /// Lineform ▸ Check for Updates… is a SwiftUI `Button`, so it resolves by title — in every
-    /// shipped locale, which needs its English key (real "…", U+2026) in `allEnglishTitleKeys`.
-    func testCheckForUpdatesMenuItemHasIcon() {
-        XCTAssertEqual(AppMenuConfiguration.checkForUpdatesCommandTitle, "Check for Updates\u{2026}")
-        XCTAssertEqual(MainMenuIconDecorator.normalizedTitle("Check for Updates…"), "check for updates")
-        XCTAssertEqual(MainMenuIconDecorator.symbolsByTitle["check for updates"], "arrow.down.circle")
-        XCTAssertTrue(AppMenuConfiguration.allEnglishTitleKeys.contains("Check for Updates\u{2026}"))
-        let item = NSMenuItem(title: AppMenuConfiguration.checkForUpdatesCommandTitle, action: nil, keyEquivalent: "")
-        XCTAssertEqual(MainMenuIconDecorator.symbolName(for: item), "arrow.down.circle")
-        for language in ["es", "fr", "de", "ja", "zh-Hans"] {
-            XCTAssertNotNil(MainMenuIconDecorator.localizedAliases(languageCode: language)["check for updates"],
-                            "\(language): Check for Updates has no localized title to match")
-        }
-    }
-
     /// `allEnglishTitleKeys` is hand-maintained and is how the decorator learns each of our
     /// own rows' LOCALIZED title. A key left out costs that row its icon in every non-English
     /// locale, invisibly — nothing about the English build changes.

@@ -3,22 +3,15 @@
     {
       "id" : "5A1E4B2C-0000-4000-8000-000000000101",
       "name" : "Default",
-      "options" : {
-
-      }
-    },
-    {
-      "id" : "5A1E4B2C-0000-4000-8000-000000000102",
-      "name" : "de",
-      "options" : {
-        "language" : "de",
-        "region" : "DE"
-      }
+      "options" : {}
     }
   ],
   "defaultOptions" : {
     "language" : "en",
-    "region" : "US"
+    "region" : "US",
+    "testTimeoutsEnabled" : true,
+    "defaultTestExecutionTimeAllowance" : 60,
+    "maximumTestExecutionTimeAllowance" : 120
   },
   "testTargets" : [
     {
@@ -26,14 +19,11 @@
         "containerPath" : "container:Lineform.xcodeproj",
         "identifier" : "1F0000430000000000000002",
         "name" : "LineformiOSTests"
-      }
-    },
-    {
-      "target" : {
-        "containerPath" : "container:Lineform.xcodeproj",
-        "identifier" : "1F0000E20000000000000008",
-        "name" : "LineformiOSUITests"
-      }
+      },
+      "skippedTests" : [
+        "PhonePerformanceBudgetTests",
+        "StylingPerformanceTests"
+      ]
     }
   ],
   "version" : 1

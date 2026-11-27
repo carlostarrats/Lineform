@@ -78,11 +78,6 @@ final class StylingSheetTests: XCTestCase {
         XCTAssertEqual(StylingSheet.detents, [.medium, .large])
     }
 
-    func testSheetCornerRadiusIsModal() {
-        XCTAssertEqual(StylingSheet.cornerRadius, 20)
-        XCTAssertEqual(StylingSheet.cornerRadius, LineformDesign.Radius.modal)
-    }
-
     func testSheetColorSchemeFollowsTheme() {
         // A pure function of the theme: there is no trait collection to consult, so the sheet is
         // dark for Quiet and light for Original whatever the system appearance is.
