@@ -1723,8 +1723,11 @@ go through `WholeDocumentAIPolicy`; nothing is sent while the writer types.
   notification for its window), and any AI action that starts elsewhere (the context menu's
   Rewrite / Proofread / Find: the drawer opens on `.running`). Aa switches the slot back; a
   disconnect closes the drawer. The drawer has a ✕ and no title.
-- iPhone: a sheet (`AISheetView`, `LineformiOS/AI/AISheet.swift`) that opens at three-quarters and
-  drags to half or a quarter (`presentationDetents`) without closing; no ✕ (drag down to close).
+- iPhone: the AI split (2026-11-26; `AISplit` with `AISheetView` as its card,
+  `LineformiOS/AI/AISheet.swift`): the page becomes a rounded top card and the conversation a card
+  under it; the grabber drags it up to a sheet or down to close; no ✕. The Mac view takes
+  `phoneLayout` (`AIPhoneLayout`) only there: the quick actions scroll inside the card, and while
+  the writer types to the AI they go and the field grows. Details: `iphone-app.md` § AI actions.
   Ask AI on the selection row opens it (`SelectionController.openAISheet`; the row goes, the
   selection stays). Menu ▸ Ask AI… runs the whole-document policy first, collapses the selection to
   a caret and opens it; the count the writer confirmed is not asked again

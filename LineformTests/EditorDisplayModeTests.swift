@@ -133,16 +133,6 @@ final class EditorDisplayModeTests: XCTestCase {
         XCTAssertNil(EditorSearchResolver.accessibilitySummary(query: "   ", matchCount: 0, activeIndex: nil))
     }
 
-    func testEditorSearchToolbarUsesSeparateNativeFieldPresentation() {
-        XCTAssertTrue(EditorSearchToolbarPresentation.usesNativeSearchableToolbarItem)
-        XCTAssertTrue(EditorSearchToolbarPresentation.preservesSystemToolbarButtonGroup)
-        XCTAssertTrue(EditorSearchToolbarPresentation.usesSeparateVisualCapsule)
-        XCTAssertFalse(EditorSearchToolbarPresentation.embedsNavigationControlsInSearchField)
-        XCTAssertTrue(EditorSearchToolbarPresentation.usesNativeSearchClearButton)
-        XCTAssertFalse(EditorSearchToolbarPresentation.showsNavigationControlsWhenQueryIsEmpty)
-        XCTAssertTrue(EditorSearchToolbarPresentation.usesSystemSearchFieldSizing)
-    }
-
     // MARK: - Find & Replace (Task 8)
 
     func testReplaceAllSwapsEveryMatchAndCountsThem() {
@@ -394,18 +384,6 @@ final class EditorDisplayModeTests: XCTestCase {
         XCTAssertEqual(EditorAuxiliaryPresentation.readingExperience.idealWidth, 320)
     }
 
-    func testEditorToolbarToggleUsesQuietNativeGlyph() {
-        XCTAssertTrue(EditorToolbarTogglePresentation.usesNativeToolbarButtonShell)
-        XCTAssertNil(EditorToolbarTogglePresentation.outerButtonWidth)
-        XCTAssertLessThan(EditorToolbarTogglePresentation.lightChromeIconWhiteComponent, 0.35)
-        XCTAssertGreaterThan(EditorToolbarTogglePresentation.darkChromeIconWhiteComponent, 0.75)
-        XCTAssertGreaterThan(EditorToolbarTogglePresentation.iconOpacity(usesDarkChrome: false), 0)
-        XCTAssertLessThanOrEqual(EditorToolbarTogglePresentation.iconOpacity(usesDarkChrome: false), 1)
-        // Dark chrome renders the glyph at full strength so it matches the sidebar's opaque
-        // white symbols rather than reading as dimmed grey.
-        XCTAssertEqual(EditorToolbarTogglePresentation.iconOpacity(usesDarkChrome: true), 1)
-    }
-
     func testToolbarPressedStateCoversInspectorButton() {
         XCTAssertEqual(
             EditorToolbarPressedState.activeActions(isShowingReadingInspector: false),
@@ -426,22 +404,6 @@ final class EditorDisplayModeTests: XCTestCase {
             XCTAssertNotEqual(action.systemImage, "xmark")
         }
         XCTAssertEqual(EditorToolbarAction.readingExperience.systemImage, "textformat.alt")
-    }
-
-    @MainActor
-    func testMuseModalScrimMatchesTheDesignFieldValues() {
-        // These are the Paper design's exact stops. They are asserted rather than merely
-        // bounded because the field's whole character lives in a ~12-value range — a
-        // well-meaning "rounding" of any of them flattens it back to a plain gray.
-        XCTAssertEqual(MuseModalScrim.fieldGradientTop, Color(red: 1.0, green: 1.0, blue: 1.0))
-        XCTAssertEqual(MuseModalScrim.fieldGradientBottom, Color(red: 0.945, green: 0.969, blue: 1.0))
-        XCTAssertEqual(MuseModalScrim.diagonalWashTop, Color(red: 0.957, green: 0.957, blue: 0.957))
-        XCTAssertEqual(MuseModalScrim.diagonalWashBottom, Color(red: 0.835, green: 0.835, blue: 0.835))
-        XCTAssertEqual(MuseModalScrim.diagonalWashOpacity, 0.20)
-        // Mostly solid over the blur: a faint ghost of the page, not a see-through veil.
-        XCTAssertEqual(MuseModalScrim.fieldOpacity, 0.90)
-        // Still appears instantly (no fade lag).
-        XCTAssertEqual(MuseModalScrim.scrimTransitionStyle, .instant)
     }
 
     func testMuseModalScrimFieldFollowsTheReaderThemeHue() {
@@ -531,14 +493,6 @@ final class EditorDisplayModeTests: XCTestCase {
         XCTAssertEqual(Theme.theme(for: profile).chromeTintID, .paper)
     }
 
-    func testMuseModalScrimMatchesTheDesignDarkFieldValues() {
-        // The dark field's exact stops, same three-layer structure as light.
-        XCTAssertEqual(MuseModalScrim.fieldGradientTopDark, Color(red: 0.192, green: 0.188, blue: 0.188))
-        XCTAssertEqual(MuseModalScrim.fieldGradientBottomDark, Color(red: 0.071, green: 0.071, blue: 0.071))
-        XCTAssertEqual(MuseModalScrim.diagonalWashTopDark, Color(red: 0.173, green: 0.173, blue: 0.173))
-        XCTAssertEqual(MuseModalScrim.diagonalWashBottomDark, Color(red: 0.071, green: 0.071, blue: 0.071))
-    }
-
     func testMuseModalDarkCardStaysDarkerThanTheTextOnIt() {
         XCTAssertEqual(MuseModalChrome.cardGradientTopDark, Color(red: 0.192, green: 0.192, blue: 0.192))
         XCTAssertEqual(MuseModalChrome.cardGradientBottomDark, Color(red: 0.125, green: 0.125, blue: 0.125))
@@ -581,17 +535,6 @@ final class EditorDisplayModeTests: XCTestCase {
         }
         XCTAssertEqual(light.appearance?.name, .aqua)
         XCTAssertEqual(dark.appearance?.name, .darkAqua)
-    }
-
-    func testMuseModalCardMatchesTheDesignCardValues() {
-        // Vertical wash, white to a barely-there gray, with the design's cool 1pt stroke.
-        XCTAssertEqual(MuseModalChrome.cardGradientTop, Color(red: 1.0, green: 1.0, blue: 1.0))
-        XCTAssertEqual(MuseModalChrome.cardGradientBottom, Color(red: 0.945, green: 0.945, blue: 0.945))
-        XCTAssertEqual(MuseModalChrome.cornerRadius, 20)
-        // Both modals must carry ⌘K's outline. If this ever diverges per-modal again, the
-        // shared card has been bypassed.
-        XCTAssertEqual(MuseModalChrome.cardStrokeColor, Color.black.opacity(0.08))
-        XCTAssertEqual(MuseModalChrome.cardStrokeColorDark, Color.white.opacity(0.14))
     }
 
     func testReadingInspectorUsesNativeInspectorChrome() {

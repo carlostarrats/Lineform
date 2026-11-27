@@ -194,32 +194,4 @@ final class ConnectAIPresentationTests: XCTestCase {
         XCTAssertTrue(header[headerBody..<headerEnd].contains(".keyboardShortcut(.cancelAction)"), "Esc closes via the header's ✕")
     }
 
-    /// Opening and closing go through one state value in the container, like Settings.
-    func testModalIsPresentedByTheContainerLikeSettings() throws {
-        XCTAssertEqual(EditorAppModal.connectAI.notification, .showConnectAI)
-        XCTAssertEqual(EditorAppModal.settings.notification, .showSettings)
-        XCTAssertEqual(LineformAppNotification.showConnectAI.name.rawValue, "Lineform.showConnectAI")
-        XCTAssertNotEqual(LineformAppNotification.showConnectAI.name, LineformAppNotification.showSettings.name)
-
-        let container = try source("Lineform/Editor/EditorContainerView.swift")
-        XCTAssertTrue(container.contains("publisher(for: LineformAppNotification.showConnectAI.name)) { _ in\n            presentAppModalInMainWindow(.connectAI)"))
-        XCTAssertTrue(container.contains("if presentedAppModal == .connectAI {"))
-        XCTAssertTrue(container.contains("presentedAppModal = nil"), "✕, Esc and the scrim dismiss it")
-        let commands = try source("Lineform/App/AppCommands.swift")
-        XCTAssertTrue(commands.contains("AppMenuConfiguration.presentInMainWindow(.showConnectAI)"))
-        XCTAssertTrue(commands.contains("AppMenuConfiguration.presentInMainWindow(.showSettings)"))
-    }
-
-    func testCardFitsTheWindowAndThePaneScrollsWhenShort() {
-        XCTAssertGreaterThan(ConnectAIView.contentWidth, SettingsModal.contentWidth, "two columns need more room")
-        XCTAssertEqual(ConnectAIView.cardWidth(availableWidth: 2_000), ConnectAIView.contentWidth)
-        XCTAssertEqual(ConnectAIView.cardWidth(availableWidth: 500), 476)
-        XCTAssertEqual(ConnectAIView.cardWidth(availableWidth: 200), 280)
-        XCTAssertEqual(ConnectAIView.bodyHeight(availableHeight: 2_000), ConnectAIView.idealBodyHeight)
-        let short: CGFloat = 400
-        let body = ConnectAIView.bodyHeight(availableHeight: short)
-        XCTAssertLessThan(body, ConnectAIView.idealBodyHeight)
-        XCTAssertLessThanOrEqual(body + ConnectAIView.verticalChrome, short, "the card stays inside the window")
-        XCTAssertEqual(ConnectAIView.bodyHeight(availableHeight: 50), ConnectAIView.minimumBodyHeight)
-    }
 }

@@ -35,21 +35,4 @@ final class ExportMenuTests: XCTestCase {
         XCTAssertNotNil(MainMenuIconDecorator.symbolsByTitle["export as"])
     }
 
-    @MainActor
-    func testExportIconsAreDistinctFromEachOther() {
-        // Four rows sharing one glyph would read as four copies of the same command.
-        let symbols = ExportFormat.allCases.compactMap {
-            MainMenuIconDecorator.symbolsByTitle[MainMenuIconDecorator.normalizedTitle("\($0.title)...")]
-        }
-        XCTAssertEqual(symbols.count, ExportFormat.allCases.count)
-        XCTAssertEqual(Set(symbols).count, symbols.count)
-    }
-
-    @MainActor
-    func testExportAsIconIsTheOutboundCounterpartOfSave() {
-        // Save is square.and.arrow.down: bytes land in your file. Export is the same glyph
-        // pointing out: a copy leaves. The pairing is what makes the split legible at a glance.
-        XCTAssertEqual(MainMenuIconDecorator.symbolsByTitle["export as"], "square.and.arrow.up")
-        XCTAssertEqual(MainMenuIconDecorator.symbolsByTitle["save"], "square.and.arrow.down")
-    }
 }

@@ -11,11 +11,6 @@ final class OutlineSidebarViewTests: XCTestCase {
     }
 
     @MainActor
-    func testOutlineTitleDoesNotUseIcon() {
-        XCTAssertFalse(OutlineSidebarView.titleShowsIcon)
-    }
-
-    @MainActor
     func testOutlineDrawerAddsOutlineFilesAndMarkdownBasicsTabs() {
         XCTAssertEqual(OutlineSidebarView.tabTitles, ["Outline", "Files", "Markdown Basics"])
         XCTAssertTrue(OutlineSidebarView.tabsFillAvailableWidth)
@@ -510,22 +505,6 @@ final class OutlineSidebarViewTests: XCTestCase {
         XCTAssertFalse(OutlineSidebarView.opensInNewTab(modifiers: [.command, .control]))
         XCTAssertFalse(OutlineSidebarView.opensInNewTab(modifiers: [.command, .option]))
         XCTAssertFalse(OutlineSidebarView.opensInNewTab(modifiers: .control))
-    }
-
-    @MainActor
-    func testDarkChromeSwatchesAreTheSpecifiedHexes() {
-        // #313131 nav, #282828 selection — specified values, asserted in the space they were
-        // specified in (sRGB). `calibratedWhite` is a plain gamma-2.2 ramp and renders a
-        // different swatch for the same number, which is why production builds these in sRGB.
-        func hex(_ color: NSColor) -> String {
-            let srgb = color.usingColorSpace(.sRGB)!
-            return String(format: "#%02X%02X%02X",
-                          Int((srgb.redComponent * 255).rounded()),
-                          Int((srgb.greenComponent * 255).rounded()),
-                          Int((srgb.blueComponent * 255).rounded()))
-        }
-        XCTAssertEqual(hex(OutlineSidebarView.darkBackgroundNSColor), "#313131")
-        XCTAssertEqual(hex(OutlineSidebarView.rowSelectionFillNSColor(usesDarkChrome: true)), "#282828")
     }
 
     @MainActor

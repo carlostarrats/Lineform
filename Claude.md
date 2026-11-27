@@ -332,8 +332,15 @@ The iPhone app is the `LineformiOS` target in `Lineform.xcodeproj`, with its sou
 identifier (`com.lineform.app`), version and build, and links `LineformCore`. Minimum iOS 26.0,
 iPhone only, portrait only (owner, 2026-11-24). Details: `docs/architecture/iphone-app.md`.
 
-- **Scheme and tests.** The shared `LineformiOS` scheme runs `LineformiOS.xctestplan`:
+- **Scheme and tests.** The shared `LineformiOS` scheme runs `LineformiOS.xctestplan` by default:
   `xcodebuild test -project Lineform.xcodeproj -scheme LineformiOS -destination 'platform=iOS Simulator,name=iPhone 16 Pro,OS=26.5'`.
+  That everyday plan is the unit tests in English, with no UI tests and no performance suites.
+  `LineformiOSRelease.xctestplan` (`-testPlan LineformiOSRelease`) runs only the slow suites:
+  the UI accessibility audits in German, plus `PhonePerformanceBudgetTests` and
+  `StylingPerformanceTests`. German is used because it is the longest of the six languages: if a
+  label fits in German, it fits in every other language. `PhoneCatalogCompletenessTests` checks all six
+  translations in the everyday plan. Run the release plan only before a TestFlight or App Store
+  build, on a simulator with no leftover test documents.
   CI only builds these tests (`build-for-testing` for `generic/platform=iOS Simulator`). The Mac
   scheme and its archive never build the iOS target. Never link `LineformCoreTestSupport` into
   `LineformiOSTests`.
@@ -423,9 +430,18 @@ iPhone only, portrait only (owner, 2026-11-24). Details: `docs/architecture/ipho
   Mac's ⌘K field uses: the theme's hue and two diagonals in light, one near-black wash for every
   dark theme; never on the document screen): Files, Outline, Markdown Basics, Themes,
   Settings, Export & Print, Read Aloud, History (only with history), Connect Your AI, About
-  Lineform. Opening it and navigation are INSTANT (no motion; `WordMenuTiming` measures the open,
-  and nothing on that path may walk the document text — `WordMenuStatusCounts`,
-  `MarkdownEditor.Coordinator.knownText`); the corner button is ✕ on the words and ← in a page (where a round page button at the bottom left goes straight back to the document, owner's option A in `mockups/back-to-document.html`); the name in the status line is tappable and offers Rename… (Files' rename, so the document follows and stops naming itself from its first line); and
+  Lineform. It is a slide-over (owner, 2026-11-26, `mockups/popover-and-split.html`,
+  `MenuSlideOver`): the page card shrinks to 90 % and slides right, leaving an 84 pt strip (tap or
+  drag it to close), the words behind it; a section opens INSIDE the card, which slides back over
+  the words ("page becomes it"); Themes, Read Aloud and History bring the page back first, then
+  act. One fast spring for every move (`MenuSlideOverMotion`, none under Reduce Motion) and a
+  light haptic at an open and a section's choice. Nothing on the open path may walk the document
+  text (`WordMenuTiming`, `WordMenuStatusCounts`, `MarkdownEditor.Coordinator.knownText`). The
+  words have no corner button; in a section ← sits bottom left and the round page button bottom
+  right goes straight back to the document (owner's option A in `mockups/back-to-document.html`).
+  NEVER clip the page card (or the AI split's page): a clip on the document screen breaks the
+  editor's safe-area inset (the text jumps under the mode switch and the switch's glass glitches);
+  corners are COVERED instead (`CornerFillets`, the split's `OutsidePage`); the name in the status line is tappable and offers Rename… (Files' rename, so the document follows and stops naming itself from its first line); and
   every page keeps `WordMenuMetrics.bottomClearance` below its last item. A card (Recent, folder,
   search) opens its document INSTANTLY: the menu closes straight to the page, no expansion or
   fade (owner review 3, 2026-11-24). After a card or search result opens a document, a round
@@ -486,10 +502,14 @@ iPhone only, portrait only (owner, 2026-11-24). Details: `docs/architecture/ipho
   Reformat Table (on a table row), Replace With… (History's, where it can keep the selection),
   Another Word, and Check Spelling last. It
   never changes the system edit menu, and the app's own selections never raise it. Ask AI opens
-  the AI sheet (`AISheetView`: three-quarters, drags to half or a quarter, no ✕), the Mac drawer's
-  conversation; the comment field is no longer opened. The sheet is never gone while its decisions
-  are needed: not swipeable while a request runs or a suggestion waits, brought back if a request
-  starts without it, and a review ends if it goes by any other path.
+  the AI split (`AISplit`, owner, 2026-11-26: the page becomes a rounded top card on a black seam,
+  `AISheetView` is the card under it; the keyboard goes down as it grows; a grabber only, drag up
+  to a sheet, down to close; while the writer types to the AI the choices go, the box grows and the
+  card sits on the keyboard with 14 pt around the field; a liquid melt only during the move), the
+  Mac drawer's conversation; the comment field is no longer opened. The card is never gone while
+  its decisions are needed: it cannot be dragged closed while a request runs or a suggestion waits
+  (`AISheetView.locksDismissal`), it is brought back if a request starts without it, and a review
+  ends if it goes by any other path.
   The review is `AIReviewOverlayTextView`, a read-only overlay with an EMPTY undo manager, and the
   editor refuses every edit path while `isAIReviewActive`; the decisions are the sheet's. Each
   accept is ONE undo group through `applyRuleEdit`. The word menu's Connect Your AI ▸ Ask AI… sends
@@ -517,8 +537,8 @@ iPhone only, portrait only (owner, 2026-11-24). Details: `docs/architecture/ipho
   same `readableInk`, measured by `WordMenuTests`), never a bare `.opacity`/`.secondary` on text. Document text
   follows the reading profile and never tracks Dynamic Type; all chrome does. Anything drawn and
   hit-tested needs a non-visual path (custom actions or a rotor), and nothing a VoiceOver user
-  needs dismisses itself on a timer. `LineformiOSUITests` runs `performAccessibilityAudit()` locally
-  (CI only builds it). Details: `docs/architecture/iphone-app.md`, "Accessibility".
+  needs dismisses itself on a timer. `LineformiOSUITests` runs `performAccessibilityAudit()` in the
+  release plan only (CI only builds it). Details: `docs/architecture/iphone-app.md`, "Accessibility".
 - **Strings.** iPhone strings live in `LineformiOS/Localizable.xcstrings` (six languages), reusing
   the Mac's translation for the same English text. `LocalizationSourceSweepTests` scans
   `LineformiOS/` against that catalog. No iPhone string names a Mac or a sidebar
@@ -560,6 +580,17 @@ certificates, provisioning profiles, or sandbox/bookmark code. Current release s
   1.1.1 file-access bug).
 
 ## Verification Commands
+
+**What to test (owner, 2026-11-26).** This is a note-taking app. Its real failure points are
+losing or corrupting the writer's text: save, autosave, reload, files and folders, History, the AI
+applying an edit to the right text, Markdown editing on odd input (CRLF, a BOM, CJK, NFD), and
+export. Those get tests. Do not add tests that pin a design value (a spacing, size, radius, colour
+hex, icon name, animation end point) or that grep the app's own source for a line of code. The
+owner's simulator review catches design changes, and those tests break on every redesign.
+Thresholds that protect people (AA contrast, 44 pt targets, Reduce Motion) are fine. Every test
+plan has a 60-second per-test timeout, so a hung test fails instead of stalling the run for hours.
+Run only the suites that cover the change while building. Run the everyday plans once before a
+PR, and the release plans only before a TestFlight or App Store build.
 
 Two test plans (`Lineform.xctestplan`, `LineformHosted.xctestplan`). The split exists because a few
 tests host a real `NSWindow` + `NSHostingView`: load-sensitive and prone to test-host crashes.

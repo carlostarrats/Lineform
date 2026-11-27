@@ -97,14 +97,6 @@ final class WordMenuTests: XCTestCase {
         XCTAssertEqual(DocumentScreen.resumeButtonDuration, .seconds(4))
     }
 
-    /// A lone card spans the width; two or more are always half width.
-    func testCardGridRule() {
-        XCTAssertEqual(WordMenuCardGrid<SearchResultCard, EmptyView>.columnCount(for: 1), 1)
-        XCTAssertEqual(WordMenuCardGrid<SearchResultCard, EmptyView>.columnCount(for: 2), 2)
-        XCTAssertEqual(WordMenuCardGrid<SearchResultCard, EmptyView>.columnCount(for: 3), 2)
-        XCTAssertEqual(WordMenuMetrics.cardHeight, 150)
-    }
-
     /// Every ink of the menu clears its ratio on every surface it is drawn on, light and dark.
     func testPaletteContrast() {
         for isDark in [false, true] {
@@ -241,13 +233,6 @@ final class WordMenuTests: XCTestCase {
         XCTAssertEqual(WordMenuMetrics.smallWordRowHeight + 2 * WordMenuWordButton.smallTargetReach, WordMenuMetrics.minimumTarget)
     }
 
-    func testBottomClearanceUsesMoreButtonSize() {
-        XCTAssertEqual(MoreButton.diameter, 48)
-        XCTAssertGreaterThanOrEqual(MoreButton.diameter, WordMenuMetrics.minimumTarget)
-        XCTAssertEqual(MoreButton.diameter, PreviewLinkButton.diameter, "the link and ⋯ buttons are the same size")
-        XCTAssertEqual(DocumentScreen.bottomChromeClearance, MarkdownEditor.chromeMargin + MoreButton.diameter + 8)
-    }
-
     // MARK: - Editor commands
 
     func testReplaceAllIsOneUndoStepAndKeepsCRLF() throws {
@@ -358,4 +343,29 @@ private final class WordMenuBackgroundTasks: BackgroundTaskAsserting {
     }
 
     func endAssertion(_ identifier: UIBackgroundTaskIdentifier) {}
+}
+
+/// The slide-over's and the AI split's numbers (owner, 2026-11-26).
+@MainActor
+final class SlideOverAndSplitMetricsTests: XCTestCase {
+
+    func testMotionsRespectReduceMotion() {
+        XCTAssertNil(MenuSlideOverMotion.open(reduceMotion: true))
+        XCTAssertNil(MenuSlideOverMotion.move(reduceMotion: true))
+        XCTAssertNil(AISplitMetrics.motion(reduceMotion: true))
+        XCTAssertNotNil(MenuSlideOverMotion.open(reduceMotion: false))
+        XCTAssertNotNil(AISplitMetrics.motion(reduceMotion: false))
+    }
+
+    func testTypingHeightSitsOnTheKeyboardAndNeverPassesTheSheet() {
+        let screen: CGFloat = 874
+        let typing = AISplitMetrics.typing(inputArea: 92, keyboard: 336, hasTalk: false, screenHeight: screen)
+        XCTAssertEqual(typing, AISplitMetrics.typingHead + 92 + 336 - AISplitMetrics.inset)
+        let talk = AISplitMetrics.typing(inputArea: 92, keyboard: 336, hasTalk: true, screenHeight: screen)
+        XCTAssertEqual(talk - typing, AISplitMetrics.typingTalk)
+        XCTAssertEqual(
+            AISplitMetrics.typing(inputArea: 900, keyboard: 336, hasTalk: true, screenHeight: screen),
+            AISplitMetrics.sheet(screenHeight: screen)
+        )
+    }
 }

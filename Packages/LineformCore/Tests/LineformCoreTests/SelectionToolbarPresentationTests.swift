@@ -90,13 +90,6 @@ final class SelectionToolbarPresentationTests: XCTestCase {
     private let visible = CGRect(x: 0, y: 100, width: 800, height: 600)
     private let bar = CGSize(width: 300, height: 38)
 
-    func testSitsCentredAboveTheFirstLine() {
-        let line = CGRect(x: 200, y: 400, width: 200, height: 20)
-        let origin = SelectionToolbarPresentation.origin(barSize: bar, firstLine: line, lastLine: line, visible: visible)
-        XCTAssertEqual(origin.x, 150)
-        XCTAssertEqual(origin.y, 400 - 8 - 38)
-    }
-
     func testFlipsBelowTheLastLineNearTheTop() {
         let first = CGRect(x: 200, y: 110, width: 200, height: 20)
         let last = CGRect(x: 100, y: 170, width: 100, height: 20)

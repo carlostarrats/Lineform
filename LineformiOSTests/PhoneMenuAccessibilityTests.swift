@@ -141,7 +141,8 @@ final class PhoneMenuAccessibilityTests: XCTestCase {
                 let word = try XCTUnwrap(elements.first { $0.label == item.title }, "\(item) in \(elements)")
                 XCTAssertTrue(word.isInteractive, item.title)
             }
-            XCTAssertNotNil(elements.first { $0.label == WordMenuCornerButton.Glyph.close.accessibilityLabel }, "\(elements)")
+            // The words have no ✕ of their own: the page card's strip beside them ("Close menu",
+            // `MenuSlideOver`) closes the menu, and Escape does from the words.
             XCTAssertNotNil(elements.first { $0.identifier == "wordMenu.status" }, "\(elements)")
             host.assertInteractiveElementsAreLabelledAndLargeEnough()
             assertNothingRunsOffTheSide(host)
@@ -273,7 +274,8 @@ final class PhoneMenuAccessibilityTests: XCTestCase {
             exportCommands: nil,
             mode: .write,
             aiStore: AIConnectionStore(defaults: defaults, keychain: InMemoryAIKeychain()),
-            onClose: {}, onThemes: {}, onReadAloud: {}, onShowHistoryPassage: { _ in }, onAskAI: {}
+            onClose: {}, onThemes: {}, onReadAloud: {}, onShowHistoryPassage: { _ in }, onAskAI: {},
+            layer: .words
         )
     }
 

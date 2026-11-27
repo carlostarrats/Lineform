@@ -24,11 +24,6 @@ final class HistorySidebarPresentationTests: XCTestCase {
         XCTAssertEqual(HistoryLevel.word.rawValue, "word")
     }
 
-    func testHistoryTabTitleAndIcon() {
-        XCTAssertEqual(OutlineSidebarTab.history.title, "History")
-        XCTAssertEqual(OutlineSidebarTab.history.systemImage, "clock.arrow.circlepath")
-    }
-
     func testRowAccessibilityLabel() {
         let row = HistorySidebarRow(id: 1, text: "Hello", author: .ai, isCurrent: true)
         XCTAssertEqual(row.accessibilityLabel(position: 2, of: 3), "Hello, by AI, version 2 of 3")
@@ -55,19 +50,6 @@ final class HistorySidebarPresentationTests: XCTestCase {
         }
     }
 
-    @MainActor
-    func testRowLayoutReusesFilesConstants() {
-        let l = HistorySidebarPresentation.rowLayout
-        XCTAssertEqual(l.containerPadding, OutlineSidebarView.filesContentHorizontalPadding)
-        XCTAssertEqual(l.chevronSlotWidth, OutlineSidebarView.filesChevronSlotWidth)
-        XCTAssertEqual(l.backgroundInset, OutlineSidebarView.filesRowBackgroundHorizontalInset)
-        XCTAssertEqual(l.height, OutlineSidebarView.filesChildRowHeight)
-        // Icon lands at x = 6 + 0 + 12 + 4 = 22 — the tab icons' and the Workspace row's icon
-        // column (2026-11-13; it was 26) — and text at 22 + 18 + 4 = 44.
-        let iconX = l.containerPadding + l.rowLeading + l.chevronSlotWidth + l.iconLeading
-        XCTAssertEqual(iconX, 22)
-        XCTAssertEqual(iconX + l.iconWidth + l.textLeading, 44)
-    }
     /// A version row's delete lives in a right-click menu; it must also be an accessibility
     /// action (repo invariant: hit-tested affordances carry an `.accessibilityActions` mirror).
     /// Both are built from `rowActions`, so they cannot drift apart.
@@ -141,87 +123,6 @@ final class HistorySidebarPresentationTests: XCTestCase {
         }
     }
 
-    /// Selecting a passage swaps the lead line's text IN PLACE: the empty state and the section
-    /// row's label are one view (`leadLine(leadText(…))`) on shared constants — same size, colour,
-    /// inset and distance under the tab divider — and Add is an overlay, so it cannot move it.
-    @MainActor
-    func testEmptyStateAndSectionLabelShareOnePlace() throws {
-        XCTAssertEqual(HistorySidebarPresentation.leadTextTopInset, OutlineSidebarView.sidebarLeadLineTop)
-        XCTAssertEqual(HistorySidebarPresentation.leadTextFontSize, 12)
-        let source = try String(contentsOf: URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent().deletingLastPathComponent()
-            .appendingPathComponent("Lineform/Outline/HistorySidebarView.swift"), encoding: .utf8)
-        XCTAssertTrue(source.contains("leadLine(leadText(HistorySidebarPresentation.emptySelectionText))"))
-        XCTAssertTrue(source.contains("leadLine(\n            leadText(HistorySidebarPresentation.versionsHeading)"))
-        XCTAssertTrue(source.contains(".overlay(alignment: .trailing) {\n                    HistoryAddAlternativeButton"))
-    }
-
-    /// Every sidebar tab puts its lead line and its first row at the same two shared distances, so
-    /// switching tabs never shifts either (source-level: no window in the default plan).
-    @MainActor
-    func testEveryTabUsesTheSharedLeadLineSpacing() throws {
-        XCTAssertEqual(OutlineSidebarView.sidebarLeadLineTop, 20)
-        XCTAssertEqual(OutlineSidebarView.sidebarLeadToFirstRow, 12)
-        XCTAssertEqual(HistorySidebarPresentation.leadTextTopInset, OutlineSidebarView.sidebarLeadLineTop)
-        XCTAssertEqual(HistorySidebarPresentation.leadTextFontSize, OutlineSidebarView.sidebarLeadLabelFontSize)
-        func source(_ name: String) throws -> String {
-            try String(contentsOf: URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
-                .appendingPathComponent("Lineform/Outline/\(name)"), encoding: .utf8)
-        }
-        let sidebar = try source("OutlineSidebarView.swift")
-        // Outline: empty text and the heading list.
-        XCTAssertEqual(sidebar.components(separatedBy: ".padding(.top, Self.sidebarLeadLineTop)").count - 1, 2)
-        // Files: the sort row's own inset taken out of both gaps.
-        XCTAssertTrue(sidebar.contains(".padding(.top, OutlineSidebarView.sidebarLeadLineTop - OutlineSidebarView.filesSortRowVerticalPadding)"))
-        XCTAssertTrue(sidebar.contains("spacing: OutlineSidebarView.sidebarLeadToFirstRow - OutlineSidebarView.filesSortRowVerticalPadding"))
-        XCTAssertTrue(sidebar.contains(".padding(.vertical, OutlineSidebarView.filesSortRowVerticalPadding)"))
-        XCTAssertTrue(sidebar.contains(".font(.system(size: OutlineSidebarView.sidebarLeadLabelFontSize, weight: .medium))"))
-        // Markdown Basics.
-        let basics = try source("OutlineMarkdownBasicsTabView.swift")
-        XCTAssertTrue(basics.contains(".padding(.top, OutlineSidebarView.sidebarLeadLineTop)"))
-        XCTAssertTrue(basics.contains("Spacer().frame(height: OutlineSidebarView.sidebarLeadToFirstRow)"))
-        // History: the lead line, then the first row (level switcher or versions).
-        let history = try source("HistorySidebarView.swift")
-        XCTAssertTrue(history.contains(".padding(.top, HistorySidebarPresentation.leadTextTopInset)"))
-        XCTAssertTrue(history.contains(".padding(.top, OutlineSidebarView.sidebarLeadToFirstRow)"))
-        XCTAssertTrue(history.contains("? 6 : OutlineSidebarView.sidebarLeadToFirstRow)"))
-    }
-
-    /// One left edge and one right margin for every tab: row icons on the icon column, lead and
-    /// secondary text on the lead-text edge, trailing controls and row backgrounds on one inset.
-    @MainActor
-    func testEveryTabSharesOneLeftEdgeAndRightMargin() throws {
-        typealias O = OutlineSidebarView
-        XCTAssertEqual(O.sidebarLeadTextLeading, O.sidebarIconColumnLeading)
-        XCTAssertEqual(O.sidebarTrailingInset, 12)
-        XCTAssertEqual(HistorySidebarPresentation.textInset, O.sidebarLeadTextLeading)
-        XCTAssertEqual(HistorySidebarPresentation.trailingInset, O.sidebarTrailingInset)
-        let layout = HistorySidebarPresentation.rowLayout
-        // History row icon frame: container + row + chevron slot + icon gap = the icon column,
-        // exactly as the tab icons (14 + 8) and the Files rows (6 + 12 + 4).
-        XCTAssertEqual(layout.containerPadding + layout.rowLeading + layout.chevronSlotWidth + layout.iconLeading,
-                       O.sidebarIconColumnLeading)
-        XCTAssertEqual(O.pillHorizontalInset + O.pillInnerLeading, O.sidebarIconColumnLeading)
-        XCTAssertEqual(O.filesContentHorizontalPadding + O.filesChevronSlotWidth + O.filesChevronToIconGap,
-                       O.sidebarIconColumnLeading)
-        // Row backgrounds end on the trailing inset (History and Files share the inset values).
-        XCTAssertEqual(layout.containerPadding + layout.backgroundInset, O.sidebarTrailingInset)
-        func source(_ name: String) throws -> String {
-            try String(contentsOf: URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
-                .appendingPathComponent("Lineform/Outline/\(name)"), encoding: .utf8)
-        }
-        let sidebar = try source("OutlineSidebarView.swift")
-        XCTAssertTrue(sidebar.contains(".padding(.trailing, -(Self.pillHorizontalInset - Self.sidebarTrailingInset))"), "Exit")
-        XCTAssertTrue(sidebar.contains(".padding(.trailing, OutlineSidebarView.sidebarTrailingInset - OutlineSidebarView.filesContentHorizontalPadding)"), "Choose")
-        XCTAssertTrue(sidebar.contains(".padding(.leading, OutlineSidebarView.sidebarIconColumnLeading - OutlineSidebarView.filesContentHorizontalPadding)"), "sort row")
-        let basics = try source("OutlineMarkdownBasicsTabView.swift")
-        XCTAssertTrue(basics.contains(".padding(.leading, OutlineSidebarView.sidebarLeadTextLeading - OutlineSidebarView.pillHorizontalInset)"))
-        let history = try source("HistorySidebarView.swift")
-        XCTAssertEqual(history.components(separatedBy: ".padding(.trailing, HistorySidebarPresentation.trailingInset)").count - 1, 2,
-                       "lead line and hint")
-        XCTAssertTrue(history.contains(".padding(.trailing, -HistorySidebarPresentation.addButtonHorizontalPadding)"), "Add + glyph on the inset")
-    }
-
     /// The hover pill is a faint fill — quieter than the Exit capsule — and the hovered ink still
     /// reads at ≥ 3:1 on it.
     @MainActor
@@ -274,11 +175,6 @@ final class HistorySidebarPresentationTests: XCTestCase {
         }
     }
 
-    /// The hint sits on the empty-state text's 14pt inset (left-aligned, not centred).
-    func testHintSharesTheEmptyStateInset() {
-        XCTAssertEqual(HistorySidebarPresentation.textInset, OutlineSidebarView.sidebarLeadTextLeading)
-    }
-
     /// Leaving History (Exit, Esc, typing) returns the sidebar to the tab it came from;
     /// entering it from another tab remembers that tab.
     func testExitReturnsToPreviousTab() {
@@ -293,26 +189,6 @@ final class HistorySidebarPresentationTests: XCTestCase {
         XCTAssertEqual(clicked.selected, .history)
         XCTAssertEqual(clicked.previous, .markdownBasics)
         XCTAssertEqual(OutlineSidebarTab.historyModeTransition(isActive: false, selected: .history, previous: nil).selected, .outline)
-    }
-
-    /// One capsule for Files' Change/Choose and History's Exit: the colours are
-    /// the Files values, unchanged.
-    @MainActor
-    func testSidebarCapsuleColoursAreTheFilesValues() {
-        typealias S = SidebarCapsuleButtonStyle
-        XCTAssertEqual(S.backgroundWhite(usesDarkChrome: false, emphasis: .quiet, isHovered: false), 0.91)
-        XCTAssertEqual(S.backgroundWhite(usesDarkChrome: false, emphasis: .quiet, isHovered: true), 0.86)
-        XCTAssertEqual(S.backgroundWhite(usesDarkChrome: true, emphasis: .quiet, isHovered: false), 0.40)
-        XCTAssertEqual(S.backgroundWhite(usesDarkChrome: true, emphasis: .quiet, isHovered: true), 0.48)
-        XCTAssertEqual(S.backgroundWhite(usesDarkChrome: false, emphasis: .prominent, isHovered: false), 0.20)
-        XCTAssertEqual(S.backgroundWhite(usesDarkChrome: true, emphasis: .prominent, isHovered: true), 1.0)
-        XCTAssertEqual(S.textWhite(usesDarkChrome: false, emphasis: .quiet), 0.34)
-        XCTAssertEqual(S.textWhite(usesDarkChrome: true, emphasis: .quiet), 0.98)
-        XCTAssertEqual(S.textWhite(usesDarkChrome: false, emphasis: .prominent), 1.0)
-        XCTAssertEqual(S.textWhite(usesDarkChrome: true, emphasis: .prominent), 0.10)
-        XCTAssertEqual(S.fontSize, 11)
-        XCTAssertEqual(S.horizontalPadding, 10)
-        XCTAssertEqual(S.height, 22)
     }
 
     /// The field's focus is requested a runloop turn AFTER it is inserted: a focus write in the

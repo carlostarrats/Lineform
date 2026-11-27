@@ -46,6 +46,11 @@ struct DocumentScreen: View {
         settings.displayProfile(profileStore.activeProfile, userInterfaceStyle: systemStyle)
     }
     @State private var isShowingMenu = false
+    /// The slide-over: 0 the page fills the screen, 1 the card sits at the strip with the words
+    /// out (`MenuSlideOver`).
+    @State private var menuReveal: CGFloat = 0
+    /// Bumped by every menu move, so a close that a newer move overtook does not finish.
+    @State private var menuMotion = 0
     /// Where the writer is in the word menu: fresh for every ⋯ open, kept after a card opens a
     /// document so the ← at the bottom left can reopen the menu exactly there.
     @State private var menuSession = WordMenuSession()
@@ -304,6 +309,8 @@ struct DocumentScreen: View {
                 }
                 .padding(MarkdownEditor.chromeMargin)
                 .modifier(SelectionRowClearance(keyboard: selection.keyboard, rowShows: selection.phase == .row))
+                // ⋯ fades as the card moves out (the strip is the way back).
+                .opacity(isShowingMenu ? max(0, 1 - menuReveal * 3) : 1)
                 .transition(.opacity)
             }
         }
@@ -322,13 +329,35 @@ struct DocumentScreen: View {
         .overlay {
             SelectionBottomChrome(controller: selection, profile: profile)
         }
-        .overlay(alignment: .bottomTrailing) {
-            // The word menu covers the whole screen, at once (no motion), over every other chrome
-            // but first run.
-            if isShowingMenu {
-                wordMenu
+        // Ask AI: the page becomes the top card of a split, the conversation the bottom one.
+        .modifier(AISplit(selection: selection, conversation: selection.conversation,
+                          profile: profile, reduceMotion: reduceMotion))
+        // The word menu is a slide-over: everything above is the page card, which shrinks and
+        // moves right to show the words behind it, or shows a section inside it. Over every other
+        // chrome but first run.
+        .modifier(MenuSlideOver(
+            reveal: menuReveal,
+            isActive: isShowingMenu,
+            showsPage: !menuSession.navigation.isOnWordList,
+            cardColor: Color(uiColor: Theme.theme(for: profile).backgroundColor),
+            cornerFill: AnyView(WordMenuPalette.forTheme(Theme.theme(for: profile)).wash),
+            words: wordMenu(.words),
+            page: wordMenu(.pages),
+            onStripTap: { closeWordMenu() },
+            onStripDrag: { reveal in
+                menuMotion += 1
+                var transaction = Transaction()
+                transaction.disablesAnimations = true
+                withTransaction(transaction) { menuReveal = min(max(reveal, 0), 1) }
+            },
+            onStripDragEnd: { reveal in
+                if reveal < 0.5 {
+                    closeWordMenu()
+                } else {
+                    withAnimation(MenuSlideOverMotion.move(reduceMotion: reduceMotion)) { menuReveal = 1 }
+                }
             }
-        }
+        ))
         .overlay {
             // Above all the other chrome, so nothing of the document shows through or takes taps.
             if presentsFirstRun {
@@ -380,11 +409,6 @@ struct DocumentScreen: View {
         // staying half-hidden behind it.
         .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillShowNotification)) { _ in
             if isShowingStyling { isShowingStyling = false }
-        }
-        .sheet(isPresented: $selection.isShowingAISheet) {
-            AISheetView(conversation: selection.conversation, profile: profile) { [selection] top in
-                selection.aiCardTopInWindow = top
-            }
         }
         // A tap on the page above the Themes sheet closes it (the mockup's `.tscrim`).
         .modifier(StylingSheetTapCatcher(isShowing: $isShowingStyling))
@@ -547,7 +571,10 @@ struct DocumentScreen: View {
         // ⋯ starts at the word list; the ← (if it showed) goes, and its session with it.
         endResumeOffer()
         menuSession = WordMenuSession()
+        menuMotion += 1
         isShowingMenu = true
+        MenuSlideOverMotion.bump()
+        withAnimation(MenuSlideOverMotion.open(reduceMotion: reduceMotion)) { menuReveal = 1 }
     }
 
     /// The ←: the menu opens again on the session the writer left it in (page, search, scroll).
@@ -560,6 +587,9 @@ struct DocumentScreen: View {
         positionKeeper.editor?.resignFirstResponder()
         session.resumed()
         menuSession = session
+        // Straight back to the page the writer left, inside the card: no motion.
+        menuMotion += 1
+        menuReveal = 0
         isShowingMenu = true
     }
 
@@ -596,9 +626,11 @@ struct DocumentScreen: View {
         session.end()
     }
 
-    /// Closes the menu at once, with no motion. A card or search result that opened a document
-    /// lands straight on the page (the owner's review of 2026-11-24: no card expansion).
-    private func closeWordMenu() {
+    /// Closes the menu. From the words, the card slides back over them first and `then` runs
+    /// once it is (nearly) home: Themes, Read Aloud and the rest act on the page that came back.
+    /// From a section (already inside the card) it is at once: a card or search result that
+    /// opened a document lands straight on the page (the owner's review of 2026-11-24).
+    private func closeWordMenu(then action: (() -> Void)? = nil) {
         // A card or search result opened a document: the ← offers the way back.
         if menuSession.openedDocument {
             WordMenuTiming.end(.openCard)
@@ -606,10 +638,26 @@ struct DocumentScreen: View {
         } else {
             menuSession.end()
         }
-        isShowingMenu = false
+        menuMotion += 1
+        let motion = menuMotion
+        let finish = {
+            guard motion == menuMotion else { return }
+            isShowingMenu = false
+            action?()
+        }
+        if menuReveal > 0.001, let animation = MenuSlideOverMotion.move(reduceMotion: reduceMotion) {
+            withAnimation(animation, completionCriteria: .logicallyComplete) {
+                menuReveal = 0
+            } completion: {
+                finish()
+            }
+        } else {
+            menuReveal = 0
+            finish()
+        }
     }
 
-    private var wordMenu: some View {
+    private func wordMenu(_ layer: WordMenu.Layer) -> some View {
         WordMenu(
             document: document,
             editor: LiveEditorCommands(positionKeeper: positionKeeper, document: document, mode: displayMode),
@@ -623,8 +671,7 @@ struct DocumentScreen: View {
             onClose: { closeWordMenu() },
             onThemes: {
                 WordMenuTiming.begin(.themes)
-                closeWordMenu()
-                isShowingStyling = true
+                closeWordMenu { isShowingStyling = true }
             },
             onReadAloud: { readAloudFromMenu() },
             onShowHistoryPassage: { id in showHistoryFromMenu(passage: id) },
@@ -633,7 +680,15 @@ struct DocumentScreen: View {
                 // Once the menu is gone: the policy may ask for a confirmation.
                 Task { @MainActor in selection.askAIForWholeDocument() }
             },
-            session: menuSession
+            session: menuSession,
+            layer: layer,
+            onPageOpened: {
+                MenuSlideOverMotion.bump()
+                withAnimation(MenuSlideOverMotion.move(reduceMotion: reduceMotion)) { menuReveal = 0 }
+            },
+            onBackToWords: {
+                withAnimation(MenuSlideOverMotion.move(reduceMotion: reduceMotion)) { menuReveal = 1 }
+            }
         )
     }
 
@@ -641,9 +696,10 @@ struct DocumentScreen: View {
     /// whole document in Read); its pill shows beside the ⋯ button. Already reading, the pill is
     /// already there.
     private func readAloudFromMenu() {
-        closeWordMenu()
-        guard let exportCommands, exportCommands.speechState == .idle else { return }
-        ExportRows.perform(.start, commands: exportCommands, selection: positionKeeper.editor?.selectedRange, mode: displayMode)
+        closeWordMenu {
+            guard let exportCommands, exportCommands.speechState == .idle else { return }
+            ExportRows.perform(.start, commands: exportCommands, selection: positionKeeper.editor?.selectedRange, mode: displayMode)
+        }
     }
 
     /// The word menu's History (D10): the menu closes, Write comes up, and History mode opens on

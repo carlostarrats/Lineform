@@ -1,0 +1,40 @@
+{
+  "configurations" : [
+    {
+      "id" : "5A1E4B2C-0000-4000-8000-000000000202",
+      "name" : "Release (German)",
+      "options" : {
+        "language" : "de",
+        "region" : "DE"
+      }
+    }
+  ],
+  "defaultOptions" : {
+    "language" : "en",
+    "region" : "US",
+    "testTimeoutsEnabled" : true,
+    "defaultTestExecutionTimeAllowance" : 60,
+    "maximumTestExecutionTimeAllowance" : 600
+  },
+  "testTargets" : [
+    {
+      "target" : {
+        "containerPath" : "container:Lineform.xcodeproj",
+        "identifier" : "1F0000430000000000000002",
+        "name" : "LineformiOSTests"
+      },
+      "selectedTests" : [
+        "PhonePerformanceBudgetTests",
+        "StylingPerformanceTests"
+      ]
+    },
+    {
+      "target" : {
+        "containerPath" : "container:Lineform.xcodeproj",
+        "identifier" : "1F0000E20000000000000008",
+        "name" : "LineformiOSUITests"
+      }
+    }
+  ],
+  "version" : 1
+}
