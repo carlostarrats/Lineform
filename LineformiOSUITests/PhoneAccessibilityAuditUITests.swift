@@ -4,7 +4,7 @@ import XCTest
 /// Runs Xcode's accessibility audit (`performAccessibilityAudit`) on each main iPhone screen: the
 /// document in Write and Read, the Menu sheet's sections, the Styling sheet and first run. Each
 /// screen runs at the default text size and at the largest accessibility size (AX5), in the test
-/// plan's language (the Default configuration is English, the `de` one German).
+/// plan's language (`LineformiOSRelease.xctestplan` runs it in German, the longest language).
 ///
 /// A local gate: CI only builds the iPhone tests (`build-for-testing`), it never runs them.
 /// Every issue the test ignores is matched by one rule in `AuditExceptions`, with its reason.

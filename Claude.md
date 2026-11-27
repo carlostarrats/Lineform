@@ -335,9 +335,12 @@ iPhone only, portrait only (owner, 2026-11-24). Details: `docs/architecture/ipho
 - **Scheme and tests.** The shared `LineformiOS` scheme runs `LineformiOS.xctestplan` by default:
   `xcodebuild test -project Lineform.xcodeproj -scheme LineformiOS -destination 'platform=iOS Simulator,name=iPhone 16 Pro,OS=26.5'`.
   That everyday plan is the unit tests in English, with no UI tests and no performance suites.
-  `LineformiOSRelease.xctestplan` (`-testPlan LineformiOSRelease`) adds the German pass, the UI
-  accessibility audits and `PhonePerformanceBudgetTests`/`StylingPerformanceTests`. Run it only
-  before a TestFlight or App Store build, on a simulator with no leftover test documents.
+  `LineformiOSRelease.xctestplan` (`-testPlan LineformiOSRelease`) runs only the slow suites:
+  the UI accessibility audits in German, plus `PhonePerformanceBudgetTests` and
+  `StylingPerformanceTests`. German is used because it is the longest of the six languages: if a
+  label fits in German, it fits in every other language. `PhoneCatalogCompletenessTests` checks all six
+  translations in the everyday plan. Run the release plan only before a TestFlight or App Store
+  build, on a simulator with no leftover test documents.
   CI only builds these tests (`build-for-testing` for `generic/platform=iOS Simulator`). The Mac
   scheme and its archive never build the iOS target. Never link `LineformCoreTestSupport` into
   `LineformiOSTests`.

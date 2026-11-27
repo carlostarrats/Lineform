@@ -1,13 +1,8 @@
 {
   "configurations" : [
     {
-      "id" : "5A1E4B2C-0000-4000-8000-000000000201",
-      "name" : "Release",
-      "options" : {}
-    },
-    {
       "id" : "5A1E4B2C-0000-4000-8000-000000000202",
-      "name" : "de",
+      "name" : "Release (German)",
       "options" : {
         "language" : "de",
         "region" : "DE"
@@ -27,7 +22,11 @@
         "containerPath" : "container:Lineform.xcodeproj",
         "identifier" : "1F0000430000000000000002",
         "name" : "LineformiOSTests"
-      }
+      },
+      "selectedTests" : [
+        "PhonePerformanceBudgetTests",
+        "StylingPerformanceTests"
+      ]
     },
     {
       "target" : {

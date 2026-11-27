@@ -1845,10 +1845,12 @@ material.
   (`TestProcessAccessibility`, through `libAccessibility`'s `_AXS…` functions) and restores both
   after the last. Test code only; the app never calls it. Every test that finds a SwiftUI control
   by its label depends on it, not only the accessibility suites.
-- **German.** `LineformiOS.xctestplan` has two configurations: Default (English) and `de`. The
-  same tests run in both, so every hosted layout check also covers German, the longest of the six
-  languages. A test that pins English copy calls `skipUnlessEnglishInterface()` and is skipped in
-  the `de` run.
+- **German (2026-11-26).** The everyday `LineformiOS.xctestplan` runs in English only. The
+  release-only `LineformiOSRelease.xctestplan` runs the UI audit (and the two performance suites)
+  in German, the longest of the six languages. That is where clipped text shows up, and if German fits,
+  the others fit. Before this change, the whole unit suite ran a second time in German, which doubled
+  the run for language-independent tests. `skipUnlessEnglishInterface()` stays for a test that
+  pins English copy.
 - **`PhoneCatalogCompletenessTests`** reads the committed iPhone and package catalogs. Every
   translatable key has all six languages, every unit is `translated` (never `new`, `needs_review`
   or `stale`), no value is empty, and every value's format specifiers match the English.
