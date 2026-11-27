@@ -339,9 +339,12 @@ final class AIReviewTests: XCTestCase {
         XCTAssertTrue(overlay.undoManager !== editor.undoManager)
         XCTAssertNotNil(overlay.accessibilityCustomActions?.first { $0.name == AIReviewCardsPresentation.accessibilityActionTitles()[0] })
 
-        // The decisions are the AI sheet's (2026-11-24): no card is drawn over the page.
-        // (The sheet itself, presented beside the page, holds them.)
-        XCTAssertNil(Self.element(AIReviewCardPresentation.buttonTitles.accept, in: try XCTUnwrap(window.rootViewController?.view)))
+        // The decisions are the AI card's (2026-11-24; the split, 2026-11-26): no card is drawn
+        // over the page. The review brought the split back, so Accept may be on screen — inside
+        // the AI card, below its top, never over the passage.
+        if let accept = Self.element(AIReviewCardPresentation.buttonTitles.accept, in: try XCTUnwrap(window.rootViewController?.view)) {
+            XCTAssertGreaterThanOrEqual(accept.accessibilityFrame.minY, selection.aiCardTopInWindow - 1)
+        }
         XCTAssertEqual(selection.phase, .hidden)
 
         // Hardware keys: Return accepts.
@@ -358,8 +361,9 @@ final class AIReviewTests: XCTestCase {
     }
 
     /// After a whole-document review, the overlay hands its scroll position back by character and
-    /// the editor takes the focus again. The caret goes to the change's end (far down), and the
-    /// focus must not scroll there: the restored position stays (fix after the step 8 review).
+    /// the editor takes the focus again when the AI card closes (the split keeps the keyboard down
+    /// while it is up). The caret goes to the change's end (far down), and the focus must not
+    /// scroll there: the restored position stays (fix after the step 8 review).
     func testReviewEndKeepsRestoredScrollWhenEditorRegainsFocus() async throws {
         let paragraph = "This sentence is here to fill the page with text."
         let text = Array(repeating: paragraph, count: 80).joined(separator: "\n\n") + "\n"
@@ -368,9 +372,10 @@ final class AIReviewTests: XCTestCase {
                 segment.replacingOccurrences(of: "here", with: "there")
             }))
         let window = try XCTUnwrap(self.window)
-        // The sheet is up, as it is whenever a review runs (it comes back if it was not).
+        // The card is up, as it is whenever a review runs (it comes back if it was not). Opened
+        // from the format row, it puts the keyboard away.
         selection.isShowingAISheet = true
-        try await spin { window.rootViewController?.presentedViewController != nil }
+        try await spin { selection.aiCardTopInWindow.isFinite }
         for _ in 0..<15 {
             try await Task.sleep(for: .milliseconds(20))
             window.layoutIfNeeded()
@@ -396,6 +401,8 @@ final class AIReviewTests: XCTestCase {
         ai.handle(.acceptCurrent)
         XCTAssertEqual(ai.state, .idle)
         try await spin { Self.find(AIReviewOverlayTextView.self, in: window) == nil }
+        // The writer closes the card: the keyboard (and the focus) come back.
+        selection.isShowingAISheet = false
         try await spin { editor.isFirstResponder }
         for _ in 0..<15 {
             try await Task.sleep(for: .milliseconds(20))

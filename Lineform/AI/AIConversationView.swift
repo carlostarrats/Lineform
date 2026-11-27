@@ -26,6 +26,10 @@ struct AIConversationView: View {
     let style: AIConversationStyle
     /// The Mac's drawer has a close button; the iPhone's sheet closes by dragging down.
     var onClose: (() -> Void)?
+    /// The iPhone's split card (nil on the Mac): while the writer types to the AI the start's
+    /// choices go and the box is the tall one; otherwise the box is compact. The card sizes
+    /// itself around the input area, so it reports that area's height.
+    var phoneLayout: AIPhoneLayout? = nil
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var inputHeight: CGFloat = 0
@@ -87,6 +91,28 @@ struct AIConversationView: View {
         if conversation.hasStarted {
             AIThreadView(conversation: conversation, style: style)
                 .transition(.opacity)
+        } else if phoneLayout?.isTyping == true {
+            // Typing on the iPhone: the choices go, and the card sinks onto the keyboard.
+            Spacer(minLength: 0)
+        } else if phoneLayout != nil {
+            // The iPhone's card is shorter than the choices: they scroll above the box, fading out
+            // 14 pt above it (the mockup's `.cbody`).
+            GeometryReader { proxy in
+                ScrollView {
+                    startGroup
+                        .frame(minHeight: proxy.size.height)
+                }
+                .scrollBounceBehavior(.basedOnSize)
+                .scrollIndicators(.hidden)
+                .mask {
+                    VStack(spacing: 0) {
+                        Color.black
+                        LinearGradient(colors: [.black, .clear], startPoint: .top, endPoint: .bottom)
+                            .frame(height: 14)
+                    }
+                }
+            }
+            .transition(.opacity)
         } else {
             startGroup
                 .transition(.opacity)
@@ -142,7 +168,8 @@ struct AIConversationView: View {
                 .disabled(pending.suggestion.isRetrying)
                 .transition(.opacity)
             }
-            AIInputBox(conversation: conversation, style: style)
+            AIInputBox(conversation: conversation, style: style,
+                       minHeight: phoneLayout.map { $0.isTyping ? metrics.inputMinHeight : AIPhoneLayout.compactInputHeight })
         }
         .padding(.horizontal, metrics.inputInset)
         .padding(.top, 8)
@@ -150,10 +177,23 @@ struct AIConversationView: View {
         .background(GeometryReader { proxy in
             Color.clear.preference(key: AIInputHeightKey.self, value: proxy.size.height)
         })
-        .onPreferenceChange(AIInputHeightKey.self) { inputHeight = $0 }
+        .onPreferenceChange(AIInputHeightKey.self) { height in
+            inputHeight = height
+            phoneLayout?.onInputAreaHeight(height)
+        }
         .animation(EditorMotionPolicy.animation(.easeInOut(duration: 0.22), reduceMotion: reduceMotion),
                    value: conversation.pendingSuggestion?.id)
     }
+}
+
+/// How the iPhone's split card shows the conversation (`AIConversationView.phoneLayout`).
+struct AIPhoneLayout {
+    /// The writer is typing to the AI (the keyboard is up for the input).
+    var isTyping: Bool
+    /// The input area's height (pills, box and their padding) as laid out.
+    var onInputAreaHeight: (CGFloat) -> Void
+    /// The box's height while the writer is not typing (the mockup's single line).
+    static let compactInputHeight: CGFloat = 44
 }
 
 private struct AIInputHeightKey: PreferenceKey {
@@ -224,7 +264,7 @@ struct AIConversationMetrics {
     static let current = AIConversationMetrics(
         bodySize: 15, noteSize: 13, noteWidth: 280, startSpacing: 18, sidePadding: 16, quickSize: 15,
         quickPadding: 12, pillSize: 14, pillPadding: 10, inputSize: 16, inputMinHeight: 64, inputMaxHeight: 160,
-        inputInset: 12, inputBottom: 12, sendSide: 32, chipSize: 14, chipPaddingV: 9, chipPaddingH: 14,
+        inputInset: 14, inputBottom: 14, sendSide: 32, chipSize: 14, chipPaddingV: 9, chipPaddingH: 14,
         applyHeight: 44, applyFullWidth: true, closeSide: 36, versionButtonSide: 28, cardInset: 10, minimumTarget: 44)
     #endif
 }
@@ -680,6 +720,8 @@ private struct AIWorkingBubble: View {
 private struct AIInputBox: View {
     @ObservedObject var conversation: AIConversation
     let style: AIConversationStyle
+    /// The box's least height (the metrics' when nil).
+    var minHeight: CGFloat? = nil
     @State private var height: CGFloat = AIConversationMetrics.current.inputMinHeight
 
     var body: some View {
@@ -687,7 +729,7 @@ private struct AIInputBox: View {
         let canSend = conversation.canSend
         ZStack(alignment: .bottomTrailing) {
             AIPromptTextView(conversation: conversation, style: style, height: $height)
-                .frame(height: min(max(height, metrics.inputMinHeight), metrics.inputMaxHeight))
+                .frame(height: min(max(height, minHeight ?? metrics.inputMinHeight), metrics.inputMaxHeight))
                 .overlay(alignment: .topLeading) {
                     if conversation.draft.isEmpty {
                         Text(AIConversationPresentation.placeholder)

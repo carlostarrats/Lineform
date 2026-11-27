@@ -359,3 +359,49 @@ private final class WordMenuBackgroundTasks: BackgroundTaskAsserting {
 
     func endAssertion(_ identifier: UIBackgroundTaskIdentifier) {}
 }
+
+/// The slide-over's and the AI split's numbers (owner, 2026-11-26).
+@MainActor
+final class SlideOverAndSplitMetricsTests: XCTestCase {
+    func testSlideOverEnds() {
+        XCTAssertEqual(MenuSlideOverMotion.cardScale(0), 1)
+        XCTAssertEqual(MenuSlideOverMotion.cardScale(1), 0.9, accuracy: 0.0001)
+        XCTAssertEqual(MenuSlideOverMotion.cardScale(2), 0.9, accuracy: 0.0001, "clamped")
+        XCTAssertEqual(MenuSlideOverMotion.cardOffset(0, width: 402), 0)
+        // The card's left edge leaves an 84 pt strip at the right.
+        XCTAssertEqual(402 - MenuSlideOverMotion.cardOffset(1, width: 402), 84)
+        XCTAssertEqual(MenuSlideOverMotion.wordsOpacity(0), 0)
+        XCTAssertEqual(MenuSlideOverMotion.wordsOpacity(1), 1)
+    }
+
+    func testMotionsRespectReduceMotion() {
+        XCTAssertNil(MenuSlideOverMotion.open(reduceMotion: true))
+        XCTAssertNil(MenuSlideOverMotion.move(reduceMotion: true))
+        XCTAssertNil(AISplitMetrics.motion(reduceMotion: true))
+        XCTAssertNotNil(MenuSlideOverMotion.open(reduceMotion: false))
+        XCTAssertNotNil(AISplitMetrics.motion(reduceMotion: false))
+    }
+
+    func testSplitRests() {
+        let screen: CGFloat = 874
+        let split = AISplitMetrics.split(screenHeight: screen)
+        let sheet = AISplitMetrics.sheet(screenHeight: screen)
+        XCTAssertLessThan(AISplitMetrics.pill, split)
+        XCTAssertLessThan(split, sheet)
+        XCTAssertEqual(AISplitMetrics.snap(0, screenHeight: screen), AISplitMetrics.pill)
+        XCTAssertEqual(AISplitMetrics.snap(split + 10, screenHeight: screen), split)
+        XCTAssertEqual(AISplitMetrics.snap(screen, screenHeight: screen), sheet)
+    }
+
+    func testTypingHeightSitsOnTheKeyboardAndNeverPassesTheSheet() {
+        let screen: CGFloat = 874
+        let typing = AISplitMetrics.typing(inputArea: 92, keyboard: 336, hasTalk: false, screenHeight: screen)
+        XCTAssertEqual(typing, AISplitMetrics.typingHead + 92 + 336 - AISplitMetrics.inset)
+        let talk = AISplitMetrics.typing(inputArea: 92, keyboard: 336, hasTalk: true, screenHeight: screen)
+        XCTAssertEqual(talk - typing, AISplitMetrics.typingTalk)
+        XCTAssertEqual(
+            AISplitMetrics.typing(inputArea: 900, keyboard: 336, hasTalk: true, screenHeight: screen),
+            AISplitMetrics.sheet(screenHeight: screen)
+        )
+    }
+}

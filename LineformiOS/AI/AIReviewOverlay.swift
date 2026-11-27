@@ -603,7 +603,8 @@ struct AIReviewOverlay: UIViewRepresentable {
     /// across the keyboard's arrival, unless the writer starts scrolling.
     static let offsetHoldDelays: [TimeInterval] = [0, 0.05, 0.15, 0.3, 0.5]
 
-    private static func holdOffset(_ offset: CGPoint, of editor: UIScrollView) {
+    /// Also the AI split's close, which hands the focus back the same way.
+    static func holdOffset(_ offset: CGPoint, of editor: UIScrollView) {
         // Held as a distance below the top inset, not a raw offset: the inset moves while the
         // keyboard arrives (the safe area changes under it), and a raw offset re-asserted then
         // landed that much off the handed-back line.

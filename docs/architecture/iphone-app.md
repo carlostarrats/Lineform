@@ -798,6 +798,28 @@ path; copy it into `LineformiOSTests/Fixtures/export-parity/` in its own commit.
 
 ## The word menu
 
+> **2026-11-26 — the slide-over** (owner; mockup `Lineform-mobile/docs/mockups/popover-and-split.html`).
+> The "instant, no motion" rules below are superseded for the open and for navigation; opening a
+> document from a card stays instant. ⋯ shrinks the page to a card (90 %, 40 pt corners) and slides
+> it right to an 84 pt strip; the word list (`WordMenu(layer: .words)`) lies behind it on the
+> usual wash. The strip is the "Close menu" button (tap; or drag it, closing past halfway). A word's
+> page opens INSIDE the card (`WordMenu(layer: .pages)`, the same `WordMenuSession`), which slides
+> back over the words; ← at the bottom left goes back a page and, at the first page, slides the card
+> out to the words again (`onBackToWords`); the round page button bottom right still goes straight
+> to the document, and `ResumeMenuButton` ("Back to Files") is unchanged. Themes, Read Aloud and
+> History close first, then act (`DocumentScreen.closeWordMenu(then:)`). Motion: one spring for
+> every move, ≈0.2 s to open and ≈0.15 s for the rest (`MenuSlideOverMotion`, the mockup ×3),
+> none under Reduce Motion; a light `UIImpactFeedbackGenerator` bump at an open and at a choice.
+> The words have no ✕; Esc closes from the words.
+>
+> **Never clip the page card.** A `clipShape`/`mask` on the document screen breaks the
+> `UITextView`'s safe-area / `adjustedContentInset`: the text moved up under the mode switch and the
+> switch's Liquid Glass glitched (Preview's label vanished). The card's corners are COVERED with the
+> words' wash plus the card's own shadow (`CornerFillets`, even-odd), and the AI split covers what
+> lies outside its page with the seam (`OutsidePage`). The card's geometry is full-screen
+> (`onGeometryChange` with the safe-area insets), because the content's layout frame is the
+> safe-area frame.
+
 One quiet ⋯ button (`MoreButton`, bottom right, 48 pt, the floating-card chrome, accessibility
 label "Menu") replaced the Menu and Aa buttons. It opens `WordMenu` over the whole screen, AT ONCE:
 an overlay on `DocumentScreen` (not a sheet), above every other chrome but first run. Opening it
@@ -1442,6 +1464,19 @@ of `render()`), rebuilt value for value on 2026-11-24 and checked side by side i
   limit it refuses on the message card).
 
 ## AI actions and the review
+
+> **2026-11-26 — the AI split** (owner; mockup `popover-and-split.html`). The system sheet is gone:
+> `AISplit` (in `AI/AISheet.swift`) draws the page as a rounded top card (scaled 8 % down and
+> moved 14 pt towards the sheet state, never resized or clipped) over a black seam (fallback
+> saved: #D9DADD light, #141414 dark, `AISplitMetrics.fallbackSeam*`), and `AISheetView` in a card
+> under it. Rests: closed, split (the page keeps 52 %) and sheet (58 pt from the top); the grabber
+> drags between them with rubber-banding, and a drag to close while `locksDismissal` holds goes back
+> to the split. Opening puts the editor's keyboard away and closing gives it back if it had it.
+> While the writer types to the AI (keyboard up, editor not first responder) the quick actions go,
+> the field grows to 64 pt and the card sits on the keyboard (`AISplitMetrics.typing`), 14 pt on
+> each side of the field. The liquid melt (`SplitMelt`, a blurred, alpha-thresholded Canvas) draws
+> only during the move. `selection.aiCardTopInWindow` follows the card, so the review overlay keeps
+> the current change above it. Every rule below about the sheet holds for the card.
 
 > **2026-11-24:** `AIReviewCardsView` is gone. Progress, messages, Find's count and the decisions
 > (Accept / Reject / Try Again, versions, blanks) live in the AI sheet; the review overlay below is
